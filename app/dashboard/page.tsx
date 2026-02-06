@@ -1,0 +1,837 @@
+'use client'
+
+import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+
+interface MonthSummary {
+  year: number
+  month: number
+  monthName: string
+  totals: {
+    deposits: number
+    debitAndCredit: number
+    debit: number
+    credit: number
+    fleet: number
+    vouchers: number
+    inhouse: number
+    grandTotal: number
+  }
+  status: {
+    lastShift: {
+      date: string
+      shift: string
+      createdAt: string
+    } | null
+    pendingReviewCount: number
+    incompleteDaysCount: number
+    totalOverShort: number
+  }
+}
+
+interface FuelExpenseSummary {
+  month: string
+  grandTotal: number
+}
+
+interface UpcomingEvent {
+  type: 'birthday' | 'invoice' | 'contract' | 'other'
+  title: string
+  date: string
+  daysUntil: number
+  priority: 'high' | 'medium' | 'low'
+}
+
+interface RecentFuelPayment {
+  invoices: {
+    invoiceNumber: string
+    amount: string
+  }[]
+  datePaid: string
+  referenceNumber: string
+  totalPaid: string
+  availableBalance: string
+}
+
+interface CustomerArSummary {
+  id: string
+  year: number
+  month: number
+  opening: number
+  charges: number
+  payments: number
+  closing: number | null
+  notes: string
+}
+
+type MonthFilterType = 'currentMonth' | 'previousMonth' | 'custom'
+
+export default function DashboardPage() {
+  const router = useRouter()
+  const [summary, setSummary] = useState<MonthSummary | null>(null)
+  const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([])
+  const [recentPayment, setRecentPayment] = useState<RecentFuelPayment | null>(null)
+  const [fuelExpense, setFuelExpense] = useState<number | null>(null)
+  const [arSummary, setArSummary] = useState<CustomerArSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
+  const [customStartDate, setCustomStartDate] = useState<string>('')
+  const [customEndDate, setCustomEndDate] = useState<string>('')
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const customPickerRef = useRef<HTMLDivElement>(null)
+  const [showReportsDropdown, setShowReportsDropdown] = useState(false)
+  const reportsDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close custom picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customPickerRef.current && !customPickerRef.current.contains(event.target as Node)) {
+        setShowCustomPicker(false)
+      }
+      if (reportsDropdownRef.current && !reportsDropdownRef.current.contains(event.target as Node)) {
+        setShowReportsDropdown(false)
+      }
+    }
+
+    if (showCustomPicker || showReportsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showCustomPicker, showReportsDropdown])
+
+  useEffect(() => {
+    fetchSummary()
+    fetchUpcoming()
+    fetchRecentPayment()
+  }, [activeFilter, customStartDate, customEndDate])
+
+  // Fetch A/R summary when summary data changes (respects month filter)
+  useEffect(() => {
+    if (summary?.year && summary?.month) {
+      fetchArSummary(summary.year, summary.month)
+    } else {
+      setArSummary(null)
+    }
+  }, [summary])
+
+  const getMonthRange = (
+    filter: MonthFilterType
+  ): { year: number; month: number } | null => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (filter === 'currentMonth') {
+      return {
+        year: today.getFullYear(),
+        month: today.getMonth() + 1 // 1-indexed
+      }
+    }
+
+    if (filter === 'previousMonth') {
+      const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      return {
+        year: prevMonth.getFullYear(),
+        month: prevMonth.getMonth() + 1 // 1-indexed
+      }
+    }
+
+    if (filter === 'custom') {
+      // Custom: use selected month-year, or fall back to current month
+      if (customStartDate) {
+        const [yearStr, monthStr] = customStartDate.split('-')
+        const year = Number(yearStr)
+        const month = Number(monthStr)
+        if (!Number.isNaN(year) && !Number.isNaN(month)) {
+          return { year, month }
+        }
+      }
+      return {
+        year: today.getFullYear(),
+        month: today.getMonth() + 1
+      }
+    }
+
+    return null
+  }
+
+  const fetchSummary = async () => {
+    setLoading(true)
+    try {
+      let url = '/api/dashboard/month-summary'
+      const range = getMonthRange(activeFilter)
+      
+      if (range) {
+        const params = new URLSearchParams()
+        params.append('year', range.year.toString())
+        params.append('month', range.month.toString())
+        url += `?${params.toString()}`
+      }
+
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error('Failed to fetch summary')
+      }
+      const data: MonthSummary = await res.json()
+      setSummary(data)
+
+      // Keep fuel expense aligned with whatever month the summary resolves to
+      if (data?.year && data?.month) {
+        try {
+          const monthKey = `${data.year}-${String(data.month).padStart(2, '0')}`
+          const fuelRes = await fetch(`/api/fuel-payments/monthly?month=${monthKey}`)
+          if (fuelRes.ok) {
+            const fuelData: FuelExpenseSummary = await fuelRes.json()
+            setFuelExpense(fuelData.grandTotal)
+          } else {
+            setFuelExpense(null)
+          }
+        } catch (error) {
+          console.error('Error fetching monthly fuel expense summary:', error)
+          setFuelExpense(null)
+        }
+      } else {
+        setFuelExpense(null)
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard summary:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchUpcoming = async () => {
+    try {
+      const res = await fetch('/api/dashboard/upcoming')
+      if (!res.ok) {
+        throw new Error('Failed to fetch upcoming events')
+      }
+      const data = await res.json()
+      setUpcoming(data)
+    } catch (error) {
+      console.error('Error fetching upcoming events:', error)
+    }
+  }
+
+  const fetchRecentPayment = async () => {
+    try {
+      const res = await fetch('/api/fuel-payments/recent')
+      if (!res.ok) {
+        throw new Error('Failed to fetch recent fuel payment')
+      }
+      const data = await res.json()
+      setRecentPayment(data)
+    } catch (error) {
+      console.error('Error fetching recent fuel payment:', error)
+    }
+  }
+
+  const fetchArSummary = async (year: number, month: number) => {
+    try {
+      const res = await fetch(`/api/customer-accounts/monthly?year=${year}&month=${month}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch A/R summary')
+      }
+      const data = await res.json()
+      // API returns an array, get the first (and should be only) result
+      if (Array.isArray(data) && data.length > 0) {
+        setArSummary(data[0])
+      } else {
+        setArSummary(null)
+      }
+    } catch (error) {
+      console.error('Error fetching A/R summary:', error)
+      setArSummary(null)
+    }
+  }
+
+  const formatCurrency = (num: number): string => {
+    return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  }
+
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  const formatDateTime = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <div className="flex gap-4">
+            <button
+              onClick={() => router.push('/settings')}
+              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+              title="Settings"
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={() => router.push('/shifts')}
+              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+            >
+              Shift List
+            </button>
+            <button
+              onClick={() => router.push('/days')}
+              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+            >
+              Day Reports
+            </button>
+            <div className="relative" ref={reportsDropdownRef}>
+              <button
+                onClick={() => setShowReportsDropdown(!showReportsDropdown)}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 flex items-center gap-1"
+              >
+                Reports
+                <span className="text-xs">▼</span>
+              </button>
+              {showReportsDropdown && (
+                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 min-w-[180px]">
+                  <button
+                    onClick={() => {
+                      router.push('/reports')
+                      setShowReportsDropdown(false)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
+                  >
+                    Reports Center
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/customer-accounts')
+                      setShowReportsDropdown(false)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg"
+                  >
+                    Customer Accounts
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => router.push('/staff')}
+              className="px-4 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700"
+            >
+              Staff
+            </button>
+            <button
+              onClick={() => router.push('/fuel-payments')}
+              className="px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-700"
+            >
+              Fuel Payments
+            </button>
+          </div>
+        </div>
+
+        {/* Month Filter */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setActiveFilter('currentMonth')
+                setCustomStartDate('')
+                setCustomEndDate('')
+                setShowCustomPicker(false)
+              }}
+              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                activeFilter === 'currentMonth'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Current Month
+            </button>
+            <button
+              onClick={() => {
+                setActiveFilter('previousMonth')
+                setCustomStartDate('')
+                setCustomEndDate('')
+                setShowCustomPicker(false)
+              }}
+              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                activeFilter === 'previousMonth'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Previous Month
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setActiveFilter('custom')
+                  setShowCustomPicker(!showCustomPicker)
+                }}
+                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                  activeFilter === 'custom'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Custom{' '}
+                {activeFilter === 'custom' && customStartDate
+                  ? `(${customStartDate})`
+                  : '▼'}
+              </button>
+              {showCustomPicker && (
+                <div ref={customPickerRef} className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
+                  <div className="mb-2 text-sm font-semibold text-gray-700">
+                    Select Month
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">
+                        Month
+                      </label>
+                      <input
+                        type="month"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {activeFilter !== 'currentMonth' && summary && (
+              <span className="text-sm text-gray-600 ml-2">
+                Showing: {summary.monthName} {summary.year}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Month-to-Date Summary Card */}
+        {summary && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-700">
+                Summary ({summary.monthName} {summary.year})
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {activeFilter === 'currentMonth'
+                  ? 'Running totals for the current month'
+                  : `Totals for ${summary.monthName} ${summary.year}`}
+              </p>
+            </div>
+
+            {/* Metrics Grid - cash-style inflows only */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-3">
+              {/* Total Deposits */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="text-xs font-medium text-blue-700 mb-1">Total Deposits</div>
+                <div className="text-2xl font-bold text-blue-900">
+                  ${formatCurrency(summary.totals.deposits)}
+                </div>
+              </div>
+
+              {/* Total Debit & Credit */}
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <div className="text-xs font-medium text-purple-700 mb-1">Debit & Credit</div>
+                <div className="text-2xl font-bold text-purple-900">
+                  ${formatCurrency(summary.totals.debitAndCredit)}
+                </div>
+              </div>
+
+              {/* Total Fleet */}
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="text-xs font-medium text-green-700 mb-1">Total Fleet</div>
+                <div className="text-2xl font-bold text-green-900">
+                  ${formatCurrency(summary.totals.fleet)}
+                </div>
+              </div>
+
+              {/* Total Vouchers/Coupons */}
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <div className="text-xs font-medium text-orange-700 mb-1">
+                  Vouchers/Coupons
+                </div>
+                <div className="text-2xl font-bold text-orange-900">
+                  ${formatCurrency(summary.totals.vouchers)}
+                </div>
+              </div>
+
+              {/* Grand Total (cash-style, excludes Customer Charges) */}
+              <div className="bg-gray-100 rounded-lg p-4 border-2 border-gray-300 col-span-2 md:col-span-4 lg:col-span-1">
+                <div className="text-xs font-medium text-gray-700 mb-1">Grand Total</div>
+                <div
+                  className="text-2xl font-bold text-gray-900"
+                  title="Does not include Customer Charges (In-House)."
+                >
+                  ${formatCurrency(summary.totals.grandTotal)}
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Accounts + Fuel Net helper band */}
+            <div className="mt-2 pt-3 border-t border-dashed border-gray-200 space-y-1.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-700">
+                    Customer Accounts (info only, not cash)
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">
+                    Customer Charges (MTD):{' '}
+                    <span className="font-semibold text-gray-700">
+                      ${formatCurrency(summary.totals.inhouse)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fuel Net (Revenue vs Expense) */}
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-700">
+                    Fuel Net (Month-to-Date)
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5 max-w-sm">
+                    Cash-style Grand Total above minus paid fuel invoices for{' '}
+                    {summary.monthName} {summary.year}. Customer Charges (MTD) are
+                    shown separately here and are not included in this net.
+                  </div>
+                </div>
+
+                {fuelExpense !== null ? (
+                  <div className="text-right text-xs space-y-0.5">
+                    <div className="text-gray-600">
+                      <span className="font-semibold">Revenue:</span>{' '}
+                      ${formatCurrency(summary.totals.grandTotal)}
+                    </div>
+                    <div className="text-gray-600">
+                      <span className="font-semibold">Fuel Expense:</span>{' '}
+                      ${formatCurrency(fuelExpense)}
+                    </div>
+                    <div
+                      className={`mt-1 text-sm font-bold ${
+                        summary.totals.grandTotal - fuelExpense > 0
+                          ? 'text-green-600'
+                          : summary.totals.grandTotal - fuelExpense < 0
+                          ? 'text-red-600'
+                          : 'text-gray-600'
+                      }`}
+                    >
+                      Net:{' '}
+                      {summary.totals.grandTotal - fuelExpense >= 0 ? '+' : ''}
+                      {formatCurrency(summary.totals.grandTotal - fuelExpense)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400">
+                    Fuel net will appear once there is at least one paid fuel batch for this
+                    month.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Phase 1 Status Widgets */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            {/* Customer A/R Summary */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-600">Customer A/R</div>
+                <button
+                  onClick={() => router.push('/customer-accounts')}
+                  className="text-xs text-teal-600 hover:text-teal-700 font-semibold"
+                  title="View Customer Accounts"
+                >
+                  View →
+                </button>
+              </div>
+              {arSummary ? (
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">Closing Balance</div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      ${formatCurrency(arSummary.closing ?? 0)}
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500">Collection Rate</span>
+                      <span
+                        className={`font-semibold ${
+                          arSummary.charges > 0
+                            ? arSummary.payments / arSummary.charges >= 1
+                              ? 'text-green-600'
+                              : arSummary.payments / arSummary.charges >= 0.8
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                            : 'text-gray-500'
+                        }`}
+                      >
+                        {arSummary.charges > 0
+                          ? `${Math.round((arSummary.payments / arSummary.charges) * 100)}%`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs mt-1">
+                      <span className="text-gray-500">Reconciled</span>
+                      <span
+                        className={`font-semibold ${
+                          arSummary.closing != null &&
+                          Math.abs(
+                            (arSummary.opening + arSummary.charges - arSummary.payments) -
+                              (arSummary.closing ?? 0)
+                          ) < 0.01
+                            ? 'text-green-600'
+                            : 'text-yellow-600'
+                        }`}
+                      >
+                        {arSummary.closing != null &&
+                        Math.abs(
+                          (arSummary.opening + arSummary.charges - arSummary.payments) -
+                            (arSummary.closing ?? 0)
+                        ) < 0.01
+                          ? '✓ Yes'
+                          : arSummary.closing != null
+                          ? '⚠ Check'
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400">
+                  No A/R data for {summary.monthName} {summary.year}
+                </div>
+              )}
+            </div>
+            {/* Last Shift Recorded */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="text-xs font-medium text-gray-600 mb-2">Last Shift Recorded</div>
+              {summary.status.lastShift ? (
+                <div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {summary.status.lastShift.date} ({summary.status.lastShift.shift})
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {formatDateTime(summary.status.lastShift.createdAt)}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-lg font-semibold text-gray-400">No shifts recorded</div>
+              )}
+            </div>
+
+            {/* Shifts Pending Review */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="text-xs font-medium text-gray-600 mb-2">Shifts Pending Review</div>
+              <div className={`text-3xl font-bold ${summary.status.pendingReviewCount > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                {summary.status.pendingReviewCount}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {summary.status.pendingReviewCount === 0 
+                  ? 'All shifts reviewed' 
+                  : 'Need over/short explanation'}
+              </div>
+            </div>
+
+            {/* Incomplete Days */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="text-xs font-medium text-gray-600 mb-2">Incomplete Days</div>
+              <div className={`text-3xl font-bold ${summary.status.incompleteDaysCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {summary.status.incompleteDaysCount}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {summary.status.incompleteDaysCount === 0 
+                  ? 'All days complete' 
+                  : 'Missing shifts'}
+              </div>
+            </div>
+
+            {/* Over/Short Trend */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="text-xs font-medium text-gray-600 mb-2">Over/Short (MTD)</div>
+              <div className={`text-2xl font-bold ${summary.status.totalOverShort > 0 ? 'text-green-600' : summary.status.totalOverShort < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                {summary.status.totalOverShort >= 0 ? '+' : ''}{formatCurrency(summary.status.totalOverShort)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {summary.status.totalOverShort === 0 
+                  ? 'Balanced' 
+                  : summary.status.totalOverShort > 0 
+                    ? 'Over' 
+                    : 'Short'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming Events & Fuel Payment Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Upcoming Events - Compact Box */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Upcoming</h3>
+            {upcoming.length === 0 ? (
+              <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
+            ) : (
+              <div className="space-y-2">
+                {upcoming.slice(0, 3).map((event, index) => {
+                  const getIcon = () => {
+                    switch (event.type) {
+                      case 'birthday': return '🎂'
+                      case 'invoice': return '📄'
+                      case 'contract': return '📋'
+                      default: return '📅'
+                    }
+                  }
+                  const getPriorityColor = () => {
+                    switch (event.priority) {
+                      case 'high': return 'border-l-2 border-red-400 bg-red-50'
+                      case 'medium': return 'border-l-2 border-yellow-400 bg-yellow-50'
+                      default: return 'border-l-2 border-blue-400 bg-blue-50'
+                    }
+                  }
+                  const formatDate = (dateStr: string) => {
+                    const date = new Date(dateStr)
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  }
+                  const getDaysText = () => {
+                    if (event.daysUntil === 0) return 'Today'
+                    if (event.daysUntil === 1) return 'Tomorrow'
+                    return `${event.daysUntil}d`
+                  }
+                  
+                  return (
+                    <div key={index} className={`rounded p-2 ${getPriorityColor()}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="text-lg flex-shrink-0">{getIcon()}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-medium text-gray-900 truncate">{event.title}</div>
+                            <div className="text-xs text-gray-500">{formatDate(event.date)}</div>
+                          </div>
+                        </div>
+                        <div className="text-xs font-semibold text-gray-700 flex-shrink-0">
+                          {getDaysText()}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                {upcoming.length > 3 && (
+                  <p className="text-xs text-gray-400 text-center pt-1">
+                    +{upcoming.length - 3} more
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Fuel Payment */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Recent Fuel Payment</h3>
+              <p className="text-xs text-gray-500 mt-1">Most recent batch of paid fuel invoices</p>
+            </div>
+            {recentPayment ? (
+              <div className="space-y-3">
+                {/* Batch summary */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs font-medium text-gray-600 mb-1">Date Paid</div>
+                    <div className="text-xs text-gray-900">{recentPayment.datePaid}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-600 mb-1">Reference #</div>
+                    <div className="text-xs text-gray-900 font-mono">{recentPayment.referenceNumber}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-600 mb-1">Total Paid</div>
+                    <div className="text-xs text-gray-900 font-semibold">{recentPayment.totalPaid}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-600 mb-1">Available Balance</div>
+                    <div className="text-xs text-green-600 font-semibold">{recentPayment.availableBalance}</div>
+                  </div>
+                </div>
+
+                {/* Invoices list */}
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">
+                    Invoices in this payment ({recentPayment.invoices.length})
+                  </div>
+                  <div className="max-h-32 overflow-y-auto rounded border border-gray-100 bg-gray-50">
+                    {recentPayment.invoices.map((inv, idx) => (
+                      <div
+                        key={`${inv.invoiceNumber}-${idx}`}
+                        className="flex items-center justify-between px-2 py-1 text-xs border-b border-gray-100 last:border-b-0"
+                      >
+                        <span className="font-mono text-gray-900">{inv.invoiceNumber}</span>
+                        <span className="text-gray-500">{inv.amount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Invoice #</div>
+                  <div className="text-xs text-gray-400 italic">-</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Amount</div>
+                  <div className="text-xs text-gray-400 italic">-</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Date Paid</div>
+                  <div className="text-xs text-gray-400 italic">-</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Reference #</div>
+                  <div className="text-xs text-gray-400 italic">-</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Total Paid</div>
+                  <div className="text-xs text-gray-400 italic">-</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Available Balance</div>
+                  <div className="text-xs text-green-600 italic">-</div>
+                </div>
+              </div>
+            )}
+            {recentPayment && (
+              <button
+                onClick={() => router.push('/fuel-payments/invoices')}
+                className="mt-3 w-full text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                View All Payments →
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Placeholder for future widgets */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <p className="text-gray-500 text-center italic">Additional dashboard widgets will appear here as they are developed.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+

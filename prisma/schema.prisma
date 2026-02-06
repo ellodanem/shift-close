@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./shiftclose.db"
+}
+
+model Staff {
+  id          String   @id @default(cuid())
+  name        String
+  dateOfBirth String?  @map("date_of_birth") // YYYY-MM-DD
+  startDate   String?  @map("start_date") // YYYY-MM-DD
+  status      String   @default("active") // "active" | "inactive"
+  role        String   @default("cashier") // "admin" | "manager" | "supervisor" | "cashier"
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  shifts    ShiftClose[]
+  documents StaffDocument[]
+
+  @@map("staff")
+}
+
+model StaffDocument {
+  id         String   @id @default(cuid())
+  staffId    String   @map("staff_id")
+  type       String // 'sick-leave', 'contract', 'id', 'other'
+  fileName   String   @map("file_name")
+  fileUrl    String   @map("file_url")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("staff_document")
+}
+
+model ShiftClose {
+  id           String  @id @default(cuid())
+  date         String // YYYY-MM-DD
+  shift        String // "6-1" | "1-9" | "7:30 - 2"
+  supervisor   String // Keep for backward compatibility / denormalized display
+  supervisorId String? @map("supervisor_id") // Link to Staff
+  status       String  @default("closed")
+
+  // System values (from POS)
+  systemCash         Float @map("system_cash")
+  systemChecks       Float @map("system_checks")
+  systemCredit       Float @map("system_credit")
+  systemDebit        Float @map("system_debit")
+  otherCredit        Float @map("other_credit") // Credit in Other Items section (separate from Credits row)
+  systemInhouse      Float @map("system_inhouse")
+  systemFleet        Float @map("system_fleet")
+  systemMassyCoupons Float @map("system_massy_coupons")
+
+  // Physical counts
+  countCash         Float @map("count_cash")
+  countChecks       Float @map("count_checks")
+  countCredit       Float @map("count_credit")
+  countInhouse      Float @map("count_inhouse")
+  countFleet        Float @map("count_fleet")
+  countMassyCoupons Float @map("count_massy_coupons")
+
+  // Fuel
+  unleaded Float
+  diesel   Float
+
+  // Deposits (stored as JSON string, parsed in app)
+  deposits String // JSON array of numbers
+
+  // Derived (computed)
+  overShortCash  Float? @map("over_short_cash")
+  overShortTotal Float? @map("over_short_total")
+  totalDeposits  Float? @map("total_deposits")
+
+  notes                  String   @default("")
+  depositScanUrls        String   @default("[]") @map("deposit_scan_urls") // JSON array of URLs
+  debitScanUrls          String   @default("[]") @map("debit_scan_urls") // JSON array of URLs
+  hasMissingHardCopyData Boolean  @default(false) @map("has_missing_hard_copy_data")
+  missingDataNotes       String   @default("") @map("missing_data_notes")
+  overShortExplained     Boolean  @default(false) @map("over_short_explained")
+  overShortExplanation   String   @default("") @map("over_short_explanation")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  corrections     Correction[]
+  noteHistory     NoteHistory[]
+  supervisorStaff Staff?        @relation(fields: [supervisorId], references: [id])
+
+  @@unique([date, shift])
+  @@map("shift_close")
+}
+
+model Correction {
+  id        String   @id @default(cuid())
+  shiftId   String   @map("shift_id")
+  field     String
+  oldValue  String   @map("old_value")
+  newValue  String   @map("new_value")
+  reason    String?
+  changedBy String   @default("admin") @map("changed_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  shift ShiftClose @relation(fields: [shiftId], references: [id])
+
+  @@map("corrections")
+}
+
+model NoteHistory {
+  id        String   @id @default(cuid())
+  shiftId   String   @map("shift_id")
+  oldNote   String   @map("old_note")
+  newNote   String   @map("new_note")
+  changedBy String   @default("admin") @map("changed_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  shift ShiftClose @relation(fields: [shiftId], references: [id])
+
+  @@map("note_history")
+}
+
+model HistoricalFuelData {
+  id                  String   @id @default(cuid())
+  date                String // YYYY-MM-DD format
+  year                Int
+  month               Int // 1-12
+  day                 Int // 1-31
+  unleadedLitres      Float?   @map("unleaded_litres") // in litres (first GAS column)
+  dieselLitres        Float?   @map("diesel_litres") // in litres (first DIESEL column)
+  unleadedGallons     Float?   @map("unleaded_gallons") // in gallons (second GAS column)
+  dieselGallons       Float?   @map("diesel_gallons") // in gallons (second DIESEL column)
+  // Converted values (for consistency, store litres equivalent of gallons too)
+  unleadedFromGallons Float?   @map("unleaded_from_gallons") // gallons converted to litres
+  dieselFromGallons   Float?   @map("diesel_from_gallons") // gallons converted to litres
+  source              String?  @default("google_sheet_import")
+  importedAt          DateTime @default(now()) @map("imported_at")
+
+  @@unique([date])
+  @@map("historical_fuel_data")
+}
+
+// Invoice model for pending/simulated invoices (before payment)
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @map("invoice_number")
+  amount        Float
+  // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
+  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent'
+  invoiceDate   DateTime @map("invoice_date")
+  dueDate       DateTime @map("due_date") // invoiceDate + 5 days
+  status        String   @default("pending") // 'pending' | 'simulated' | 'paid'
+  notes         String?  @default("")
+
+  // Link to paid invoice if paid
+  paidInvoiceId String?      @unique @map("paid_invoice_id")
+  paidInvoice   PaidInvoice? @relation(fields: [paidInvoiceId], references: [id], onDelete: SetNull)
+
+  corrections InvoiceCorrection[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// Correction log for invoice edits
+model InvoiceCorrection {
+  id        String @id @default(cuid())
+  invoiceId String @map("invoice_id")
+
+  field     String
+  oldValue  String   @map("old_value")
+  newValue  String   @map("new_value")
+  reason    String?
+  changedBy String   @default("admin") @map("changed_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_corrections")
+}
+
+// Payment simulation (draft payments for review)
+model PaymentSimulation {
+  id                  String   @id @default(cuid())
+  simulationDate      DateTime @map("simulation_date")
+  selectedInvoiceIds  String   @map("selected_invoice_ids") // JSON array of invoice IDs
+  transferDescription String   @map("transfer_description") // "Total Auto <invoice numbers>"
+  pdfUrl              String?  @map("pdf_url") // Optional: stored PDF URL
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt]) // For cleanup queries
+  @@map("payment_simulations")
+}
+
+// Balance tracking (current values only - single record)
+model Balance {
+  id             String   @id // Always use "balance" as the ID
+  currentBalance Float    @default(0) @map("current_balance")
+  availableFunds Float    @default(0) @map("available_funds")
+  planned        Float    @default(0) // Calculated from active simulation
+  balanceAfter   Float    @default(0) @map("balance_after") // availableFunds - planned
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("balances")
+}
+
+model PaymentBatch {
+  id          String   @id @default(cuid())
+  paymentDate DateTime
+  bankRef     String
+  totalAmount Float    @map("total_amount")
+  // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
+  // For now, round to 2 decimals in application layer to prevent precision issues
+  
+  // Balance at the time of payment (for historical accuracy when sharing past payments)
+  balanceBefore Float? @map("balance_before") // Available funds before this payment
+  balanceAfter  Float? @map("balance_after")  // Available funds after this payment
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoices    PaidInvoice[]
+  corrections PaymentCorrection[]
+
+  @@unique([paymentDate, bankRef])
+  @@index([paymentDate])
+  @@map("payment_batches")
+}
+
+model PaidInvoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @map("invoice_number")
+  amount        Float
+  // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
+  // For now, round to 2 decimals in application layer to prevent precision issues
+  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent'
+  invoiceDate   DateTime @map("invoice_date")
+  dueDate       DateTime @map("due_date")
+  notes         String?  @default("")
+
+  batchId String       @map("batch_id")
+  batch   PaymentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  // Optional link back to original Invoice
+  invoice Invoice?
+
+  corrections PaymentCorrection[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([invoiceNumber])
+  @@index([batchId])
+  @@map("paid_invoices")
+}
+
+model PaymentCorrection {
+  id        String  @id @default(cuid())
+  batchId   String? @map("batch_id")
+  invoiceId String? @map("invoice_id")
+
+  field     String
+  oldValue  String   @map("old_value")
+  newValue  String   @map("new_value")
+  reason    String?
+  changedBy String   @default("admin") @map("changed_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  batch   PaymentBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  invoice PaidInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([invoiceId])
+  @@map("payment_corrections")
+}
+
+// Lightweight monthly A/R summary for customer accounts (In-House)
+model CustomerArSummary {
+  id        String   @id @default(cuid())
+  year      Int
+  month     Int // 1-12
+
+  // Values copied from POS / accounting monthly customer account summary
+  opening   Float   // Opening balance at start of month
+  charges   Float   // New charges for the month
+  payments  Float   // Payments received on account for the month
+  closing   Float?  // Optional: closing balance from POS to compare with computed
+
+  notes     String  @default("")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([year, month], name: "customer_ar_year_month")
+  @@map("customer_ar_summary")
+}
+
+// Per-account snapshot for a given month, imported from POS Excel
+model CustomerArAccountSnapshot {
+  id       String   @id @default(cuid())
+  year     Int
+  month    Int // 1-12
+
+  account  String  // Account/customer name
+  opening  Float   // Opening balance
+  charges  Float   // Credit / new charges
+  payments Float   // Collections for the month
+  closing  Float   // Closing balance
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([year, month], name: "customer_ar_account_year_month")
+  @@map("customer_ar_account_snapshots")
+}
