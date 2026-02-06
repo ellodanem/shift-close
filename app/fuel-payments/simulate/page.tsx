@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
@@ -28,7 +28,7 @@ interface Simulation {
   invoiceNumbers: string[]
 }
 
-export default function SimulatePaymentPage() {
+function SimulatePaymentPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pendingInvoices, setPendingInvoices] = useState<Invoice[]>([])
@@ -746,6 +746,20 @@ export default function SimulatePaymentPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function SimulatePaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      }
+    >
+      <SimulatePaymentPageInner />
+    </Suspense>
   )
 }
 

@@ -131,7 +131,7 @@ export default function FuelDataMonthPage() {
     })
 
     setDays(updatedDays)
-    setPasteModal(false)
+    setShowPasteModal(false)
     setPasteData('')
     setPasteColumn(null)
     setSuccess(`Pasted ${Math.min(values.length, days.length)} values`)

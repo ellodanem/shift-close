@@ -82,6 +82,7 @@ export default function ShiftDetailPage() {
     date: '',
     shift: '',
     supervisor: '',
+    supervisorId: '',
     systemCash: 0,
     systemChecks: 0,
     systemCredit: 0,
@@ -115,7 +116,7 @@ export default function ShiftDetailPage() {
           setOverShortExplanationDraft(data.overShortExplanation || '')
           // Track which fields have been changed
           if (data.corrections && data.corrections.length > 0) {
-            const changed = new Set(data.corrections.map((c: any) => c.field))
+            const changed = new Set<string>(data.corrections.map((c: any) => c.field as string))
             setChangedFields(changed)
           }
           // Initialize edited notes
@@ -512,7 +513,7 @@ export default function ShiftDetailPage() {
                         setShift(updated)
                         // Refresh changedFields from corrections so highlights show
                         if (updated.corrections) {
-                          const changed = new Set(updated.corrections.map((c: any) => c.field))
+                          const changed = new Set<string>(updated.corrections.map((c: any) => c.field as string))
                           setChangedFields(changed)
                         }
                         alert('Changes saved successfully.')
@@ -551,7 +552,7 @@ export default function ShiftDetailPage() {
                         setShift(updated)
                         // Refresh changedFields from corrections so highlights show
                         if (updated.corrections) {
-                          const changed = new Set(updated.corrections.map((c: any) => c.field))
+                          const changed = new Set<string>(updated.corrections.map((c: any) => c.field as string))
                           setChangedFields(changed)
                         }
                         alert('Shift re-closed successfully.')
@@ -1205,7 +1206,7 @@ export default function ShiftDetailPage() {
                         setIsEditingNotes(false)
                         // Update changed fields if notes were changed
                         if (updated.corrections) {
-                          const changed = new Set(updated.corrections.map((c: any) => c.field))
+                          const changed = new Set<string>(updated.corrections.map((c: any) => c.field as string))
                           setChangedFields(changed)
                         }
                         // Refresh note history if it exists
