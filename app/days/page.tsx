@@ -46,7 +46,7 @@ export default function DaysPage() {
   
   const fetchDayReports = () => {
     setLoading(true)
-    fetch('/api/days')
+    fetch('/api/days', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setDayReports(data)
