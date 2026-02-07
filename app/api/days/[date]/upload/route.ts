@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { put, del } from '@vercel/blob'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -22,6 +23,11 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid type. Must be "deposit" or "debit"' }, { status: 400 })
     }
     
+    // Vercel serverless: request body limit ~4.5MB; larger files may fail
+    if (file.size > 4.5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large. Max 4.5 MB for uploads on Vercel.' }, { status: 400 })
+    }
+    
     // Find all shifts for this date
     const shifts = await prisma.shiftClose.findMany({
       where: { date }
@@ -31,27 +37,29 @@ export async function POST(
       return NextResponse.json({ error: 'No shifts found for this date' }, { status: 404 })
     }
     
-    // Use the first shift's ID to create a common upload directory
-    // We'll store files in a day-specific directory structure
-    const dayUploadsDir = join(process.cwd(), 'public', 'uploads', 'days', date)
-    if (!existsSync(dayUploadsDir)) {
-      await mkdir(dayUploadsDir, { recursive: true })
-    }
-    
-    // Generate unique filename
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(7)
-    const extension = file.name.split('.').pop()
+    const extension = file.name.split('.').pop() || 'bin'
     const filename = `${type}-${timestamp}-${random}.${extension}`
-    const filepath = join(dayUploadsDir, filename)
-    
-    // Save file
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await writeFile(filepath, buffer)
     
-    // Generate URL path
-    const url = `/uploads/days/${date}/${filename}`
+    let url: string
+    
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      // Production (Vercel): store in Blob
+      const blob = await put(`days/${date}/${filename}`, buffer, { access: 'public' })
+      url = blob.url
+    } else {
+      // Local: store on disk
+      const dayUploadsDir = join(process.cwd(), 'public', 'uploads', 'days', date)
+      if (!existsSync(dayUploadsDir)) {
+        await mkdir(dayUploadsDir, { recursive: true })
+      }
+      const filepath = join(dayUploadsDir, filename)
+      await writeFile(filepath, buffer)
+      url = `/uploads/days/${date}/${filename}`
+    }
     
     // Add this URL to all shifts for this date
     const updatePromises = shifts.map(async (shift) => {
@@ -83,9 +91,14 @@ export async function POST(
     await Promise.all(updatePromises)
     
     return NextResponse.json({ success: true, url })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error uploading day file:', error)
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
+    const isVercel = process.env.VERCEL === '1'
+    const noBlob = isVercel && !process.env.BLOB_READ_WRITE_TOKEN
+    const message = noBlob
+      ? 'Uploads on Vercel require Blob storage. Add BLOB_READ_WRITE_TOKEN in Vercel project settings (Storage).'
+      : (error?.message || 'Failed to upload file')
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -132,14 +145,18 @@ export async function DELETE(
       })
     )
 
-    // Best-effort physical file delete
+    // Best-effort physical file delete (Blob or local disk)
     try {
-      const filePath = join(process.cwd(), 'public', url.replace(/^\/+/, ''))
-      if (existsSync(filePath)) {
-        await unlink(filePath)
+      if (url.startsWith('http')) {
+        await del(url)
+      } else {
+        const filePath = join(process.cwd(), 'public', url.replace(/^\/+/, ''))
+        if (existsSync(filePath)) {
+          await unlink(filePath)
+        }
       }
     } catch {
-      // Ignore file system delete errors
+      // Ignore file system / Blob delete errors
     }
 
     return NextResponse.json({ success: true })
