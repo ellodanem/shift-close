@@ -3,8 +3,12 @@
 /** Ensure ISO-like strings are parsed as UTC (fixes Vercel/production returning dates without "Z"). */
 function normalizeToUTCString(dateStr: string): string {
   const s = String(dateStr).trim()
-  if (!s.includes('T') || /Z|[+-]\d{2}:?\d{2}$/.test(s)) return s
-  return s + 'Z'
+  if (/Z|[+-]\d{2}:?\d{2}$/.test(s)) return s
+  // Date-only YYYY-MM-DD: leave as-is (ES5 parses as UTC midnight)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  // Date + time (T or space) but no timezone → treat as UTC
+  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(s)) return s + 'Z'
+  return s
 }
 
 export interface DueDateStatus {
