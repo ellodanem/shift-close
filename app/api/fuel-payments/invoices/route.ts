@@ -34,6 +34,14 @@ export async function GET(request: NextRequest) {
       ]
     })
 
+    // #region agent log
+    if (invoices.length > 0) {
+      const first = invoices[0]
+      const d = first.invoiceDate
+      const iso = d instanceof Date ? d.toISOString() : String(d)
+      fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/invoices/route.ts:GET',message:'GET list first invoiceDate',data:{invoiceId:first.id,invoiceDateISO:iso,hasZ:iso.includes('Z')},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion
     return NextResponse.json(invoices)
   } catch (error) {
     console.error('Error fetching invoices:', error)

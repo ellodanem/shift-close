@@ -1,5 +1,12 @@
 // Helper functions for invoice management
 
+/** Ensure ISO-like strings are parsed as UTC (fixes Vercel/production returning dates without "Z"). */
+function normalizeToUTCString(dateStr: string): string {
+  const s = String(dateStr).trim()
+  if (!s.includes('T') || /Z|[+-]\d{2}:?\d{2}$/.test(s)) return s
+  return s + 'Z'
+}
+
 export interface DueDateStatus {
   status: 'ok' | 'warning' | 'due' | 'overdue'
   daysUntil: number
@@ -14,7 +21,7 @@ export interface DueDateStatus {
  * Uses UTC calendar days so status matches the displayed due date in all timezones.
  */
 export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
-  const due = typeof dueDate === 'string' ? new Date(dueDate) : dueDate
+  const due = typeof dueDate === 'string' ? new Date(normalizeToUTCString(dueDate)) : dueDate
   const now = new Date()
 
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
@@ -80,7 +87,7 @@ export function invoiceDateToInputValue(date: Date | string): string {
     if (plainMatch) {
       return date.slice(0, 10)
     }
-    d = new Date(date)
+    d = new Date(normalizeToUTCString(date))
   } else {
     d = date
   }
@@ -105,7 +112,7 @@ export function formatInvoiceDate(date: Date | string): string {
       const [, year, month, day] = plainMatch
       d = new Date(Number(year), Number(month) - 1, Number(day))
     } else {
-      d = new Date(date)
+      d = new Date(normalizeToUTCString(date))
       useUTC = true
     }
   } else {
@@ -116,6 +123,12 @@ export function formatInvoiceDate(date: Date | string): string {
   const day = useUTC ? d.getUTCDate() : d.getDate()
   const month = useUTC ? d.getUTCMonth() + 1 : d.getMonth() + 1
   const year = useUTC ? d.getUTCFullYear() : d.getFullYear()
-  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+  const out = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+  // #region agent log
+  if (typeof date === 'string' && date.includes('T')) {
+    fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'invoiceHelpers.ts:formatInvoiceDate',message:'formatInvoiceDate ISO branch',data:{input:date,useUTC,day,month,year,out},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
+  return out
 }
 

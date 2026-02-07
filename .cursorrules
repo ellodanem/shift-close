@@ -1,0 +1,4 @@
+# Shift Close – Cursor rules
+
+## Git
+- **Automatically commit and push** changes and fixes after making them, unless the user asks otherwise or the change is explicitly a WIP/draft.
