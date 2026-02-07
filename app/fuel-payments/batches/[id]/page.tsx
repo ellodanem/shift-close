@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDate, formatAmount } from '@/lib/fuelPayments'
+import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
   id: string
@@ -195,10 +196,10 @@ export default function BatchDetailPage() {
                         {invoice.type}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatDate(new Date(invoice.invoiceDate))}
+                        {formatInvoiceDate(invoice.invoiceDate)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatDate(new Date(invoice.dueDate))}
+                        {formatInvoiceDate(invoice.dueDate)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400">
                         {/* read-only – changes should be made via invoices / revert flow */}
@@ -244,8 +245,8 @@ function InvoiceModal({
     invoiceNumber: invoice?.invoiceNumber || '',
     amount: invoice?.amount || 0,
     type: invoice?.type || 'fuel',
-    invoiceDate: invoice?.invoiceDate ? new Date(invoice.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    dueDate: invoice?.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    invoiceDate: invoice?.invoiceDate ? invoiceDateToInputValue(invoice.invoiceDate) : invoiceDateToInputValue(new Date()),
+    dueDate: invoice?.dueDate ? invoiceDateToInputValue(invoice.dueDate) : invoiceDateToInputValue(new Date()),
     notes: invoice?.notes || ''
   })
 

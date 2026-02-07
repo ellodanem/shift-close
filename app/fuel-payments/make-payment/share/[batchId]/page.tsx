@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface PaidBatchInvoice {
   invoiceNumber: string
@@ -53,8 +54,8 @@ export default function SharePaidPaymentPage() {
               invoiceNumber: inv.invoiceNumber,
               amount: String(inv.amount),
               type: inv.type,
-              invoiceDate: inv.invoiceDate,
-              dueDate: inv.dueDate
+              invoiceDate: typeof inv.invoiceDate === 'string' && inv.invoiceDate.includes('T') ? formatInvoiceDate(inv.invoiceDate) : String(inv.invoiceDate ?? ''),
+              dueDate: typeof inv.dueDate === 'string' && inv.dueDate.includes('T') ? formatInvoiceDate(inv.dueDate) : String(inv.dueDate ?? '')
             }))
           })
         }

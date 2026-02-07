@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 
 // GET all invoices for a batch
 export async function GET(
@@ -75,8 +76,8 @@ export async function POST(
         invoiceNumber: invoiceNumber.trim(),
         amount: roundMoney(Number(amount)),
         type: type?.trim() || 'fuel',
-        invoiceDate: invoiceDate ? new Date(invoiceDate) : batch.paymentDate,
-        dueDate: dueDate ? new Date(dueDate) : batch.paymentDate,
+        invoiceDate: invoiceDate ? parseInvoiceDateToUTC(String(invoiceDate)) : batch.paymentDate,
+        dueDate: dueDate ? parseInvoiceDateToUTC(String(dueDate)) : batch.paymentDate,
         notes: notes?.trim() || ''
       }
     })

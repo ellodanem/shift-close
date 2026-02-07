@@ -11,15 +11,16 @@ export interface DueDateStatus {
  * - Yellow (warning): 1 day before due date
  * - Orange (due): On due date
  * - Red (overdue): Past due date
+ * Uses UTC calendar days so status matches the displayed due date in all timezones.
  */
 export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
   const due = typeof dueDate === 'string' ? new Date(dueDate) : dueDate
   const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
 
-  const diffTime = due.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const dueUtc = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate())
+  const diffTime = dueUtc - todayUtc
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
 
   if (diffDays < 0) {
     // Overdue
@@ -53,30 +54,68 @@ export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
 }
 
 /**
- * Format date as DD/MM/YYYY
- *
- * Important: For plain "YYYY-MM-DD" strings (from <input type="date">),
- * we parse as a local calendar date to avoid timezone shifts that can
- * move the day backward/forward.
+ * Parse a date-only string (YYYY-MM-DD) to a Date at UTC noon.
+ * Use this when saving invoice/due dates so the calendar day is preserved
+ * regardless of server or client timezone (avoids off-by-one display bugs).
  */
-export function formatInvoiceDate(date: Date | string): string {
-  let d: Date
+export function parseInvoiceDateToUTC(dateStr: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr).trim())
+  if (!match) {
+    return new Date(dateStr)
+  }
+  const year = parseInt(match[1], 10)
+  const month = parseInt(match[2], 10) - 1
+  const day = parseInt(match[3], 10)
+  return new Date(Date.UTC(year, month, day, 12, 0, 0, 0))
+}
 
+/**
+ * Return YYYY-MM-DD for use in <input type="date"> value.
+ * Uses UTC date parts so the calendar day is correct regardless of client timezone.
+ */
+export function invoiceDateToInputValue(date: Date | string): string {
+  let d: Date
   if (typeof date === 'string') {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
-    if (match) {
-      const [, year, month, day] = match
-      d = new Date(Number(year), Number(month) - 1, Number(day))
-    } else {
-      d = new Date(date)
+    const plainMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(date)
+    if (plainMatch) {
+      return date.slice(0, 10)
     }
+    d = new Date(date)
   } else {
     d = date
   }
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
-  const day = String(d.getDate()).padStart(2, '0')
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${day}/${month}/${year}`
+/**
+ * Format date as DD/MM/YYYY.
+ * For values from the server (ISO string or Date), uses UTC date parts so the
+ * stored calendar day displays correctly in all timezones.
+ */
+export function formatInvoiceDate(date: Date | string): string {
+  let d: Date
+  let useUTC = false
+
+  if (typeof date === 'string') {
+    const plainMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+    if (plainMatch) {
+      const [, year, month, day] = plainMatch
+      d = new Date(Number(year), Number(month) - 1, Number(day))
+    } else {
+      d = new Date(date)
+      useUTC = true
+    }
+  } else {
+    d = date
+    useUTC = true
+  }
+
+  const day = useUTC ? d.getUTCDate() : d.getDate()
+  const month = useUTC ? d.getUTCMonth() + 1 : d.getMonth() + 1
+  const year = useUTC ? d.getUTCFullYear() : d.getFullYear()
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
 }
 

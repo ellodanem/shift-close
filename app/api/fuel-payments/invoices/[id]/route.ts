@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 
 // GET single invoice
 export async function GET(
@@ -121,7 +122,7 @@ export async function PATCH(
     }
 
     if (invoiceDate !== undefined) {
-      const invoiceDateObj = new Date(invoiceDate)
+      const invoiceDateObj = parseInvoiceDateToUTC(String(invoiceDate))
       if (isNaN(invoiceDateObj.getTime())) {
         return NextResponse.json(
           { error: 'Invalid invoiceDate format' },
@@ -131,7 +132,7 @@ export async function PATCH(
 
       const oldDueDate = existing.dueDate
       const newDueDate = new Date(invoiceDateObj)
-      newDueDate.setDate(newDueDate.getDate() + 5)
+      newDueDate.setUTCDate(newDueDate.getUTCDate() + 5)
 
       updateData.invoiceDate = invoiceDateObj
       updateData.dueDate = newDueDate

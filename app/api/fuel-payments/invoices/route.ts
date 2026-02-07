@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 
 // GET all invoices (with status filter)
 export async function GET(request: NextRequest) {
@@ -65,8 +66,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate due date (invoiceDate + 5 days)
-    const invoiceDateObj = new Date(invoiceDate)
+    // Parse as date-only (UTC noon) so calendar day is preserved in all timezones
+    const invoiceDateObj = parseInvoiceDateToUTC(String(invoiceDate))
     if (isNaN(invoiceDateObj.getTime())) {
       return NextResponse.json(
         { error: 'Invalid invoiceDate format' },
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     const dueDate = new Date(invoiceDateObj)
-    dueDate.setDate(dueDate.getDate() + 5)
+    dueDate.setUTCDate(dueDate.getUTCDate() + 5)
 
     // Check for duplicate invoice number (pending only)
     const existing = await prisma.invoice.findFirst({

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 
 interface Invoice {
   id: string
@@ -53,7 +53,7 @@ export default function EditInvoicePage() {
           invoiceNumber: data.invoiceNumber,
           amount: data.amount.toString(),
           type: data.type,
-          invoiceDate: new Date(data.invoiceDate).toISOString().split('T')[0],
+          invoiceDate: invoiceDateToInputValue(data.invoiceDate),
           notes: data.notes || ''
         })
       } else {
