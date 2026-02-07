@@ -42,10 +42,6 @@ export default function EditInvoicePage() {
       if (res.ok) {
         const data = await res.json()
         setInvoice(data)
-        // #region agent log
-        const inputVal = invoiceDateToInputValue(data.invoiceDate)
-        fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'edit/page.tsx:load',message:'Edit load invoiceDate',data:{raw:data.invoiceDate,rawType:typeof data.invoiceDate,inputValue:inputVal},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
 
         if (data.status !== 'pending') {
           alert('Only pending invoices can be edited')
@@ -57,7 +53,7 @@ export default function EditInvoicePage() {
           invoiceNumber: data.invoiceNumber,
           amount: data.amount.toString(),
           type: data.type,
-          invoiceDate: inputVal,
+          invoiceDate: invoiceDateToInputValue(data.invoiceDate),
           notes: data.notes || ''
         })
       } else {
@@ -78,9 +74,6 @@ export default function EditInvoicePage() {
     setSaving(true)
 
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'edit/page.tsx:submit',message:'PATCH payload invoiceDate',data:{formDataInvoiceDate:formData.invoiceDate},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const res = await fetch(`/api/fuel-payments/invoices/${invoiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

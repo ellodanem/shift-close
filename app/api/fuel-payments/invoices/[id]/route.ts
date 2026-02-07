@@ -35,11 +35,6 @@ export async function GET(
       )
     }
 
-    // #region agent log
-    const invDateRaw = invoice.invoiceDate
-    const invDateStr = invDateRaw instanceof Date ? invDateRaw.toISOString() : String(invDateRaw)
-    fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/invoices/[id]/route.ts:GET',message:'GET single invoice invoiceDate',data:{invoiceId:invoice.id,invoiceDateRaw:invDateStr,hasZ:invDateStr.includes('Z')},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return NextResponse.json(invoice)
   } catch (error) {
     console.error('Error fetching invoice:', error)
@@ -128,9 +123,6 @@ export async function PATCH(
 
     if (invoiceDate !== undefined) {
       const invoiceDateObj = parseInvoiceDateToUTC(String(invoiceDate))
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/invoices/[id]/route.ts:PATCH',message:'PATCH invoiceDate',data:{bodyInvoiceDate:invoiceDate,parsedISO:invoiceDateObj.toISOString(),utcDay:invoiceDateObj.getUTCDate()},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (isNaN(invoiceDateObj.getTime())) {
         return NextResponse.json(
           { error: 'Invalid invoiceDate format' },

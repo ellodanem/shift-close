@@ -69,12 +69,6 @@ export default function InvoicesPage() {
       if (res.ok) {
         const data = await res.json()
         setInvoices(data)
-        // #region agent log
-        if (data.length > 0) {
-          const first = data[0]
-          fetch('http://127.0.0.1:7242/ingest/207c8d6b-3d00-455a-b8dd-a0725bea89f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'invoices/page.tsx:fetchInvoices',message:'List received first invoiceDate',data:{invoiceId:first.id,raw:first.invoiceDate,rawType:typeof first.invoiceDate,formatted:formatInvoiceDate(first.invoiceDate)},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
       } else {
         console.error('Failed to fetch invoices')
       }
