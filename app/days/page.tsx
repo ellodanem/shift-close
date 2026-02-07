@@ -44,7 +44,8 @@ export default function DaysPage() {
     }
   }, [showCustomPicker, showReportsDropdown])
   
-  useEffect(() => {
+  const fetchDayReports = () => {
+    setLoading(true)
     fetch('/api/days')
       .then(res => res.json())
       .then(data => {
@@ -55,6 +56,19 @@ export default function DaysPage() {
         console.error('Error fetching day reports:', err)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchDayReports()
+  }, [])
+
+  // Refetch when user returns to this tab so new shifts show without full reload
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchDayReports()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
   
   const toggleExpand = (date: string) => {
@@ -77,16 +91,7 @@ export default function DaysPage() {
     setExpandedScans(newExpanded)
   }
 
-  const refreshDayReports = () => {
-    fetch('/api/days')
-      .then(res => res.json())
-      .then(data => {
-        setDayReports(data)
-      })
-      .catch(err => {
-        console.error('Error fetching day reports:', err)
-      })
-  }
+  const refreshDayReports = () => fetchDayReports()
 
   // Get start of week (Monday)
   const getStartOfWeek = (date: Date): Date => {
@@ -391,6 +396,13 @@ export default function DaysPage() {
               ({filteredReports.length} day report{filteredReports.length !== 1 ? 's' : ''})
             </span>
           )}
+          <button
+            onClick={refreshDayReports}
+            disabled={loading}
+            className="ml-auto px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold text-sm hover:bg-gray-300 disabled:opacity-50"
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
         </div>
         
         {dayReports.length === 0 ? (
