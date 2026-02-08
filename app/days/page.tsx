@@ -371,34 +371,36 @@ export default function DaysPage() {
           </div>
         </div>
       )}
-      {/* Built-in PDF viewer modal */}
+      {/* Built-in PDF viewer modal — centered window, no page load */}
       {pdfViewerUrl && (
-        <div className="fixed inset-0 bg-black/70 flex flex-col z-50">
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
-            <span className="text-sm font-medium truncate">PDF viewer</span>
-            <div className="flex items-center gap-2">
-              <a
-                href={pdfViewerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-300 hover:text-blue-200"
-              >
-                Open in new tab
-              </a>
-              <button
-                type="button"
-                onClick={() => setPdfViewerUrl(null)}
-                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium"
-              >
-                Close
-              </button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 shrink-0">
+              <span className="text-sm font-medium text-gray-700">PDF viewer</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={pdfViewerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPdfViewerUrl(null)}
+                  className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded text-sm font-medium text-gray-800"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+            <iframe
+              src={pdfViewerUrl}
+              title="PDF document"
+              className="w-full flex-1 min-h-[60vh] border-0"
+            />
           </div>
-          <iframe
-            src={pdfViewerUrl}
-            title="PDF document"
-            className="flex-1 w-full min-h-0 bg-white"
-          />
         </div>
       )}
       <div className="max-w-6xl mx-auto">
