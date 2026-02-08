@@ -13,6 +13,13 @@ export default function SettingsPage() {
       icon: '⛽',
       route: '/settings/fuel-data'
     },
+    {
+      id: 'email-recipients',
+      title: 'Email recipients',
+      description: 'Manage the list of common recipients for the "Email report" dropdown.',
+      icon: '✉️',
+      route: '/settings/email-recipients'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',
