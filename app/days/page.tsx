@@ -108,20 +108,29 @@ export default function DaysPage() {
     fetch('/api/email-recipients')
       .then((res) => res.json())
       .then((data) => {
-        const list = Array.isArray(data) ? data : []
+        const raw = Array.isArray(data) ? data : []
+        const list = raw.map((r: { id: string; label?: string; email?: string }) => ({
+          id: String(r.id),
+          label: r.label ?? '',
+          email: r.email ?? ''
+        }))
         setEmailRecipients(list)
         if (list.length > 0) setEmailToId(list[0].id)
+        else setEmailToId('other')
       })
-      .catch(() => setEmailRecipients([]))
+      .catch(() => {
+        setEmailRecipients([])
+        setEmailToId('other')
+      })
   }
 
   const closeEmailModal = () => setEmailModal(null)
 
   const sendEmail = async () => {
     if (!emailModal) return
-    const to = emailToId === 'other' ? emailOther.trim() : emailRecipients.find((r) => r.id === emailToId)?.email?.trim()
+    const to = emailOther.trim() || (emailToId && emailToId !== 'other' ? emailRecipients.find((r) => r.id === emailToId)?.email?.trim() : '') || ''
     if (!to) {
-      alert('Select a recipient or enter an email under Other.')
+      alert('Choose a recipient from the list or enter an email address below.')
       return
     }
     setEmailSending(true)
@@ -295,20 +304,22 @@ export default function DaysPage() {
                   onChange={(e) => setEmailToId(e.target.value)}
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 >
+                  <option value="">Choose a recipient…</option>
                   {emailRecipients.map((r) => (
                     <option key={r.id} value={r.id}>{r.label} ({r.email})</option>
                   ))}
                   <option value="other">Other (enter below)</option>
                 </select>
-                {emailToId === 'other' && (
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">Or enter another email address</label>
                   <input
                     type="email"
-                    placeholder="Email address"
+                    placeholder="e.g. someone@example.com"
                     value={emailOther}
                     onChange={(e) => setEmailOther(e.target.value)}
-                    className="mt-2 w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full border border-gray-300 rounded px-3 py-2"
                   />
-                )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
@@ -340,7 +351,7 @@ export default function DaysPage() {
               <button
                 type="button"
                 onClick={sendEmail}
-                disabled={emailSending || (emailToId === 'other' && !emailOther.trim())}
+                disabled={emailSending || (!emailOther.trim() && (!emailToId || emailToId === 'other'))}
                 className="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50"
               >
                 {emailSending ? 'Sending…' : 'Send email'}
