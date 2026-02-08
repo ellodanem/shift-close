@@ -23,7 +23,7 @@ export default function DaysPage() {
   const [showReportsDropdown, setShowReportsDropdown] = useState(false)
   const reportsDropdownRef = useRef<HTMLDivElement>(null)
   const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
-  const [emailModal, setEmailModal] = useState<{ subject: string; body: string; url: string } | null>(null)
+  const [emailModal, setEmailModal] = useState<{ subject: string; body: string; urls: string[] } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
   const [emailToId, setEmailToId] = useState('')
   const [emailOther, setEmailOther] = useState('')
@@ -98,11 +98,21 @@ export default function DaysPage() {
 
   const refreshDayReports = () => fetchDayReports()
 
-  const openEmailModal = (date: string, scanType: 'deposit' | 'debit', url: string) => {
-    const link = url.startsWith('http') ? url : (typeof window !== 'undefined' ? `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}` : url)
-    const subject = `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scan - ${date}`
-    const body = `Please find the ${scanType} scan from ${date}.\n\nLink: ${link}`
-    setEmailModal({ subject, body, url })
+  const toAbsoluteUrl = (url: string) =>
+    url.startsWith('http') ? url : (typeof window !== 'undefined' ? `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}` : url)
+
+  const openEmailModal = (date: string, scanType: 'deposit' | 'debit', urlOrUrls: string | string[]) => {
+    const urls = Array.isArray(urlOrUrls) ? urlOrUrls : [urlOrUrls]
+    const links = urls.map(toAbsoluteUrl)
+    const singular = scanType === 'deposit' ? 'deposit' : 'debit'
+    const plural = scanType === 'deposit' ? 'deposit' : 'debit'
+    const subject = links.length > 1
+      ? `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scans - ${date} (${links.length} files)`
+      : `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scan - ${date}`
+    const body = links.length > 1
+      ? `Please find the ${plural} scans from ${date}.\n\n${links.map((link, i) => `Scan ${i + 1}: ${link}`).join('\n')}`
+      : `Please find the ${singular} scan from ${date}.\n\nLink: ${links[0]}`
+    setEmailModal({ subject, body, urls: links })
     setEmailToId('')
     setEmailOther('')
     fetch('/api/email-recipients')
@@ -141,7 +151,7 @@ export default function DaysPage() {
         body: JSON.stringify({
           to,
           subject: emailModal.subject,
-          html: emailModal.body.replace(/\n/g, '<br>').replace(/Link: (https?:\/\/\S+)/, 'Link: <a href="$1">$1</a>')
+          html: emailModal.body.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<>]+)/g, '<a href="$1">$1</a>')
         })
       })
       if (res.ok) {
@@ -745,9 +755,18 @@ export default function DaysPage() {
                           <div className="space-y-4 mt-4">
                             {dayReport.depositScans.length > 0 && (
                               <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                                  📄 Deposit Scans ({dayReport.depositScans.length})
-                                </h4>
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="text-sm font-medium text-gray-700">
+                                    📄 Deposit Scans ({dayReport.depositScans.length})
+                                  </h4>
+                                  <button
+                                    onClick={() => openEmailModal(dayReport.date, 'deposit', dayReport.depositScans)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                    title="Email all deposit scans"
+                                  >
+                                    ✉ Email all
+                                  </button>
+                                </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                   {dayReport.depositScans.map((url, index) => (
                                     <div
@@ -817,9 +836,18 @@ export default function DaysPage() {
                             )}
                             {dayReport.debitScans.length > 0 && (
                               <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                                  💳 Debit Scans ({dayReport.debitScans.length})
-                                </h4>
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="text-sm font-medium text-gray-700">
+                                    💳 Debit Scans ({dayReport.debitScans.length})
+                                  </h4>
+                                  <button
+                                    onClick={() => openEmailModal(dayReport.date, 'debit', dayReport.debitScans)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                    title="Email all debit scans"
+                                  >
+                                    ✉ Email all
+                                  </button>
+                                </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                   {dayReport.debitScans.map((url, index) => (
                                     <div
