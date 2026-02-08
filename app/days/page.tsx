@@ -22,7 +22,12 @@ export default function DaysPage() {
   const customPickerRef = useRef<HTMLDivElement>(null)
   const [showReportsDropdown, setShowReportsDropdown] = useState(false)
   const reportsDropdownRef = useRef<HTMLDivElement>(null)
-  const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null) // date of the day report to show breakdown for
+  const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
+  const [emailModal, setEmailModal] = useState<{ subject: string; body: string; url: string } | null>(null)
+  const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
+  const [emailToId, setEmailToId] = useState('')
+  const [emailOther, setEmailOther] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
 
   // Close custom picker and reports dropdown when clicking outside
   useEffect(() => {
@@ -92,6 +97,58 @@ export default function DaysPage() {
   }
 
   const refreshDayReports = () => fetchDayReports()
+
+  const openEmailModal = (date: string, scanType: 'deposit' | 'debit', url: string) => {
+    const link = url.startsWith('http') ? url : (typeof window !== 'undefined' ? `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}` : url)
+    const subject = `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scan - ${date}`
+    const body = `Please find the ${scanType} scan from ${date}.\n\nLink: ${link}`
+    setEmailModal({ subject, body, url })
+    setEmailToId('')
+    setEmailOther('')
+    fetch('/api/email-recipients')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : []
+        setEmailRecipients(list)
+        if (list.length > 0) setEmailToId(list[0].id)
+      })
+      .catch(() => setEmailRecipients([]))
+  }
+
+  const closeEmailModal = () => setEmailModal(null)
+
+  const sendEmail = async () => {
+    if (!emailModal) return
+    const to = emailToId === 'other' ? emailOther.trim() : emailRecipients.find((r) => r.id === emailToId)?.email?.trim()
+    if (!to) {
+      alert('Select a recipient or enter an email under Other.')
+      return
+    }
+    setEmailSending(true)
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject: emailModal.subject,
+          html: emailModal.body.replace(/\n/g, '<br>').replace(/Link: (https?:\/\/\S+)/, 'Link: <a href="$1">$1</a>')
+        })
+      })
+      if (res.ok) {
+        closeEmailModal()
+        alert('Email sent.')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to send email')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Failed to send email')
+    } finally {
+      setEmailSending(false)
+    }
+  }
 
   // Get start of week (Monday)
   const getStartOfWeek = (date: Date): Date => {
@@ -225,6 +282,73 @@ export default function DaysPage() {
   
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      {/* Email scan modal: pick recipient and send via API. (Future: WhatsApp button can open share with same link.) */}
+      {emailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Email scan</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
+                <select
+                  value={emailToId}
+                  onChange={(e) => setEmailToId(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  {emailRecipients.map((r) => (
+                    <option key={r.id} value={r.id}>{r.label} ({r.email})</option>
+                  ))}
+                  <option value="other">Other (enter below)</option>
+                </select>
+                {emailToId === 'other' && (
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    value={emailOther}
+                    onChange={(e) => setEmailOther(e.target.value)}
+                    className="mt-2 w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={emailModal.subject}
+                  onChange={(e) => setEmailModal((m) => (m ? { ...m, subject: e.target.value } : null))}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  value={emailModal.body}
+                  onChange={(e) => setEmailModal((m) => (m ? { ...m, body: e.target.value } : null))}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEmailModal}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={sendEmail}
+                disabled={emailSending || (emailToId === 'other' && !emailOther.trim())}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {emailSending ? 'Sending…' : 'Send email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-3xl font-bold text-gray-900">Day Reports</h1>
@@ -666,11 +790,9 @@ export default function DaysPage() {
                                       >
                                         ✕
                                       </button>
-                                      {/* Email button */}
+                                      {/* Email button — sends via API. (Future: add WhatsApp share button with same link.) */}
                                       <button
-                                        onClick={() => {
-                                          window.location.href = `mailto:?subject=Deposit Scan - ${dayReport.date}&body=Please find attached deposit scan from ${dayReport.date}.%0D%0A%0D%0AFile: ${url}`
-                                        }}
+                                        onClick={() => openEmailModal(dayReport.date, 'deposit', url)}
                                         className="absolute bottom-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-blue-600"
                                         aria-label="Email"
                                         title="Email this file"
@@ -740,11 +862,9 @@ export default function DaysPage() {
                                       >
                                         ✕
                                       </button>
-                                      {/* Email button */}
+                                      {/* Email button — sends via API. (Future: add WhatsApp share button with same link.) */}
                                       <button
-                                        onClick={() => {
-                                          window.location.href = `mailto:?subject=Debit Scan - ${dayReport.date}&body=Please find attached debit scan from ${dayReport.date}.%0D%0A%0D%0AFile: ${url}`
-                                        }}
+                                        onClick={() => openEmailModal(dayReport.date, 'debit', url)}
                                         className="absolute bottom-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-blue-600"
                                         aria-label="Email"
                                         title="Email this file"
