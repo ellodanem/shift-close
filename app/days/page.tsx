@@ -28,6 +28,7 @@ export default function DaysPage() {
   const [emailToId, setEmailToId] = useState('')
   const [emailOther, setEmailOther] = useState('')
   const [emailSending, setEmailSending] = useState(false)
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
 
   // Close custom picker and reports dropdown when clicking outside
   useEffect(() => {
@@ -368,6 +369,36 @@ export default function DaysPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Built-in PDF viewer modal */}
+      {pdfViewerUrl && (
+        <div className="fixed inset-0 bg-black/70 flex flex-col z-50">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
+            <span className="text-sm font-medium truncate">PDF viewer</span>
+            <div className="flex items-center gap-2">
+              <a
+                href={pdfViewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-300 hover:text-blue-200"
+              >
+                Open in new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setPdfViewerUrl(null)}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <iframe
+            src={pdfViewerUrl}
+            title="PDF document"
+            className="flex-1 w-full min-h-0 bg-white"
+          />
         </div>
       )}
       <div className="max-w-6xl mx-auto">
@@ -768,33 +799,41 @@ export default function DaysPage() {
                                   </button>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  {dayReport.depositScans.map((url, index) => (
+                                  {dayReport.depositScans.map((url, index) => {
+                                    const isPdf = url.toLowerCase().endsWith('.pdf')
+                                    return (
                                     <div
                                       key={index}
                                       className="relative bg-gray-50 rounded-lg border border-gray-200 p-2"
                                     >
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block"
-                                      >
-                                        {url.toLowerCase().endsWith('.pdf') ? (
-                                          <div className="text-center py-3">
-                                            <div className="text-3xl mb-1">📄</div>
-                                            <div className="text-xs text-gray-600">PDF</div>
-                                          </div>
-                                        ) : (
+                                      {isPdf ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => setPdfViewerUrl(url)}
+                                          className="block w-full text-center py-3 cursor-pointer hover:bg-gray-100 rounded transition-colors"
+                                          title="View PDF"
+                                        >
+                                          <div className="text-3xl mb-1">📄</div>
+                                          <div className="text-xs text-gray-600">PDF — click to view</div>
+                                        </button>
+                                      ) : (
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block"
+                                        >
                                           <img
                                             src={url}
                                             alt={`Deposit scan ${index + 1}`}
                                             className="w-full h-24 object-contain rounded bg-white"
                                           />
-                                        )}
-                                      </a>
+                                        </a>
+                                      )}
                                       {/* Delete button */}
                                       <button
-                                        onClick={async () => {
+                                        onClick={async (e) => {
+                                          e.stopPropagation?.()
                                           const confirmed = window.confirm('Delete this deposit scan? This cannot be undone.')
                                           if (!confirmed) return
                                           try {
@@ -809,8 +848,8 @@ export default function DaysPage() {
                                               const err = await res.json().catch(() => ({}))
                                               alert(err.error || 'Failed to delete scan')
                                             }
-                                          } catch (e) {
-                                            console.error('Error deleting scan', e)
+                                          } catch (err) {
+                                            console.error('Error deleting scan', err)
                                             alert('Failed to delete scan')
                                           }
                                         }}
@@ -830,7 +869,8 @@ export default function DaysPage() {
                                         ✉
                                       </button>
                                     </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -849,33 +889,41 @@ export default function DaysPage() {
                                   </button>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  {dayReport.debitScans.map((url, index) => (
+                                  {dayReport.debitScans.map((url, index) => {
+                                    const isPdf = url.toLowerCase().endsWith('.pdf')
+                                    return (
                                     <div
                                       key={index}
                                       className="relative bg-gray-50 rounded-lg border border-gray-200 p-2"
                                     >
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block"
-                                      >
-                                        {url.toLowerCase().endsWith('.pdf') ? (
-                                          <div className="text-center py-3">
-                                            <div className="text-3xl mb-1">📄</div>
-                                            <div className="text-xs text-gray-600">PDF</div>
-                                          </div>
-                                        ) : (
+                                      {isPdf ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => setPdfViewerUrl(url)}
+                                          className="block w-full text-center py-3 cursor-pointer hover:bg-gray-100 rounded transition-colors"
+                                          title="View PDF"
+                                        >
+                                          <div className="text-3xl mb-1">📄</div>
+                                          <div className="text-xs text-gray-600">PDF — click to view</div>
+                                        </button>
+                                      ) : (
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block"
+                                        >
                                           <img
                                             src={url}
                                             alt={`Debit scan ${index + 1}`}
                                             className="w-full h-24 object-contain rounded bg-white"
                                           />
-                                        )}
-                                      </a>
+                                        </a>
+                                      )}
                                       {/* Delete button */}
                                       <button
-                                        onClick={async () => {
+                                        onClick={async (e) => {
+                                          e.stopPropagation?.()
                                           const confirmed = window.confirm('Delete this debit scan? This cannot be undone.')
                                           if (!confirmed) return
                                           try {
@@ -890,8 +938,8 @@ export default function DaysPage() {
                                               const err = await res.json().catch(() => ({}))
                                               alert(err.error || 'Failed to delete scan')
                                             }
-                                          } catch (e) {
-                                            console.error('Error deleting scan', e)
+                                          } catch (err) {
+                                            console.error('Error deleting scan', err)
                                             alert('Failed to delete scan')
                                           }
                                         }}
@@ -911,7 +959,8 @@ export default function DaysPage() {
                                         ✉
                                       </button>
                                     </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               </div>
                             )}
