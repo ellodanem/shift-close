@@ -19,9 +19,7 @@ export async function GET(request: NextRequest) {
     const week = await prisma.rosterWeek.findUnique({
       // Use the named unique constraint on week_start (roster_week_week_start)
       where: {
-        roster_week_week_start: {
-          weekStart
-        }
+        roster_week_week_start: weekStart
       },
       include: {
         entries: true
@@ -73,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.$transaction(async (tx) => {
       const week = await tx.rosterWeek.upsert({
-        where: { weekStart },
+        where: { roster_week_week_start: weekStart },
         update: {
           status: status || 'draft',
           notes: notes ?? ''
