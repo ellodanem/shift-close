@@ -14,9 +14,10 @@ That script adds `first_name`, `last_name`, and `sort_order` to `staff` if they�
 
 The app uses Prisma and expects the database to have every column defined in the schema. When we add a new feature (e.g. first/last name, sort order), we add a new **migration**. If that migration is not applied to your **production** database (e.g. Neon), the next deploy uses code that expects the new columns, but they don’t exist yet. The staff query then fails and the roster shows “No staff found.”
 
-## What we changed so this stops happening
+## What we changed
 
-- **Build step:** Every Vercel deploy now runs `prisma migrate deploy` before building. That applies any **pending** migrations to the database pointed to by `DATABASE_URL`, so the schema and code stay in sync.
+- **Migration lock:** `prisma/migrations/migration_lock.toml` is set to `postgresql` so it matches your Neon database (the migration history was originally created with SQLite, which caused deploy errors).
+- **Build:** The Vercel build runs `prisma generate && next build` only. We do **not** run `prisma migrate deploy` on deploy, because the migration history in this repo still contains old SQLite migrations that would fail on Postgres. So when you add new schema changes (new columns/tables), run the new migration SQL in Neon’s SQL Editor (or use `scripts/neon-apply-missing-staff-columns.sql` for staff columns).
 
 ## One-time setup for an existing Neon database
 
