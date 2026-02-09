@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatDate } from '@/lib/fuelPayments'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
   id: string
@@ -277,7 +277,7 @@ export default function BatchesPage() {
                 {filteredBatches.map((batch) => (
                   <tr key={batch.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(new Date(batch.paymentDate))}
+                      {formatInvoiceDate(batch.paymentDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
                       {batch.bankRef || '(No Ref)'}
@@ -308,8 +308,8 @@ export default function BatchesPage() {
                             const categories = Array.from(
                               new Set((batch.invoices || []).map((inv: any) => inv.type || ''))
                             ).join(', ')
-                            const summary = `Fuel Payment Batch\n\nDate: ${formatDate(
-                              new Date(batch.paymentDate)
+                            const summary = `Fuel Payment Batch\n\nDate: ${formatInvoiceDate(
+                              batch.paymentDate
                             )}\nBank Ref: ${
                               batch.bankRef || '(No Ref)'
                             }\nTotal Paid: ${formatAmount(
