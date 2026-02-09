@@ -20,7 +20,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, dateOfBirth, startDate, status, role, nicNumber, bankName, accountNumber, notes } = body
+    const { name, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
 
     // Validation
     if (!name || name.trim() === '') {
@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
         dateOfBirth: dateOfBirth && dateOfBirth.trim() !== '' ? dateOfBirth : null,
         startDate: startDate && startDate.trim() !== '' ? startDate : null,
         status: status || 'active',
-        role: role || 'cashier',
+        role: role || 'cashier', // Keep for backwards compatibility
+        roleId: roleId && roleId.trim() !== '' ? roleId.trim() : null,
         nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
         bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
         accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,

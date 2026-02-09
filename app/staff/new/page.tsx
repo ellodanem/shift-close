@@ -1,7 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+
+interface StaffRole {
+  id: string
+  name: string
+  badgeColor?: string | null
+  sortOrder: number
+}
 
 export default function NewStaffPage() {
   const router = useRouter()
@@ -10,14 +17,35 @@ export default function NewStaffPage() {
     dateOfBirth: '',
     startDate: '',
     status: 'active',
-    role: 'cashier',
+    roleId: '',
     nicNumber: '',
     bankName: '',
     accountNumber: '',
     notes: ''
   })
+  const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingRoles, setLoadingRoles] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Fetch available roles
+    fetch('/api/staff-roles')
+      .then(res => res.json())
+      .then((data: StaffRole[]) => {
+        setRoles(data)
+        // Set default roleId to first role (usually Cashier)
+        if (data.length > 0) {
+          const defaultRole = data.find(r => r.name.toLowerCase() === 'cashier') || data[0]
+          setFormData(prev => ({ ...prev, roleId: defaultRole.id }))
+        }
+        setLoadingRoles(false)
+      })
+      .catch(err => {
+        console.error('Error fetching roles:', err)
+        setLoadingRoles(false)
+      })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,18 +119,24 @@ export default function NewStaffPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Role <span className="text-red-500">*</span>
               </label>
-              <select
-                required
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="cashier">Cashier</option>
-                <option value="pump attendant">Pump Attendant</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
+              {loadingRoles ? (
+                <div className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-500">
+                  Loading roles...
+                </div>
+              ) : (
+                <select
+                  required
+                  value={formData.roleId}
+                  onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Status */}

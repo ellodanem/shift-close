@@ -12,10 +12,18 @@ interface Staff {
   startDate: string | null
   status: string
   role: string
+  roleId: string | null
   notes: string
   _count?: {
     shifts: number
   }
+}
+
+interface StaffRole {
+  id: string
+  name: string
+  badgeColor?: string | null
+  sortOrder: number
 }
 
 interface StaffDocument {
@@ -36,13 +44,15 @@ export default function EditStaffPage() {
     dateOfBirth: '',
     startDate: '',
     status: 'active',
-    role: 'cashier',
+    roleId: '',
     nicNumber: '',
     bankName: '',
     accountNumber: '',
     notes: ''
   })
+  const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingRoles, setLoadingRoles] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [shiftCount, setShiftCount] = useState(0)
@@ -53,7 +63,21 @@ export default function EditStaffPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
 
   useEffect(() => {
-    fetchStaff()
+    // Fetch available roles first
+    fetch('/api/staff-roles')
+      .then(res => res.json())
+      .then((data: StaffRole[]) => {
+        setRoles(data)
+        setLoadingRoles(false)
+        // Then fetch staff data
+        fetchStaff()
+      })
+      .catch(err => {
+        console.error('Error fetching roles:', err)
+        setLoadingRoles(false)
+        fetchStaff()
+      })
+    
     fetchDocuments()
     
     // Check if generate parameter is in URL - show template selection modal instead of auto-generating
@@ -156,7 +180,7 @@ export default function EditStaffPage() {
         dateOfBirth: data.dateOfBirth || '',
         startDate: data.startDate || '',
         status: data.status,
-        role: data.role,
+        roleId: data.roleId || '',
         nicNumber: (data as any).nicNumber || '',
         bankName: (data as any).bankName || '',
         accountNumber: (data as any).accountNumber || '',
@@ -258,18 +282,27 @@ export default function EditStaffPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Role <span className="text-red-500">*</span>
               </label>
-              <select
-                required
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="cashier">Cashier</option>
-                <option value="pump attendant">Pump Attendant</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
+              {loadingRoles ? (
+                <div className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-500">
+                  Loading roles...
+                </div>
+              ) : (
+                <select
+                  required
+                  value={formData.roleId}
+                  onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {roles.length === 0 && (
+                    <option value="">No roles available</option>
+                  )}
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Status */}
