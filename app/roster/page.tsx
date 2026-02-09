@@ -110,6 +110,14 @@ export default function RosterPage() {
     [weekStart]
   )
 
+  // Week banner colour: past = grey, current = light green, future = light blue
+  const weekBannerStyle = useMemo(() => {
+    const thisWeekMonday = formatInputDate(getMonday(new Date()))
+    if (weekStart < thisWeekMonday) return { bg: 'bg-gray-200', text: 'text-gray-700' }
+    if (weekStart > thisWeekMonday) return { bg: 'bg-sky-100', text: 'text-sky-900' }
+    return { bg: 'bg-green-100', text: 'text-green-900' }
+  }, [weekStart])
+
   // Load staff and templates once
   useEffect(() => {
     async function loadStatic() {
@@ -314,6 +322,65 @@ export default function RosterPage() {
     return lines.join('\n')
   }
 
+  const handleCopyPreviousWeek = async () => {
+    const prevWeekStart = addDays(weekStart, -7)
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/roster/weeks?weekStart=${prevWeekStart}`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to load previous week')
+      }
+      const data = await res.json()
+      const prevEntries: RosterEntry[] = data.entries ?? []
+      if (prevEntries.length === 0) {
+        alert('Previous week has no shifts to copy.')
+        return
+      }
+      const prevWeekDates = dayLabels.map((_, i) => addDays(prevWeekStart, i))
+      const newEntries = prevEntries
+        .map((e) => {
+          const idx = prevWeekDates.indexOf(e.date)
+          if (idx === -1) return null
+          return {
+            staffId: e.staffId,
+            date: weekDates[idx],
+            shiftTemplateId: e.shiftTemplateId ?? null,
+            position: e.position ?? null,
+            notes: e.notes ?? ''
+          }
+        })
+        .filter((e): e is NonNullable<typeof e> => e != null)
+      const saveRes = await fetch('/api/roster/weeks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weekStart,
+          status: 'draft',
+          entries: newEntries
+        })
+      })
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to save roster')
+      }
+      setEntries(
+        newEntries.map((e) => ({
+          ...e,
+          rosterWeekId: undefined,
+          id: undefined
+        }))
+      )
+      alert(`Copied ${newEntries.length} shift(s) from previous week.`)
+    } catch (err) {
+      console.error('Error copying previous week', err)
+      setError(err instanceof Error ? err.message : 'Failed to copy previous week')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleEmailShare = async () => {
     if (entries.length === 0) {
       alert('There are no shifts saved for this week yet. Save the roster first, then share.')
@@ -503,11 +570,18 @@ export default function RosterPage() {
         )}
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-700">
+          <div className={`px-4 py-2 border-b border-gray-200 flex justify-between items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
+            <span className="text-sm font-semibold">
               Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
             </span>
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyPreviousWeek}
+                disabled={loading || sharing}
+                className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
+              >
+                Copy previous week
+              </button>
               <button
                 onClick={handleWhatsAppShare}
                 disabled={sharing}
@@ -537,18 +611,18 @@ export default function RosterPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
+                <thead className={weekBannerStyle.bg}>
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${weekBannerStyle.text}`}>
                       Staff
                     </th>
                     {weekDates.map((date, idx) => (
                       <th
                         key={date}
-                        className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${weekBannerStyle.text}`}
                       >
                         <div>{dayLabels[idx]}</div>
-                        <div className="text-[11px] text-gray-400">
+                        <div className="text-[11px] opacity-80">
                           {formatDisplayDate(date)}
                         </div>
                       </th>
