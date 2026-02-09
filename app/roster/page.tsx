@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas'
 interface Staff {
   id: string
   name: string
+  firstName?: string
   status: string
   role: string
 }
@@ -316,7 +317,8 @@ export default function RosterPage() {
         if (!entry?.shiftTemplateId) return 'Off'
         return templateMap.get(entry.shiftTemplateId) || 'Shift'
       })
-      lines.push(`${s.name}: ${dayStrings.join(' | ')}`)
+      const displayName = s.firstName?.trim() || s.name
+      lines.push(`${displayName}: ${dayStrings.join(' | ')}`)
     })
 
     return lines.join('\n')
@@ -688,16 +690,25 @@ export default function RosterPage() {
                       if (offCount > 0) items.push({ label: 'Off', count: offCount })
                       return (
                         <td key={date} className="px-1 py-1.5 text-center align-bottom">
-                          <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-gray-600">
-                            {items.map(({ label, count, color }) => (
-                              <span
-                                key={label}
-                                className="inline-flex items-center rounded px-1.5 py-0.5 font-medium tabular-nums"
-                                style={color ? { backgroundColor: `${color}30`, color } : undefined}
-                              >
-                                {label}: {count}
-                              </span>
-                            ))}
+                          <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 items-baseline text-[10px] text-gray-600">
+                            {items.map(({ label, count, color }) =>
+                              color ? (
+                                <span
+                                  key={label}
+                                  className="inline-flex items-baseline gap-0.5 rounded px-1.5 py-0.5 tabular-nums"
+                                  style={{ backgroundColor: `${color}30` }}
+                                >
+                                  <span className="opacity-90">{label}:</span>
+                                  <span className="font-bold text-sm" style={{ color }}>
+                                    {count}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span key={label} className="tabular-nums">
+                                  Off: {count}
+                                </span>
+                              )
+                            )}
                           </div>
                         </td>
                       )
@@ -729,7 +740,7 @@ export default function RosterPage() {
                               ↓
                             </button>
                           </div>
-                          <div className="font-medium text-gray-900">{s.name}</div>
+                          <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
                         </div>
                       </td>
                       {weekDates.map((date) => {
@@ -798,7 +809,7 @@ export default function RosterPage() {
                 {staff.map((s) => (
                   <tr key={s.id}>
                     <td className="border px-2 py-1 align-top">
-                      <div className="font-medium text-gray-900">{s.name}</div>
+                      <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
                     </td>
                     {weekDates.map((date) => {
                       const entry = getEntryFor(s.id, date)
