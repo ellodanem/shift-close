@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
     }
 
     const week = await prisma.rosterWeek.findUnique({
-      where: { weekStart },
+      // Use the named unique constraint on week_start (roster_week_week_start)
+      where: {
+        roster_week_week_start: {
+          weekStart
+        }
+      },
       include: {
         entries: true
       }
