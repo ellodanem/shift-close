@@ -695,13 +695,10 @@ export default function RosterPage() {
                               color ? (
                                 <span
                                   key={label}
-                                  className="inline-flex items-baseline gap-0.5 rounded px-1.5 py-0.5 tabular-nums"
-                                  style={{ backgroundColor: `${color}30` }}
+                                  className="inline-flex items-center justify-center rounded px-1.5 py-0.5 font-bold text-sm tabular-nums"
+                                  style={{ backgroundColor: `${color}30`, color }}
                                 >
-                                  <span className="opacity-90">{label}:</span>
-                                  <span className="font-bold text-sm" style={{ color }}>
-                                    {count}
-                                  </span>
+                                  {count}
                                 </span>
                               ) : (
                                 <span key={label} className="tabular-nums">
