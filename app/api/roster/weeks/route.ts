@@ -16,14 +16,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const week = await prisma.rosterWeek.findUnique({
-      // Use the named unique constraint on week_start (roster_week_week_start)
-      where: {
-        roster_week_week_start: weekStart
-      },
-      include: {
-        entries: true
-      }
+    const week = await prisma.rosterWeek.findFirst({
+      where: { weekStart },
+      include: { entries: true }
     })
 
     return NextResponse.json({
@@ -70,18 +65,26 @@ export async function POST(request: NextRequest) {
     const safeEntries = Array.isArray(entries) ? entries : []
 
     const result = await prisma.$transaction(async (tx) => {
-      const week = await tx.rosterWeek.upsert({
-        where: { roster_week_week_start: weekStart },
-        update: {
-          status: status || 'draft',
-          notes: notes ?? ''
-        },
-        create: {
-          weekStart,
-          status: status || 'draft',
-          notes: notes ?? ''
-        }
+      // Emulate upsert by weekStart (unique) using findFirst + update/create
+      const existing = await tx.rosterWeek.findFirst({
+        where: { weekStart }
       })
+
+      const week = existing
+        ? await tx.rosterWeek.update({
+            where: { id: existing.id },
+            data: {
+              status: status || existing.status || 'draft',
+              notes: notes ?? existing.notes ?? ''
+            }
+          })
+        : await tx.rosterWeek.create({
+            data: {
+              weekStart,
+              status: status || 'draft',
+              notes: notes ?? ''
+            }
+          })
 
       await tx.rosterEntry.deleteMany({
         where: { rosterWeekId: week.id }
