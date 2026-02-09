@@ -37,6 +37,9 @@ export default function EditStaffPage() {
     startDate: '',
     status: 'active',
     role: 'cashier',
+    nicNumber: '',
+    bankName: '',
+    accountNumber: '',
     notes: ''
   })
   const [loading, setLoading] = useState(true)
@@ -154,6 +157,9 @@ export default function EditStaffPage() {
         startDate: data.startDate || '',
         status: data.status,
         role: data.role,
+        nicNumber: (data as any).nicNumber || '',
+        bankName: (data as any).bankName || '',
+        accountNumber: (data as any).accountNumber || '',
         notes: data.notes
       })
       setShiftCount(data._count?.shifts || 0)
@@ -259,6 +265,7 @@ export default function EditStaffPage() {
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="cashier">Cashier</option>
+                <option value="pump attendant">Pump Attendant</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>

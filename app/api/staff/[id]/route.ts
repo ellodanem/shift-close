@@ -32,7 +32,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { name, dateOfBirth, startDate, status, role, notes } = body
+    const { name, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
 
     // Validation
     if (name !== undefined && name.trim() === '') {
@@ -47,6 +47,10 @@ export async function PATCH(
         ...(startDate !== undefined && { startDate: startDate || null }),
         ...(status !== undefined && { status }),
         ...(role !== undefined && { role }),
+        ...(roleId !== undefined && { roleId: roleId || null }),
+        ...(nicNumber !== undefined && { nicNumber: nicNumber || null }),
+        ...(bankName !== undefined && { bankName: bankName || null }),
+        ...(accountNumber !== undefined && { accountNumber: accountNumber || null }),
         ...(notes !== undefined && { notes: notes || '' })
       }
     })

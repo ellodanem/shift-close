@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, dateOfBirth, startDate, status, role, notes } = body
+    const { name, dateOfBirth, startDate, status, role, nicNumber, bankName, accountNumber, notes } = body
 
     // Validation
     if (!name || name.trim() === '') {
@@ -30,6 +30,9 @@ export async function POST(request: NextRequest) {
         startDate: startDate && startDate.trim() !== '' ? startDate : null,
         status: status || 'active',
         role: role || 'cashier',
+        nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
+        bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
+        accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
         notes: notes || ''
       }
     })

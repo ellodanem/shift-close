@@ -13,7 +13,11 @@ model Staff {
   dateOfBirth String?  @map("date_of_birth") // YYYY-MM-DD
   startDate   String?  @map("start_date") // YYYY-MM-DD
   status      String   @default("active") // "active" | "inactive"
-  role        String   @default("cashier") // "admin" | "manager" | "supervisor" | "cashier"
+  role        String   @default("cashier") // Backwards-compatible string role label
+  roleId      String?  @map("role_id")
+  nicNumber   String?  @map("nic_number")
+  bankName    String?  @map("bank_name")
+  accountNumber String? @map("account_number")
   notes       String   @default("")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -21,6 +25,7 @@ model Staff {
   shifts        ShiftClose[]
   documents     StaffDocument[]
   rosterEntries RosterEntry[]
+  staffRole     StaffRole?    @relation(fields: [roleId], references: [id])
 
   @@map("staff")
 }
@@ -330,6 +335,20 @@ model CustomerArAccountSnapshot {
   @@index([year, month], name: "customer_ar_account_year_month")
   @@map("customer_ar_account_snapshots")
 }
+
+// Roles for staff (e.g. Cashier, Pump Attendant, Supervisor)
+model StaffRole {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  badgeColor String?  @map("badge_color")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  staff Staff[]
+
+  @@map("staff_roles")
+}
+
 
 // Shift presets used by the roster module (e.g. "6-1", "1-9", "7:30 - 2")
 model ShiftTemplate {
