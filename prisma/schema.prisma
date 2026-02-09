@@ -329,3 +329,53 @@ model CustomerArAccountSnapshot {
   @@index([year, month], name: "customer_ar_account_year_month")
   @@map("customer_ar_account_snapshots")
 }
+
+// Shift presets used by the roster module (e.g. "6-1", "1-9", "7:30 - 2")
+model ShiftTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  startTime String   @map("start_time") // "06:00"
+  endTime   String   @map("end_time")   // "13:00"
+  color     String?  // Optional hex color for UI
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rosterEntries RosterEntry[]
+
+  @@map("shift_templates")
+}
+
+// One week of roster assignments (Monday start)
+model RosterWeek {
+  id        String   @id @default(cuid())
+  weekStart String   @map("week_start") // YYYY-MM-DD (Monday of the week)
+  status    String   @default("draft")  // "draft" | "published"
+  notes     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  entries RosterEntry[]
+
+  @@unique([weekStart], name: "roster_week_week_start")
+  @@map("roster_weeks")
+}
+
+// Individual roster assignment: staff + date (+ optional shift template)
+model RosterEntry {
+  id              String        @id @default(cuid())
+  rosterWeekId    String        @map("roster_week_id")
+  staffId         String        @map("staff_id")
+  shiftTemplateId String?       @map("shift_template_id")
+  date            String        // YYYY-MM-DD
+  position        String?       // Optional: station / role for that shift
+  notes           String        @default("")
+
+  rosterWeek   RosterWeek    @relation(fields: [rosterWeekId], references: [id], onDelete: Cascade)
+  staff        Staff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  shiftTemplate ShiftTemplate? @relation(fields: [shiftTemplateId], references: [id], onDelete: SetNull)
+
+  @@unique([rosterWeekId, staffId, date], name: "roster_week_staff_date")
+  @@map("roster_entries")
+}
+
