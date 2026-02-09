@@ -2,12 +2,11 @@
 
 ## If staff/roster is missing right now (quick fix)
 
-Run the latest migration(s) on Neon so the app can read staff again. In Neon’s SQL editor, run the contents of:
+**Run this once in Neon’s SQL Editor** (copy-paste the whole file):
 
-- `prisma/migrations/20260210120000_add_staff_first_last_name/migration.sql` (if you haven’t already)
-- `prisma/migrations/20260210140000_add_staff_sort_order/migration.sql`
+**`scripts/neon-apply-missing-staff-columns.sql`**
 
-Then reload the app; the staff table and roster should be back.
+That script adds `first_name`, `last_name`, and `sort_order` to `staff` if they’re missing, and backfills names. It’s safe to run more than once. After it runs, reload the app; the staff table and roster should be back.
 
 ---
 
