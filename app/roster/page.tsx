@@ -381,6 +381,40 @@ export default function RosterPage() {
     }
   }
 
+  const handleClearWeek = async () => {
+    if (entries.length === 0) {
+      alert('This week already has no shifts.')
+      return
+    }
+    const confirmed = window.confirm(
+      'Clear all shifts for this week? You can\'t undo this.'
+    )
+    if (!confirmed) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/roster/weeks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weekStart,
+          status: 'draft',
+          entries: []
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to clear roster')
+      }
+      setEntries([])
+    } catch (err) {
+      console.error('Error clearing week', err)
+      setError(err instanceof Error ? err.message : 'Failed to clear week')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleEmailShare = async () => {
     if (entries.length === 0) {
       alert('There are no shifts saved for this week yet. Save the roster first, then share.')
@@ -581,6 +615,13 @@ export default function RosterPage() {
                 className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
                 Copy previous week
+              </button>
+              <button
+                onClick={handleClearWeek}
+                disabled={loading || sharing || entries.length === 0}
+                className="px-3 py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+              >
+                Clear week
               </button>
               <button
                 onClick={handleWhatsAppShare}
