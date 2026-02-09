@@ -21,7 +21,7 @@ export default function ShiftTemplatesPage() {
   const [newName, setNewName] = useState('')
   const [newStartTime, setNewStartTime] = useState('06:00')
   const [newEndTime, setNewEndTime] = useState('13:00')
-  const [newColor, setNewColor] = useState('')
+  const [newColor, setNewColor] = useState('#2563eb')
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -219,13 +219,25 @@ export default function ShiftTemplatesPage() {
               <label className="block text-xs font-semibold text-gray-500 mb-1">
                 Color (optional)
               </label>
-              <input
-                type="text"
-                value={newColor}
-                onChange={(e) => setNewColor(e.target.value)}
-                placeholder="#2563eb"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={newColor || '#2563eb'}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  className="w-10 h-8 border border-gray-300 rounded"
+                  title="Pick a color"
+                />
+                <input
+                  type="text"
+                  value={newColor}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  placeholder="#2563eb"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500">
+                You can pick a color or type a custom hex code.
+              </p>
             </div>
           </div>
           <div className="flex justify-end">
@@ -307,12 +319,22 @@ export default function ShiftTemplatesPage() {
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-700">
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={editColor}
-                            onChange={(e) => setEditColor(e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={editColor || tmpl.color || '#2563eb'}
+                              onChange={(e) => setEditColor(e.target.value)}
+                              className="w-8 h-7 border border-gray-300 rounded"
+                              title="Pick a color"
+                            />
+                            <input
+                              type="text"
+                              value={editColor}
+                              onChange={(e) => setEditColor(e.target.value)}
+                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="#2563eb"
+                            />
+                          </div>
                         ) : tmpl.color ? (
                           <span className="inline-flex items-center gap-2">
                             <span
