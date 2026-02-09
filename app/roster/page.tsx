@@ -52,6 +52,13 @@ function addDays(isoDate: string, days: number): string {
   return formatInputDate(date)
 }
 
+function formatDisplayDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-')
+  if (!y || !m || !d) return isoDate
+  // dd-mm-yy
+  return `${d}-${m}-${y.slice(2)}`
+}
+
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export default function RosterPage() {
@@ -353,7 +360,7 @@ export default function RosterPage() {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
             <span className="text-sm font-semibold text-gray-700">
-              Weekly roster ({weekStart} – {weekDates[6]})
+              Weekly roster ({formatDisplayDate(weekStart)} – {formatDisplayDate(weekDates[6])})
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -400,7 +407,9 @@ export default function RosterPage() {
                         className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         <div>{dayLabels[idx]}</div>
-                        <div className="text-[11px] text-gray-400">{date}</div>
+                        <div className="text-[11px] text-gray-400">
+                          {formatDisplayDate(date)}
+                        </div>
                       </th>
                     ))}
                   </tr>
