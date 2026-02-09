@@ -9,7 +9,11 @@ export async function GET() {
     return NextResponse.json(staff)
   } catch (error) {
     console.error('Error fetching staff:', error)
-    return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 })
+    const message =
+      error && typeof error === 'object' && 'message' in error
+        ? (error as any).message
+        : 'Failed to fetch staff'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
