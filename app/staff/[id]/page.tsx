@@ -8,6 +8,8 @@ import DocumentGenerationModal from './DocumentGenerationModal'
 interface Staff {
   id: string
   name: string
+  firstName?: string
+  lastName?: string
   dateOfBirth: string | null
   startDate: string | null
   status: string
@@ -40,7 +42,8 @@ export default function EditStaffPage() {
   const id = params.id as string
 
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     dateOfBirth: '',
     startDate: '',
     status: 'active',
@@ -50,6 +53,7 @@ export default function EditStaffPage() {
     accountNumber: '',
     notes: ''
   })
+  const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingRoles, setLoadingRoles] = useState(true)
@@ -151,7 +155,7 @@ export default function EditStaffPage() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} - ${formData.name}</title>
+            <title>${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} - ${displayName}</title>
             <style>
               body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
               pre { white-space: pre-wrap; font-family: Arial, sans-serif; }
@@ -175,8 +179,11 @@ export default function EditStaffPage() {
         throw new Error('Failed to fetch staff')
       }
       const data: Staff = await res.json()
+      const first = data.firstName ?? (data.name ? data.name.split(' ')[0] ?? '' : '')
+      const last = data.lastName ?? (data.name ? data.name.split(' ').slice(1).join(' ') ?? '' : '')
       setFormData({
-        name: data.name,
+        firstName: first,
+        lastName: last,
         dateOfBirth: data.dateOfBirth || '',
         startDate: data.startDate || '',
         status: data.status,
@@ -207,7 +214,9 @@ export default function EditStaffPage() {
         body: JSON.stringify({
           ...formData,
           dateOfBirth: formData.dateOfBirth || null,
-          startDate: formData.startDate || null
+          startDate: formData.startDate || null,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim()
         })
       })
 
@@ -262,18 +271,32 @@ export default function EditStaffPage() {
           )}
 
           <div className="space-y-4">
-            {/* Name */}
+            {/* First name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
+                First name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter full name"
+                placeholder="First name"
+              />
+            </div>
+            {/* Last name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Last name"
               />
             </div>
 
@@ -459,7 +482,7 @@ export default function EditStaffPage() {
       {showTemplateSelection && (
         <DocumentGenerationModal
           staffId={id}
-          staffName={formData.name}
+          staffName={displayName}
           onClose={() => setShowTemplateSelection(false)}
           onGenerate={handleGenerateDocument}
         />
@@ -471,7 +494,7 @@ export default function EditStaffPage() {
           <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1).replace('-', ' ')} - {formData.name}
+                {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1).replace('-', ' ')} - {displayName}
               </h3>
               <button
                 onClick={() => setShowGenerateModal(false)}

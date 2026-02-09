@@ -32,27 +32,41 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { name, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
+    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
 
-    // Validation
-    if (name !== undefined && name.trim() === '') {
-      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+    const data: Record<string, unknown> = {
+      ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
+      ...(startDate !== undefined && { startDate: startDate || null }),
+      ...(status !== undefined && { status }),
+      ...(role !== undefined && { role }),
+      ...(roleId !== undefined && { roleId: roleId || null }),
+      ...(nicNumber !== undefined && { nicNumber: nicNumber || null }),
+      ...(bankName !== undefined && { bankName: bankName || null }),
+      ...(accountNumber !== undefined && { accountNumber: accountNumber || null }),
+      ...(notes !== undefined && { notes: notes || '' })
+    }
+
+    if (firstName !== undefined || lastName !== undefined) {
+      const current = await prisma.staff.findUnique({ where: { id: params.id }, select: { firstName: true, lastName: true } })
+      const first = (firstName !== undefined ? firstName : current?.firstName ?? '').toString().trim()
+      const last = (lastName !== undefined ? lastName : current?.lastName ?? '').toString().trim()
+      const displayName = [first, last].filter(Boolean).join(' ').trim()
+      if (!displayName) {
+        return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
+      }
+      data.firstName = first || ''
+      data.lastName = last || ''
+      data.name = displayName
+    } else if (name !== undefined) {
+      if (name.trim() === '') {
+        return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+      }
+      data.name = name.trim()
     }
 
     const staff = await prisma.staff.update({
       where: { id: params.id },
-      data: {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
-        ...(startDate !== undefined && { startDate: startDate || null }),
-        ...(status !== undefined && { status }),
-        ...(role !== undefined && { role }),
-        ...(roleId !== undefined && { roleId: roleId || null }),
-        ...(nicNumber !== undefined && { nicNumber: nicNumber || null }),
-        ...(bankName !== undefined && { bankName: bankName || null }),
-        ...(accountNumber !== undefined && { accountNumber: accountNumber || null }),
-        ...(notes !== undefined && { notes: notes || '' })
-      }
+      data: data as any
     })
 
     return NextResponse.json(staff)

@@ -60,6 +60,29 @@ function formatDisplayDate(isoDate: string): string {
   return `${d}-${m}-${y.slice(2)}`
 }
 
+const monthNames: Record<string, string> = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+  '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+}
+
+function ordinal(n: number): string {
+  const s = String(n)
+  if (s.endsWith('11') || s.endsWith('12') || s.endsWith('13')) return `${n}th`
+  if (s.endsWith('1')) return `${n}st`
+  if (s.endsWith('2')) return `${n}nd`
+  if (s.endsWith('3')) return `${n}rd`
+  return `${n}th`
+}
+
+function formatPrettyDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-')
+  if (!y || !m || !d) return isoDate
+  const day = parseInt(d, 10)
+  const month = monthNames[m] || m
+  const year = y.slice(2)
+  return `${ordinal(day)} ${month} ${year}`
+}
+
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const isMobileDevice = () =>
@@ -151,6 +174,25 @@ export default function RosterPage() {
     entry?.shiftTemplateId
       ? templates.find((t) => t.id === entry.shiftTemplateId) || null
       : null
+
+  // Per-day, per-shift running counts (updates as assignments change)
+  const countByDayAndShift = useMemo(() => {
+    const byDay = new Map<string, Map<string, number>>()
+    weekDates.forEach((date) => {
+      const dayEntries = entries.filter((e) => e.date === date)
+      const shiftCounts = new Map<string, number>()
+      templates.forEach((t) => shiftCounts.set(t.id, 0))
+      shiftCounts.set('off', 0)
+      dayEntries.forEach((e) => {
+        const key = e.shiftTemplateId ?? 'off'
+        shiftCounts.set(key, (shiftCounts.get(key) ?? 0) + 1)
+      })
+      const assigned = dayEntries.length
+      shiftCounts.set('off', staff.length - assigned)
+      byDay.set(date, shiftCounts)
+    })
+    return byDay
+  }, [entries, weekDates, staff.length, templates])
 
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     setEntries((prev) => {
@@ -433,7 +475,7 @@ export default function RosterPage() {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
             <span className="text-sm font-semibold text-gray-700">
-              Weekly roster ({formatDisplayDate(weekStart)} – {formatDisplayDate(weekDates[6])})
+              Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -484,11 +526,42 @@ export default function RosterPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
+                  {/* Running count row: per-day shift totals */}
+                  <tr className="bg-gray-50/80 border-b border-gray-200">
+                    <td className="px-4 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">
+                      Count
+                    </td>
+                    {weekDates.map((date) => {
+                      const counts = countByDayAndShift.get(date)
+                      if (!counts) return <td key={date} className="px-1 py-1" />
+                      const items: { label: string; count: number; color?: string }[] = []
+                      templates.forEach((t) => {
+                        const n = counts.get(t.id) ?? 0
+                        if (n > 0) items.push({ label: t.name, count: n, color: t.color ?? undefined })
+                      })
+                      const offCount = counts.get('off') ?? 0
+                      if (offCount > 0) items.push({ label: 'Off', count: offCount })
+                      return (
+                        <td key={date} className="px-1 py-1.5 text-center align-bottom">
+                          <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-gray-600">
+                            {items.map(({ label, count, color }) => (
+                              <span
+                                key={label}
+                                className="inline-flex items-center rounded px-1.5 py-0.5 font-medium tabular-nums"
+                                style={color ? { backgroundColor: `${color}30`, color } : undefined}
+                              >
+                                {label}: {count}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
                   {staff.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 whitespace-nowrap text-xs sm:text-sm">
                         <div className="font-medium text-gray-900">{s.name}</div>
-                        <div className="text-[11px] text-gray-500">{s.role}</div>
                       </td>
                       {weekDates.map((date) => {
                         const entry = getEntryFor(s.id, date)
@@ -536,7 +609,7 @@ export default function RosterPage() {
             className="inline-block bg-white p-4 rounded shadow text-[11px]"
           >
             <div className="mb-2 font-semibold text-gray-800">
-              Roster ({formatDisplayDate(weekStart)} – {formatDisplayDate(weekDates[6])})
+              Roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
             </div>
             <table className="border-collapse text-[11px]">
               <thead>
@@ -557,7 +630,6 @@ export default function RosterPage() {
                   <tr key={s.id}>
                     <td className="border px-2 py-1 align-top">
                       <div className="font-medium text-gray-900">{s.name}</div>
-                      <div className="text-[10px] text-gray-500">{s.role}</div>
                     </td>
                     {weekDates.map((date) => {
                       const entry = getEntryFor(s.id, date)

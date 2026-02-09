@@ -13,7 +13,8 @@ interface StaffRole {
 export default function NewStaffPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     dateOfBirth: '',
     startDate: '',
     status: 'active',
@@ -59,7 +60,9 @@ export default function NewStaffPage() {
         body: JSON.stringify({
           ...formData,
           dateOfBirth: formData.dateOfBirth || null,
-          startDate: formData.startDate || null
+          startDate: formData.startDate || null,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim()
         })
       })
 
@@ -99,18 +102,32 @@ export default function NewStaffPage() {
           )}
 
           <div className="space-y-4">
-            {/* Name */}
+            {/* First name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
+                First name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter full name"
+                placeholder="First name"
+              />
+            </div>
+            {/* Last name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Last name"
               />
             </div>
 

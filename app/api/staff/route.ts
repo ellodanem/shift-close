@@ -17,23 +17,31 @@ export async function GET() {
   }
 }
 
+function fullNameFromFirstLast(firstName: string, lastName: string): string {
+  return [firstName.trim(), lastName.trim()].filter(Boolean).join(' ').trim() || ''
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
+    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
 
-    // Validation
-    if (!name || name.trim() === '') {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    const first = (firstName ?? name ?? '').toString().trim()
+    const last = (lastName ?? '').toString().trim()
+    const displayName = fullNameFromFirstLast(first, last)
+    if (!displayName) {
+      return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
     }
 
     const staff = await prisma.staff.create({
       data: {
-        name: name.trim(),
+        name: displayName,
+        firstName: first || '',
+        lastName: last || '',
         dateOfBirth: dateOfBirth && dateOfBirth.trim() !== '' ? dateOfBirth : null,
         startDate: startDate && startDate.trim() !== '' ? startDate : null,
         status: status || 'active',
-        role: role || 'cashier', // Keep for backwards compatibility
+        role: role || 'cashier',
         roleId: roleId && roleId.trim() !== '' ? roleId.trim() : null,
         nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
         bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
