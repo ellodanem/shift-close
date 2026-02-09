@@ -194,6 +194,36 @@ export default function RosterPage() {
     return byDay
   }, [entries, weekDates, staff.length, templates])
 
+  const handleMoveStaff = async (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= staff.length) return
+    const reordered = [...staff]
+    const a = reordered[index]
+    const b = reordered[newIndex]
+    reordered[index] = b
+    reordered[newIndex] = a
+    const orderedIds = reordered.map((s) => s.id)
+    try {
+      const res = await fetch('/api/staff/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds })
+      })
+      if (!res.ok) throw new Error('Failed to reorder')
+      const [staffRes] = await Promise.all([
+        fetch('/api/staff'),
+        fetch(`/api/roster/weeks?weekStart=${weekStart}`)
+      ])
+      if (staffRes.ok) {
+        const staffData: Staff[] = await staffRes.json()
+        setStaff(staffData.filter((s) => s.status === 'active' && s.role !== 'manager'))
+      }
+    } catch (err) {
+      console.error('Error reordering staff', err)
+      setError('Failed to reorder. Try again.')
+    }
+  }
+
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
@@ -558,10 +588,34 @@ export default function RosterPage() {
                       )
                     })}
                   </tr>
-                  {staff.map((s) => (
+                  {staff.map((s, index) => (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 whitespace-nowrap text-xs sm:text-sm">
-                        <div className="font-medium text-gray-900">{s.name}</div>
+                      <td className="px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
+                        <div className="flex items-center gap-1">
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStaff(index, 'up')}
+                              disabled={index === 0}
+                              className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move up"
+                              aria-label="Move up"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStaff(index, 'down')}
+                              disabled={index === staff.length - 1}
+                              className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move down"
+                              aria-label="Move down"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                          <div className="font-medium text-gray-900">{s.name}</div>
+                        </div>
                       </td>
                       {weekDates.map((date) => {
                         const entry = getEntryFor(s.id, date)

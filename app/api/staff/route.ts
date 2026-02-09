@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const staff = await prisma.staff.findMany({
-      orderBy: { name: 'asc' }
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
     })
     return NextResponse.json(staff)
   } catch (error) {
@@ -33,11 +33,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
     }
 
+    const maxOrder = await prisma.staff.aggregate({ _max: { sortOrder: true } }).then((r) => r._max.sortOrder ?? -1)
     const staff = await prisma.staff.create({
       data: {
         name: displayName,
         firstName: first || '',
         lastName: last || '',
+        sortOrder: maxOrder + 1,
         dateOfBirth: dateOfBirth && dateOfBirth.trim() !== '' ? dateOfBirth : null,
         startDate: startDate && startDate.trim() !== '' ? startDate : null,
         status: status || 'active',
