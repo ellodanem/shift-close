@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { formatDate, formatAmount } from '@/lib/fuelPayments'
+import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
@@ -100,7 +100,7 @@ export default function BatchDetailPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Payment Batch</h1>
             <p className="text-sm text-gray-600 mt-1">
-              {formatDate(new Date(batch.paymentDate))} • Bank Ref: {batch.bankRef || '(No Ref)'}
+              {formatInvoiceDate(batch.paymentDate)} • Bank Ref: {batch.bankRef || '(No Ref)'}
             </p>
           </div>
           <div className="flex gap-4">
@@ -124,7 +124,7 @@ export default function BatchDetailPage() {
             <div>
               <p className="text-sm text-gray-600">Payment Date</p>
               <p className="text-lg font-semibold text-gray-900">
-                {formatDate(new Date(batch.paymentDate))}
+                {formatInvoiceDate(batch.paymentDate)}
               </p>
             </div>
             <div>
