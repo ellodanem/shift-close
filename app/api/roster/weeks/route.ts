@@ -27,9 +27,12 @@ export async function GET(request: NextRequest) {
       week,
       entries: week?.entries ?? []
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching roster week:', error)
-    return NextResponse.json({ error: 'Failed to fetch roster week' }, { status: 500 })
+    const message =
+      (error && typeof error === 'object' && 'message' in error && (error as any).message) ||
+      'Failed to fetch roster week'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
