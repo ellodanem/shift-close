@@ -129,6 +129,11 @@ export default function RosterPage() {
   const getEntryFor = (staffId: string, date: string): RosterEntry | undefined =>
     entries.find((e) => e.staffId === staffId && e.date === date)
 
+  const getTemplateForEntry = (entry?: RosterEntry) =>
+    entry?.shiftTemplateId
+      ? templates.find((t) => t.id === entry.shiftTemplateId) || null
+      : null
+
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
@@ -409,8 +414,14 @@ export default function RosterPage() {
                       </td>
                       {weekDates.map((date) => {
                         const entry = getEntryFor(s.id, date)
+                        const template = getTemplateForEntry(entry)
+                        const bgColor = template?.color || undefined
                         return (
-                          <td key={date} className="px-1 py-1 text-center align-middle">
+                          <td
+                            key={date}
+                            className="px-1 py-1 text-center align-middle"
+                            style={bgColor ? { backgroundColor: bgColor } : undefined}
+                          >
                             <select
                               value={entry?.shiftTemplateId || ''}
                               onChange={(e) =>
@@ -420,7 +431,7 @@ export default function RosterPage() {
                                   e.target.value === '' ? null : e.target.value
                                 )
                               }
-                              className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
                               <option value="">Off</option>
                               {templates.map((t) => (
