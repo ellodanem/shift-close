@@ -18,8 +18,9 @@ model Staff {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  shifts    ShiftClose[]
-  documents StaffDocument[]
+  shifts        ShiftClose[]
+  documents     StaffDocument[]
+  rosterEntries RosterEntry[]
 
   @@map("staff")
 }
