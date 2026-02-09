@@ -93,7 +93,7 @@ const isMobileDevice = () =>
 
 export default function RosterPage() {
   const router = useRouter()
-  const [staff, setStaff] = useState<Staff[]>([])
+  const [allStaff, setAllStaff] = useState<Staff[]>([])
   const [templates, setTemplates] = useState<ShiftTemplate[]>([])
   const [weekStart, setWeekStart] = useState<string>(() =>
     formatInputDate(getMonday(new Date()))
@@ -119,6 +119,23 @@ export default function RosterPage() {
     return { bg: 'bg-green-100', text: 'text-green-900' }
   }, [weekStart])
 
+  // For past weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
+  const displayStaff = useMemo(() => {
+    const thisWeekMonday = formatInputDate(getMonday(new Date()))
+    const activeForRoster = allStaff.filter(
+      (s) => s.status === 'active' && s.role !== 'manager'
+    )
+    if (weekStart >= thisWeekMonday) return activeForRoster
+    const entryStaffIds = new Set(entries.map((e) => e.staffId))
+    const inactiveWithEntries = allStaff.filter(
+      (s) =>
+        s.status !== 'active' &&
+        s.role !== 'manager' &&
+        entryStaffIds.has(s.id)
+    )
+    return [...activeForRoster, ...inactiveWithEntries]
+  }, [allStaff, weekStart, entries])
+
   // Load staff and templates once
   useEffect(() => {
     async function loadStatic() {
@@ -129,10 +146,7 @@ export default function RosterPage() {
         ])
         if (staffRes.ok) {
           const staffData: Staff[] = await staffRes.json()
-          // Only include active, non-manager staff on the roster
-          setStaff(
-            staffData.filter((s) => s.status === 'active' && s.role !== 'manager')
-          )
+          setAllStaff(staffData)
         }
         if (tmplRes.ok) {
           const tmplData: ShiftTemplate[] = await tmplRes.json()
@@ -197,16 +211,16 @@ export default function RosterPage() {
         shiftCounts.set(key, (shiftCounts.get(key) ?? 0) + 1)
       })
       const assigned = dayEntries.length
-      shiftCounts.set('off', staff.length - assigned)
+      shiftCounts.set('off', displayStaff.length - assigned)
       byDay.set(date, shiftCounts)
     })
     return byDay
-  }, [entries, weekDates, staff.length, templates])
+  }, [entries, weekDates, displayStaff.length, templates])
 
   const handleMoveStaff = async (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1
-    if (newIndex < 0 || newIndex >= staff.length) return
-    const reordered = [...staff]
+    if (newIndex < 0 || newIndex >= displayStaff.length) return
+    const reordered = [...displayStaff]
     const a = reordered[index]
     const b = reordered[newIndex]
     reordered[index] = b
@@ -225,7 +239,7 @@ export default function RosterPage() {
       ])
       if (staffRes.ok) {
         const staffData: Staff[] = await staffRes.json()
-        setStaff(staffData.filter((s) => s.status === 'active' && s.role !== 'manager'))
+        setAllStaff(staffData)
       }
     } catch (err) {
       console.error('Error reordering staff', err)
@@ -302,7 +316,7 @@ export default function RosterPage() {
   }
 
   const buildRosterText = () => {
-    if (staff.length === 0) return 'No staff in this roster.'
+    if (displayStaff.length === 0) return 'No staff in this roster.'
     const templateMap = new Map(templates.map((t) => [t.id, t.name]))
 
     const lines: string[] = []
@@ -311,7 +325,7 @@ export default function RosterPage() {
     lines.push('Format: Staff – Mon..Sun (per-day shift name or Off)')
     lines.push('------------------------------------------------------')
 
-    staff.forEach((s) => {
+    displayStaff.forEach((s) => {
       const dayStrings = weekDates.map((date) => {
         const entry = getEntryFor(s.id, date)
         if (!entry?.shiftTemplateId) return 'Off'
@@ -647,7 +661,7 @@ export default function RosterPage() {
 
           {loading ? (
             <div className="p-6 text-center text-gray-600 text-sm">Loading roster…</div>
-          ) : staff.length === 0 ? (
+          ) : displayStaff.length === 0 ? (
             <div className="p-6 text-center text-gray-600 text-sm">
               No staff found. Add staff first, then build the roster.
             </div>
@@ -711,7 +725,7 @@ export default function RosterPage() {
                       )
                     })}
                   </tr>
-                  {staff.map((s, index) => (
+                  {displayStaff.map((s, index) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
                         <div className="flex items-center gap-1">
@@ -729,7 +743,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'down')}
-                              disabled={index === staff.length - 1}
+                              disabled={index === displayStaff.length - 1}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move down"
                               aria-label="Move down"
@@ -803,7 +817,7 @@ export default function RosterPage() {
                 </tr>
               </thead>
               <tbody>
-                {staff.map((s) => (
+                {displayStaff.map((s) => (
                   <tr key={s.id}>
                     <td className="border px-2 py-1 align-top">
                       <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
