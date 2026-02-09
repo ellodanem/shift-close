@@ -66,6 +66,25 @@ interface CustomerArSummary {
 
 type MonthFilterType = 'currentMonth' | 'previousMonth' | 'custom'
 
+interface TodayScheduled {
+  staffId: string
+  staffName: string
+  shiftName: string
+  shiftColor: string | null
+}
+
+interface TodayOnVacation {
+  staffId: string
+  staffName: string
+}
+
+interface TodayRoster {
+  date: string
+  weekStart: string
+  scheduled: TodayScheduled[]
+  onVacation: TodayOnVacation[]
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<MonthSummary | null>(null)
@@ -73,6 +92,7 @@ export default function DashboardPage() {
   const [recentPayment, setRecentPayment] = useState<RecentFuelPayment | null>(null)
   const [fuelExpense, setFuelExpense] = useState<number | null>(null)
   const [arSummary, setArSummary] = useState<CustomerArSummary | null>(null)
+  const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -107,6 +127,21 @@ export default function DashboardPage() {
     fetchUpcoming()
     fetchRecentPayment()
   }, [activeFilter, customStartDate, customEndDate])
+
+  useEffect(() => {
+    const fetchToday = async () => {
+      try {
+        const res = await fetch('/api/dashboard/today')
+        if (res.ok) {
+          const data = await res.json()
+          setTodayRoster(data)
+        }
+      } catch (err) {
+        console.error('Error fetching today roster:', err)
+      }
+    }
+    fetchToday()
+  }, [])
 
   // Fetch A/R summary when summary data changes (respects month filter)
   useEffect(() => {
@@ -226,6 +261,11 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error fetching recent fuel payment:', error)
     }
+  }
+
+  const formatTodayDisplay = (iso: string): string => {
+    const d = new Date(iso + 'T12:00:00')
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
   const fetchArSummary = async (year: number, month: number) => {
@@ -826,9 +866,55 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Placeholder for future widgets */}
+        {/* Today's Roster & On Vacation */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <p className="text-gray-500 text-center italic">Additional dashboard widgets will appear here as they are developed.</p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
+            </h2>
+            <button
+              onClick={() => router.push('/roster')}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              View full week →
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Scheduled today</div>
+              {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {todayRoster.scheduled.map((s) => (
+                    <li key={s.staffId} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: s.shiftColor || '#94a3b8' }}
+                        title={s.shiftName}
+                      />
+                      <span className="font-medium text-gray-900">{s.staffName}</span>
+                      <span className="text-gray-500">{s.shiftName}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No one scheduled today.</p>
+              )}
+            </div>
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">On vacation</div>
+              {todayRoster?.onVacation && todayRoster.onVacation.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {todayRoster.onVacation.map((s) => (
+                    <li key={s.staffId} className="text-sm text-gray-700">
+                      {s.staffName}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No one on vacation today.</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
