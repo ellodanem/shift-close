@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import html2canvas from 'html2canvas'
 
 interface Staff {
   id: string
@@ -61,6 +62,11 @@ function formatDisplayDate(isoDate: string): string {
 
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+const isMobileDevice = () =>
+  /Android|iPhone|iPad|iPod/i.test(
+    typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  )
+
 export default function RosterPage() {
   const router = useRouter()
   const [staff, setStaff] = useState<Staff[]>([])
@@ -74,6 +80,7 @@ export default function RosterPage() {
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const imageRef = useRef<HTMLDivElement | null>(null)
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -282,15 +289,71 @@ export default function RosterPage() {
     }
   }
 
-  const handleWhatsAppShare = () => {
+  const generateRosterImage = async (): Promise<string> => {
+    if (!imageRef.current) {
+      throw new Error('Nothing to render')
+    }
+    const canvas = await html2canvas(imageRef.current, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false
+    })
+    return canvas.toDataURL('image/png')
+  }
+
+  const handleWhatsAppShare = async () => {
     if (entries.length === 0) {
-      alert('There are no shifts saved for this week yet. Save the roster first, then share.')
+      alert('There are no shifts saved for this week yet.')
       return
     }
-    const text = buildRosterText()
-    const message = encodeURIComponent(text)
-    const url = `https://wa.me/?text=${message}`
-    window.open(url, '_blank')
+    try {
+      setSharing(true)
+      const dataUrl = await generateRosterImage()
+      const blob = await (await fetch(dataUrl)).blob()
+      const file = new File([blob], 'roster.png', { type: 'image/png' })
+
+      // Mobile: use Web Share API to send the image directly to WhatsApp
+      if (
+        isMobileDevice() &&
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: 'Roster'
+        })
+        return
+      }
+
+      // Desktop: copy PNG to clipboard then open WhatsApp Web
+      if (
+        navigator.clipboard &&
+        'write' in navigator.clipboard &&
+        (window as any).ClipboardItem
+      ) {
+        try {
+          const clipboardItem = new (window as any).ClipboardItem({
+            'image/png': blob
+          })
+          await (navigator.clipboard as any).write([clipboardItem])
+          window.open('https://web.whatsapp.com/send', '_blank')
+          alert('Roster image copied. Paste into WhatsApp Web (Ctrl+V).')
+          return
+        } catch (clipboardError) {
+          console.error('Error copying roster PNG for WhatsApp Web:', clipboardError)
+        }
+      }
+
+      alert(
+        'Your browser cannot share images directly to WhatsApp. Please download or copy the PNG manually.'
+      )
+    } catch (err) {
+      console.error('Error sharing roster image', err)
+      alert('Failed to generate roster image')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -461,6 +524,58 @@ export default function RosterPage() {
               </table>
             </div>
           )}
+        </div>
+
+        {/* Hidden display-only roster view for PNG/WhatsApp (no dropdowns) */}
+        <div className="fixed -left-[9999px] -top-[9999px]" aria-hidden="true">
+          <div
+            ref={imageRef}
+            className="inline-block bg-white p-4 rounded shadow text-[11px]"
+          >
+            <div className="mb-2 font-semibold text-gray-800">
+              Roster ({formatDisplayDate(weekStart)} – {formatDisplayDate(weekDates[6])})
+            </div>
+            <table className="border-collapse text-[11px]">
+              <thead>
+                <tr>
+                  <th className="border px-2 py-1 text-left">Staff</th>
+                  {weekDates.map((date, idx) => (
+                    <th key={date} className="border px-2 py-1 text-center">
+                      <div className="font-semibold">{dayLabels[idx]}</div>
+                      <div className="text-[10px] text-gray-500">
+                        {formatDisplayDate(date)}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {staff.map((s) => (
+                  <tr key={s.id}>
+                    <td className="border px-2 py-1 align-top">
+                      <div className="font-medium text-gray-900">{s.name}</div>
+                      <div className="text-[10px] text-gray-500">{s.role}</div>
+                    </td>
+                    {weekDates.map((date) => {
+                      const entry = getEntryFor(s.id, date)
+                      const tmpl = getTemplateForEntry(entry)
+                      const label = tmpl?.name || 'Off'
+                      const bg = tmpl?.color || '#f9fafb'
+                      return (
+                        <td
+                          key={date}
+                          className="border px-2 py-1 text-center align-middle"
+                          style={{ backgroundColor: bg }}
+                        >
+                          {label}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
