@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Staff {
@@ -73,6 +73,7 @@ export default function RosterPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -165,6 +166,13 @@ export default function RosterPage() {
         }
       ]
     })
+    // Auto-save roster shortly after any change
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      void handleSave()
+    }, 800)
   }
 
   const handleChangeWeek = (direction: -1 | 1) => {
@@ -194,7 +202,6 @@ export default function RosterPage() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to save roster')
       }
-      alert('Roster saved.')
     } catch (err) {
       console.error('Error saving roster', err)
       setError(err instanceof Error ? err.message : 'Failed to save roster')
@@ -377,13 +384,9 @@ export default function RosterPage() {
               >
                 Email roster
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Save roster'}
-              </button>
+              <span className="text-[11px] text-gray-500 min-w-[80px] text-right">
+                {saving ? 'Saving…' : 'All changes saved'}
+              </span>
             </div>
           </div>
 
