@@ -10,6 +10,8 @@ interface Staff {
   startDate: string | null
   status: string
   role: string
+  roleId: string | null
+  staffRole?: { id: string; name: string; badgeColor: string | null } | null
   notes: string
 }
 
@@ -66,15 +68,20 @@ export default function StaffPage() {
     return status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
   }
 
-  const getRoleColor = (role: string) => {
+  const getRoleColor = (roleName: string) => {
+    const key = roleName?.toLowerCase() || ''
     const colors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800',
       manager: 'bg-blue-100 text-blue-800',
       supervisor: 'bg-yellow-100 text-yellow-800',
-      cashier: 'bg-gray-100 text-gray-800'
+      cashier: 'bg-gray-100 text-gray-800',
+      'pump attendant': 'bg-emerald-100 text-emerald-800'
     }
-    return colors[role] || 'bg-gray-100 text-gray-800'
+    return colors[key] || 'bg-gray-100 text-gray-800'
   }
+
+  const getRoleDisplayName = (member: Staff) =>
+    member.staffRole?.name ?? (member.role ? member.role.charAt(0).toUpperCase() + member.role.slice(1) : '—')
 
   if (loading) {
     return (
@@ -168,8 +175,8 @@ export default function StaffPage() {
                       <div className="text-sm font-medium text-gray-900">{member.name}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(member.role)}`}>
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(getRoleDisplayName(member))}`}>
+                        {getRoleDisplayName(member)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

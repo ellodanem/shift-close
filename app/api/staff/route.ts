@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const staff = await prisma.staff.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { staffRole: true }
     })
     return NextResponse.json(staff)
   } catch (error) {
