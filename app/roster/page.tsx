@@ -97,7 +97,10 @@ export default function RosterPage() {
         ])
         if (staffRes.ok) {
           const staffData: Staff[] = await staffRes.json()
-          setStaff(staffData.filter((s) => s.status === 'active'))
+          // Only include active, non-manager staff on the roster
+          setStaff(
+            staffData.filter((s) => s.status === 'active' && s.role !== 'manager')
+          )
         }
         if (tmplRes.ok) {
           const tmplData: ShiftTemplate[] = await tmplRes.json()
