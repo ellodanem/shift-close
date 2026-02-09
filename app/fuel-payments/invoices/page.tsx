@@ -415,6 +415,28 @@ export default function InvoicesPage() {
           </div>
         )}
 
+        {/* Quick links to C-Store Essentials & Republic Bank */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <a
+            href="https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx?"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 hover:text-slate-900"
+            title="C-Store Essentials – tasks and invoices"
+          >
+            🔗 C-Store Essentials
+          </a>
+          <a
+            href="https://republiconlineec.rfhl.com/RBEC.UI/#/administrationGeneral/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 hover:text-slate-900"
+            title="Republic Bank – login"
+          >
+            🔗 Republic Bank
+          </a>
+        </div>
+
         {/* Tabs + Paid search */}
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
           <div className="flex gap-2">

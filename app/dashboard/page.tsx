@@ -83,6 +83,7 @@ interface TodayRoster {
   weekStart: string
   scheduled: TodayScheduled[]
   onVacation: TodayOnVacation[]
+  off: TodayOnVacation[]
 }
 
 export default function DashboardPage() {
@@ -720,9 +721,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Upcoming Events & Fuel Payment Row */}
+        {/* Upcoming & Today Row (half boxes) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Upcoming Events - Compact Box */}
+          {/* Upcoming Events - Half Box */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Upcoming</h3>
             {upcoming.length === 0 ? (
@@ -781,7 +782,60 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Recent Fuel Payment */}
+          {/* Today's Roster - Half Box (scheduled + who's off) */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">
+                {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
+              </h3>
+              <button
+                onClick={() => router.push('/roster')}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Roster →
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
+                {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
+                  <ul className="space-y-1">
+                    {todayRoster.scheduled.map((s) => (
+                      <li key={s.staffId} className="flex items-center gap-2 text-xs">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: s.shiftColor || '#94a3b8' }}
+                          title={s.shiftName}
+                        />
+                        <span className="font-medium text-gray-900">{s.staffName}</span>
+                        <span className="text-gray-500">{s.shiftName}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">No one scheduled.</p>
+                )}
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Who&apos;s off</div>
+                {todayRoster?.off && todayRoster.off.length > 0 ? (
+                  <ul className="space-y-1">
+                    {todayRoster.off.map((s) => (
+                      <li key={s.staffId} className="text-xs text-gray-700">
+                        {s.staffName}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">No one off today.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Fuel Payment - Full width row */}
+        <div className="mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Recent Fuel Payment</h3>
@@ -863,57 +917,6 @@ export default function DashboardPage() {
                 View All Payments →
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Today's Roster & On Vacation */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
-            </h2>
-            <button
-              onClick={() => router.push('/roster')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              View full week →
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Scheduled today</div>
-              {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {todayRoster.scheduled.map((s) => (
-                    <li key={s.staffId} className="flex items-center gap-2 text-sm">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: s.shiftColor || '#94a3b8' }}
-                        title={s.shiftName}
-                      />
-                      <span className="font-medium text-gray-900">{s.staffName}</span>
-                      <span className="text-gray-500">{s.shiftName}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-500 italic">No one scheduled today.</p>
-              )}
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">On vacation</div>
-              {todayRoster?.onVacation && todayRoster.onVacation.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {todayRoster.onVacation.map((s) => (
-                    <li key={s.staffId} className="text-sm text-gray-700">
-                      {s.staffName}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-500 italic">No one on vacation today.</p>
-              )}
-            </div>
           </div>
         </div>
       </div>

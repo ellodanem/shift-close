@@ -54,23 +54,31 @@ export async function GET() {
       })
     ])
 
-    const scheduled = (week?.entries ?? []).map((e) => ({
-      staffId: e.staff.id,
-      staffName: e.staff.name,
-      shiftName: e.shiftTemplate?.name ?? 'Off',
-      shiftColor: e.shiftTemplate?.color ?? null
-    }))
+    const entries = week?.entries ?? []
+    const scheduled = entries
+      .filter((e) => e.shiftTemplateId != null)
+      .map((e) => ({
+        staffId: e.staff.id,
+        staffName: e.staff.name,
+        shiftName: e.shiftTemplate?.name ?? 'Off',
+        shiftColor: e.shiftTemplate?.color ?? null
+      }))
 
-    const onVacation = vacationStaff.map((s) => ({
-      staffId: s.id,
-      staffName: s.name
-    }))
+    const rosterOffToday = entries
+      .filter((e) => e.shiftTemplateId == null)
+      .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name }))
+    const vacationIds = new Set(vacationStaff.map((s) => s.id))
+    const offMap = new Map<string, string>()
+    rosterOffToday.forEach((s) => offMap.set(s.staffId, s.staffName))
+    vacationStaff.forEach((s) => offMap.set(s.staffId, s.staffName))
+    const off = Array.from(offMap.entries()).map(([staffId, staffName]) => ({ staffId, staffName }))
 
     return NextResponse.json({
       date: today,
       weekStart,
       scheduled,
-      onVacation
+      onVacation: vacationStaff.map((s) => ({ staffId: s.id, staffName: s.name })),
+      off
     })
   } catch (error) {
     console.error('Error fetching dashboard today:', error)
