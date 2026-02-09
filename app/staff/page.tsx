@@ -111,6 +111,12 @@ export default function StaffPage() {
               Dashboard
             </button>
             <button
+              onClick={() => router.push('/roster')}
+              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+            >
+              Roster
+            </button>
+            <button
               onClick={() => router.push('/shifts')}
               className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
             >

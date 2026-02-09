@@ -65,6 +65,7 @@ export default function RosterPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -190,6 +191,89 @@ export default function RosterPage() {
     }
   }
 
+  const buildRosterText = () => {
+    if (staff.length === 0) return 'No staff in this roster.'
+    const templateMap = new Map(templates.map((t) => [t.id, t.name]))
+
+    const lines: string[] = []
+    lines.push(`Roster for week starting ${weekStart} (through ${weekDates[6]})`)
+    lines.push('')
+    lines.push('Format: Staff – Mon..Sun (per-day shift name or Off)')
+    lines.push('------------------------------------------------------')
+
+    staff.forEach((s) => {
+      const dayStrings = weekDates.map((date) => {
+        const entry = getEntryFor(s.id, date)
+        if (!entry?.shiftTemplateId) return 'Off'
+        return templateMap.get(entry.shiftTemplateId) || 'Shift'
+      })
+      lines.push(`${s.name}: ${dayStrings.join(' | ')}`)
+    })
+
+    return lines.join('\n')
+  }
+
+  const handleEmailShare = async () => {
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first, then share.')
+      return
+    }
+    setSharing(true)
+    try {
+      const recipientsRes = await fetch('/api/email-recipients')
+      const list = recipientsRes.ok ? await recipientsRes.json() : []
+      const primary = Array.isArray(list) && list.length > 0 ? list[0] : null
+      const to = primary?.email as string | undefined
+      if (!to) {
+        alert('No email recipients configured. Add one in Settings → Email recipients, then try again.')
+        return
+      }
+
+      const text = buildRosterText()
+      const html = `<pre style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; white-space: pre-wrap;">${text.replace(
+        /&/g,
+        '&amp;'
+      )
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`
+
+      const subject = `Roster – Week of ${weekStart}`
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject,
+          html,
+          text
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to send email')
+      }
+      alert(`Roster emailed to ${to}.`)
+    } catch (err) {
+      console.error('Error sending roster email', err)
+      alert(err instanceof Error ? err.message : 'Failed to send email')
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const handleWhatsAppShare = () => {
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first, then share.')
+      return
+    }
+    const text = buildRosterText()
+    const message = encodeURIComponent(text)
+    const url = `https://wa.me/?text=${message}`
+    window.open(url, '_blank')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
@@ -206,6 +290,12 @@ export default function RosterPage() {
               className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
             >
               Staff
+            </button>
+            <button
+              onClick={() => router.push('/roster/templates')}
+              className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700"
+            >
+              Shift Presets
             </button>
             <button
               onClick={() => router.push('/shifts')}
@@ -260,13 +350,29 @@ export default function RosterPage() {
             <span className="text-sm font-semibold text-gray-700">
               Weekly roster ({weekStart} – {weekDates[6]})
             </span>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
-            >
-              {saving ? 'Saving…' : 'Save roster'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleWhatsAppShare}
+                disabled={sharing}
+                className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
+              >
+                WhatsApp summary
+              </button>
+              <button
+                onClick={handleEmailShare}
+                disabled={sharing}
+                className="px-3 py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
+              >
+                Email roster
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save roster'}
+              </button>
+            </div>
           </div>
 
           {loading ? (
