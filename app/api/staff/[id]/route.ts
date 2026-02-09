@@ -32,7 +32,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
+    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes, vacationStart, vacationEnd } = body
 
     const data: Record<string, unknown> = {
       ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
@@ -43,7 +43,9 @@ export async function PATCH(
       ...(nicNumber !== undefined && { nicNumber: nicNumber || null }),
       ...(bankName !== undefined && { bankName: bankName || null }),
       ...(accountNumber !== undefined && { accountNumber: accountNumber || null }),
-      ...(notes !== undefined && { notes: notes || '' })
+      ...(notes !== undefined && { notes: notes || '' }),
+      ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
+      ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null })
     }
 
     if (firstName !== undefined || lastName !== undefined) {

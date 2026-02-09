@@ -16,6 +16,8 @@ interface Staff {
   role: string
   roleId: string | null
   notes: string
+  vacationStart?: string | null
+  vacationEnd?: string | null
   _count?: {
     shifts: number
   }
@@ -51,7 +53,9 @@ export default function EditStaffPage() {
     nicNumber: '',
     bankName: '',
     accountNumber: '',
-    notes: ''
+    notes: '',
+    vacationStart: '' as string,
+    vacationEnd: '' as string
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -65,6 +69,10 @@ export default function EditStaffPage() {
   const [showTemplateSelection, setShowTemplateSelection] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<string>('')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [showVacationModal, setShowVacationModal] = useState(false)
+  const [vacationStart, setVacationStart] = useState('')
+  const [vacationEnd, setVacationEnd] = useState('')
+  const [savingVacation, setSavingVacation] = useState(false)
 
   useEffect(() => {
     // Fetch available roles first
@@ -191,7 +199,9 @@ export default function EditStaffPage() {
         nicNumber: (data as any).nicNumber || '',
         bankName: (data as any).bankName || '',
         accountNumber: (data as any).accountNumber || '',
-        notes: data.notes
+        notes: data.notes,
+        vacationStart: (data as any).vacationStart || '',
+        vacationEnd: (data as any).vacationEnd || ''
       })
       setShiftCount(data._count?.shifts || 0)
     } catch (error) {
@@ -230,6 +240,56 @@ export default function EditStaffPage() {
       setError(err instanceof Error ? err.message : 'Failed to update staff')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const openVacationModal = () => {
+    setVacationStart(formData.vacationStart || '')
+    setVacationEnd(formData.vacationEnd || '')
+    setShowVacationModal(true)
+  }
+
+  const saveVacation = async () => {
+    if (!vacationStart.trim() || !vacationEnd.trim()) {
+      alert('Please enter both start and end date.')
+      return
+    }
+    if (vacationStart > vacationEnd) {
+      alert('End date must be on or after start date.')
+      return
+    }
+    setSavingVacation(true)
+    try {
+      const res = await fetch(`/api/staff/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vacationStart: vacationStart.trim(), vacationEnd: vacationEnd.trim() })
+      })
+      if (!res.ok) throw new Error('Failed to save vacation')
+      setFormData((prev) => ({ ...prev, vacationStart: vacationStart.trim(), vacationEnd: vacationEnd.trim() }))
+      setShowVacationModal(false)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save vacation')
+    } finally {
+      setSavingVacation(false)
+    }
+  }
+
+  const clearVacation = async () => {
+    setSavingVacation(true)
+    try {
+      const res = await fetch(`/api/staff/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vacationStart: null, vacationEnd: null })
+      })
+      if (!res.ok) throw new Error('Failed to clear vacation')
+      setFormData((prev) => ({ ...prev, vacationStart: '', vacationEnd: '' }))
+      setShowVacationModal(false)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to clear vacation')
+    } finally {
+      setSavingVacation(false)
     }
   }
 
@@ -342,6 +402,32 @@ export default function EditStaffPage() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
+            </div>
+
+            {/* Vacation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Vacation
+              </label>
+              {formData.vacationStart && formData.vacationEnd ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-gray-700">
+                    {formData.vacationStart} – {formData.vacationEnd}
+                  </span>
+                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-800">
+                    Not schedulable in roster during this period
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500">No vacation set</span>
+              )}
+              <button
+                type="button"
+                onClick={openVacationModal}
+                className="mt-2 px-3 py-1.5 text-sm border border-amber-600 text-amber-700 rounded font-medium hover:bg-amber-50"
+              >
+                {formData.vacationStart && formData.vacationEnd ? 'Change vacation' : 'Set vacation'}
+              </button>
             </div>
 
             {/* Date of Birth */}
@@ -521,6 +607,65 @@ export default function EditStaffPage() {
                 className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
                 Print / Save as PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vacation Modal */}
+      {showVacationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Set vacation</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This staff member will not be schedulable in the roster during this period.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+                <input
+                  type="date"
+                  value={vacationStart}
+                  onChange={(e) => setVacationStart(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End date</label>
+                <input
+                  type="date"
+                  value={vacationEnd}
+                  onChange={(e) => setVacationEnd(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end mt-6">
+              <button
+                type="button"
+                onClick={() => setShowVacationModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              {formData.vacationStart && formData.vacationEnd && (
+                <button
+                  type="button"
+                  onClick={clearVacation}
+                  disabled={savingVacation}
+                  className="px-4 py-2 bg-red-100 text-red-700 rounded font-semibold hover:bg-red-200 disabled:opacity-60"
+                >
+                  Clear vacation
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={saveVacation}
+                disabled={savingVacation}
+                className="px-4 py-2 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700 disabled:opacity-60"
+              >
+                {savingVacation ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

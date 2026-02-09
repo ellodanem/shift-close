@@ -10,6 +10,14 @@ interface Staff {
   firstName?: string
   status: string
   role: string
+  vacationStart?: string | null
+  vacationEnd?: string | null
+}
+
+function isOnVacation(staff: Staff, date: string): boolean {
+  const start = staff.vacationStart
+  const end = staff.vacationEnd
+  return !!(start && end && date >= start && date <= end)
 }
 
 interface ShiftTemplate {
@@ -755,6 +763,7 @@ export default function RosterPage() {
                         </div>
                       </td>
                       {weekDates.map((date) => {
+                        const onVacation = isOnVacation(s, date)
                         const entry = getEntryFor(s.id, date)
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
@@ -762,26 +771,30 @@ export default function RosterPage() {
                           <td
                             key={date}
                             className="px-1 py-1 text-center align-middle"
-                            style={bgColor ? { backgroundColor: bgColor } : undefined}
+                            style={onVacation ? { backgroundColor: '#f3f4f6' } : bgColor ? { backgroundColor: bgColor } : undefined}
                           >
-                            <select
-                              value={entry?.shiftTemplateId || ''}
-                              onChange={(e) =>
-                                setEntryFor(
-                                  s.id,
-                                  date,
-                                  e.target.value === '' ? null : e.target.value
-                                )
-                              }
-                              className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="">Off</option>
-                              {templates.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.name}
-                                </option>
-                              ))}
-                            </select>
+                            {onVacation ? (
+                              <span className="text-xs font-medium text-gray-500">Vacation</span>
+                            ) : (
+                              <select
+                                value={entry?.shiftTemplateId || ''}
+                                onChange={(e) =>
+                                  setEntryFor(
+                                    s.id,
+                                    date,
+                                    e.target.value === '' ? null : e.target.value
+                                  )
+                                }
+                                className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="">Off</option>
+                                {templates.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </td>
                         )
                       })}
@@ -823,10 +836,11 @@ export default function RosterPage() {
                       <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
                     </td>
                     {weekDates.map((date) => {
+                      const onVacation = isOnVacation(s, date)
                       const entry = getEntryFor(s.id, date)
                       const tmpl = getTemplateForEntry(entry)
-                      const label = tmpl?.name || 'Off'
-                      const bg = tmpl?.color || '#f9fafb'
+                      const label = onVacation ? 'Vacation' : (tmpl?.name || 'Off')
+                      const bg = onVacation ? '#f3f4f6' : (tmpl?.color || '#f9fafb')
                       return (
                         <td
                           key={date}

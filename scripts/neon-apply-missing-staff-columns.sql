@@ -23,3 +23,12 @@ BEGIN
     ALTER TABLE "staff" ADD COLUMN "sort_order" INTEGER NOT NULL DEFAULT 0;
   END IF;
 END $$;
+
+-- vacation_start, vacation_end (if missing)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'staff' AND column_name = 'vacation_start') THEN
+    ALTER TABLE "staff" ADD COLUMN "vacation_start" TEXT;
+    ALTER TABLE "staff" ADD COLUMN "vacation_end" TEXT;
+  END IF;
+END $$;

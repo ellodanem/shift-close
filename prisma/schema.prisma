@@ -20,8 +20,10 @@ model Staff {
   nicNumber   String?  @map("nic_number")
   bankName    String?  @map("bank_name")
   accountNumber String? @map("account_number")
-  notes       String   @default("")
-  sortOrder   Int      @default(0) @map("sort_order")
+  notes         String   @default("")
+  vacationStart String?  @map("vacation_start") // YYYY-MM-DD
+  vacationEnd   String?  @map("vacation_end")   // YYYY-MM-DD
+  sortOrder     Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
