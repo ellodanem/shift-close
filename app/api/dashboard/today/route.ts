@@ -67,10 +67,10 @@ export async function GET() {
     const rosterOffToday = entries
       .filter((e) => e.shiftTemplateId == null)
       .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name }))
-    const vacationIds = new Set(vacationStaff.map((s) => s.id))
+
     const offMap = new Map<string, string>()
     rosterOffToday.forEach((s) => offMap.set(s.staffId, s.staffName))
-    vacationStaff.forEach((s) => offMap.set(s.staffId, s.staffName))
+    vacationStaff.forEach((s) => offMap.set(s.id, s.name))
     const off = Array.from(offMap.entries()).map(([staffId, staffName]) => ({ staffId, staffName }))
 
     return NextResponse.json({
