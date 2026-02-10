@@ -269,6 +269,23 @@ export default function DashboardPage() {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
+  const groupScheduledByShift = (items: TodayScheduled[]) => {
+    const map = new Map<string, { shiftName: string; color: string | null; names: string[] }>()
+    items.forEach((item) => {
+      const existing = map.get(item.shiftName)
+      if (existing) {
+        existing.names.push(item.staffName)
+      } else {
+        map.set(item.shiftName, {
+          shiftName: item.shiftName,
+          color: item.shiftColor,
+          names: [item.staffName]
+        })
+      }
+    })
+    return Array.from(map.values())
+  }
+
   const fetchArSummary = async (year: number, month: number) => {
     try {
       const res = await fetch(`/api/customer-accounts/monthly?year=${year}&month=${month}`)
@@ -799,19 +816,23 @@ export default function DashboardPage() {
               <div>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
                 {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-                  <ul className="space-y-1">
-                    {todayRoster.scheduled.map((s) => (
-                      <li key={s.staffId} className="flex items-center gap-2 text-xs">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{ backgroundColor: s.shiftColor || '#94a3b8' }}
-                          title={s.shiftName}
-                        />
-                        <span className="font-medium text-gray-900">{s.staffName}</span>
-                        <span className="text-gray-500">{s.shiftName}</span>
-                      </li>
+                  <div className="space-y-1">
+                    {groupScheduledByShift(todayRoster.scheduled).map((group) => (
+                      <div key={group.shiftName} className="flex items-baseline gap-2 text-xs flex-wrap">
+                        <span className="inline-flex items-center gap-1 font-semibold text-gray-900">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: group.color || '#94a3b8' }}
+                            title={group.shiftName}
+                          />
+                          {group.shiftName}
+                        </span>
+                        <span className="text-gray-700">
+                          {group.names.join(', ')}
+                        </span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <p className="text-xs text-gray-500 italic">No one scheduled.</p>
                 )}
