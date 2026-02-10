@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getMissingFields, isShiftFullyReviewed } from '@/lib/calculations'
+import type { ShiftType } from '@/lib/types'
 
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
