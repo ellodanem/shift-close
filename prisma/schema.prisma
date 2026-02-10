@@ -404,3 +404,56 @@ model RosterEntry {
   @@map("roster_entries")
 }
 
+// Cashbook categories and entries (Financial module, mirrors accountant's cashbook)
+model CashbookCategory {
+  id        String   @id @default(cuid())
+  name      String              // e.g. "Rec. Gen"
+  code      String?             // e.g. "8021" (GL or sheet code)
+  type      String   @default("expense") // "expense" | "income" | "other"
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+
+  allocations CashbookAllocation[]
+
+  @@map("cashbook_categories")
+}
+
+model CashbookEntry {
+  id          String   @id @default(cuid())
+  date        String              // YYYY-MM-DD
+  ref         String?             // Cheque # / bank reference
+  description String
+
+  // Left-hand totals (from DEBITS/CREDIT area)
+  debitCash   Float   @default(0)
+  debitEcard  Float   @default(0)
+  debitDcard  Float   @default(0)
+  creditAmt   Float   @default(0)
+  bank        String?            // Bank / account label
+
+  // Optional links into other modules for reconciliation (not required)
+  shiftId        String?         // If this row is related to a ShiftClose
+  paymentBatchId String?         // If related to a fuel PaymentBatch
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  allocations CashbookAllocation[]
+
+  @@index([date])
+  @@map("cashbook_entries")
+}
+
+model CashbookAllocation {
+  id         String   @id @default(cuid())
+  entryId    String   @map("entry_id")
+  categoryId String   @map("category_id")
+  amount     Float
+
+  entry    CashbookEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  category CashbookCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@map("cashbook_allocations")
+}
+
+
