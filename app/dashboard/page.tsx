@@ -391,6 +391,12 @@ export default function DashboardPage() {
               Staff
             </button>
             <button
+              onClick={() => router.push('/roster')}
+              className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700"
+            >
+              Roster
+            </button>
+            <button
               onClick={() => router.push('/fuel-payments')}
               className="px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-700"
             >

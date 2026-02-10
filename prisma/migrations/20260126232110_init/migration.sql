@@ -19,7 +19,7 @@ CREATE TABLE "shift_close" (
     "over_short_total" REAL,
     "total_deposits" REAL,
     "notes" TEXT NOT NULL DEFAULT '',
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -30,6 +30,6 @@ CREATE TABLE "corrections" (
     "old_value" TEXT NOT NULL,
     "new_value" TEXT NOT NULL,
     "reason" TEXT NOT NULL,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "corrections_shift_id_fkey" FOREIGN KEY ("shift_id") REFERENCES "shift_close" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
