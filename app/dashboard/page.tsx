@@ -816,20 +816,22 @@ export default function DashboardPage() {
               <div>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
                 {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-4 gap-y-1">
                     {groupScheduledByShift(todayRoster.scheduled).map((group) => (
-                      <div key={group.shiftName} className="flex items-baseline gap-2 text-xs flex-wrap">
-                        <span className="inline-flex items-center gap-1 font-semibold text-gray-900">
+                      <div key={group.shiftName} className="text-xs">
+                        <div className="inline-flex items-center gap-1 font-semibold text-gray-900">
                           <span
                             className="w-1.5 h-1.5 rounded-full shrink-0"
                             style={{ backgroundColor: group.color || '#94a3b8' }}
                             title={group.shiftName}
                           />
                           {group.shiftName}
-                        </span>
-                        <span className="text-gray-700">
-                          {group.names.join(', ')}
-                        </span>
+                        </div>
+                        <div className="mt-0.5 text-gray-700 space-y-0.5">
+                          {group.names.map((name, idx) => (
+                            <div key={`${group.shiftName}-${name}-${idx}`}>{name}</div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
