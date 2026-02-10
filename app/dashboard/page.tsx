@@ -816,7 +816,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
                 {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
                     {groupScheduledByShift(todayRoster.scheduled).map((group) => (
                       <div key={group.shiftName} className="text-xs">
                         <div className="inline-flex items-center gap-1 font-semibold text-gray-900">
