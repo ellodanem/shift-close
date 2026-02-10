@@ -622,33 +622,33 @@ export default function ShiftDetailPage() {
         <div className="grid grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              {isDraft ? (
-              <input
-                type="date"
-                value={editData.date}
-                onChange={(e) => setEditData({ ...editData, date: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            ) : (
-              <div className="border border-gray-300 rounded px-3 py-2 bg-gray-50">{shift.date}</div>
-            )}
-          </div>
+              {isEditable ? (
+                <input
+                  type="date"
+                  value={editData.date}
+                  onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              ) : (
+                <div className="border border-gray-300 rounded px-3 py-2 bg-gray-50">{shift.date}</div>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
-              {isDraft ? (
-              <select
-                value={editData.shift}
-                onChange={(e) => setEditData({ ...editData, shift: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              >
-                <option value="6-1">6-1</option>
-                <option value="1-9">1-9</option>
-                <option value="7:30 - 2">7:30 - 2</option>
-              </select>
-            ) : (
-              <div className="border border-gray-300 rounded px-3 py-2 bg-gray-50">{shift.shift}</div>
-            )}
-          </div>
+              {isEditable ? (
+                <select
+                  value={editData.shift}
+                  onChange={(e) => setEditData({ ...editData, shift: e.target.value as ShiftType })}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  <option value="6-1">6-1</option>
+                  <option value="1-9">1-9</option>
+                  <option value="7:30 - 2">7:30 - 2</option>
+                </select>
+              ) : (
+                <div className="border border-gray-300 rounded px-3 py-2 bg-gray-50">{shift.shift}</div>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
               {isEditable ? (

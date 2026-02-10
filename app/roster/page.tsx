@@ -285,7 +285,7 @@ export default function RosterPage() {
     }
     saveTimeoutRef.current = setTimeout(() => {
       void handleSave()
-    }, 800)
+    }, 300)
   }
 
   const handleChangeWeek = (direction: -1 | 1) => {

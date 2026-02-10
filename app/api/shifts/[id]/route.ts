@@ -56,20 +56,21 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
     
-    // Check if shift is a draft - if so, allow full updates
+    // Check current shift status
     const existingShift = await prisma.shiftClose.findUnique({ where: { id } })
     if (!existingShift) {
       return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
     }
-    
     const isDraft = existingShift.status === 'draft'
+    const isReopened = existingShift.status === 'reopened'
     
     const updateData: any = {}
 
-    // Prevent changing date/shift once a shift is no longer a draft
-    if (!isDraft && ('date' in body || 'shift' in body)) {
+    // Prevent changing date/shift once a shift is closed/reviewed (but allow for drafts & reopened shifts)
+    const canChangeDateOrShift = isDraft || isReopened
+    if (!canChangeDateOrShift && ('date' in body || 'shift' in body)) {
       return NextResponse.json(
-        { error: 'Date and Shift cannot be changed after a shift is closed/reopened. Create a new shift instead.' },
+        { error: 'Date and Shift cannot be changed once a shift is closed/reviewed. Reopen the shift to adjust.' },
         { status: 400 }
       )
     }
@@ -155,8 +156,10 @@ export async function PATCH(
       updateData.overShortTotal = calculated.overShortTotal
       updateData.totalDeposits = calculated.totalDeposits
     } else {
-      // For closed shifts, track changes and allow editing
+      // For closed/reopened shifts, track changes and allow editing
       const validFields = [
+        // When reopened, also allow correcting date/shift (with audit trail)
+        ...(isReopened ? ['date', 'shift'] : []),
         'supervisor', 'supervisorId',
         'systemCash', 'systemChecks', 'systemCredit', 'systemDebit', 'otherCredit',
         'systemInhouse', 'systemFleet', 'systemMassyCoupons',
