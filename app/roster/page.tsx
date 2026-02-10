@@ -258,51 +258,61 @@ export default function RosterPage() {
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
+      let next: RosterEntry[]
+
       if (existing) {
         if (!shiftTemplateId) {
           // Remove entry if clearing
-          return prev.filter((e) => !(e.staffId === staffId && e.date === date))
+          next = prev.filter((e) => !(e.staffId === staffId && e.date === date))
+        } else {
+          next = prev.map((e) => (e === existing ? { ...e, shiftTemplateId } : e))
         }
-        return prev.map((e) =>
-          e === existing ? { ...e, shiftTemplateId } : e
-        )
+      } else {
+        if (!shiftTemplateId) {
+          // No existing entry and setting to Off – nothing to change
+          next = prev
+        } else {
+          next = [
+            ...prev,
+            {
+              staffId,
+              date,
+              shiftTemplateId,
+              position: null,
+              notes: ''
+            }
+          ]
+        }
       }
-      if (!shiftTemplateId) return prev
-      return [
-        ...prev,
-        {
-          staffId,
-          date,
-          shiftTemplateId,
-          position: null,
-          notes: ''
-        }
-      ]
+
+      // Auto-save roster shortly after any change, using the updated snapshot
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        void handleSave(next)
+      }, 300)
+
+      return next
     })
-    // Auto-save roster shortly after any change
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      void handleSave()
-    }, 300)
   }
 
   const handleChangeWeek = (direction: -1 | 1) => {
     setWeekStart((current) => addDays(current, direction * 7))
   }
 
-  const handleSave = async () => {
+  const handleSave = async (entriesToPersist?: RosterEntry[]) => {
     setSaving(true)
     setError(null)
     try {
+      const snapshot = entriesToPersist ?? entries
       const res = await fetch('/api/roster/weeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           weekStart,
           status: 'draft',
-          entries: entries.map((e) => ({
+          entries: snapshot.map((e) => ({
             staffId: e.staffId,
             date: e.date,
             shiftTemplateId: e.shiftTemplateId,
