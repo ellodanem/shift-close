@@ -20,6 +20,7 @@ model Staff {
   nicNumber   String?  @map("nic_number")
   bankName    String?  @map("bank_name")
   accountNumber String? @map("account_number")
+  mobileNumber  String? @map("mobile_number") // E.164 or digits for wa.me links
   notes         String   @default("")
   vacationStart String?  @map("vacation_start") // YYYY-MM-DD
   vacationEnd   String?  @map("vacation_end")   // YYYY-MM-DD
@@ -31,6 +32,7 @@ model Staff {
   documents     StaffDocument[]
   rosterEntries RosterEntry[]
   staffRole     StaffRole?    @relation(fields: [roleId], references: [id])
+  dayOffs       StaffDayOff[]
 
   @@map("staff")
 }
@@ -46,6 +48,21 @@ model StaffDocument {
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@map("staff_document")
+}
+
+// Single-day planned time off (e.g. one-off days off separate from vacation)
+model StaffDayOff {
+  id        String   @id @default(cuid())
+  staffId   String   @map("staff_id")
+  date      String   // YYYY-MM-DD (single day)
+  reason    String?  @default("")
+  status    String   @default("approved") // 'requested' | 'approved' | 'denied'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date], name: "staff_day_off_staff_date")
+  @@map("staff_day_off")
 }
 
 model ShiftClose {

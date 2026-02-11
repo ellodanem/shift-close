@@ -25,7 +25,7 @@ function fullNameFromFirstLast(firstName: string, lastName: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, notes } = body
+    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, bankName, accountNumber, mobileNumber, notes } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
     const last = (lastName ?? '').toString().trim()
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
         nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
         bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
         accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
+        mobileNumber: mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null,
         notes: notes || ''
       }
     })

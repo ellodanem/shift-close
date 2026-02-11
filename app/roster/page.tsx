@@ -12,6 +12,7 @@ interface Staff {
   role: string
   vacationStart?: string | null
   vacationEnd?: string | null
+  mobileNumber?: string | null
 }
 
 function isOnVacation(staff: Staff, date: string): boolean {
@@ -99,6 +100,11 @@ const isMobileDevice = () =>
     typeof navigator !== 'undefined' ? navigator.userAgent : ''
   )
 
+/** Digits only for wa.me (include country code, e.g. 12425551234) */
+function mobileDigits(phone: string): string {
+  return (phone || '').replace(/\D/g, '')
+}
+
 export default function RosterPage() {
   const router = useRouter()
   const [allStaff, setAllStaff] = useState<Staff[]>([])
@@ -111,6 +117,7 @@ export default function RosterPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
+  const [sendToOpen, setSendToOpen] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -566,6 +573,49 @@ export default function RosterPage() {
     }
   }
 
+  // Share roster as text: copy and open WhatsApp Web (or wa.me with no number on mobile)
+  const handleWhatsAppTextShare = () => {
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first, then share.')
+      return
+    }
+    const text = buildRosterText()
+    const encoded = encodeURIComponent(text)
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (isMobileDevice()) {
+          window.open(`https://wa.me?text=${encoded}`, '_blank')
+        } else {
+          window.open('https://web.whatsapp.com', '_blank')
+          alert('Roster text copied. Paste into WhatsApp Web (Ctrl+V).')
+        }
+      }).catch(() => {
+        window.open(`https://wa.me?text=${encoded}`, '_blank')
+      })
+    } else {
+      window.open(`https://wa.me?text=${encoded}`, '_blank')
+    }
+  }
+
+  // Open wa.me to send roster text to a staff member's mobile
+  const handleSendToStaff = (staff: Staff) => {
+    const num = staff.mobileNumber && mobileDigits(staff.mobileNumber)
+    if (!num) return
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first.')
+      return
+    }
+    const text = buildRosterText()
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
+    setSendToOpen(false)
+  }
+
+  const staffWithMobile = useMemo(
+    () => displayStaff.filter((s) => s.mobileNumber && mobileDigits(s.mobileNumber!)),
+    [displayStaff]
+  )
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
@@ -662,8 +712,42 @@ export default function RosterPage() {
                 disabled={sharing}
                 className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
               >
-                WhatsApp summary
+                WhatsApp (image)
               </button>
+              <button
+                onClick={handleWhatsAppTextShare}
+                disabled={sharing || entries.length === 0}
+                className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
+              >
+                WhatsApp (text)
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSendToOpen((o) => !o)}
+                  disabled={sharing || entries.length === 0 || staffWithMobile.length === 0}
+                  className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
+                >
+                  Send to staff ▼
+                </button>
+                {sendToOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setSendToOpen(false)} aria-hidden />
+                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[180px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                      {staffWithMobile.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleSendToStaff(s)}
+                          className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-green-50"
+                        >
+                          Send to {s.firstName?.trim() || s.name}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={handleEmailShare}
                 disabled={sharing}

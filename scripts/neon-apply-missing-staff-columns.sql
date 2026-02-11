@@ -32,3 +32,11 @@ BEGIN
     ALTER TABLE "staff" ADD COLUMN "vacation_end" TEXT;
   END IF;
 END $$;
+
+-- mobile_number (for WhatsApp / wa.me roster share)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'staff' AND column_name = 'mobile_number') THEN
+    ALTER TABLE "staff" ADD COLUMN "mobile_number" TEXT;
+  END IF;
+END $$;

@@ -18,6 +18,7 @@ interface Staff {
   notes: string
   vacationStart?: string | null
   vacationEnd?: string | null
+  mobileNumber?: string | null
   _count?: {
     shifts: number
   }
@@ -38,6 +39,13 @@ interface StaffDocument {
   uploadedAt: string
 }
 
+interface StaffDayOff {
+  id: string
+  date: string
+  reason?: string | null
+  status: string
+}
+
 export default function EditStaffPage() {
   const router = useRouter()
   const params = useParams()
@@ -53,6 +61,7 @@ export default function EditStaffPage() {
     nicNumber: '',
     bankName: '',
     accountNumber: '',
+    mobileNumber: '',
     notes: '',
     vacationStart: '' as string,
     vacationEnd: '' as string
@@ -65,6 +74,10 @@ export default function EditStaffPage() {
   const [error, setError] = useState<string | null>(null)
   const [shiftCount, setShiftCount] = useState(0)
   const [documents, setDocuments] = useState<StaffDocument[]>([])
+  const [dayOffs, setDayOffs] = useState<StaffDayOff[]>([])
+  const [dayOffDate, setDayOffDate] = useState('')
+  const [dayOffReason, setDayOffReason] = useState('')
+  const [savingDayOff, setSavingDayOff] = useState(false)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [showTemplateSelection, setShowTemplateSelection] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<string>('')
@@ -91,6 +104,7 @@ export default function EditStaffPage() {
       })
     
     fetchDocuments()
+    fetchDayOffs()
     
     // Check if generate parameter is in URL - show template selection modal instead of auto-generating
     const params = new URLSearchParams(window.location.search)
@@ -111,6 +125,18 @@ export default function EditStaffPage() {
       }
     } catch (error) {
       console.error('Error fetching documents:', error)
+    }
+  }
+
+  const fetchDayOffs = async () => {
+    try {
+      const res = await fetch(`/api/staff/${id}/day-off`)
+      if (res.ok) {
+        const data: StaffDayOff[] = await res.json()
+        setDayOffs(data)
+      }
+    } catch (error) {
+      console.error('Error fetching day off records:', error)
     }
   }
 
@@ -199,6 +225,7 @@ export default function EditStaffPage() {
         nicNumber: (data as any).nicNumber || '',
         bankName: (data as any).bankName || '',
         accountNumber: (data as any).accountNumber || '',
+        mobileNumber: (data as any).mobileNumber || '',
         notes: data.notes,
         vacationStart: (data as any).vacationStart || '',
         vacationEnd: (data as any).vacationEnd || ''
@@ -454,6 +481,21 @@ export default function EditStaffPage() {
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Mobile (WhatsApp) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mobile (WhatsApp)
+              </label>
+              <input
+                type="tel"
+                value={formData.mobileNumber}
+                onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. +1 242 555 1234 or 12425551234"
+              />
+              <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
             </div>
 
             {/* Notes */}

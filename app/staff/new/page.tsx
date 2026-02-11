@@ -22,6 +22,7 @@ export default function NewStaffPage() {
     nicNumber: '',
     bankName: '',
     accountNumber: '',
+    mobileNumber: '',
     notes: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -196,6 +197,21 @@ export default function NewStaffPage() {
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Mobile (WhatsApp) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mobile (WhatsApp)
+              </label>
+              <input
+                type="tel"
+                value={formData.mobileNumber}
+                onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. +1 242 555 1234 or 12425551234"
+              />
+              <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
             </div>
 
             {/* NIC Number */}
