@@ -268,28 +268,20 @@ export default function RosterPage() {
       let next: RosterEntry[]
 
       if (existing) {
-        if (!shiftTemplateId) {
-          // Remove entry if clearing
-          next = prev.filter((e) => !(e.staffId === staffId && e.date === date))
-        } else {
-          next = prev.map((e) => (e === existing ? { ...e, shiftTemplateId } : e))
-        }
+        // Update existing: set shiftTemplateId (null = Off)
+        next = prev.map((e) => (e === existing ? { ...e, shiftTemplateId } : e))
       } else {
-        if (!shiftTemplateId) {
-          // No existing entry and setting to Off – nothing to change
-          next = prev
-        } else {
-          next = [
-            ...prev,
-            {
-              staffId,
-              date,
-              shiftTemplateId,
-              position: null,
-              notes: ''
-            }
-          ]
-        }
+        // Add new entry (including Off with shiftTemplateId: null so dashboard "Who's off" works)
+        next = [
+          ...prev,
+          {
+            staffId,
+            date,
+            shiftTemplateId,
+            position: null,
+            notes: ''
+          }
+        ]
       }
 
       // Auto-save roster shortly after any change, using the updated snapshot
@@ -313,19 +305,26 @@ export default function RosterPage() {
     setError(null)
     try {
       const snapshot = entriesToPersist ?? entries
+      // Build full roster (displayStaff × weekDates) so "Off" days are persisted for dashboard "Who's off"
+      const entriesToSave = displayStaff.flatMap((s) =>
+        weekDates.map((date) => {
+          const entry = snapshot.find((e) => e.staffId === s.id && e.date === date)
+          return {
+            staffId: s.id,
+            date,
+            shiftTemplateId: entry?.shiftTemplateId ?? null,
+            position: entry?.position ?? null,
+            notes: entry?.notes ?? ''
+          }
+        })
+      )
       const res = await fetch('/api/roster/weeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           weekStart,
           status: 'draft',
-          entries: snapshot.map((e) => ({
-            staffId: e.staffId,
-            date: e.date,
-            shiftTemplateId: e.shiftTemplateId,
-            position: e.position ?? null,
-            notes: e.notes ?? ''
-          }))
+          entries: entriesToSave
         })
       })
       if (!res.ok) {
