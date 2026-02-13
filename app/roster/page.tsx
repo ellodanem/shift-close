@@ -704,7 +704,11 @@ export default function RosterPage() {
             </span>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleCopyPreviousWeek}
+                onClick={() => {
+                  if (confirm('Replace this week\'s roster with the previous week? This will overwrite current shifts.')) {
+                    void handleCopyPreviousWeek()
+                  }
+                }}
                 disabled={loading || sharing || isPastWeek}
                 className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
