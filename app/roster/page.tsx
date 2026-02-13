@@ -134,6 +134,12 @@ export default function RosterPage() {
     return { bg: 'bg-green-100', text: 'text-green-900' }
   }, [weekStart])
 
+  // Past weeks are locked: once the new week starts (Monday), the previous week cannot be edited
+  const isPastWeek = useMemo(() => {
+    const thisWeekMonday = formatInputDate(getMonday(new Date()))
+    return weekStart < thisWeekMonday
+  }, [weekStart])
+
   // For past weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
   const displayStaff = useMemo(() => {
     const thisWeekMonday = formatInputDate(getMonday(new Date()))
@@ -301,6 +307,8 @@ export default function RosterPage() {
   }
 
   const handleSave = async (entriesToPersist?: RosterEntry[]) => {
+    const thisWeekMonday = formatInputDate(getMonday(new Date()))
+    if (weekStart < thisWeekMonday) return // Past weeks are locked
     setSaving(true)
     setError(null)
     try {
@@ -690,18 +698,21 @@ export default function RosterPage() {
           <div className={`px-4 py-2 border-b border-gray-200 flex justify-between items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
             <span className="text-sm font-semibold">
               Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
+              {isPastWeek && (
+                <span className="ml-2 font-normal text-gray-600">— Past week (read-only)</span>
+              )}
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopyPreviousWeek}
-                disabled={loading || sharing}
+                disabled={loading || sharing || isPastWeek}
                 className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
                 Copy previous week
               </button>
               <button
                 onClick={handleClearWeek}
-                disabled={loading || sharing || entries.length === 0}
+                disabled={loading || sharing || entries.length === 0 || isPastWeek}
                 className="px-3 py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
               >
                 Clear week
@@ -755,7 +766,7 @@ export default function RosterPage() {
                 Email roster
               </button>
               <span className="text-[11px] text-gray-500 min-w-[80px] text-right">
-                {saving ? 'Saving…' : 'All changes saved'}
+                {isPastWeek ? 'Read-only' : saving ? 'Saving…' : 'All changes saved'}
               </span>
             </div>
           </div>
@@ -834,7 +845,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'up')}
-                              disabled={index === 0}
+                              disabled={index === 0 || isPastWeek}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move up"
                               aria-label="Move up"
@@ -844,7 +855,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'down')}
-                              disabled={index === displayStaff.length - 1}
+                              disabled={index === displayStaff.length - 1 || isPastWeek}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move down"
                               aria-label="Move down"
@@ -868,6 +879,10 @@ export default function RosterPage() {
                           >
                             {onVacation ? (
                               <span className="text-xs font-medium text-gray-500">Vacation</span>
+                            ) : isPastWeek ? (
+                              <span className="text-xs font-medium text-gray-700">
+                                {template?.name || 'Off'}
+                              </span>
                             ) : (
                               <select
                                 value={entry?.shiftTemplateId || ''}
