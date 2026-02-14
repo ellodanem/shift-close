@@ -11,7 +11,7 @@ interface CashbookSummary {
   totalOther: number
   netIncome: number
   byCategory: Array<{ id: string; name: string; type: string; amount: number }>
-  debits: { cash: number; ecard: number; dcard: number }
+  debits: { cash: number; check?: number; ecard: number; dcard: number }
   credit: number
   entryCount: number
 }
