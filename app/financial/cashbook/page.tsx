@@ -509,6 +509,7 @@ export default function CashbookPage() {
                       newCategoryId &&
                       isBankChargesCategory(newCategoryId, expenseCategories)
                     ) {
+                      updates.description = 'Debit and Credit card charges'
                       updates.paymentMethod = 'direct_debit'
                     }
                     setForm((f) => ({ ...f, ...updates }))
