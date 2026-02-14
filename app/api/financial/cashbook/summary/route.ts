@@ -71,11 +71,13 @@ export async function GET(request: NextRequest) {
 
     // Also sum entry-level debit/credit columns (for reconciliation view)
     let sumDebitCash = 0
+    let sumDebitCheck = 0
     let sumDebitEcard = 0
     let sumDebitDcard = 0
     let sumCreditAmt = 0
     for (const e of entries) {
       sumDebitCash += e.debitCash ?? 0
+      sumDebitCheck += e.debitCheck ?? 0
       sumDebitEcard += e.debitEcard ?? 0
       sumDebitDcard += e.debitDcard ?? 0
       sumCreditAmt += e.creditAmt ?? 0
@@ -91,6 +93,7 @@ export async function GET(request: NextRequest) {
       byCategory,
       debits: {
         cash: sumDebitCash,
+        check: sumDebitCheck,
         ecard: sumDebitEcard,
         dcard: sumDebitDcard
       },

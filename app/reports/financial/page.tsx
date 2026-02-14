@@ -216,17 +216,21 @@ export default function FinancialReportPage() {
             {/* Debits / Credit (reconciliation) */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Debits & Credit</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                 <div>
                   <span className="text-gray-500">Debit Cash</span>
                   <p className="font-medium">${formatCurrency(summary.debits.cash)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Debit E-Card</span>
+                  <span className="text-gray-500">Debit Check</span>
+                  <p className="font-medium">${formatCurrency(summary.debits.check ?? 0)}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Debit EFT/Deposit</span>
                   <p className="font-medium">${formatCurrency(summary.debits.ecard)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Debit D-Card</span>
+                  <span className="text-gray-500">Debit/Credit Card</span>
                   <p className="font-medium">${formatCurrency(summary.debits.dcard)}</p>
                 </div>
                 <div>

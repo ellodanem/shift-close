@@ -443,10 +443,14 @@ model CashbookEntry {
 
   // Left-hand totals (from DEBITS/CREDIT area)
   debitCash   Float   @default(0)
+  debitCheck  Float   @default(0)
   debitEcard  Float   @default(0)
   debitDcard  Float   @default(0)
   creditAmt   Float   @default(0)
   bank        String?            // Bank / account label
+
+  // How paid (for simple UI): cash | check | deposit | eft | debit_credit
+  paymentMethod String?           @map("payment_method")
 
   // Optional links into other modules for reconciliation (not required)
   shiftId        String?         // If this row is related to a ShiftClose
