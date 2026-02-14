@@ -86,6 +86,13 @@ interface TodayRoster {
   off: TodayOnVacation[]
 }
 
+interface CashbookSummary {
+  totalIncome: number
+  totalExpense: number
+  netIncome: number
+  entryCount: number
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<MonthSummary | null>(null)
@@ -94,6 +101,7 @@ export default function DashboardPage() {
   const [fuelExpense, setFuelExpense] = useState<number | null>(null)
   const [arSummary, setArSummary] = useState<CustomerArSummary | null>(null)
   const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
+  const [cashbookSummary, setCashbookSummary] = useState<CashbookSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -152,6 +160,38 @@ export default function DashboardPage() {
       setArSummary(null)
     }
   }, [summary])
+
+  // Fetch cashbook summary for the displayed month
+  useEffect(() => {
+    if (!summary?.year || !summary?.month) {
+      setCashbookSummary(null)
+      return
+    }
+    const startDate = `${summary.year}-${String(summary.month).padStart(2, '0')}-01`
+    const lastDay = new Date(summary.year, summary.month, 0)
+    const endDate = `${summary.year}-${String(summary.month).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/financial/cashbook/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setCashbookSummary({
+            totalIncome: data.totalIncome ?? 0,
+            totalExpense: data.totalExpense ?? 0,
+            netIncome: data.netIncome ?? 0,
+            entryCount: data.entryCount ?? 0
+          })
+        } else {
+          setCashbookSummary(null)
+        }
+      } catch {
+        setCashbookSummary(null)
+      }
+    }
+    void load()
+  }, [summary?.year, summary?.month])
 
   const getMonthRange = (
     filter: MonthFilterType
@@ -371,6 +411,15 @@ export default function DashboardPage() {
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
                   >
                     Reports Center
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/reports/financial')
+                      setShowReportsDropdown(false)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Financial Report
                   </button>
                   <button
                     onClick={() => {
@@ -681,6 +730,59 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-xs text-gray-400">
                   No A/R data for {summary.monthName} {summary.year}
+                </div>
+              )}
+            </div>
+            {/* Cashbook Income/Expense */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-600">Cashbook (MTD)</div>
+                <button
+                  onClick={() => router.push('/financial/cashbook')}
+                  className="text-xs text-amber-600 hover:text-amber-700 font-semibold"
+                  title="View Cashbook"
+                >
+                  View →
+                </button>
+              </div>
+              {cashbookSummary ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Income</span>
+                    <span className="font-semibold text-green-600">
+                      ${formatCurrency(cashbookSummary.totalIncome)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Expenses</span>
+                    <span className="font-semibold text-red-600">
+                      ${formatCurrency(cashbookSummary.totalExpense)}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-700">Net</span>
+                    <span
+                      className={`text-sm font-bold ${
+                        cashbookSummary.netIncome >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}
+                    >
+                      {cashbookSummary.netIncome >= 0 ? '+' : ''}
+                      ${formatCurrency(cashbookSummary.netIncome)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-400">
+                    {cashbookSummary.entryCount} entries
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400">
+                  <button
+                    onClick={() => router.push('/financial/cashbook')}
+                    className="text-amber-600 hover:underline"
+                  >
+                    Add entries
+                  </button>{' '}
+                  to track income/expenses
                 </div>
               )}
             </div>
