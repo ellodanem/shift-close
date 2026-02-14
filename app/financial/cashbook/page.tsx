@@ -393,7 +393,10 @@ export default function CashbookPage() {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
             <h2 className="font-semibold text-gray-800">
-              Entries for {new Date(month + '-01').toLocaleString('default', { month: 'long', year: 'numeric' })}
+              Entries for {(() => {
+              const [y, m] = month.split('-').map(Number)
+              return new Date(y, (m || 1) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+            })()}
             </h2>
           </div>
           {entries.length === 0 ? (

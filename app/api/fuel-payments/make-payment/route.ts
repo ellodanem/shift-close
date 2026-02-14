@@ -6,7 +6,7 @@ import { roundMoney } from '@/lib/fuelPayments'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { paymentDate, bankRef, selectedInvoiceIds } = body
+    const { paymentDate, bankRef, selectedInvoiceIds, addToCashbook = true } = body
 
     if (!paymentDate || !bankRef || !Array.isArray(selectedInvoiceIds) || selectedInvoiceIds.length === 0) {
       return NextResponse.json(
@@ -174,6 +174,56 @@ export async function POST(request: NextRequest) {
         await prisma.paymentSimulation.delete({
           where: { id: sim.id }
         })
+      }
+    }
+
+    // Add to Cashbook as expense when requested
+    if (addToCashbook) {
+      try {
+        const paymentDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+        let fuelCategory = await prisma.cashbookCategory.findFirst({
+          where: {
+            type: 'expense',
+            OR: [
+              { name: { equals: 'Fuel payments', mode: 'insensitive' } },
+              { name: { equals: 'Fuel', mode: 'insensitive' } }
+            ]
+          }
+        })
+        if (!fuelCategory) {
+          fuelCategory = await prisma.cashbookCategory.create({
+            data: {
+              name: 'Fuel payments',
+              code: null,
+              type: 'expense',
+              sortOrder: 0,
+              active: true
+            }
+          })
+        }
+        await prisma.cashbookEntry.create({
+          data: {
+            date: paymentDateStr,
+            ref: bankRef.trim(),
+            description: `Fuel payment – Ref ${bankRef.trim()}`,
+            debitCash: 0,
+            debitCheck: 0,
+            debitEcard: newTotal,
+            debitDcard: 0,
+            creditAmt: 0,
+            paymentMethod: 'direct_debit',
+            paymentBatchId: batch.id,
+            allocations: {
+              create: {
+                categoryId: fuelCategory.id,
+                amount: newTotal
+              }
+            }
+          }
+        })
+      } catch (cashbookErr) {
+        console.error('Failed to add fuel payment to cashbook:', cashbookErr)
+        // Don't fail the payment - cashbook is optional
       }
     }
 

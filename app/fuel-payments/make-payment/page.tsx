@@ -22,6 +22,7 @@ function MakePaymentPageInner() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [bankRef, setBankRef] = useState('')
+  const [addToCashbook, setAddToCashbook] = useState(true)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
 
@@ -83,7 +84,7 @@ function MakePaymentPageInner() {
     }
 
     const confirmed = window.confirm(
-      `Mark ${selectedInvoiceIds.size} invoice${selectedInvoiceIds.size !== 1 ? 's' : ''} as paid?\n\nPayment Date: ${formatInvoiceDate(paymentDate)}\nBank Ref: ${bankRef.trim()}`
+      `Mark ${selectedInvoiceIds.size} invoice${selectedInvoiceIds.size !== 1 ? 's' : ''} as paid?\n\nPayment Date: ${formatInvoiceDate(paymentDate)}\nBank Ref: ${bankRef.trim()}${addToCashbook ? '\n\nAdd to Cashbook as expense: Yes' : ''}`
     )
     if (!confirmed) return
 
@@ -95,7 +96,8 @@ function MakePaymentPageInner() {
         body: JSON.stringify({
           paymentDate,
           bankRef: bankRef.trim(),
-          selectedInvoiceIds: Array.from(selectedInvoiceIds)
+          selectedInvoiceIds: Array.from(selectedInvoiceIds),
+          addToCashbook
         })
       })
 
@@ -179,6 +181,18 @@ function MakePaymentPageInner() {
                 placeholder="e.g., 18921926"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
+            </div>
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="addToCashbook"
+                checked={addToCashbook}
+                onChange={(e) => setAddToCashbook(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="addToCashbook" className="text-sm text-gray-700">
+                Add to Cashbook as expense
+              </label>
             </div>
           </div>
         </div>

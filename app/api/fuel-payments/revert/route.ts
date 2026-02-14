@@ -37,6 +37,11 @@ export async function POST(request: NextRequest) {
     // Use the most recent batch
     const batch = batches[0]
 
+    // Delete linked cashbook entries (if payment was added to cashbook)
+    await prisma.cashbookEntry.deleteMany({
+      where: { paymentBatchId: batch.id }
+    })
+
     // Get all paid invoices for this batch
     const paidInvoices = await prisma.paidInvoice.findMany({
       where: { batchId: batch.id }

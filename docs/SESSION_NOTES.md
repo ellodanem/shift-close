@@ -1,0 +1,80 @@
+# Session Notes – Shift Close
+
+Context and decisions from development sessions. Use this to recover context if a chat is lost.
+
+---
+
+## Cashbook (Financial Module)
+
+### Simplified UI (implemented)
+- **Add Income** / **Add Expense** buttons instead of complex grid
+- Modal form: Date, Description, Category, Amount, Ref (optional)
+- **How paid** (expenses only): Cash, Check, Deposit, EFT, Direct debit, Debit/Credit
+- Simple list view: Date | Type | Description | Category | Amount | How paid | Edit | Delete
+- Categories filtered by type (Income vs Expense) when adding
+
+### Schema
+- `debitCheck` – for check payments
+- `paymentMethod` – stores how paid (cash, check, deposit, eft, direct_debit, debit_credit)
+- Mapping: Cash→debitCash, Check→debitCheck, Deposit/EFT/Direct debit→debitEcard, Debit/Credit→debitDcard
+
+### Bank Charges
+- **Direct debit** added to How paid for auto-deducted bank charges
+- When category name matches "Bank Charges" (case-insensitive), How paid auto-selects "Direct debit"
+
+### Neon scripts to run (if tables/columns missing)
+- `scripts/neon-apply-cashbook-tables.sql` – creates cashbook tables
+- `scripts/neon-apply-cashbook-payment-method.sql` – adds debitCheck, payment_method columns
+
+---
+
+## Fuel Payments → Cashbook (implemented)
+
+### Optional checkbox
+- **"Add to Cashbook as expense"** checkbox on Make Payment form (default: checked)
+- When checked: creates CashbookEntry linked via `paymentBatchId` on payment
+- On revert: deletes any CashbookEntry where `paymentBatchId` = reverted batch
+
+### Implementation
+- Auto-creates "Fuel payments" expense category if none exists
+- Entry: date, description ("Fuel payment – Ref {bankRef}"), amount (batch total), category, paymentMethod (direct_debit), paymentBatchId
+
+---
+
+## Reminders (partially implemented)
+
+### Schema
+- `Reminder` model: title, date, notes, notifyEmail, notifyWhatsApp, notifyDaysBefore (e.g. "7,3,1,0")
+
+### Implemented
+- Migration: `prisma/migrations/20260219120000_add_reminders/migration.sql`
+- Neon script: `scripts/neon-apply-reminders.sql`
+- API: GET/POST `/api/reminders`, DELETE `/api/reminders/[id]`, GET `/api/reminders/check` (cron)
+- Upcoming API includes custom reminders (type: 'other', reminderId)
+
+### Pending
+- Dashboard: "+" button in Upcoming component top-right
+- Create-reminder modal (title, date, notes, notifyEmail, notifyWhatsApp, notifyDaysBefore checkboxes)
+- Delete button for custom reminders in upcoming list
+- Vercel cron: add to `vercel.json`, set `CRON_SECRET` env var
+
+### Cron
+```json
+"crons": [{ "path": "/api/reminders/check", "schedule": "0 8 * * *" }]
+```
+
+---
+
+## Roster (implemented)
+
+- **Past week lock**: Once new week starts (Monday), previous week is read-only
+- **Copy previous week**: Modal confirmation before overwriting
+- **Staff mobile + wa.me**: Roster share via WhatsApp links
+
+---
+
+## Other
+
+- Dashboard Cashbook (MTD) widget shows income/expense for displayed month
+- Financial Report page uses real cashbook data (income, expense, net, by category, debits/credit)
+- WhatsApp notifications for reminders: not implemented (requires Twilio); structure in place
