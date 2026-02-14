@@ -177,7 +177,7 @@ export default function CashbookPage() {
     setForm({
       ...emptyForm,
       date: dateRange.startDate,
-      categoryId: cats[0]?.id ?? '',
+      categoryId: '',
       paymentMethod: 'cash'
     })
   }
