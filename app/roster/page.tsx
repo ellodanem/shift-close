@@ -118,6 +118,7 @@ export default function RosterPage() {
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
   const [sendToOpen, setSendToOpen] = useState(false)
+  const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -210,6 +211,15 @@ export default function RosterPage() {
     }
     loadWeek()
   }, [weekStart])
+
+  useEffect(() => {
+    if (!copyConfirmOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCopyConfirmOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [copyConfirmOpen])
 
   const getEntryFor = (staffId: string, date: string): RosterEntry | undefined =>
     entries.find((e) => e.staffId === staffId && e.date === date)
@@ -704,16 +714,56 @@ export default function RosterPage() {
             </span>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (confirm('Replace this week\'s roster with the previous week? This will overwrite current shifts.')) {
-                    void handleCopyPreviousWeek()
-                  }
-                }}
+                type="button"
+                onClick={() => setCopyConfirmOpen(true)}
                 disabled={loading || sharing || isPastWeek}
                 className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
                 Copy previous week
               </button>
+              {copyConfirmOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                    onClick={() => setCopyConfirmOpen(false)}
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full"
+                      onClick={(e) => e.stopPropagation()}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="copy-confirm-title"
+                    >
+                      <h3 id="copy-confirm-title" className="text-lg font-semibold text-gray-900 mb-2">
+                        Copy previous week?
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This will replace this week&apos;s roster with the previous week. Current shifts will be overwritten.
+                      </p>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setCopyConfirmOpen(false)}
+                          className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCopyConfirmOpen(false)
+                            void handleCopyPreviousWeek()
+                          }}
+                          className="px-4 py-2 bg-amber-600 text-white rounded text-sm font-medium hover:bg-amber-700"
+                        >
+                          Yes, copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
               <button
                 onClick={handleClearWeek}
                 disabled={loading || sharing || entries.length === 0 || isPastWeek}
