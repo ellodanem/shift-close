@@ -36,8 +36,9 @@ Context and decisions from development sessions. Use this to recover context if 
 - On revert: deletes any CashbookEntry where `paymentBatchId` = reverted batch
 
 ### Implementation
-- Auto-creates "Fuel payments" expense category if none exists
-- Entry: date, description ("Fuel payment – Ref {bankRef}"), amount (batch total), category, paymentMethod (direct_debit), paymentBatchId
+- Splits by invoice type: LPG+Lubricants→Rec. Gen (3021), Fuel→Rec. Gas (3022), Rent→Mtnce
+- Auto-creates categories if missing
+- One entry with multiple allocations; fallback to "Fuel payments" if no type matches
 
 ---
 
