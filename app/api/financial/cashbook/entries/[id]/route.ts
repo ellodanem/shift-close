@@ -24,7 +24,7 @@ function mapToDebitCredit(
   }
   const pm = (paymentMethod || 'cash').toLowerCase()
   if (pm === 'check') return { ...base, debitCheck: amt, paymentMethod: 'check' }
-  if (pm === 'deposit' || pm === 'eft') return { ...base, debitEcard: amt, paymentMethod: pm }
+  if (pm === 'deposit' || pm === 'eft' || pm === 'direct_debit') return { ...base, debitEcard: amt, paymentMethod: pm }
   if (pm === 'debit_credit' || pm === 'debit/credit') return { ...base, debitDcard: amt, paymentMethod: 'debit_credit' }
   return { ...base, debitCash: amt, paymentMethod: 'cash' }
 }

@@ -8,6 +8,7 @@ const PAYMENT_OPTIONS = [
   { value: 'check', label: 'Check' },
   { value: 'deposit', label: 'Deposit' },
   { value: 'eft', label: 'EFT' },
+  { value: 'direct_debit', label: 'Direct debit' },
   { value: 'debit_credit', label: 'Debit/Credit' }
 ] as const
 
@@ -86,6 +87,11 @@ function inferPaymentMethod(entry: CashbookApiEntry): string {
   if ((entry.debitEcard ?? 0) > 0) return 'eft'
   if ((entry.debitDcard ?? 0) > 0) return 'debit_credit'
   return 'cash'
+}
+
+function isBankChargesCategory(categoryId: string, categories: CashbookCategory[]): boolean {
+  const cat = categories.find((c) => c.id === categoryId)
+  return !!cat && /bank\s*charges?/i.test(cat.name)
 }
 
 function formatCurrency(n: number): string {
@@ -492,7 +498,18 @@ export default function CashbookPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <select
                   value={form.categoryId}
-                  onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+                  onChange={(e) => {
+                    const newCategoryId = e.target.value
+                    const updates: Partial<EntryForm> = { categoryId: newCategoryId }
+                    if (
+                      modalOpen === 'expense' &&
+                      newCategoryId &&
+                      isBankChargesCategory(newCategoryId, expenseCategories)
+                    ) {
+                      updates.paymentMethod = 'direct_debit'
+                    }
+                    setForm((f) => ({ ...f, ...updates }))
+                  }}
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 >
                   <option value="">Select…</option>
