@@ -8,6 +8,8 @@ Context and decisions from development sessions. Use this to recover context if 
 
 ### Simplified UI (implemented)
 - **Add Income** / **Add Expense** buttons instead of complex grid
+- **Sort by date**: Click Date column header to toggle asc/desc; preference saved in localStorage
+- **Sticky header**: Title, month selector, Financial Report, Add Income/Add Expense stay visible when scrolling
 - Modal form: Date, Description, Category, Amount, Ref (optional)
 - **How paid** (expenses only): Cash, Check, Deposit, EFT, Direct debit, Debit/Credit
 - Simple list view: Date | Type | Description | Category | Amount | How paid | Edit | Delete

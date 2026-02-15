@@ -103,6 +103,8 @@ function formatPaymentLabel(value: string): string {
   return opt?.label ?? value
 }
 
+const CASHBOOK_SORT_KEY = 'cashbook-sort-date'
+
 const emptyForm: EntryForm = {
   date: '',
   ref: '',
@@ -131,6 +133,11 @@ export default function CashbookPage() {
   const [descriptionSuggestionsLoading, setDescriptionSuggestionsLoading] = useState(false)
   const descriptionInputRef = useRef<HTMLInputElement>(null)
   const descriptionDropdownRef = useRef<HTMLDivElement>(null)
+  const [dateSort, setDateSort] = useState<'asc' | 'desc'>(() => {
+    if (typeof window === 'undefined') return 'desc'
+    const saved = localStorage.getItem(CASHBOOK_SORT_KEY)
+    return saved === 'asc' || saved === 'desc' ? saved : 'desc'
+  })
 
   const dateRange = useMemo(
     () => ({ startDate: firstOfMonth(month), endDate: lastOfMonth(month) }),
@@ -139,6 +146,25 @@ export default function CashbookPage() {
 
   const incomeCategories = useMemo(() => categories.filter((c) => c.type === 'income'), [categories])
   const expenseCategories = useMemo(() => categories.filter((c) => c.type === 'expense'), [categories])
+
+  const sortedEntries = useMemo(() => {
+    const arr = [...entries]
+    arr.sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date)
+      return dateSort === 'desc' ? -cmp : cmp
+    })
+    return arr
+  }, [entries, dateSort])
+
+  const toggleDateSort = () => {
+    const next = dateSort === 'asc' ? 'desc' : 'asc'
+    setDateSort(next)
+    try {
+      localStorage.setItem(CASHBOOK_SORT_KEY, next)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     if (!modalOpen) return
@@ -356,52 +382,54 @@ export default function CashbookPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Cashbook</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Track income and expenses. Your accountant can read the full details.
-            </p>
-          </div>
-          <div className="flex gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Month:</span>
-              <input
-                type="month"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
+        <div className="sticky top-0 z-10 bg-gray-50 pt-8 pb-6 -mt-8 border-b border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Cashbook</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Track income and expenses. Your accountant can read the full details.
+              </p>
             </div>
+            <div className="flex gap-3 items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Month:</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                />
+              </div>
+              <button
+                onClick={() => router.push('/reports/financial')}
+                className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+              >
+                Financial Report
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Add Income / Add Expense */}
+          <div className="flex gap-3">
             <button
-              onClick={() => router.push('/reports/financial')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+              onClick={() => openAddModal('income')}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 shadow-sm"
             >
-              Financial Report
+              ➕ Add Income
+            </button>
+            <button
+              onClick={() => openAddModal('expense')}
+              className="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 shadow-sm"
+            >
+              ➕ Add Expense
             </button>
           </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Add Income / Add Expense */}
-        <div className="mb-6 flex gap-3">
-          <button
-            onClick={() => openAddModal('income')}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 shadow-sm"
-          >
-            ➕ Add Income
-          </button>
-          <button
-            onClick={() => openAddModal('expense')}
-            className="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 shadow-sm"
-          >
-            ➕ Add Expense
-          </button>
         </div>
 
         {/* Quick add category */}
@@ -458,7 +486,16 @@ export default function CashbookPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={toggleDateSort}
+                      className="flex items-center gap-1 hover:text-gray-900"
+                      title={dateSort === 'desc' ? 'Newest first (click for oldest first)' : 'Oldest first (click for newest first)'}
+                    >
+                      Date {dateSort === 'desc' ? '↓' : '↑'}
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Description</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
@@ -468,7 +505,7 @@ export default function CashbookPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => {
+                {sortedEntries.map((entry) => {
                   const type = inferType(entry)
                   const alloc = entry.allocations[0]
                   const catName = alloc?.category.name ?? '—'
