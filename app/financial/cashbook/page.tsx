@@ -342,7 +342,6 @@ export default function CashbookPage() {
         setEditingId(null)
         setForm((f) => ({
           ...f,
-          description: '',
           amount: 0,
           ref: ''
         }))
