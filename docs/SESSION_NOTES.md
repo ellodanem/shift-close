@@ -31,6 +31,9 @@ Context and decisions from development sessions. Use this to recover context if 
 - **Direct debit** added to How paid for auto-deducted bank charges
 - When category name matches "Bank Charges" (case-insensitive), How paid auto-selects "Direct debit"
 
+### Income: Credit Card / Debit Card
+- When income category is "Credit Card" or "Debit Card", Description auto-fills "Card Transactions"
+
 ### Neon scripts to run (if tables/columns missing)
 - `scripts/neon-apply-cashbook-tables.sql` – creates cashbook tables
 - `scripts/neon-apply-cashbook-payment-method.sql` – adds debitCheck, payment_method columns

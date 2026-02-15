@@ -94,6 +94,11 @@ function isBankChargesCategory(categoryId: string, categories: CashbookCategory[
   return !!cat && /bank\s*charges?/i.test(cat.name)
 }
 
+function isCardTransactionsCategory(categoryId: string, categories: CashbookCategory[]): boolean {
+  const cat = categories.find((c) => c.id === categoryId)
+  return !!cat && /^(credit\s*card|debit\s*card)$/i.test(cat.name.trim())
+}
+
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
@@ -635,6 +640,13 @@ export default function CashbookPage() {
                     ) {
                       updates.description = 'Debit and Credit card charges'
                       updates.paymentMethod = 'direct_debit'
+                    }
+                    if (
+                      modalOpen === 'income' &&
+                      newCategoryId &&
+                      isCardTransactionsCategory(newCategoryId, incomeCategories)
+                    ) {
+                      updates.description = 'Card Transactions'
                     }
                     setForm((f) => ({ ...f, ...updates }))
                   }}
