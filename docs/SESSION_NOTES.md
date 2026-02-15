@@ -18,6 +18,13 @@ Context and decisions from development sessions. Use this to recover context if 
 - `paymentMethod` – stores how paid (cash, check, deposit, eft, direct_debit, debit_credit)
 - Mapping: Cash→debitCash, Check→debitCheck, Deposit/EFT/Direct debit→debitEcard, Debit/Credit→debitDcard
 
+### Description suggestions
+- Dropdown of previously used descriptions when typing in Add Income/Expense
+- Suggestions from existing entries, filtered by type (income vs expense)
+- "Remove from suggestions" (✕) on hover to hide typos/one-offs
+- Exclusions stored in `cashbook_description_exclusions` table
+- Neon script: `scripts/neon-apply-description-exclusions.sql`
+
 ### Bank Charges
 - **Direct debit** added to How paid for auto-deducted bank charges
 - When category name matches "Bank Charges" (case-insensitive), How paid auto-selects "Direct debit"
@@ -25,6 +32,7 @@ Context and decisions from development sessions. Use this to recover context if 
 ### Neon scripts to run (if tables/columns missing)
 - `scripts/neon-apply-cashbook-tables.sql` – creates cashbook tables
 - `scripts/neon-apply-cashbook-payment-method.sql` – adds debitCheck, payment_method columns
+- `scripts/neon-apply-description-exclusions.sql` – description suggestion exclusions
 
 ---
 
@@ -36,9 +44,13 @@ Context and decisions from development sessions. Use this to recover context if 
 - On revert: deletes any CashbookEntry where `paymentBatchId` = reverted batch
 
 ### Implementation
-- Splits by invoice type: LPG+Lubricants→Rec. Gen (3021), Fuel→Rec. Gas (3022), Rent→Mtnce
+- Splits by invoice type: LPG+Lubricants+vendor payments→Rec. Gen (3021), Fuel→Rec. Gas (3022), Rent→Mtnce
+- **Rec. Gen** = LPG, Lubricants, and payments to vendors
 - Auto-creates categories if missing
 - One entry with multiple allocations; fallback to "Fuel payments" if no type matches
+
+### Future
+- When vendor invoice types exist, add them to `recGenTypes` in the make-payment route so vendor payments map to Rec. Gen
 
 ---
 

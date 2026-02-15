@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const PAYMENT_OPTIONS = [
@@ -126,6 +126,11 @@ export default function CashbookPage() {
   const [newCatName, setNewCatName] = useState('')
   const [newCatCode, setNewCatCode] = useState('')
   const [newCatType, setNewCatType] = useState<'income' | 'expense'>('expense')
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([])
+  const [descriptionSuggestionsOpen, setDescriptionSuggestionsOpen] = useState(false)
+  const [descriptionSuggestionsLoading, setDescriptionSuggestionsLoading] = useState(false)
+  const descriptionInputRef = useRef<HTMLInputElement>(null)
+  const descriptionDropdownRef = useRef<HTMLDivElement>(null)
 
   const dateRange = useMemo(
     () => ({ startDate: firstOfMonth(month), endDate: lastOfMonth(month) }),
@@ -143,6 +148,52 @@ export default function CashbookPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [modalOpen])
+
+  const fetchDescriptionSuggestions = useCallback(
+    async (q: string) => {
+      if (!modalOpen) return
+      setDescriptionSuggestionsLoading(true)
+      try {
+        const params = new URLSearchParams({ type: modalOpen })
+        if (q.trim()) params.set('q', q.trim())
+        const res = await fetch(`/api/financial/cashbook/description-suggestions?${params}`)
+        if (res.ok) {
+          const data: string[] = await res.json()
+          setDescriptionSuggestions(data)
+          setDescriptionSuggestionsOpen(true)
+        }
+      } catch {
+        setDescriptionSuggestions([])
+      } finally {
+        setDescriptionSuggestionsLoading(false)
+      }
+    },
+    [modalOpen]
+  )
+
+  useEffect(() => {
+    if (!modalOpen) {
+      setDescriptionSuggestionsOpen(false)
+      setDescriptionSuggestions([])
+      return
+    }
+    const t = setTimeout(() => fetchDescriptionSuggestions(form.description), 150)
+    return () => clearTimeout(t)
+  }, [modalOpen, form.description, fetchDescriptionSuggestions])
+
+  const excludeDescription = async (desc: string) => {
+    if (!modalOpen) return
+    try {
+      await fetch('/api/financial/cashbook/description-exclusions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: desc, type: modalOpen })
+      })
+      setDescriptionSuggestions((prev) => prev.filter((d) => d !== desc))
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -487,15 +538,51 @@ export default function CashbookPage() {
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 />
               </div>
-              <div>
+              <div className="relative" ref={descriptionDropdownRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input
+                  ref={descriptionInputRef}
                   type="text"
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  onFocus={() => descriptionSuggestions.length > 0 && setDescriptionSuggestionsOpen(true)}
+                  onBlur={() => setTimeout(() => setDescriptionSuggestionsOpen(false), 150)}
                   placeholder="e.g. Electric bill, Fuel sales"
                   className="w-full border border-gray-300 rounded px-3 py-2"
+                  autoComplete="off"
                 />
+                {descriptionSuggestionsOpen && descriptionSuggestions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                    {descriptionSuggestions.map((d) => (
+                      <div
+                        key={d}
+                        className="flex items-center justify-between group px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setForm((f) => ({ ...f, description: d }))
+                          setDescriptionSuggestionsOpen(false)
+                        }}
+                      >
+                        <span>{d}</span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            excludeDescription(d)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 text-sm px-1"
+                          title="Remove from suggestions"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {descriptionSuggestionsLoading && (
+                  <span className="absolute right-3 top-9 text-xs text-gray-400">…</span>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>

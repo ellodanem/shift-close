@@ -477,4 +477,28 @@ model CashbookAllocation {
   @@map("cashbook_allocations")
 }
 
+// Descriptions to hide from the suggestion dropdown (typos, one-offs)
+model CashbookDescriptionExclusion {
+  id          String   @id @default(cuid())
+  description String
+  type        String   // "income" | "expense"
+
+  @@unique([description, type], name: "cashbook_description_exclusions_description_type_key")
+  @@map("cashbook_description_exclusions")
+}
+
+// Custom reminders with email/WhatsApp notifications
+model Reminder {
+  id              String   @id @default(cuid())
+  title           String
+  date            String   // YYYY-MM-DD
+  notes           String?  @default("")
+  notifyEmail     Boolean  @default(true) @map("notify_email")
+  notifyWhatsApp  Boolean  @default(false) @map("notify_whatsapp")
+  notifyDaysBefore String  @default("7,3,1,0") @map("notify_days_before") // e.g. "7,3,1,0" = 7d, 3d, 1d, day-of
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("reminders")
+}
 
