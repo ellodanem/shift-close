@@ -99,6 +99,11 @@ function isCardTransactionsCategory(categoryId: string, categories: CashbookCate
   return !!cat && /^(credit\s*card|debit\s*card)$/i.test(cat.name.trim())
 }
 
+function isDepositCategory(categoryId: string, categories: CashbookCategory[]): boolean {
+  const cat = categories.find((c) => c.id === categoryId)
+  return !!cat && /^deposit$/i.test(cat.name.trim())
+}
+
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
@@ -285,7 +290,7 @@ export default function CashbookPage() {
     setForm(emptyForm)
   }
 
-  const saveEntry = async () => {
+  const saveEntry = async (addAnother = false) => {
     if (!form.date || !form.description.trim() || !form.categoryId) {
       alert('Date, Description and Category are required.')
       return
@@ -324,7 +329,6 @@ export default function CashbookPage() {
         if (!res.ok) throw new Error('Failed to create')
       }
 
-      closeModal()
       // Reload entries
       const entryRes = await fetch(
         `/api/financial/cashbook/entries?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`
@@ -332,6 +336,20 @@ export default function CashbookPage() {
       if (entryRes.ok) {
         const data: CashbookApiEntry[] = await entryRes.json()
         setEntries(data)
+      }
+
+      if (addAnother && !editingId) {
+        setEditingId(null)
+        setForm((f) => ({
+          ...f,
+          description: '',
+          amount: 0,
+          ref: ''
+        }))
+        // Focus amount field after a tick
+        setTimeout(() => document.getElementById('cashbook-amount-input')?.focus(), 50)
+      } else {
+        closeModal()
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save')
@@ -648,6 +666,13 @@ export default function CashbookPage() {
                     ) {
                       updates.description = 'Card Transactions'
                     }
+                    if (
+                      modalOpen === 'income' &&
+                      newCategoryId &&
+                      isDepositCategory(newCategoryId, incomeCategories)
+                    ) {
+                      updates.description = 'Deposit'
+                    }
                     setForm((f) => ({ ...f, ...updates }))
                   }}
                   className="w-full border border-gray-300 rounded px-3 py-2"
@@ -666,6 +691,7 @@ export default function CashbookPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
                 <input
+                  id="cashbook-amount-input"
                   type="number"
                   step="0.01"
                   min="0"
@@ -708,6 +734,15 @@ export default function CashbookPage() {
               >
                 Cancel
               </button>
+              {!editingId && (
+                <button
+                  onClick={() => void saveEntry(true)}
+                  disabled={saving}
+                  className="px-4 py-2 rounded font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-60"
+                >
+                  Save & Add another
+                </button>
+              )}
               <button
                 onClick={() => void saveEntry()}
                 disabled={saving}

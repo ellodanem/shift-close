@@ -34,6 +34,13 @@ Context and decisions from development sessions. Use this to recover context if 
 ### Income: Credit Card / Debit Card
 - When income category is "Credit Card" or "Debit Card", Description auto-fills "Card Transactions"
 
+### Income: Deposit
+- When income category is "Deposit", Description auto-fills "Deposit"
+
+### Save & Add another
+- Button keeps modal open after save; retains date and category, clears amount/description/ref
+- Speeds up adding multiple entries for the same day
+
 ### Neon scripts to run (if tables/columns missing)
 - `scripts/neon-apply-cashbook-tables.sql` – creates cashbook tables
 - `scripts/neon-apply-cashbook-payment-method.sql` – adds debitCheck, payment_method columns
