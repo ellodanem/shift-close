@@ -57,6 +57,13 @@ interface Shift {
   missingDataNotes?: string
   overShortExplained?: boolean
   overShortExplanation?: string | null
+  overShortItems?: Array<{
+    id: string
+    type: string
+    amount: number
+    description: string
+    sortOrder: number
+  }>
 }
 
 export default function ShiftDetailPage() {
@@ -69,6 +76,11 @@ export default function ShiftDetailPage() {
   const [overShortExplained, setOverShortExplained] = useState(false)
   const [overShortExplanationDraft, setOverShortExplanationDraft] = useState('')
   const [showOverShortModal, setShowOverShortModal] = useState(false)
+  const [showAddOverShortModal, setShowAddOverShortModal] = useState(false)
+  const [addOverShortType, setAddOverShortType] = useState<'overage' | 'shortage'>('overage')
+  const [addOverShortAmount, setAddOverShortAmount] = useState('')
+  const [addOverShortDescription, setAddOverShortDescription] = useState('')
+  const [savingOverShortItem, setSavingOverShortItem] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
@@ -1346,6 +1358,95 @@ export default function ShiftDetailPage() {
               When a non-zero Over/Short is explained and all conditions are met, this shift will be marked as <span className="font-semibold">Reviewed</span>.
             </p>
           </div>
+
+          {/* Over/Short Items - structured overages and shortages */}
+          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2">Over/Short Items</h4>
+            <p className="text-xs text-gray-600 mb-3">
+              Raw Over/Short: <span className="font-semibold">{(shift?.overShortTotal ?? 0).toFixed(2)}</span>
+              {' '}(from count vs system)
+            </p>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddOverShortType('overage')
+                  setAddOverShortAmount('')
+                  setAddOverShortDescription('')
+                  setShowAddOverShortModal(true)
+                }}
+                className="px-3 py-1.5 rounded font-medium bg-green-600 text-white hover:bg-green-700 text-sm"
+              >
+                + Add overage
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddOverShortType('shortage')
+                  setAddOverShortAmount('')
+                  setAddOverShortDescription('')
+                  setShowAddOverShortModal(true)
+                }}
+                className="px-3 py-1.5 rounded font-medium bg-red-600 text-white hover:bg-red-700 text-sm"
+              >
+                − Add shortage
+              </button>
+            </div>
+            {(shift?.overShortItems?.length ?? 0) > 0 ? (
+              <div className="space-y-1.5">
+                {shift.overShortItems!.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between px-3 py-2 rounded text-sm ${
+                      item.type === 'overage' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={item.type === 'overage' ? 'text-green-700 font-semibold' : 'text-red-700 font-semibold'}>
+                        {item.type === 'overage' ? '+' : '−'}${item.amount.toFixed(2)}
+                      </span>
+                      <span className="text-gray-700">{item.description}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('Delete this item?')) return
+                        try {
+                          const res = await fetch(`/api/shifts/${shift!.id}/over-short-items/${item.id}`, { method: 'DELETE' })
+                          if (res.ok) {
+                            const updated = await fetch(`/api/shifts/${shift!.id}`).then(r => r.json())
+                            setShift(updated)
+                          }
+                        } catch (err) {
+                          console.error('Failed to delete:', err)
+                        }
+                      }}
+                      className="text-gray-400 hover:text-red-600 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {(() => {
+                  const explainedTotal = (shift?.overShortItems ?? []).reduce(
+                    (sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount),
+                    0
+                  )
+                  const raw = shift?.overShortTotal ?? 0
+                  return (
+                    <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                      Explained total: {explainedTotal.toFixed(2)}
+                      {Math.abs(raw - explainedTotal) > 0.01 && (
+                        <span className="text-amber-600 ml-1">(diff from raw: {(raw - explainedTotal).toFixed(2)})</span>
+                      )}
+                    </p>
+                  )
+                })()}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 italic">No items yet. Add overages (e.g. Rumie check) or shortages (e.g. Manager took from drawer).</p>
+            )}
+          </div>
           
           {/* Auto-detected missing fields warning */}
           {shift && (() => {
@@ -1465,6 +1566,95 @@ export default function ShiftDetailPage() {
                 className="px-4 py-1.5 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
               >
                 Confirm &amp; Mark Explained
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Over/Short Item Modal */}
+      {showAddOverShortModal && shift && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 text-sm">
+                Add {addOverShortType === 'overage' ? 'Overage' : 'Shortage'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddOverShortModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={addOverShortAmount}
+                  onChange={(e) => setAddOverShortAmount(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={addOverShortDescription}
+                  onChange={(e) => setAddOverShortDescription(e.target.value)}
+                  placeholder={addOverShortType === 'overage' ? 'e.g. Rumie Tours check' : 'e.g. Manager requested from drawer'}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddOverShortModal(false)}
+                className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingOverShortItem || !addOverShortAmount || Number(addOverShortAmount) <= 0 || !addOverShortDescription.trim()}
+                onClick={async () => {
+                  const amt = Number(addOverShortAmount)
+                  if (amt <= 0 || !addOverShortDescription.trim()) return
+                  setSavingOverShortItem(true)
+                  try {
+                    const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        type: addOverShortType,
+                        amount: amt,
+                        description: addOverShortDescription.trim()
+                      })
+                    })
+                    if (!res.ok) throw new Error('Failed to add')
+                    const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
+                    setShift(updated)
+                    setShowAddOverShortModal(false)
+                    setAddOverShortAmount('')
+                    setAddOverShortDescription('')
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : 'Failed to add item')
+                  } finally {
+                    setSavingOverShortItem(false)
+                  }
+                }}
+                className={`px-4 py-1.5 rounded text-sm font-semibold ${
+                  addOverShortType === 'overage'
+                    ? 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-60'
+                    : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60'
+                }`}
+              >
+                {savingOverShortItem ? 'Saving…' : 'Add'}
               </button>
             </div>
           </div>

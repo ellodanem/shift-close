@@ -100,6 +100,19 @@ Context and decisions from development sessions. Use this to recover context if 
 
 ---
 
+## Over/Short Items (implemented)
+
+- **Data safety:** Additive only. New table `over_short_items`. No existing ShiftClose or related tables/columns modified. Current data unaffected.
+- Structured overage/shortage line items per shift (e.g. Rumie check, Manager took from drawer)
+- Green "+ Add overage" and red "− Add shortage" buttons on shift detail page
+- Each item: amount + description. Delete via ✕.
+- Raw Over/Short (count vs system) unchanged. Items are structured explanations.
+- Schema: `OverShortItem` (shiftId, type, amount, description, sortOrder)
+- Neon script: `scripts/neon-apply-over-short-items.sql`
+- Additive only: no existing data modified
+
+---
+
 ## Other
 
 - Dashboard Cashbook (MTD) widget shows income/expense for displayed month

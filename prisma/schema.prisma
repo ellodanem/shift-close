@@ -114,10 +114,25 @@ model ShiftClose {
 
   corrections     Correction[]
   noteHistory     NoteHistory[]
+  overShortItems  OverShortItem[]
   supervisorStaff Staff?        @relation(fields: [supervisorId], references: [id])
 
   @@unique([date, shift])
   @@map("shift_close")
+}
+
+model OverShortItem {
+  id          String   @id @default(cuid())
+  shiftId     String   @map("shift_id")
+  type        String   // "overage" | "shortage"
+  amount      Float
+  description String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  shift ShiftClose @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@map("over_short_items")
 }
 
 model Correction {

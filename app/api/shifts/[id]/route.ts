@@ -13,6 +13,9 @@ export async function GET(
         corrections: true,
         noteHistory: {
           orderBy: { createdAt: 'desc' }
+        },
+        overShortItems: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
         }
       }
     })
