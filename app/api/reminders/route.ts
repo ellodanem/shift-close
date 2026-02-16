@@ -73,4 +73,5 @@ export async function POST(request: NextRequest) {
       ? ' Run scripts/neon-apply-reminders.sql in Neon SQL Editor.'
       : ''
     return NextResponse.json({ error: message + hint }, { status: 500 })
+  }
 }
