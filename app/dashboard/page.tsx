@@ -1215,7 +1215,10 @@ export default function DashboardPage() {
                         notifyDaysBefore: reminderForm.notifyDaysBefore
                       })
                     })
-                    if (!res.ok) throw new Error('Failed to create')
+                    const data = await res.json().catch(() => ({}))
+                    if (!res.ok) {
+                      throw new Error((data as { error?: string }).error || `Failed to create (${res.status})`)
+                    }
                     setReminderModalOpen(false)
                     fetchUpcoming()
                   } catch (err) {
