@@ -40,6 +40,7 @@ interface UpcomingEvent {
   date: string
   daysUntil: number
   priority: 'high' | 'medium' | 'low'
+  reminderId?: string
 }
 
 interface RecentFuelPayment {
@@ -110,6 +111,24 @@ export default function DashboardPage() {
   const customPickerRef = useRef<HTMLDivElement>(null)
   const [showReportsDropdown, setShowReportsDropdown] = useState(false)
   const reportsDropdownRef = useRef<HTMLDivElement>(null)
+  const [reminderModalOpen, setReminderModalOpen] = useState(false)
+  const [reminderForm, setReminderForm] = useState({
+    title: '',
+    date: '',
+    notes: '',
+    notifyEmail: true,
+    notifyWhatsApp: false,
+    notifyDaysBefore: '7,3,1,0'
+  })
+
+  useEffect(() => {
+    if (!reminderModalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReminderModalOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [reminderModalOpen])
 
   // Close custom picker when clicking outside
   useEffect(() => {
@@ -850,7 +869,27 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Upcoming Events - Half Box */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Upcoming</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
+              <button
+                onClick={() => {
+                  const today = new Date()
+                  setReminderForm({
+                    title: '',
+                    date: today.toISOString().slice(0, 10),
+                    notes: '',
+                    notifyEmail: true,
+                    notifyWhatsApp: false,
+                    notifyDaysBefore: '7,3,1,0'
+                  })
+                  setReminderModalOpen(true)
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+                title="Add reminder"
+              >
+                +
+              </button>
+            </div>
             {upcoming.length === 0 ? (
               <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
             ) : (
@@ -882,7 +921,7 @@ export default function DashboardPage() {
                   }
                   
                   return (
-                    <div key={index} className={`rounded p-2 ${getPriorityColor()}`}>
+                    <div key={event.reminderId ?? index} className={`rounded p-2 ${getPriorityColor()}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="text-lg flex-shrink-0">{getIcon()}</span>
@@ -891,8 +930,27 @@ export default function DashboardPage() {
                             <div className="text-xs text-gray-500">{formatDate(event.date)}</div>
                           </div>
                         </div>
-                        <div className="text-xs font-semibold text-gray-700 flex-shrink-0">
-                          {getDaysText()}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="text-xs font-semibold text-gray-700">
+                            {getDaysText()}
+                          </div>
+                          {event.type === 'other' && event.reminderId && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm('Delete this reminder?')) return
+                                try {
+                                  const res = await fetch(`/api/reminders/${event.reminderId}`, { method: 'DELETE' })
+                                  if (res.ok) fetchUpcoming()
+                                } catch (err) {
+                                  console.error('Failed to delete reminder:', err)
+                                }
+                              }}
+                              className="text-gray-400 hover:text-red-600 text-xs p-0.5"
+                              title="Delete reminder"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1051,6 +1109,127 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Reminder Modal */}
+      {reminderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setReminderModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Reminder</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={reminderForm.title}
+                  onChange={(e) => setReminderForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. License renewal"
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={reminderForm.date}
+                  onChange={(e) => setReminderForm((f) => ({ ...f, date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <textarea
+                  value={reminderForm.notes}
+                  onChange={(e) => setReminderForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Additional details"
+                  rows={2}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Notify</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reminderForm.notifyEmail}
+                      onChange={(e) => setReminderForm((f) => ({ ...f, notifyEmail: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">Email</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reminderForm.notifyWhatsApp}
+                      onChange={(e) => setReminderForm((f) => ({ ...f, notifyWhatsApp: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">WhatsApp</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={reminderForm.notifyDaysBefore}
+                      onChange={(e) => setReminderForm((f) => ({ ...f, notifyDaysBefore: e.target.value }))}
+                      placeholder="7,3,1,0"
+                      className="w-32 border border-gray-300 rounded px-2 py-1 text-sm"
+                    />
+                    <span className="text-xs text-gray-500">days before</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                onClick={() => setReminderModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!reminderForm.title.trim()) {
+                    alert('Title is required.')
+                    return
+                  }
+                  if (!reminderForm.date.trim()) {
+                    alert('Date is required.')
+                    return
+                  }
+                  try {
+                    const res = await fetch('/api/reminders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        title: reminderForm.title.trim(),
+                        date: reminderForm.date.trim(),
+                        notes: reminderForm.notes.trim() || null,
+                        notifyEmail: reminderForm.notifyEmail,
+                        notifyWhatsApp: reminderForm.notifyWhatsApp,
+                        notifyDaysBefore: reminderForm.notifyDaysBefore
+                      })
+                    })
+                    if (!res.ok) throw new Error('Failed to create')
+                    setReminderModalOpen(false)
+                    fetchUpcoming()
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : 'Failed to create reminder')
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

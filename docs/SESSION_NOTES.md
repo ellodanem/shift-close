@@ -77,10 +77,12 @@ Context and decisions from development sessions. Use this to recover context if 
 - API: GET/POST `/api/reminders`, DELETE `/api/reminders/[id]`, GET `/api/reminders/check` (cron)
 - Upcoming API includes custom reminders (type: 'other', reminderId)
 
+### Implemented (dashboard)
+- "+" button in Upcoming component top-right
+- Create-reminder modal (title, date, notes, notifyEmail, notifyWhatsApp, notifyDaysBefore)
+- Delete button (✕) for custom reminders in upcoming list
+
 ### Pending
-- Dashboard: "+" button in Upcoming component top-right
-- Create-reminder modal (title, date, notes, notifyEmail, notifyWhatsApp, notifyDaysBefore checkboxes)
-- Delete button for custom reminders in upcoming list
 - Vercel cron: add to `vercel.json`, set `CRON_SECRET` env var
 
 ### Cron
