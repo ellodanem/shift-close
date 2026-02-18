@@ -25,6 +25,16 @@ interface CustomerArAccount {
   closing: number
 }
 
+interface CustomerArPaymentRecord {
+  id: string
+  date: string
+  account: string
+  amount: number
+  paymentMethod: string | null
+  ref: string | null
+  notes: string | null
+}
+
 export default function CustomerAccountsPage() {
   const router = useRouter()
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
@@ -46,6 +56,83 @@ export default function CustomerAccountsPage() {
   const [paymentsInput, setPaymentsInput] = useState<string>('')
   const [closingInput, setClosingInput] = useState<string>('')
   const [notesInput, setNotesInput] = useState<string>('')
+  const [payments, setPayments] = useState<CustomerArPaymentRecord[]>([])
+  const [loadingPayments, setLoadingPayments] = useState(false)
+  const [paymentDate, setPaymentDate] = useState<string>(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+  const [paymentAccount, setPaymentAccount] = useState<string>('')
+  const [paymentAmount, setPaymentAmount] = useState<string>('')
+  const [paymentRef, setPaymentRef] = useState<string>('')
+  const [savingPayment, setSavingPayment] = useState(false)
+  const [paymentsFilterMonth, setPaymentsFilterMonth] = useState<string>(defaultMonth)
+
+  const fetchPayments = async () => {
+    setLoadingPayments(true)
+    try {
+      const [y, m] = paymentsFilterMonth.split('-').map(Number)
+      const start = `${y}-${String(m).padStart(2, '0')}-01`
+      const lastDay = new Date(y, m, 0)
+      const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
+      const res = await fetch(`/api/customer-accounts/payments?startDate=${start}&endDate=${end}`)
+      if (!res.ok) throw new Error('Failed to fetch payments')
+      const data = await res.json()
+      setPayments(data)
+    } catch (err) {
+      console.error(err)
+      setPayments([])
+    } finally {
+      setLoadingPayments(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPayments()
+  }, [paymentsFilterMonth])
+
+  const handleRecordPayment = async () => {
+    if (!paymentDate.trim() || !paymentAccount.trim()) {
+      alert('Date and customer name are required')
+      return
+    }
+    const amt = Number(paymentAmount.replace(/[\$,]/g, ''))
+    if (Number.isNaN(amt) || amt <= 0) {
+      alert('Please enter a valid amount')
+      return
+    }
+    setSavingPayment(true)
+    try {
+      const res = await fetch('/api/customer-accounts/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: paymentDate,
+          account: paymentAccount.trim(),
+          amount: amt,
+          ref: paymentRef.trim() || undefined
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to record payment')
+      }
+      setPaymentAccount('')
+      setPaymentAmount('')
+      setPaymentRef('')
+      setPaymentDate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      await fetchPayments()
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Failed to record payment')
+    } finally {
+      setSavingPayment(false)
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       const summariesData = await fetchSummaries()
@@ -310,6 +397,120 @@ export default function CustomerAccountsPage() {
               Lightweight monthly A/R overview using totals from the POS
               customer account report.
             </p>
+          </div>
+        </div>
+
+        {/* Record Payment */}
+        <div className="bg-white rounded-lg shadow-sm border-2 border-green-200 p-6 mb-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="text-3xl">💰</div>
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-gray-800 mb-1">
+                Record Payment
+              </h2>
+              <p className="text-xs text-gray-600">
+                Capture customer payments as they are received (like Mr. Elcock&apos;s spreadsheet).
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-end gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Customer</label>
+              <input
+                type="text"
+                value={paymentAccount}
+                onChange={(e) => setPaymentAccount(e.target.value)}
+                placeholder="e.g. Distillers, Barbay"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
+              <input
+                type="text"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="0.00"
+                className="px-3 py-2 border border-gray-300 rounded text-sm w-28 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="min-w-[120px]">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Ref (optional)</label>
+              <input
+                type="text"
+                value={paymentRef}
+                onChange={(e) => setPaymentRef(e.target.value)}
+                placeholder="Cheque #"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <button
+              onClick={handleRecordPayment}
+              disabled={savingPayment}
+              className="px-5 py-2 bg-green-600 text-white rounded font-semibold text-sm hover:bg-green-700 disabled:opacity-50"
+            >
+              {savingPayment ? 'Saving...' : 'Record'}
+            </button>
+          </div>
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-gray-700">Recorded payments</h3>
+              <div>
+                <label className="text-xs text-gray-600 mr-2">Show month:</label>
+                <input
+                  type="month"
+                  value={paymentsFilterMonth}
+                  onChange={(e) => setPaymentsFilterMonth(e.target.value)}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+              </div>
+            </div>
+            {loadingPayments ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : payments.length === 0 ? (
+              <p className="text-sm text-gray-500">No payments recorded for this month.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Ref</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {payments.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-900">{p.date}</td>
+                        <td className="px-3 py-2 font-medium text-gray-900">{p.account}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatAmount(p.amount)}</td>
+                        <td className="px-3 py-2 text-gray-600">{p.ref || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-100">
+                    <tr className="font-semibold">
+                      <td className="px-3 py-2" colSpan={2}>Total</td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
+                      </td>
+                      <td className="px-3 py-2" />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 

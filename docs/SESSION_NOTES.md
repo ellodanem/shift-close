@@ -113,6 +113,25 @@ Context and decisions from development sessions. Use this to recover context if 
 
 ---
 
+## Customer A/R Payments (Phase 1 – Capture)
+
+### Purpose
+Captures individual customer payments as they are received (like Mr. Elcock's spreadsheet). Payments entered on Cstore as well as Mr. Elcock's spreadsheet should be recorded here.
+
+### Implemented
+- **Record Payment** section on Customer Accounts page: Date, Customer, Amount, Ref (optional)
+- **Recorded payments** table with month filter: Date | Customer | Amount | Ref | Total
+- Schema: `CustomerArPayment` (date, account, amount, paymentMethod?, ref?, notes?)
+- API: GET/POST `/api/customer-accounts/payments` (query: startDate, endDate, account)
+- Neon script: `scripts/neon-apply-customer-ar-payments.sql`
+
+### Future (Phase 2 – Accounting)
+- Link to cashbook (auto-create entries when recording payment)
+- Reconcile with POS/Cstore monthly totals
+- Per-account roll-forward (opening + charges − payments = closing)
+
+---
+
 ## Other
 
 - Dashboard Cashbook (MTD) widget shows income/expense for displayed month

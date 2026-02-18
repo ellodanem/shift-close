@@ -373,6 +373,22 @@ model CustomerArAccountSnapshot {
   @@map("customer_ar_account_snapshots")
 }
 
+// Individual customer A/R payments (captured as received, like Mr. Elcock's spreadsheet)
+model CustomerArPayment {
+  id             String   @id @default(cuid())
+  date           String   // YYYY-MM-DD
+  account        String   // Customer name (e.g. Distillers, Barbay)
+  amount         Float
+  paymentMethod  String?  @map("payment_method") // cash | check | eft | etc.
+  ref            String?  // Cheque #, reference
+  notes          String?  @default("")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@index([account])
+  @@map("customer_ar_payments")
+}
+
 // Roles for staff (e.g. Cashier, Pump Attendant, Supervisor)
 model StaffRole {
   id         String   @id @default(cuid())
