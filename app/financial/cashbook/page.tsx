@@ -48,6 +48,14 @@ interface EntryForm {
   paymentMethod: string
 }
 
+interface DuplicateMatch {
+  id: string
+  date: string
+  amount: number
+  category: string
+  description: string
+}
+
 function formatMonthInput(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -148,6 +156,13 @@ export default function CashbookPage() {
     const saved = localStorage.getItem(CASHBOOK_SORT_KEY)
     return saved === 'asc' || saved === 'desc' ? saved : 'desc'
   })
+  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [duplicateModal, setDuplicateModal] = useState<{
+    matches: DuplicateMatch[]
+    payload: Record<string, unknown>
+    addAnother: boolean
+  } | null>(null)
 
   const dateRange = useMemo(
     () => ({ startDate: firstOfMonth(month), endDate: lastOfMonth(month) }),
@@ -231,6 +246,24 @@ export default function CashbookPage() {
     }
   }
 
+  const entriesUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate
+    })
+    if (typeFilter === 'income' || typeFilter === 'expense') params.set('type', typeFilter)
+    if (categoryFilter) params.set('categoryId', categoryFilter)
+    return `/api/financial/cashbook/entries?${params.toString()}`
+  }, [dateRange.startDate, dateRange.endDate, typeFilter, categoryFilter])
+
+  const fetchEntries = useCallback(async () => {
+    const res = await fetch(entriesUrl)
+    if (res.ok) {
+      const data: CashbookApiEntry[] = await res.json()
+      setEntries(data)
+    }
+  }, [entriesUrl])
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -238,9 +271,7 @@ export default function CashbookPage() {
       try {
         const [catRes, entryRes] = await Promise.all([
           fetch('/api/financial/cashbook/categories'),
-          fetch(
-            `/api/financial/cashbook/entries?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`
-          )
+          fetch(entriesUrl)
         ])
         if (!catRes.ok) throw new Error('Failed to load categories')
         if (!entryRes.ok) throw new Error('Failed to load entries')
@@ -255,7 +286,7 @@ export default function CashbookPage() {
       }
     }
     void load()
-  }, [dateRange.startDate, dateRange.endDate])
+  }, [entriesUrl])
 
   const openAddModal = (type: 'income' | 'expense') => {
     setModalOpen(type)
@@ -288,6 +319,56 @@ export default function CashbookPage() {
     setModalOpen(null)
     setEditingId(null)
     setForm(emptyForm)
+  }
+
+  const performSaveWithForce = async (payload: Record<string, unknown>, addAnother: boolean) => {
+    setSaving(true)
+    setDuplicateModal(null)
+    try {
+      const res = await fetch('/api/financial/cashbook/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, forceDuplicate: true })
+      })
+      if (!res.ok) throw new Error('Failed to create')
+      await fetchEntries()
+      if (addAnother) {
+        setForm((f) => ({ ...f, amount: 0, ref: '' }))
+        setTimeout(() => document.getElementById('cashbook-amount-input')?.focus(), 50)
+      } else {
+        closeModal()
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteDuplicate = async (matchId: string, payload: Record<string, unknown>, addAnother: boolean) => {
+    setSaving(true)
+    setDuplicateModal(null)
+    try {
+      const delRes = await fetch(`/api/financial/cashbook/entries/${matchId}`, { method: 'DELETE' })
+      if (!delRes.ok) throw new Error('Failed to delete existing entry')
+      const res = await fetch('/api/financial/cashbook/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error('Failed to create')
+      await fetchEntries()
+      if (addAnother) {
+        setForm((f) => ({ ...f, amount: 0, ref: '' }))
+        setTimeout(() => document.getElementById('cashbook-amount-input')?.focus(), 50)
+      } else {
+        closeModal()
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const saveEntry = async (addAnother = false) => {
@@ -326,17 +407,19 @@ export default function CashbookPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
+        if (res.status === 409) {
+          const data = await res.json()
+          if (data.duplicate && Array.isArray(data.matches)) {
+            setDuplicateModal({ matches: data.matches, payload, addAnother })
+            setSaving(false)
+            return
+          }
+        }
         if (!res.ok) throw new Error('Failed to create')
       }
 
       // Reload entries
-      const entryRes = await fetch(
-        `/api/financial/cashbook/entries?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`
-      )
-      if (entryRes.ok) {
-        const data: CashbookApiEntry[] = await entryRes.json()
-        setEntries(data)
-      }
+      await fetchEntries()
 
       if (addAnother && !editingId) {
         setEditingId(null)
@@ -362,7 +445,7 @@ export default function CashbookPage() {
     try {
       const res = await fetch(`/api/financial/cashbook/entries/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
-      setEntries((prev) => prev.filter((e) => e.id !== id))
+      await fetchEntries()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete')
     }
@@ -492,13 +575,42 @@ export default function CashbookPage() {
 
         {/* Entries list */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-semibold text-gray-800">
               Entries for {(() => {
               const [y, m] = month.split('-').map(Number)
               return new Date(y, (m || 1) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
             })()}
             </h2>
+            <div className="flex gap-3 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Type:</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Category:</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm min-w-[140px]"
+                >
+                  <option value="">All</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
           {entries.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
@@ -750,6 +862,60 @@ export default function CashbookPage() {
                 } disabled:opacity-60`}
               >
                 {saving ? 'Saving…' : editingId ? 'Update' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate confirmation modal */}
+      {duplicateModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setDuplicateModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-amber-800 mb-2">Possible duplicate</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              An entry with the same date, type, and amount already exists. Is this a different transaction?
+            </p>
+            <ul className="mb-4 space-y-2 text-sm">
+              {duplicateModal.matches.map((m) => (
+                <li key={m.id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span>
+                    {m.date} · {m.category} · {m.description}
+                  </span>
+                  <span className="font-medium">${formatCurrency(m.amount)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDuplicateModal(null)}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleDeleteDuplicate(
+                  duplicateModal.matches[0].id,
+                  duplicateModal.payload,
+                  duplicateModal.addAnother
+                )}
+                disabled={saving}
+                className="px-4 py-2 rounded font-medium text-red-600 border border-red-300 hover:bg-red-50 disabled:opacity-60"
+              >
+                Delete existing & save new
+              </button>
+              <button
+                onClick={() => void performSaveWithForce(duplicateModal.payload, duplicateModal.addAnother)}
+                disabled={saving}
+                className="px-4 py-2 rounded font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60"
+              >
+                Continue anyway
               </button>
             </div>
           </div>

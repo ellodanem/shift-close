@@ -8,14 +8,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const type = searchParams.get('type') // 'income' | 'expense'
+    const categoryId = searchParams.get('categoryId')
 
-    const where: any = {}
+    const where: Record<string, unknown> = {}
     if (startDate && endDate) {
       where.date = { gte: startDate, lte: endDate }
     } else if (startDate) {
       where.date = { gte: startDate }
     } else if (endDate) {
       where.date = { lte: endDate }
+    }
+
+    const allocFilter: Record<string, unknown> = {}
+    if (type === 'income' || type === 'expense') {
+      allocFilter.category = { type }
+    }
+    if (categoryId) {
+      allocFilter.categoryId = categoryId
+    }
+    if (Object.keys(allocFilter).length > 0) {
+      where.allocations = { some: allocFilter }
     }
 
     const entries = await prisma.cashbookEntry.findMany({
@@ -81,7 +94,8 @@ export async function POST(request: NextRequest) {
       categoryId,
       amount,
       shiftId,
-      paymentBatchId
+      paymentBatchId,
+      forceDuplicate
     } = body as {
       date?: string
       ref?: string | null
@@ -98,6 +112,7 @@ export async function POST(request: NextRequest) {
       amount?: number
       shiftId?: string | null
       paymentBatchId?: string | null
+      forceDuplicate?: boolean
     }
 
     if (!date || !date.trim()) {
@@ -110,6 +125,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'categoryId is required' }, { status: 400 })
     }
     const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0
+
+    // Double-entry rule: check for possible duplicate (same date, type, amount)
+    if ((type === 'income' || type === 'expense') && amt > 0 && !forceDuplicate) {
+      const matches = await prisma.cashbookEntry.findMany({
+        where: {
+          date: date.trim(),
+          allocations: {
+            some: {
+              category: { type },
+              amount: { gte: amt - 0.01, lte: amt + 0.01 }
+            }
+          }
+        },
+        include: {
+          allocations: { include: { category: true } }
+        }
+      })
+      if (matches.length > 0) {
+        const matchList = matches.map((m) => {
+          const alloc = m.allocations[0]
+          return {
+            id: m.id,
+            date: m.date,
+            amount: alloc?.amount ?? 0,
+            category: alloc?.category.name ?? '—',
+            description: m.description
+          }
+        })
+        return NextResponse.json(
+          {
+            error: 'Possible duplicate',
+            duplicate: true,
+            matches: matchList
+          },
+          { status: 409 }
+        )
+      }
+    }
 
     // Simple mode: type + paymentMethod + amount
     let data: {
