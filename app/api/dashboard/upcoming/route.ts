@@ -48,10 +48,13 @@ export async function GET(request: NextRequest) {
       const daysUntil = Math.ceil((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       
       if (daysUntil >= 0 && daysUntil <= 7) {
+        const y = thisYearBirthday.getFullYear()
+        const m = String(thisYearBirthday.getMonth() + 1).padStart(2, '0')
+        const d = String(thisYearBirthday.getDate()).padStart(2, '0')
         upcoming.push({
           type: 'birthday',
           title: `${member.name}'s Birthday`,
-          date: thisYearBirthday.toISOString().split('T')[0],
+          date: `${y}-${m}-${d}`,
           daysUntil,
           priority: daysUntil <= 3 ? 'high' : daysUntil <= 5 ? 'medium' : 'low'
         })
@@ -80,9 +83,15 @@ export async function GET(request: NextRequest) {
     //   })
     // })
 
-    // Custom reminders within next 7 days
-    const todayStr = today.toISOString().split('T')[0]
-    const nextWeekStr = nextWeek.toISOString().split('T')[0]
+    // Custom reminders within next 7 days (use local date to avoid timezone shift)
+    const toLocalDateStr = (d: Date) => {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+    const todayStr = toLocalDateStr(today)
+    const nextWeekStr = toLocalDateStr(nextWeek)
     const reminders = await prisma.reminder.findMany({
       where: {
         date: { gte: todayStr, lte: nextWeekStr }

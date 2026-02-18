@@ -827,7 +827,9 @@ export default function DashboardPage() {
                     }
                   }
                   const formatDate = (dateStr: string) => {
-                    const date = new Date(dateStr)
+                    const [y, m, d] = dateStr.split('-').map(Number)
+                    if (!y || !m || !d) return dateStr
+                    const date = new Date(y, m - 1, d)
                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                   }
                   const getDaysText = () => {
