@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
       date: string
       daysUntil: number
       priority: 'high' | 'medium' | 'low'
+      reminderId?: string
     }> = []
 
     // Get staff birthdays within the next 7 days
@@ -78,6 +79,29 @@ export async function GET(request: NextRequest) {
     //     priority: daysUntil <= 3 ? 'high' : daysUntil <= 5 ? 'medium' : 'low'
     //   })
     // })
+
+    // Custom reminders within next 7 days
+    const todayStr = today.toISOString().split('T')[0]
+    const nextWeekStr = nextWeek.toISOString().split('T')[0]
+    const reminders = await prisma.reminder.findMany({
+      where: {
+        date: { gte: todayStr, lte: nextWeekStr }
+      },
+      orderBy: { date: 'asc' }
+    })
+    reminders.forEach(reminder => {
+      const daysUntil = Math.ceil((new Date(reminder.date + 'T12:00:00').getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysUntil >= 0 && daysUntil <= 7) {
+        upcoming.push({
+          type: 'other',
+          title: reminder.title,
+          date: reminder.date,
+          daysUntil,
+          priority: daysUntil <= 3 ? 'high' : daysUntil <= 5 ? 'medium' : 'low',
+          reminderId: reminder.id
+        })
+      }
+    })
 
     // TODO: Add contract end dates when contracts module is implemented
     // Example structure:

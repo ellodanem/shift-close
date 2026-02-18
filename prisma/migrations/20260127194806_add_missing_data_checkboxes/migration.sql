@@ -1,42 +1,6 @@
--- RedefineTables
-PRAGMA defer_foreign_keys=ON;
-PRAGMA foreign_keys=OFF;
-CREATE TABLE "new_shift_close" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "date" TEXT NOT NULL,
-    "shift" TEXT NOT NULL,
-    "supervisor" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'closed',
-    "system_cash" REAL NOT NULL,
-    "system_checks" REAL NOT NULL,
-    "system_credit" REAL NOT NULL,
-    "system_debit" REAL NOT NULL,
-    "other_credit" REAL NOT NULL,
-    "system_inhouse" REAL NOT NULL,
-    "system_fleet" REAL NOT NULL,
-    "system_massy_coupons" REAL NOT NULL,
-    "count_cash" REAL NOT NULL,
-    "count_checks" REAL NOT NULL,
-    "count_credit" REAL NOT NULL,
-    "count_inhouse" REAL NOT NULL,
-    "count_fleet" REAL NOT NULL,
-    "count_massy_coupons" REAL NOT NULL,
-    "unleaded" REAL NOT NULL,
-    "diesel" REAL NOT NULL,
-    "deposits" TEXT NOT NULL,
-    "over_short_cash" REAL,
-    "over_short_total" REAL,
-    "total_deposits" REAL,
-    "notes" TEXT NOT NULL DEFAULT '',
-    "deposit_scan_urls" TEXT NOT NULL DEFAULT '[]',
-    "debit_scan_urls" TEXT NOT NULL DEFAULT '[]',
-    "has_missing_hard_copy_data" BOOLEAN NOT NULL DEFAULT false,
-    "missing_data_notes" TEXT NOT NULL DEFAULT '',
-    "over_short_explained" BOOLEAN NOT NULL DEFAULT false,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-INSERT INTO "new_shift_close" ("count_cash", "count_checks", "count_credit", "count_fleet", "count_inhouse", "count_massy_coupons", "created_at", "date", "debit_scan_urls", "deposit_scan_urls", "deposits", "diesel", "id", "notes", "other_credit", "over_short_cash", "over_short_total", "shift", "status", "supervisor", "system_cash", "system_checks", "system_credit", "system_debit", "system_fleet", "system_inhouse", "system_massy_coupons", "total_deposits", "unleaded") SELECT "count_cash", "count_checks", "count_credit", "count_fleet", "count_inhouse", "count_massy_coupons", "created_at", "date", "debit_scan_urls", "deposit_scan_urls", "deposits", "diesel", "id", "notes", "other_credit", "over_short_cash", "over_short_total", "shift", "status", "supervisor", "system_cash", "system_checks", "system_credit", "system_debit", "system_fleet", "system_inhouse", "system_massy_coupons", "total_deposits", "unleaded" FROM "shift_close";
-DROP TABLE "shift_close";
-ALTER TABLE "new_shift_close" RENAME TO "shift_close";
-PRAGMA foreign_keys=ON;
-PRAGMA defer_foreign_keys=OFF;
+-- PostgreSQL migration: add missing data checkboxes to shift_close
+ALTER TABLE "shift_close"
+ADD COLUMN IF NOT EXISTS "has_missing_hard_copy_data" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "missing_data_notes" TEXT NOT NULL DEFAULT '',
+ADD COLUMN IF NOT EXISTS "over_short_explained" BOOLEAN NOT NULL DEFAULT false;
+

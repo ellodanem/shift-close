@@ -37,11 +37,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Category name is required' }, { status: 400 })
     }
 
+    const nameTrimmed = name.trim()
+    const typeVal = type?.trim() || 'expense'
+
+    // Prevent duplicate category names (case-insensitive)
+    const existing = await prisma.cashbookCategory.findFirst({
+      where: {
+        name: { equals: nameTrimmed, mode: 'insensitive' },
+        type: typeVal
+      }
+    })
+    if (existing) {
+      return NextResponse.json(
+        { error: `Category "${existing.name}" already exists` },
+        { status: 409 }
+      )
+    }
+
     const category = await prisma.cashbookCategory.create({
       data: {
-        name: name.trim(),
+        name: nameTrimmed,
         code: code?.trim() || null,
-        type: type?.trim() || 'expense',
+        type: typeVal,
         sortOrder: typeof sortOrder === 'number' ? sortOrder : 0,
         active
       }
