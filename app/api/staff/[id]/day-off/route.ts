@@ -46,7 +46,7 @@ export async function POST(
     // Upsert so repeated requests for the same staff/date just update the reason
     const record = await prisma.staffDayOff.upsert({
       where: {
-        staffId_date: {
+        staff_day_off_staff_date: {
           staffId: id,
           date: date.trim()
         }
