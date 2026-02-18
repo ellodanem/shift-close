@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
 
 interface DailyFinancialSummary {
@@ -21,26 +20,12 @@ interface DailyFinancialSummary {
 type FilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
 
 export default function DailyFinancialSummaryPage() {
-  const router = useRouter()
   const [data, setData] = useState<DailyFinancialSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<FilterType>('thisMonth')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
-  const [showReportsDropdown, setShowReportsDropdown] = useState(false)
-  const reportsDropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (reportsDropdownRef.current && !reportsDropdownRef.current.contains(event.target as Node)) {
-        setShowReportsDropdown(false)
-      }
-    }
-    if (showReportsDropdown) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showReportsDropdown])
-
   useEffect(() => {
     fetchData()
   }, [activeFilter, startDate, endDate])
@@ -276,46 +261,13 @@ export default function DailyFinancialSummaryPage() {
       <div className="w-full mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Daily Financial Summary</h1>
-          <div className="flex gap-4">
-            <div className="relative" ref={reportsDropdownRef}>
-              <button
-                onClick={() => setShowReportsDropdown(!showReportsDropdown)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 flex items-center gap-1"
-              >
-                Reports
-                <span className="text-xs">▼</span>
-              </button>
-              {showReportsDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 min-w-[180px]">
-                  <button
-                    onClick={() => { router.push('/reports'); setShowReportsDropdown(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
-                  >
-                    Reports Center
-                  </button>
-                  <button
-                    onClick={() => { router.push('/customer-accounts'); setShowReportsDropdown(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg"
-                  >
-                    Customer Accounts
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => router.push('/shifts')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
-            >
-              Back to Shifts
-            </button>
-            <button
-              onClick={exportToExcel}
-              disabled={!data || data.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
-            >
-              Export Excel
-            </button>
-          </div>
+          <button
+            onClick={exportToExcel}
+            disabled={!data || data.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
+          >
+            Export Excel
+          </button>
         </div>
 
         {/* Filters */}

@@ -97,39 +97,12 @@ export default function StaffPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/settings')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-              title="Settings"
-            >
-              ⚙️
-            </button>
-            <button
-              onClick={() => router.push('/staff/new')}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
-            >
-              Add Staff Member
-            </button>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => router.push('/roster')}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
-            >
-              Roster
-            </button>
-            <button
-              onClick={() => router.push('/shifts')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
-            >
-              Back to Shifts
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/staff/new')}
+            className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+          >
+            Add Staff Member
+          </button>
         </div>
 
         {/* Staff List */}

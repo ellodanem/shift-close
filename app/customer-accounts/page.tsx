@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, ChangeEvent } from 'react'
+import { useEffect, useState, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
@@ -46,21 +46,6 @@ export default function CustomerAccountsPage() {
   const [paymentsInput, setPaymentsInput] = useState<string>('')
   const [closingInput, setClosingInput] = useState<string>('')
   const [notesInput, setNotesInput] = useState<string>('')
-  const [showReportsDropdown, setShowReportsDropdown] = useState(false)
-  const reportsDropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (reportsDropdownRef.current && !reportsDropdownRef.current.contains(event.target as Node)) {
-        setShowReportsDropdown(false)
-      }
-    }
-    if (showReportsDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showReportsDropdown])
-
   useEffect(() => {
     const loadData = async () => {
       const summariesData = await fetchSummaries()
@@ -325,42 +310,6 @@ export default function CustomerAccountsPage() {
               Lightweight monthly A/R overview using totals from the POS
               customer account report.
             </p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              Dashboard
-            </button>
-            <div className="relative" ref={reportsDropdownRef}>
-              <button
-                onClick={() => setShowReportsDropdown(!showReportsDropdown)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 flex items-center gap-1"
-              >
-                Reports
-                <span className="text-xs">▼</span>
-              </button>
-              {showReportsDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 min-w-[180px]">
-                  <button
-                    onClick={() => {
-                      router.push('/reports')
-                      setShowReportsDropdown(false)
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
-                  >
-                    Reports Center
-                  </button>
-                  <button
-                    onClick={() => setShowReportsDropdown(false)}
-                    className="w-full text-left px-4 py-2 text-sm bg-gray-100 text-gray-800 font-medium rounded-b-lg"
-                  >
-                    Customer Accounts
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

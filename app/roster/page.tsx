@@ -643,26 +643,12 @@ export default function RosterPage() {
               Weekly staff roster using existing Staff as source of truth.
             </p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => router.push('/staff')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-            >
-              Staff
-            </button>
-            <button
-              onClick={() => router.push('/roster/templates')}
-              className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700"
-            >
-              Shift Presets
-            </button>
-            <button
-              onClick={() => router.push('/shifts')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
-            >
-              Shifts
-            </button>
-          </div>
+          <a
+            href="/roster/templates"
+            className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 inline-block"
+          >
+            Shift Presets
+          </a>
         </div>
 
         {/* Week picker and actions */}

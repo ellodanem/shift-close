@@ -67,7 +67,7 @@ export default function MonthlyFuelPaymentReportPage() {
           <h1 className="text-3xl font-bold text-gray-900">Monthly Fuel Payment Report</h1>
           <div className="flex gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/fuel-payments')}
               className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
             >
               🏠 Dashboard

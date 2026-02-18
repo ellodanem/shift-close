@@ -325,13 +325,6 @@ export default function InvoicesPage() {
           </div>
           <div className="flex gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-              title="Dashboard"
-            >
-              🏠 Dashboard
-            </button>
-            <button
               onClick={() => router.push('/fuel-payments/monthly-report')}
               className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
               title="Monthly Payment Report"

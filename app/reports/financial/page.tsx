@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface CashbookSummary {
@@ -30,27 +30,15 @@ export default function FinancialReportPage() {
 
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth)
-  const [showReportsDropdown, setShowReportsDropdown] = useState(false)
   const [summary, setSummary] = useState<CashbookSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const reportsDropdownRef = useRef<HTMLDivElement>(null)
 
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const endDate = (() => {
     const d = new Date(year, month, 0)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (reportsDropdownRef.current && !reportsDropdownRef.current.contains(event.target as Node)) {
-        setShowReportsDropdown(false)
-      }
-    }
-    if (showReportsDropdown) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showReportsDropdown])
 
   useEffect(() => {
     const load = async () => {
@@ -81,53 +69,8 @@ export default function FinancialReportPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Financial Report</h1>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/financial/cashbook')}
-              className="px-4 py-2 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700"
-            >
-              Cashbook
-            </button>
-            <div className="relative" ref={reportsDropdownRef}>
-              <button
-                onClick={() => setShowReportsDropdown(!showReportsDropdown)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 flex items-center gap-1"
-              >
-                Reports
-                <span className="text-xs">▼</span>
-              </button>
-              {showReportsDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 min-w-[180px]">
-                  <button
-                    onClick={() => {
-                      router.push('/reports')
-                      setShowReportsDropdown(false)
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
-                  >
-                    Reports Center
-                  </button>
-                  <button
-                    onClick={() => {
-                      router.push('/customer-accounts')
-                      setShowReportsDropdown(false)
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg"
-                  >
-                    Customer Accounts
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              Dashboard
-            </button>
-          </div>
         </div>
 
         {/* Month Selector */}

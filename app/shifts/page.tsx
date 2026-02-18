@@ -34,28 +34,22 @@ export default function ShiftsPage() {
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
-  const [showReportsDropdown, setShowReportsDropdown] = useState(false)
-  const reportsDropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close custom picker and reports dropdown when clicking outside
+  // Close custom picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (customPickerRef.current && !customPickerRef.current.contains(event.target as Node)) {
         setShowCustomPicker(false)
       }
-      if (reportsDropdownRef.current && !reportsDropdownRef.current.contains(event.target as Node)) {
-        setShowReportsDropdown(false)
-      }
     }
 
-    if (showCustomPicker || showReportsDropdown) {
+    if (showCustomPicker) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showCustomPicker, showReportsDropdown])
+  }, [showCustomPicker])
   
   useEffect(() => {
     fetch('/api/shifts')
@@ -206,84 +200,12 @@ export default function ShiftsPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-3xl font-bold text-gray-900">Shift List</h1>
-          <div className="flex gap-4">
-            {/* TEMPORARY: Hidden but functionality remains - Remove before production */}
-            {/* <button
-              onClick={() => setShowClearModal(true)}
-              className="px-4 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-700 text-sm"
-              title="TEMPORARY: Clear all data (will be removed in production)"
-            >
-              🗑️ Clear All
-            </button> */}
-            <button
-              onClick={() => router.push('/settings')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-              title="Settings"
-            >
-              ⚙️
-            </button>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => router.push('/days')}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
-            >
-              Day Reports
-            </button>
-            <div className="relative" ref={reportsDropdownRef}>
-              <button
-                onClick={() => setShowReportsDropdown(!showReportsDropdown)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 flex items-center gap-1"
-              >
-                Reports
-                <span className="text-xs">▼</span>
-              </button>
-              {showReportsDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 min-w-[180px]">
-                  <button
-                    onClick={() => {
-                      router.push('/reports')
-                      setShowReportsDropdown(false)
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
-                  >
-                    Reports Center
-                  </button>
-                  <button
-                    onClick={() => {
-                      router.push('/customer-accounts')
-                      setShowReportsDropdown(false)
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg"
-                  >
-                    Customer Accounts
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => router.push('/staff')}
-              className="px-4 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700"
-            >
-              Staff
-            </button>
-            <button
-              onClick={() => router.push('/fuel-payments')}
-              className="px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-700"
-            >
-              Fuel Payments
-            </button>
-            <button
-              onClick={() => router.push('/shifts/new')}
-              className="px-6 py-2 bg-blue-600 text-white rounded font-semibold"
-            >
-              + New Shift
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/shifts/new')}
+            className="px-6 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+          >
+            + New Shift
+          </button>
         </div>
         
         {/* Filters */}
