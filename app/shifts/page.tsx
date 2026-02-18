@@ -16,6 +16,7 @@ interface Shift {
   unleaded: number
   diesel: number
   hasDayDebitScans?: boolean
+  overShortItems?: Array<{ type: string; amount: number }>
 }
 
 type ShiftFilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
@@ -395,6 +396,7 @@ export default function ShiftsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Shift</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Supervisor</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Over/Short</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-700">Explained</th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">Notes</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Unleaded</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Diesel</th>
@@ -405,19 +407,23 @@ export default function ShiftsPage() {
             <tbody>
               {shifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                     No shifts found. Create your first shift to get started.
                   </td>
                 </tr>
               ) : filteredShifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                     No shifts found for the selected filter.
                   </td>
                 </tr>
               ) : (
                 filteredShifts.map((shift) => {
                   const overShort = shift.overShortTotal || 0
+                  const explainedTotal = (shift.overShortItems ?? []).reduce(
+                    (sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount),
+                    0
+                  )
                   const hasNotes = shift.notes.trim() !== ''
                   
                   return (
@@ -459,6 +465,15 @@ export default function ShiftsPage() {
                         overShort > 0 ? 'text-green-600' : overShort < 0 ? 'text-red-600' : 'text-gray-900'
                       }`}>
                         {overShort.toFixed(2)}
+                      </td>
+                      <td className={`px-4 py-3 text-right ${
+                        explainedTotal !== 0
+                          ? explainedTotal > 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                          : 'text-gray-500'
+                      }`}>
+                        {(shift.overShortItems?.length ?? 0) > 0 ? explainedTotal.toFixed(2) : '—'}
                       </td>
                       <td 
                         className="px-4 py-3 text-center"

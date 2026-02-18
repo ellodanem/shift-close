@@ -9,7 +9,10 @@ export async function GET() {
   try {
     const shifts = await prisma.shiftClose.findMany({
       orderBy: { date: 'desc' },
-      include: { corrections: true }
+      include: {
+        corrections: true,
+        overShortItems: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
+      }
     })
     
     // Group shifts by date to check document status per day
