@@ -770,16 +770,30 @@ export default function CustomerAccountsPage() {
         </div>
 
         {/* Account Breakdown Table */}
-        {selectedMonth && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">
-                Account Breakdown - {formatMonthLabel(
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Account Breakdown
+              {selectedMonth && (
+                <> – {formatMonthLabel(
                   Number(selectedMonth.split('-')[0]),
                   Number(selectedMonth.split('-')[1])
-                )}
-              </h2>
+                )}</>
+              )}
+            </h2>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">View month:</label>
+              <input
+                type="month"
+                value={selectedMonth || defaultMonth}
+                onChange={(e) => {
+                  const monthKey = e.target.value
+                  if (monthKey) fetchAccountsForMonth(monthKey)
+                }}
+                className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
+          </div>
 
             {loadingAccounts ? (
               <p className="text-gray-600 text-sm">Loading accounts...</p>
@@ -858,8 +872,7 @@ export default function CustomerAccountsPage() {
                 </table>
               </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )
