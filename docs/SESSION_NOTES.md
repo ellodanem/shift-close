@@ -132,6 +132,30 @@ Captures individual customer payments as they are received (like Mr. Elcock's sp
 
 ---
 
+## Attendance (ZKTeco)
+
+### Implemented
+- **AttendanceLog** model: staffId, deviceUserId, deviceUserName, punchTime, punchType (in/out), source
+- **Staff.deviceUserId**: links Staff to ZKTeco device user ID for matching
+- **Sync API** `POST /api/attendance/sync`: connects to device (ZK_DEVICE_IP, ZK_DEVICE_PORT env), pulls logs, stores in DB. Dedupes on re-sync.
+- **Logs API** `GET /api/attendance/logs`: startDate, endDate, staffId filters. Returns logs with `hasIrregularity` flag.
+- **Irregularity logic**: clock-in without matching clock-out, or clock-out without matching clock-in → red icon
+- **Attendance page**: Sync button, date range (week/month/custom), staff filter, table with red icon for irregularities
+- **zk-attendance-sdk** (Node.js) for device communication
+- Punch type inferred: for each user per day, sort by time; odd index = in, even = out
+
+### Config
+- `.env`: `ZK_DEVICE_IP` (required), `ZK_DEVICE_PORT` (default 4370)
+- Staff edit: "Device User ID (Attendance)" field to match device user ID
+
+### Neon
+- Run `scripts/neon-apply-attendance-module.sql` if tables missing
+
+### Remote
+- Sync requires server to reach device on LAN. Vercel serverless cannot reach local network. Use local dev or a machine on same network for sync.
+
+---
+
 ## Other
 
 - Dashboard Cashbook (MTD) widget shows income/expense for displayed month

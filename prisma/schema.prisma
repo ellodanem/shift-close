@@ -18,6 +18,7 @@ model Staff {
   role        String   @default("cashier") // Backwards-compatible string role label
   roleId      String?  @map("role_id")
   nicNumber   String?  @map("nic_number")
+  deviceUserId String? @map("device_user_id") // ZKTeco device user ID for attendance mapping
   bankName    String?  @map("bank_name")
   accountNumber String? @map("account_number")
   mobileNumber  String? @map("mobile_number") // E.164 or digits for wa.me links
@@ -28,11 +29,12 @@ model Staff {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  shifts        ShiftClose[]
-  documents     StaffDocument[]
-  rosterEntries RosterEntry[]
-  staffRole     StaffRole?    @relation(fields: [roleId], references: [id])
-  dayOffs       StaffDayOff[]
+  shifts         ShiftClose[]
+  documents      StaffDocument[]
+  rosterEntries  RosterEntry[]
+  attendanceLogs AttendanceLog[]
+  staffRole      StaffRole?    @relation(fields: [roleId], references: [id])
+  dayOffs        StaffDayOff[]
 
   @@map("staff")
 }
@@ -387,6 +389,25 @@ model CustomerArPayment {
   @@index([date])
   @@index([account])
   @@map("customer_ar_payments")
+}
+
+// ZKTeco attendance punch (clock in/out)
+model AttendanceLog {
+  id          String   @id @default(cuid())
+  staffId     String?  @map("staff_id") // Linked Staff if deviceUserId matches
+  deviceUserId String  @map("device_user_id") // Raw user ID from device
+  deviceUserName String? @map("device_user_name") // Name from device (fallback)
+  punchTime   DateTime @map("punch_time")
+  punchType   String   @map("punch_type") // "in" | "out"
+  source      String   @default("zkteco")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([staffId])
+  @@index([punchTime])
+  @@index([deviceUserId])
+  @@map("attendance_logs")
 }
 
 // Roles for staff (e.g. Cashier, Pump Attendant, Supervisor)

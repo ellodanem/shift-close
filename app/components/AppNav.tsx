@@ -36,6 +36,7 @@ const navConfig = [
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
+      { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
     ],
   },
@@ -84,6 +85,7 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/reports/daily-financial-summary') return pathname.startsWith('/reports/daily-financial-summary')
   if (href === '/staff') return pathname === '/staff' || pathname.startsWith('/staff/')
   if (href === '/roster') return pathname === '/roster'
+  if (href === '/attendance') return pathname.startsWith('/attendance')
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
   if (href === '/settings') return pathname.startsWith('/settings')
   return pathname === href

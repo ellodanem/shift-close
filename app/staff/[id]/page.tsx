@@ -59,6 +59,7 @@ export default function EditStaffPage() {
     status: 'active',
     roleId: '',
     nicNumber: '',
+    deviceUserId: '',
     bankName: '',
     accountNumber: '',
     mobileNumber: '',
@@ -223,6 +224,7 @@ export default function EditStaffPage() {
         status: data.status,
         roleId: data.roleId || '',
         nicNumber: (data as any).nicNumber || '',
+        deviceUserId: (data as any).deviceUserId || '',
         bankName: (data as any).bankName || '',
         accountNumber: (data as any).accountNumber || '',
         mobileNumber: (data as any).mobileNumber || '',
@@ -496,6 +498,21 @@ export default function EditStaffPage() {
                 placeholder="e.g. +1 242 555 1234 or 12425551234"
               />
               <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
+            </div>
+
+            {/* Device User ID (ZKTeco attendance) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Device User ID (Attendance)
+              </label>
+              <input
+                type="text"
+                value={formData.deviceUserId}
+                onChange={(e) => setFormData({ ...formData, deviceUserId: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. 108 (matches ZKTeco device user ID)"
+              />
+              <p className="text-xs text-gray-500 mt-0.5">Links this staff to ZKTeco attendance device for clock in/out.</p>
             </div>
 
             {/* Notes */}
