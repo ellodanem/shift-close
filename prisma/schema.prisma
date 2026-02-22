@@ -132,6 +132,13 @@ model OverShortItem {
   sortOrder   Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  // Cheque balance carry-forward fields (only populated when itemKind = "cheque_balance")
+  itemKind         String  @default("standard") @map("item_kind") // "standard" | "cheque_balance"
+  customerName     String? @map("customer_name")
+  previousBalance  Float?  @map("previous_balance")
+  dispensedAmount  Float?  @map("dispensed_amount")
+  newBalance       Float?  @map("new_balance")
+
   shift ShiftClose @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   @@map("over_short_items")

@@ -63,6 +63,11 @@ interface Shift {
     amount: number
     description: string
     sortOrder: number
+    itemKind?: string
+    customerName?: string | null
+    previousBalance?: number | null
+    dispensedAmount?: number | null
+    newBalance?: number | null
   }>
 }
 
@@ -81,6 +86,13 @@ export default function ShiftDetailPage() {
   const [addOverShortAmount, setAddOverShortAmount] = useState('')
   const [addOverShortDescription, setAddOverShortDescription] = useState('')
   const [savingOverShortItem, setSavingOverShortItem] = useState(false)
+  // Cheque balance fields
+  const [addItemKind, setAddItemKind] = useState<'standard' | 'cheque_balance'>('standard')
+  const [chequeCustomerName, setChequeCustomerName] = useState('')
+  const [chequePreviousBalance, setChequePreviousBalance] = useState('')
+  const [chequeDispensed, setChequeDispensed] = useState('')
+  const [chequeNewBalance, setChequeNewBalance] = useState('')
+  const [chequeBalances, setChequeBalances] = useState<Array<{ customerName: string; newBalance: number; shiftDate: string; shiftPeriod: string }>>([])
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
@@ -210,6 +222,14 @@ export default function ShiftDetailPage() {
         })
     }
   }, [params.id])
+
+  // Fetch outstanding cheque balances for carry-forward auto-fill
+  useEffect(() => {
+    fetch('/api/shifts/cheque-balances')
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data)) setChequeBalances(data) })
+      .catch(() => {})
+  }, [])
 
   // Fetch supervisors and managers for the supervisor dropdown
   useEffect(() => {
@@ -1433,11 +1453,29 @@ export default function ShiftDetailPage() {
                       item.type === 'overage' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className={item.type === 'overage' ? 'text-green-700 font-semibold' : 'text-red-700 font-semibold'}>
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <span className={`shrink-0 font-semibold ${item.type === 'overage' ? 'text-green-700' : 'text-red-700'}`}>
                         {item.type === 'overage' ? '+' : '−'}${item.amount.toFixed(2)}
                       </span>
-                      <span className="text-gray-700">{item.description}</span>
+                      <div className="min-w-0">
+                        {item.itemKind === 'cheque_balance' ? (
+                          <div>
+                            <span className="text-gray-700">{item.customerName} cheque</span>
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">Balance</span>
+                            {item.previousBalance != null && (
+                              <span className="ml-1 text-xs text-gray-400">prev ${item.previousBalance.toFixed(2)}</span>
+                            )}
+                            {item.newBalance != null && item.newBalance > 0 && (
+                              <span className="ml-1 text-xs text-amber-600 font-medium">→ bal ${item.newBalance.toFixed(2)}</span>
+                            )}
+                            {item.newBalance === 0 && (
+                              <span className="ml-1 text-xs text-gray-400">fully consumed</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-700">{item.description}</span>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -1609,81 +1647,229 @@ export default function ShiftDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">
-                Add {addOverShortType === 'overage' ? 'Overage' : 'Shortage'}
-              </h3>
+              <h3 className="font-semibold text-gray-900 text-sm">Add Explained Item</h3>
               <button
                 type="button"
-                onClick={() => setShowAddOverShortModal(false)}
+                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard') }}
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
               >
                 ×
               </button>
             </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={addOverShortAmount}
-                  onChange={(e) => setAddOverShortAmount(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={addOverShortDescription}
-                  onChange={(e) => setAddOverShortDescription(e.target.value)}
-                  placeholder={addOverShortType === 'overage' ? 'e.g. Rumie Tours check' : 'e.g. Manager requested from drawer'}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                />
-              </div>
+
+            {/* Kind toggle */}
+            <div className="px-4 pt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAddItemKind('standard')}
+                className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${addItemKind === 'standard' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddItemKind('cheque_balance')
+                  setAddOverShortType('overage')
+                }}
+                className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${addItemKind === 'cheque_balance' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              >
+                Cheque Balance
+              </button>
             </div>
+
+            <div className="p-4 space-y-3">
+              {addItemKind === 'standard' ? (
+                <>
+                  {/* Standard item fields */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAddOverShortType('overage')}
+                      className={`flex-1 py-1.5 rounded text-sm font-semibold border ${addOverShortType === 'overage' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                    >
+                      + Overage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddOverShortType('shortage')}
+                      className={`flex-1 py-1.5 rounded text-sm font-semibold border ${addOverShortType === 'shortage' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                    >
+                      − Shortage
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={addOverShortAmount}
+                      onChange={(e) => setAddOverShortAmount(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={addOverShortDescription}
+                      onChange={(e) => setAddOverShortDescription(e.target.value)}
+                      placeholder={addOverShortType === 'overage' ? 'e.g. Manager requested from drawer' : 'e.g. Cash given to manager'}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Cheque Balance fields */}
+                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">
+                    The cheque sits in the drawer — this always records as an <strong>overage</strong>. The new balance carries forward to the next shift.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      value={chequeCustomerName}
+                      onChange={(e) => {
+                        setChequeCustomerName(e.target.value)
+                        // Auto-fill previous balance from known carry-forwards
+                        const match = chequeBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase())
+                        if (match) setChequePreviousBalance(String(match.newBalance))
+                        else setChequePreviousBalance('')
+                      }}
+                      list="cheque-customer-list"
+                      placeholder="e.g. Rumie Tours"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    />
+                    <datalist id="cheque-customer-list">
+                      {chequeBalances.map(b => (
+                        <option key={b.customerName} value={b.customerName} />
+                      ))}
+                    </datalist>
+                    {chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase()) && (
+                      <p className="text-xs text-green-700 mt-1">
+                        ✓ Carry-forward balance found: ${chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase())!.newBalance.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={chequePreviousBalance}
+                        onChange={(e) => setChequePreviousBalance(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dispensed This Shift ($)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={chequeDispensed}
+                        onChange={(e) => {
+                          setChequeDispensed(e.target.value)
+                          const prev = Number(chequePreviousBalance) || 0
+                          const dispensed = Number(e.target.value) || 0
+                          const remaining = Math.max(0, prev - dispensed)
+                          setChequeNewBalance(remaining > 0 ? remaining.toFixed(2) : '0')
+                          setAddOverShortAmount(e.target.value)
+                        }}
+                        placeholder="0.00"
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($)</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={chequeNewBalance}
+                        onChange={(e) => setChequeNewBalance(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                      <span className="text-xs text-gray-500 whitespace-nowrap">carries forward</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded px-3 py-2 text-sm">
+                    <span className="text-gray-600">Overage to record: </span>
+                    <span className="font-semibold text-green-700">${Number(chequeDispensed || addOverShortAmount || 0).toFixed(2)}</span>
+                    {Number(chequeNewBalance) > 0 && (
+                      <span className="text-gray-500 ml-2">· Remaining: ${Number(chequeNewBalance).toFixed(2)}</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="px-4 py-3 border-t flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowAddOverShortModal(false)}
+                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard') }}
                 className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={savingOverShortItem || !addOverShortAmount || Number(addOverShortAmount) <= 0 || !addOverShortDescription.trim()}
+                disabled={
+                  savingOverShortItem ||
+                  (addItemKind === 'standard' && (!addOverShortAmount || Number(addOverShortAmount) <= 0 || !addOverShortDescription.trim())) ||
+                  (addItemKind === 'cheque_balance' && (!chequeCustomerName.trim() || !chequeDispensed || Number(chequeDispensed) <= 0))
+                }
                 onClick={async () => {
-                  const amt = Number(addOverShortAmount)
-                  if (amt <= 0 || !addOverShortDescription.trim()) return
                   setSavingOverShortItem(true)
                   try {
+                    const payload = addItemKind === 'cheque_balance'
+                      ? {
+                          type: 'overage',
+                          amount: Number(chequeDispensed),
+                          description: '',
+                          itemKind: 'cheque_balance',
+                          customerName: chequeCustomerName.trim(),
+                          previousBalance: chequePreviousBalance ? Number(chequePreviousBalance) : null,
+                          dispensedAmount: Number(chequeDispensed),
+                          newBalance: chequeNewBalance ? Number(chequeNewBalance) : 0
+                        }
+                      : {
+                          type: addOverShortType,
+                          amount: Number(addOverShortAmount),
+                          description: addOverShortDescription.trim(),
+                          itemKind: 'standard'
+                        }
                     const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        type: addOverShortType,
-                        amount: amt,
-                        description: addOverShortDescription.trim()
-                      })
+                      body: JSON.stringify(payload)
                     })
                     if (!res.ok) throw new Error('Failed to add')
                     const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
                     setShift(updated)
                     setShowAddOverShortModal(false)
+                    // Reset all fields
                     setAddOverShortAmount('')
                     setAddOverShortDescription('')
+                    setAddItemKind('standard')
+                    setChequeCustomerName('')
+                    setChequePreviousBalance('')
+                    setChequeDispensed('')
+                    setChequeNewBalance('')
+                    // Refresh cheque balances
+                    fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setChequeBalances(d) }).catch(() => {})
                   } catch (err) {
                     alert(err instanceof Error ? err.message : 'Failed to add item')
                   } finally {
                     setSavingOverShortItem(false)
                   }
                 }}
-                className={`px-4 py-1.5 rounded text-sm font-semibold ${
-                  addOverShortType === 'overage'
-                    ? 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-60'
-                    : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60'
+                className={`px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 ${
+                  addItemKind === 'cheque_balance'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : addOverShortType === 'overage'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-red-600 text-white hover:bg-red-700'
                 }`}
               >
                 {savingOverShortItem ? 'Saving…' : 'Add'}
