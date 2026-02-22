@@ -128,27 +128,31 @@ export default function RosterPage() {
     [weekStart]
   )
 
-  // Week banner colour: past = grey, current = light green, future = light blue
+  // Week banner colour: past/locked = grey, current (editable Mon–Sat) = light green, future = light blue
   const weekBannerStyle = useMemo(() => {
+    const today = formatInputDate(new Date())
+    const weekSunday = addDays(weekStart, 6)
     const thisWeekMonday = formatInputDate(getMonday(new Date()))
-    if (weekStart < thisWeekMonday) return { bg: 'bg-gray-200', text: 'text-gray-700' }
+    if (today >= weekSunday) return { bg: 'bg-gray-200', text: 'text-gray-700' } // locked from Sunday
     if (weekStart > thisWeekMonday) return { bg: 'bg-sky-100', text: 'text-sky-900' }
     return { bg: 'bg-green-100', text: 'text-green-900' }
   }, [weekStart])
 
-  // Past weeks are locked: once the new week starts (Monday), the previous week cannot be edited
+  // Weeks lock on Sunday: once Sunday of that week arrives the roster is read-only
   const isPastWeek = useMemo(() => {
-    const thisWeekMonday = formatInputDate(getMonday(new Date()))
-    return weekStart < thisWeekMonday
+    const today = formatInputDate(new Date())
+    const weekSunday = addDays(weekStart, 6)
+    return today >= weekSunday
   }, [weekStart])
 
-  // For past weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
+  // For locked weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
   const displayStaff = useMemo(() => {
-    const thisWeekMonday = formatInputDate(getMonday(new Date()))
+    const today = formatInputDate(new Date())
+    const weekSunday = addDays(weekStart, 6)
     const activeForRoster = allStaff.filter(
       (s) => s.status === 'active' && s.role !== 'manager'
     )
-    if (weekStart >= thisWeekMonday) return activeForRoster
+    if (today < weekSunday) return activeForRoster
     const entryStaffIds = new Set(entries.map((e) => e.staffId))
     const inactiveWithEntries = allStaff.filter(
       (s) =>
@@ -339,8 +343,9 @@ export default function RosterPage() {
   }
 
   const handleSave = async (entriesToPersist?: RosterEntry[]) => {
-    const thisWeekMonday = formatInputDate(getMonday(new Date()))
-    if (weekStart < thisWeekMonday) return // Past weeks are locked
+    const today = formatInputDate(new Date())
+    const weekSunday = addDays(weekStart, 6)
+    if (today >= weekSunday) return // Weeks lock on Sunday
     setSaving(true)
     setError(null)
     try {
