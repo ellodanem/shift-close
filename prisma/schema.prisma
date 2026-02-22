@@ -539,6 +539,15 @@ model CashbookDescriptionExclusion {
   @@map("cashbook_description_exclusions")
 }
 
+// Key-value store for runtime app settings (editable via admin UI, no redeploy needed)
+model AppSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
 // Custom reminders with email/WhatsApp notifications
 model Reminder {
   id              String   @id @default(cuid())

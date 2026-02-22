@@ -26,6 +26,11 @@ interface DeviceUser {
   name: string
 }
 
+interface DeviceSettings {
+  zk_device_ip: string
+  zk_device_port: string
+}
+
 type Tab = 'logs' | 'device'
 
 function formatDate(d: Date): string {
@@ -67,6 +72,9 @@ export default function AttendancePage() {
   const [mappingSaving, setMappingSaving] = useState(false)
   const [pushingStaff, setPushingStaff] = useState(false)
   const [deviceActionResult, setDeviceActionResult] = useState<string | null>(null)
+  const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>({ zk_device_ip: '', zk_device_port: '4370' })
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date()
@@ -118,6 +126,37 @@ export default function AttendancePage() {
   }, [])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
+
+  // Load device settings from DB on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings?keys=zk_device_ip,zk_device_port')
+        if (res.ok) {
+          const data = await res.json()
+          setDeviceSettings({
+            zk_device_ip: data.zk_device_ip || '',
+            zk_device_port: data.zk_device_port || '4370'
+          })
+        }
+      } catch {}
+    }
+    void loadSettings()
+  }, [])
+
+  const handleSaveDeviceSettings = async () => {
+    setSettingsSaving(true)
+    setSettingsSaved(false)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: deviceSettings })
+      })
+      if (res.ok) setSettingsSaved(true)
+    } catch {}
+    finally { setSettingsSaving(false) }
+  }
 
   const handleSync = async () => {
     setSyncing(true)
@@ -317,6 +356,57 @@ export default function AttendancePage() {
         {/* ── DEVICE MANAGEMENT TAB ── */}
         {activeTab === 'device' && (
           <div className="space-y-6">
+
+            {/* Device Settings */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-1">Device Settings</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Saved to the database — no env vars or redeployment required.
+                <span className="ml-1 inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded font-medium">
+                  Direct sync only works on the same local network as the device
+                </span>
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Device IP Address</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 192.168.1.100"
+                    value={deviceSettings.zk_device_ip}
+                    onChange={(e) => setDeviceSettings((s) => ({ ...s, zk_device_ip: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Device Port</label>
+                  <input
+                    type="number"
+                    placeholder="4370"
+                    value={deviceSettings.zk_device_port}
+                    onChange={(e) => setDeviceSettings((s) => ({ ...s, zk_device_port: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveDeviceSettings}
+                  disabled={settingsSaving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {settingsSaving ? 'Saving…' : 'Save Settings'}
+                </button>
+                {settingsSaved && (
+                  <span className="text-sm text-green-700 font-medium">Saved successfully.</span>
+                )}
+              </div>
+              {deviceSettings.zk_device_ip && (
+                <p className="mt-3 text-xs text-gray-500">
+                  Current: <span className="font-mono font-medium text-gray-700">{deviceSettings.zk_device_ip}:{deviceSettings.zk_device_port || 4370}</span>
+                  {' '} — Use &ldquo;Sync from device&rdquo; on the Logs tab when on the same network, or configure the Windows Agent for automatic cloud sync.
+                </p>
+              )}
+            </div>
 
             {/* ADMS Setup */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">

@@ -7,14 +7,29 @@ export const dynamic = 'force-dynamic'
  * Connects to ZKTeco device, pulls attendance logs, stores in DB.
  * Requires ZK_DEVICE_IP (and optionally ZK_DEVICE_PORT) in env.
  */
+async function getDeviceConfig(): Promise<{ ip: string; port: number }> {
+  // DB settings take priority over environment variables
+  const rows = await prisma.appSettings.findMany({
+    where: { key: { in: ['zk_device_ip', 'zk_device_port'] } }
+  })
+  const dbIp = rows.find((r) => r.key === 'zk_device_ip')?.value || ''
+  const dbPort = rows.find((r) => r.key === 'zk_device_port')?.value || ''
+
+  const ip = dbIp || process.env.ZK_DEVICE_IP || ''
+  const port = parseInt(dbPort || process.env.ZK_DEVICE_PORT || '4370', 10)
+  return { ip, port }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const ip = process.env.ZK_DEVICE_IP
-    const port = parseInt(process.env.ZK_DEVICE_PORT || '4370', 10)
+    const { ip, port } = await getDeviceConfig()
 
     if (!ip) {
       return NextResponse.json(
-        { error: 'ZK_DEVICE_IP not configured. Add it in Settings or .env.' },
+        {
+          error: 'Device IP not configured.',
+          hint: 'Go to Attendance → Device Management → Device Settings to add your ZKTeco device IP. Note: direct sync only works when the app is running on the same local network as the device. Use the Windows Agent or ADMS for cloud sync.'
+        },
         { status: 400 }
       )
     }

@@ -7,16 +7,19 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "electron": "electron electron/main.js",
-    "build": "electron-builder --win --x64",
+    "build": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
+    "build:package": "electron-packager . \"Shift Close Agent\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=node_modules/@electron/packager --prune=true",
     "build:mac": "electron-builder --mac"
   },
   "dependencies": {
-    "zk-attendance-sdk": "^2.1.0",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "node-fetch": "^2.7.0",
-    "dotenv": "^16.3.1"
+    "zk-attendance-sdk": "^2.1.0"
   },
   "devDependencies": {
+    "@electron/packager": "^19.0.5",
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"
   },
@@ -44,7 +47,9 @@
       {
         "from": ".",
         "to": ".",
-        "filter": ["agent.config.json"]
+        "filter": [
+          "agent.config.json"
+        ]
       }
     ]
   }
