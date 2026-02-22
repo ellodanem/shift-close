@@ -88,6 +88,7 @@ export default function ShiftDetailPage() {
   const [savingOverShortItem, setSavingOverShortItem] = useState(false)
   // Cheque balance fields
   const [addItemKind, setAddItemKind] = useState<'standard' | 'cheque_balance'>('standard')
+  const [chequeTransactionType, setChequeTransactionType] = useState<'received' | 'dispensed'>('dispensed')
   const [chequeCustomerName, setChequeCustomerName] = useState('')
   const [chequePreviousBalance, setChequePreviousBalance] = useState('')
   const [chequeDispensed, setChequeDispensed] = useState('')
@@ -1411,72 +1412,78 @@ export default function ShiftDetailPage() {
             </p>
           </div>
 
-          {/* Over/Short Items - structured overages and shortages */}
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h4 className="text-sm font-semibold text-gray-800 mb-2">Over/Short Items</h4>
-            <p className="text-xs text-gray-600 mb-3">
-              Raw Over/Short: <span className="font-semibold">{(shift?.overShortTotal ?? 0).toFixed(2)}</span>
-              {' '}(from count vs system)
-            </p>
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setAddOverShortType('overage')
-                  setAddOverShortAmount('')
-                  setAddOverShortDescription('')
-                  setShowAddOverShortModal(true)
-                }}
-                className="px-3 py-1.5 rounded font-medium bg-green-600 text-white hover:bg-green-700 text-sm"
-              >
-                + Add overage
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAddOverShortType('shortage')
-                  setAddOverShortAmount('')
-                  setAddOverShortDescription('')
-                  setShowAddOverShortModal(true)
-                }}
-                className="px-3 py-1.5 rounded font-medium bg-red-600 text-white hover:bg-red-700 text-sm"
-              >
-                − Add shortage
-              </button>
-            </div>
-            {(shift?.overShortItems?.length ?? 0) > 0 ? (
-              <div className="space-y-1.5">
-                {shift.overShortItems!.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`flex items-center justify-between px-3 py-2 rounded text-sm ${
-                      item.type === 'overage' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                    }`}
+          {/* Account Activity — structured over/short explanation */}
+          {(() => {
+            const rawOS = shift?.overShortTotal ?? 0
+            const items = shift?.overShortItems ?? []
+            const totalExplained = items.reduce((sum, i) => i.type === 'overage' ? sum + i.amount : sum - i.amount, 0)
+            const unexplained = rawOS - totalExplained
+            const isFullyExplained = Math.abs(unexplained) < 0.005
+
+            return (
+              <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                {/* Header */}
+                <div className="bg-gray-800 text-white px-5 py-3 flex items-center justify-between">
+                  <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddOverShortAmount('')
+                      setAddOverShortDescription('')
+                      setAddItemKind('standard')
+                      setChequeTransactionType('dispensed')
+                      setChequeCustomerName('')
+                      setChequePreviousBalance('')
+                      setChequeDispensed('')
+                      setChequeNewBalance('')
+                      setShowAddOverShortModal(true)
+                    }}
+                    className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
                   >
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                      <span className={`shrink-0 font-semibold ${item.type === 'overage' ? 'text-green-700' : 'text-red-700'}`}>
-                        {item.type === 'overage' ? '+' : '−'}${item.amount.toFixed(2)}
-                      </span>
-                      <div className="min-w-0">
-                        {item.itemKind === 'cheque_balance' ? (
-                          <div>
-                            <span className="text-gray-700">{item.customerName} cheque</span>
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">Balance</span>
-                            {item.previousBalance != null && (
-                              <span className="ml-1 text-xs text-gray-400">prev ${item.previousBalance.toFixed(2)}</span>
-                            )}
-                            {item.newBalance != null && item.newBalance > 0 && (
-                              <span className="ml-1 text-xs text-amber-600 font-medium">→ bal ${item.newBalance.toFixed(2)}</span>
-                            )}
-                            {item.newBalance === 0 && (
-                              <span className="ml-1 text-xs text-gray-400">fully consumed</span>
+                    + Add Item
+                  </button>
+                </div>
+
+                {/* Raw O/S row */}
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Raw Over / Short <span className="text-xs text-gray-400">(count vs system)</span></span>
+                  <span className={`font-bold text-base ${rawOS > 0 ? 'text-green-700' : rawOS < 0 ? 'text-red-700' : 'text-gray-500'}`}>
+                    {rawOS > 0 ? '+' : rawOS < 0 ? '−' : ''}{Math.abs(rawOS).toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Items list */}
+                {items.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {items.map((item) => (
+                      <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <span className={`shrink-0 w-16 text-right font-semibold tabular-nums ${item.type === 'overage' ? 'text-green-700' : 'text-red-700'}`}>
+                            {item.type === 'overage' ? '+' : '−'}{item.amount.toFixed(2)}
+                          </span>
+                          <div className="min-w-0">
+                            {item.itemKind === 'cheque_balance' ? (
+                              <div className="text-sm">
+                                <span className="font-medium text-gray-900">{item.customerName}</span>
+                                <span className={`ml-2 px-1.5 py-0.5 text-xs rounded font-medium ${item.type === 'overage' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                  {item.type === 'overage' ? 'Cheque received' : 'Fuel / cash taken'}
+                                </span>
+                                <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
+                                  {item.previousBalance != null && item.type === 'shortage' && (
+                                    <span>prev bal ${item.previousBalance.toFixed(2)}</span>
+                                  )}
+                                  {item.newBalance != null && item.newBalance > 0 ? (
+                                    <span className="text-amber-600 font-medium">→ remaining ${item.newBalance.toFixed(2)}</span>
+                                  ) : item.itemKind === 'cheque_balance' && item.newBalance === 0 && item.type === 'shortage' ? (
+                                    <span className="text-gray-400">account cleared</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-800">{item.description}</span>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-gray-700">{item.description}</span>
-                        )}
-                      </div>
-                    </div>
+                        </div>
                     <button
                       type="button"
                       onClick={async () => {
@@ -1491,32 +1498,36 @@ export default function ShiftDetailPage() {
                           console.error('Failed to delete:', err)
                         }
                       }}
-                      className="text-gray-400 hover:text-red-600 text-xs"
+                      className="shrink-0 text-gray-300 hover:text-red-500 text-base leading-none px-1"
                     >
                       ✕
                     </button>
                   </div>
                 ))}
-                {(() => {
-                  const explainedTotal = (shift?.overShortItems ?? []).reduce(
-                    (sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount),
-                    0
-                  )
-                  const raw = shift?.overShortTotal ?? 0
-                  return (
-                    <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
-                      Explained total: {explainedTotal.toFixed(2)}
-                      {Math.abs(raw - explainedTotal) > 0.01 && (
-                        <span className="text-amber-600 ml-1">(diff from raw: {(raw - explainedTotal).toFixed(2)})</span>
-                      )}
-                    </p>
-                  )
-                })()}
               </div>
             ) : (
-              <p className="text-xs text-gray-500 italic">No items yet. Add overages (e.g. Rumie check) or shortages (e.g. Manager took from drawer).</p>
+              <div className="px-5 py-6 text-center text-sm text-gray-400 italic">
+                No items recorded. Use &ldquo;+ Add Item&rdquo; to explain any shortage or overage.
+              </div>
             )}
-          </div>
+
+                {/* Unexplained footer */}
+                <div className={`px-5 py-4 border-t-2 flex items-center justify-between ${isFullyExplained ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                  <div>
+                    <div className={`font-bold text-base ${isFullyExplained ? 'text-green-800' : 'text-red-800'}`}>
+                      {isFullyExplained ? '✓ Fully Explained' : 'Unexplained'}
+                    </div>
+                    {!isFullyExplained && (
+                      <div className="text-xs text-red-600 mt-0.5">This amount still needs to be accounted for</div>
+                    )}
+                  </div>
+                  <div className={`font-bold text-2xl tabular-nums ${isFullyExplained ? 'text-green-700' : 'text-red-700'}`}>
+                    {isFullyExplained ? '$0.00' : `${unexplained > 0 ? '+' : '−'}${Math.abs(unexplained).toFixed(2)}`}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
           
           {/* Auto-detected missing fields warning */}
           {shift && (() => {
@@ -1650,7 +1661,7 @@ export default function ShiftDetailPage() {
               <h3 className="font-semibold text-gray-900 text-sm">Add Explained Item</h3>
               <button
                 type="button"
-                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard') }}
+                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard'); setChequeTransactionType('dispensed') }}
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
               >
                 ×
@@ -1720,10 +1731,47 @@ export default function ShiftDetailPage() {
                 </>
               ) : (
                 <>
-                  {/* Cheque Balance fields */}
-                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">
-                    The cheque sits in the drawer — this always records as an <strong>overage</strong>. The new balance carries forward to the next shift.
-                  </p>
+                  {/* Cheque Balance — transaction type */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChequeTransactionType('dispensed')
+                        setChequeCustomerName('')
+                        setChequePreviousBalance('')
+                        setChequeDispensed('')
+                        setChequeNewBalance('')
+                      }}
+                      className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${chequeTransactionType === 'dispensed' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      − Fuel / Cash Taken
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChequeTransactionType('received')
+                        setChequeCustomerName('')
+                        setChequePreviousBalance('')
+                        setChequeDispensed('')
+                        setChequeNewBalance('')
+                      }}
+                      className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${chequeTransactionType === 'received' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      + Cheque Received
+                    </button>
+                  </div>
+
+                  {chequeTransactionType === 'dispensed' ? (
+                    <p className="text-xs text-red-700 bg-red-50 rounded px-3 py-2">
+                      Fuel or cash was given against an existing cheque balance. Records as a <strong>shortage</strong> — no cash payment was received for this transaction.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2">
+                      A new cheque was received this shift. Records as an <strong>overage</strong> — the cheque is in the drawer but the system didn&apos;t expect it as cash.
+                    </p>
+                  )}
+
+                  {/* Customer name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
                     <input
@@ -1731,10 +1779,11 @@ export default function ShiftDetailPage() {
                       value={chequeCustomerName}
                       onChange={(e) => {
                         setChequeCustomerName(e.target.value)
-                        // Auto-fill previous balance from known carry-forwards
-                        const match = chequeBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase())
-                        if (match) setChequePreviousBalance(String(match.newBalance))
-                        else setChequePreviousBalance('')
+                        if (chequeTransactionType === 'dispensed') {
+                          const match = chequeBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase())
+                          if (match) setChequePreviousBalance(String(match.newBalance))
+                          else setChequePreviousBalance('')
+                        }
                       }}
                       list="cheque-customer-list"
                       placeholder="e.g. Rumie Tours"
@@ -1745,59 +1794,100 @@ export default function ShiftDetailPage() {
                         <option key={b.customerName} value={b.customerName} />
                       ))}
                     </datalist>
-                    {chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase()) && (
-                      <p className="text-xs text-green-700 mt-1">
-                        ✓ Carry-forward balance found: ${chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase())!.newBalance.toFixed(2)}
+                    {chequeTransactionType === 'dispensed' && chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase()) && (
+                      <p className="text-xs text-blue-700 mt-1">
+                        ✓ Balance on file: ${chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase())!.newBalance.toFixed(2)}
                       </p>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+
+                  {chequeTransactionType === 'received' ? (
+                    /* Received: just need the cheque amount */
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={chequePreviousBalance}
-                        onChange={(e) => setChequePreviousBalance(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Dispensed This Shift ($)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Amount ($)</label>
                       <input
                         type="number" step="0.01" min="0"
                         value={chequeDispensed}
                         onChange={(e) => {
                           setChequeDispensed(e.target.value)
-                          const prev = Number(chequePreviousBalance) || 0
-                          const dispensed = Number(e.target.value) || 0
-                          const remaining = Math.max(0, prev - dispensed)
-                          setChequeNewBalance(remaining > 0 ? remaining.toFixed(2) : '0')
+                          setChequeNewBalance(e.target.value)
                           setAddOverShortAmount(e.target.value)
                         }}
                         placeholder="0.00"
                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                       />
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($)</label>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={chequeNewBalance}
-                        onChange={(e) => setChequeNewBalance(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
-                      <span className="text-xs text-gray-500 whitespace-nowrap">carries forward</span>
+                  ) : (
+                    /* Dispensed: need previous balance, amount dispensed, auto-calc new balance */
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={chequePreviousBalance}
+                          onChange={(e) => {
+                            setChequePreviousBalance(e.target.value)
+                            const prev = Number(e.target.value) || 0
+                            const dispensed = Number(chequeDispensed) || 0
+                            setChequeNewBalance(Math.max(0, prev - dispensed).toFixed(2))
+                          }}
+                          placeholder="0.00"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Amount Taken ($)</label>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={chequeDispensed}
+                          onChange={(e) => {
+                            setChequeDispensed(e.target.value)
+                            const prev = Number(chequePreviousBalance) || 0
+                            const dispensed = Number(e.target.value) || 0
+                            setChequeNewBalance(Math.max(0, prev - dispensed).toFixed(2))
+                            setAddOverShortAmount(e.target.value)
+                          }}
+                          placeholder="0.00"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-gray-50 rounded px-3 py-2 text-sm">
-                    <span className="text-gray-600">Overage to record: </span>
-                    <span className="font-semibold text-green-700">${Number(chequeDispensed || addOverShortAmount || 0).toFixed(2)}</span>
-                    {Number(chequeNewBalance) > 0 && (
-                      <span className="text-gray-500 ml-2">· Remaining: ${Number(chequeNewBalance).toFixed(2)}</span>
+                  )}
+
+                  {chequeTransactionType === 'dispensed' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($)</label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={chequeNewBalance}
+                          onChange={(e) => setChequeNewBalance(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50"
+                        />
+                        <span className="text-xs text-gray-500 whitespace-nowrap">carries forward</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary row */}
+                  <div className={`rounded px-3 py-2 text-sm ${chequeTransactionType === 'received' ? 'bg-green-50' : 'bg-red-50'}`}>
+                    {chequeTransactionType === 'received' ? (
+                      <>
+                        <span className="text-gray-600">Overage to record: </span>
+                        <span className="font-semibold text-green-700">+${Number(chequeDispensed || 0).toFixed(2)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-600">Shortage to record: </span>
+                        <span className="font-semibold text-red-700">−${Number(chequeDispensed || 0).toFixed(2)}</span>
+                        {Number(chequeNewBalance) > 0 && (
+                          <span className="text-gray-500 ml-2">· Remaining balance: ${Number(chequeNewBalance).toFixed(2)}</span>
+                        )}
+                        {Number(chequeNewBalance) === 0 && chequeDispensed && (
+                          <span className="text-gray-400 ml-2">· Balance fully consumed</span>
+                        )}
+                      </>
                     )}
                   </div>
                 </>
@@ -1807,7 +1897,7 @@ export default function ShiftDetailPage() {
             <div className="px-4 py-3 border-t flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard') }}
+                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard'); setChequeTransactionType('dispensed') }}
                 className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50"
               >
                 Cancel
@@ -1824,12 +1914,14 @@ export default function ShiftDetailPage() {
                   try {
                     const payload = addItemKind === 'cheque_balance'
                       ? {
-                          type: 'overage',
+                          type: chequeTransactionType === 'received' ? 'overage' : 'shortage',
                           amount: Number(chequeDispensed),
                           description: '',
                           itemKind: 'cheque_balance',
                           customerName: chequeCustomerName.trim(),
-                          previousBalance: chequePreviousBalance ? Number(chequePreviousBalance) : null,
+                          previousBalance: chequeTransactionType === 'received'
+                            ? Number(chequeDispensed)  // for new cheque, previous = 0, new = amount
+                            : (chequePreviousBalance ? Number(chequePreviousBalance) : null),
                           dispensedAmount: Number(chequeDispensed),
                           newBalance: chequeNewBalance ? Number(chequeNewBalance) : 0
                         }
@@ -1852,6 +1944,7 @@ export default function ShiftDetailPage() {
                     setAddOverShortAmount('')
                     setAddOverShortDescription('')
                     setAddItemKind('standard')
+                    setChequeTransactionType('dispensed')
                     setChequeCustomerName('')
                     setChequePreviousBalance('')
                     setChequeDispensed('')
