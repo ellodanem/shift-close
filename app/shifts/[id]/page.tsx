@@ -1442,17 +1442,7 @@ export default function ShiftDetailPage() {
                   <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
                   <button
                     type="button"
-                    onClick={() => {
-                      setAddOverShortAmount('')
-                      setAddOverShortDescription('')
-                      setAddItemKind('standard')
-                      setChequeTransactionType('dispensed')
-                      setChequeCustomerName('')
-                      setChequePreviousBalance('')
-                      setChequeDispensed('')
-                      setChequeNewBalance('')
-                      setShowAddOverShortModal(true)
-                    }}
+                    onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
                     className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
                   >
                     + Add Item
@@ -1688,306 +1678,163 @@ export default function ShiftDetailPage() {
               </button>
             </div>
 
-            {/* Kind toggle */}
-            <div className="px-4 pt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setAddItemKind('standard')}
-                className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${addItemKind === 'standard' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAddItemKind('cheque_balance')
-                  setAddOverShortType('overage')
-                }}
-                className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${addItemKind === 'cheque_balance' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-              >
-                Cheque Balance
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {addItemKind === 'standard' ? (
-                <>
-                  {/* Standard item fields */}
-                  <div className="flex gap-2">
+            {/* Step 1 — Type selector cards */}
+            {!selectedKind ? (
+              <div className="p-4">
+                <p className="text-xs text-gray-500 mb-3">What are you recording?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { kind: 'cheque_received', label: 'Cheque Received', sub: 'New cheque in drawer', color: 'border-green-300 bg-green-50 hover:bg-green-100', badge: '+ Overage' },
+                    { kind: 'debit_received', label: 'Debit Received', sub: 'Pre-auth / account top-up', color: 'border-blue-300 bg-blue-50 hover:bg-blue-100', badge: 'Note only' },
+                    { kind: 'fuel_taken', label: 'Fuel / Cash Taken', sub: 'Against existing account', color: 'border-amber-300 bg-amber-50 hover:bg-amber-100', badge: '− Shortage*' },
+                    { kind: 'withdrawal', label: 'Withdrawal', sub: 'Cash taken from drawer', color: 'border-red-300 bg-red-50 hover:bg-red-100', badge: '− Shortage' },
+                    { kind: 'return', label: 'Return', sub: 'Cash returned to drawer', color: 'border-teal-300 bg-teal-50 hover:bg-teal-100', badge: '+ Overage' },
+                    { kind: 'other', label: 'Other', sub: "Short pay, customer didn't pay, etc.", color: 'border-gray-300 bg-gray-50 hover:bg-gray-100', badge: 'You choose' },
+                  ] as const).map(({ kind, label, sub, color, badge }) => (
                     <button
+                      key={kind}
                       type="button"
-                      onClick={() => setAddOverShortType('overage')}
-                      className={`flex-1 py-1.5 rounded text-sm font-semibold border ${addOverShortType === 'overage' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                      onClick={() => { setSelectedKind(kind); if (kind === 'fuel_taken') setAcctPaymentMethod('cheque') }}
+                      className={`border-2 rounded-lg p-3 text-left transition-colors ${color}`}
                     >
-                      + Overage
+                      <div className="font-semibold text-sm text-gray-900">{label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{sub}</div>
+                      <div className="text-xs font-medium text-gray-600 mt-1">{badge}</div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setAddOverShortType('shortage')}
-                      className={`flex-1 py-1.5 rounded text-sm font-semibold border ${addOverShortType === 'shortage' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300'}`}
-                    >
-                      − Shortage
-                    </button>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={addOverShortAmount}
-                      onChange={(e) => setAddOverShortAmount(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <input
-                      type="text"
-                      value={addOverShortDescription}
-                      onChange={(e) => setAddOverShortDescription(e.target.value)}
-                      placeholder={addOverShortType === 'overage' ? 'e.g. Manager requested from drawer' : 'e.g. Cash given to manager'}
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Cheque Balance — transaction type */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChequeTransactionType('dispensed')
-                        setChequeCustomerName('')
-                        setChequePreviousBalance('')
-                        setChequeDispensed('')
-                        setChequeNewBalance('')
-                      }}
-                      className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${chequeTransactionType === 'dispensed' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      − Fuel / Cash Taken
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChequeTransactionType('received')
-                        setChequeCustomerName('')
-                        setChequePreviousBalance('')
-                        setChequeDispensed('')
-                        setChequeNewBalance('')
-                      }}
-                      className={`flex-1 py-1.5 rounded text-sm font-semibold border transition-colors ${chequeTransactionType === 'received' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      + Cheque Received
-                    </button>
-                  </div>
-
-                  {chequeTransactionType === 'dispensed' ? (
-                    <p className="text-xs text-red-700 bg-red-50 rounded px-3 py-2">
-                      Fuel or cash was given against an existing cheque balance. Records as a <strong>shortage</strong> — no cash payment was received for this transaction.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2">
-                      A new cheque was received this shift. Records as an <strong>overage</strong> — the cheque is in the drawer but the system didn&apos;t expect it as cash.
-                    </p>
-                  )}
-
-                  {/* Customer name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                    <input
-                      type="text"
-                      value={chequeCustomerName}
-                      onChange={(e) => {
-                        setChequeCustomerName(e.target.value)
-                        if (chequeTransactionType === 'dispensed') {
-                          const match = chequeBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase())
-                          if (match) setChequePreviousBalance(String(match.newBalance))
-                          else setChequePreviousBalance('')
-                        }
-                      }}
-                      list="cheque-customer-list"
-                      placeholder="e.g. Rumie Tours"
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
-                    <datalist id="cheque-customer-list">
-                      {chequeBalances.map(b => (
-                        <option key={b.customerName} value={b.customerName} />
-                      ))}
-                    </datalist>
-                    {chequeTransactionType === 'dispensed' && chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase()) && (
-                      <p className="text-xs text-blue-700 mt-1">
-                        ✓ Balance on file: ${chequeBalances.find(b => b.customerName.toLowerCase() === chequeCustomerName.toLowerCase())!.newBalance.toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-
-                  {chequeTransactionType === 'received' ? (
-                    /* Received: just need the cheque amount */
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Amount ($)</label>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={chequeDispensed}
-                        onChange={(e) => {
-                          setChequeDispensed(e.target.value)
-                          setChequeNewBalance(e.target.value)
-                          setAddOverShortAmount(e.target.value)
-                        }}
-                        placeholder="0.00"
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-3">* Cheque shortage only. Debit fuel taken is note only.</p>
+              </div>
+            ) : (
+              <div className="p-4 space-y-3">
+                {selectedKind === 'cheque_received' && (
+                  <>
+                    <div className="text-xs text-green-700 bg-green-50 rounded px-3 py-2">Cheque received this shift. Sits in the drawer — records as an <strong>overage</strong>. Balance carries forward for future fuel.</div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} list="acct-customer-list" placeholder="e.g. Rumie Tours" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Cheque Amount ($)</label>
+                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div className="bg-green-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-green-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
+                  </>
+                )}
+                {selectedKind === 'debit_received' && (
+                  <>
+                    <div className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">Debit pre-auth received. Already counted by cashier — <strong>note only</strong>, no effect on Over/Short.</div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} placeholder="e.g. Company XYZ" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div className="bg-blue-50 rounded px-3 py-2 text-sm text-blue-700">Note only — no Over/Short impact</div>
+                  </>
+                )}
+                {selectedKind === 'fuel_taken' && (
+                  <>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setAcctPaymentMethod('cheque')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctPaymentMethod === 'cheque' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-300'}`}>Cheque Account</button>
+                      <button type="button" onClick={() => setAcctPaymentMethod('debit')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctPaymentMethod === 'debit' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-300'}`}>Debit Account</button>
                     </div>
-                  ) : (
-                    /* Dispensed: need previous balance, amount dispensed, auto-calc new balance */
+                    <div className={`text-xs rounded px-3 py-2 ${acctPaymentMethod === 'cheque' ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>{acctPaymentMethod === 'cheque' ? 'Fuel/cash given against a cheque account. Records as a shortage.' : 'Fuel given against a debit account. Note only — cashier already counted the debit.'}</div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                      <input type="text" value={acctCustomerName} onChange={e => { setAcctCustomerName(e.target.value); const m = acctBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase()); if (m) setAcctPreviousBalance(String(m.newBalance)); else setAcctPreviousBalance('') }} list="acct-customer-list" placeholder="e.g. Andrew" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                      {acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase()) && (<p className="text-xs text-blue-700 mt-1">✓ Balance on file: ${acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase())!.newBalance.toFixed(2)}</p>)}
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={chequePreviousBalance}
-                          onChange={(e) => {
-                            setChequePreviousBalance(e.target.value)
-                            const prev = Number(e.target.value) || 0
-                            const dispensed = Number(chequeDispensed) || 0
-                            setChequeNewBalance(Math.max(0, prev - dispensed).toFixed(2))
-                          }}
-                          placeholder="0.00"
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Amount Taken ($)</label>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={chequeDispensed}
-                          onChange={(e) => {
-                            setChequeDispensed(e.target.value)
-                            const prev = Number(chequePreviousBalance) || 0
-                            const dispensed = Number(e.target.value) || 0
-                            setChequeNewBalance(Math.max(0, prev - dispensed).toFixed(2))
-                            setAddOverShortAmount(e.target.value)
-                          }}
-                          placeholder="0.00"
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                        />
-                      </div>
+                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
+                        <input type="number" step="0.01" min="0" value={acctPreviousBalance} onChange={e => { setAcctPreviousBalance(e.target.value); setAcctNewBalance(Math.max(0, (Number(e.target.value) || 0) - (Number(acctAmount) || 0)).toFixed(2)) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount Taken ($)</label>
+                        <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(Math.max(0, (Number(acctPreviousBalance) || 0) - (Number(e.target.value) || 0)).toFixed(2)) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
                     </div>
-                  )}
-
-                  {chequeTransactionType === 'dispensed' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($)</label>
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={chequeNewBalance}
-                          onChange={(e) => setChequeNewBalance(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50"
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">carries forward</span>
-                      </div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($) <span className="text-gray-400 font-normal">carries forward</span></label>
+                      <input type="number" step="0.01" min="0" value={acctNewBalance} onChange={e => setAcctNewBalance(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50" /></div>
+                    <div className={`rounded px-3 py-2 text-sm ${acctPaymentMethod === 'cheque' ? 'bg-red-50' : 'bg-blue-50'}`}>
+                      {acctPaymentMethod === 'cheque' ? (<><span className="text-gray-600">Shortage: </span><span className="font-semibold text-red-700">−${Number(acctAmount || 0).toFixed(2)}</span>{Number(acctNewBalance) > 0 && <span className="text-gray-400 ml-2">· Remaining ${Number(acctNewBalance).toFixed(2)}</span>}</>) : (<span className="text-blue-700">Note only{Number(acctNewBalance) > 0 ? ` · Remaining $${Number(acctNewBalance).toFixed(2)}` : ''}</span>)}
                     </div>
-                  )}
+                  </>
+                )}
+                {selectedKind === 'withdrawal' && (
+                  <>
+                    <div className="text-xs text-red-700 bg-red-50 rounded px-3 py-2">Cash physically removed from the drawer. Records as a <strong>shortage</strong>.</div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(who took it)</span></label>
+                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Manager requested $200" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div className="bg-red-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Shortage: </span><span className="font-semibold text-red-700">−${Number(acctAmount || 0).toFixed(2)}</span></div>
+                  </>
+                )}
+                {selectedKind === 'return' && (
+                  <>
+                    <div className="text-xs text-teal-700 bg-teal-50 rounded px-3 py-2">Cash returned to the drawer. Records as an <strong>overage</strong>.</div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(who returned it)</span></label>
+                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Manager returned $200" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div className="bg-teal-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-teal-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
+                  </>
+                )}
+                {selectedKind === 'other' && (
+                  <>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setAcctOtherType('shortage')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctOtherType === 'shortage' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300'}`}>− Shortage</button>
+                      <button type="button" onClick={() => setAcctOtherType('overage')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctOtherType === 'overage' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300'}`}>+ Overage</button>
+                    </div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Customer short-paid $5, pump voided, etc." className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                    <div className={`rounded px-3 py-2 text-sm ${acctOtherType === 'overage' ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <span className="text-gray-600">{acctOtherType === 'overage' ? 'Overage' : 'Shortage'}: </span>
+                      <span className={`font-semibold ${acctOtherType === 'overage' ? 'text-green-700' : 'text-red-700'}`}>{acctOtherType === 'overage' ? '+' : '−'}${Number(acctAmount || 0).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                <datalist id="acct-customer-list">{acctBalances.map(b => <option key={b.customerName} value={b.customerName} />)}</datalist>
+              </div>
+            )}
 
-                  {/* Summary row */}
-                  <div className={`rounded px-3 py-2 text-sm ${chequeTransactionType === 'received' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    {chequeTransactionType === 'received' ? (
-                      <>
-                        <span className="text-gray-600">Overage to record: </span>
-                        <span className="font-semibold text-green-700">+${Number(chequeDispensed || 0).toFixed(2)}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-gray-600">Shortage to record: </span>
-                        <span className="font-semibold text-red-700">−${Number(chequeDispensed || 0).toFixed(2)}</span>
-                        {Number(chequeNewBalance) > 0 && (
-                          <span className="text-gray-500 ml-2">· Remaining balance: ${Number(chequeNewBalance).toFixed(2)}</span>
-                        )}
-                        {Number(chequeNewBalance) === 0 && chequeDispensed && (
-                          <span className="text-gray-400 ml-2">· Balance fully consumed</span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="px-4 py-3 border-t flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard'); setChequeTransactionType('dispensed') }}
-                className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={
-                  savingOverShortItem ||
-                  (addItemKind === 'standard' && (!addOverShortAmount || Number(addOverShortAmount) <= 0 || !addOverShortDescription.trim())) ||
-                  (addItemKind === 'cheque_balance' && (!chequeCustomerName.trim() || !chequeDispensed || Number(chequeDispensed) <= 0))
-                }
-                onClick={async () => {
-                  setSavingOverShortItem(true)
-                  try {
-                    const payload = addItemKind === 'cheque_balance'
-                      ? {
-                          type: chequeTransactionType === 'received' ? 'overage' : 'shortage',
-                          amount: Number(chequeDispensed),
-                          description: '',
-                          itemKind: 'cheque_balance',
-                          customerName: chequeCustomerName.trim(),
-                          previousBalance: chequeTransactionType === 'received'
-                            ? Number(chequeDispensed)  // for new cheque, previous = 0, new = amount
-                            : (chequePreviousBalance ? Number(chequePreviousBalance) : null),
-                          dispensedAmount: Number(chequeDispensed),
-                          newBalance: chequeNewBalance ? Number(chequeNewBalance) : 0
-                        }
-                      : {
-                          type: addOverShortType,
-                          amount: Number(addOverShortAmount),
-                          description: addOverShortDescription.trim(),
-                          itemKind: 'standard'
-                        }
-                    const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload)
-                    })
-                    if (!res.ok) throw new Error('Failed to add')
-                    const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
-                    setShift(updated)
-                    setShowAddOverShortModal(false)
-                    // Reset all fields
-                    setAddOverShortAmount('')
-                    setAddOverShortDescription('')
-                    setAddItemKind('standard')
-                    setChequeTransactionType('dispensed')
-                    setChequeCustomerName('')
-                    setChequePreviousBalance('')
-                    setChequeDispensed('')
-                    setChequeNewBalance('')
-                    // Refresh cheque balances
-                    fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setChequeBalances(d) }).catch(() => {})
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : 'Failed to add item')
-                  } finally {
-                    setSavingOverShortItem(false)
+            {selectedKind && (
+              <div className="px-4 py-3 border-t flex justify-end gap-2 sticky bottom-0 bg-white">
+                <button type="button" onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }} className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                <button
+                  type="button"
+                  disabled={
+                    savingOverShortItem ||
+                    (['cheque_received', 'debit_received'].includes(selectedKind) && (!acctCustomerName.trim() || !acctAmount || Number(acctAmount) <= 0)) ||
+                    (selectedKind === 'fuel_taken' && (!acctCustomerName.trim() || !acctAmount || Number(acctAmount) <= 0)) ||
+                    (['withdrawal', 'return'].includes(selectedKind) && (!acctAmount || Number(acctAmount) <= 0)) ||
+                    (selectedKind === 'other' && (!acctAmount || Number(acctAmount) <= 0 || !acctDescription.trim()))
                   }
-                }}
-                className={`px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 ${
-                  addItemKind === 'cheque_balance'
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : addOverShortType === 'overage'
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {savingOverShortItem ? 'Saving…' : 'Add'}
-              </button>
-            </div>
+                  onClick={async () => {
+                    setSavingOverShortItem(true)
+                    try {
+                      const isAccount = ['cheque_received', 'debit_received', 'fuel_taken'].includes(selectedKind)
+                      const payload: Record<string, unknown> = {
+                        itemKind: selectedKind,
+                        paymentMethod: isAccount ? acctPaymentMethod : undefined,
+                        amount: Number(acctAmount) || 0,
+                        description: acctDescription.trim(),
+                        type: selectedKind === 'other' ? acctOtherType : selectedKind === 'return' ? 'overage' : selectedKind === 'withdrawal' ? 'shortage' : selectedKind === 'cheque_received' ? 'overage' : 'overage',
+                        customerName: isAccount ? acctCustomerName.trim() : undefined,
+                        previousBalance: isAccount && acctPreviousBalance ? Number(acctPreviousBalance) : undefined,
+                        dispensedAmount: isAccount && acctAmount ? Number(acctAmount) : undefined,
+                        newBalance: isAccount && acctNewBalance ? Number(acctNewBalance) : undefined,
+                      }
+                      const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                      if (!res.ok) throw new Error((await res.json()).error || 'Failed to add')
+                      const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
+                      setShift(updated)
+                      setShowAddOverShortModal(false)
+                      resetAddItemState()
+                      fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setAcctBalances(d) }).catch(() => {})
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Failed to add item')
+                    } finally {
+                      setSavingOverShortItem(false)
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 bg-gray-800 text-white hover:bg-gray-700"
+                >{savingOverShortItem ? 'Saving…' : 'Save Item'}</button>
+              </div>
+            )}
           </div>
         </div>
       )}
