@@ -183,14 +183,6 @@ export default function RosterPage() {
     loadStatic()
   }, [])
 
-  // Close fill-week popover when clicking outside
-  useEffect(() => {
-    if (!fillWeekPopover) return
-    const handler = () => setFillWeekPopover(null)
-    document.addEventListener('click', handler)
-    return () => document.removeEventListener('click', handler)
-  }, [fillWeekPopover])
-
   // Load roster entries whenever weekStart changes
   useEffect(() => {
     async function loadWeek() {
@@ -951,9 +943,14 @@ export default function RosterPage() {
                               ↔
                             </button>
                             {fillWeekPopover?.staffId === s.id && (
+                              <>
+                                {/* Backdrop — clicking outside closes the popover */}
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setFillWeekPopover(null)}
+                                />
                               <div
                                 className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 w-44"
-                                onClick={(e) => e.stopPropagation()}
                               >
                                 <p className="text-xs font-semibold text-gray-700 mb-2">Fill entire week</p>
                                 <select
@@ -981,6 +978,7 @@ export default function RosterPage() {
                                   </button>
                                 </div>
                               </div>
+                              </>
                             )}
                           </div>
                         )}
