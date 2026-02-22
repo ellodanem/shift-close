@@ -79,11 +79,10 @@ export default function NewShiftPage() {
     fetch('/api/staff')
       .then(res => res.json())
       .then(data => {
-        // Filter to active staff only, prioritize supervisors/managers
         const activeStaff = data
-          .filter((s: any) => s.status === 'active')
+          .filter((s: any) => s.status === 'active' && (s.role === 'supervisor' || s.role === 'manager'))
           .sort((a: any, b: any) => {
-            const roleOrder: Record<string, number> = { supervisor: 1, manager: 2, admin: 3, cashier: 4 }
+            const roleOrder: Record<string, number> = { supervisor: 1, manager: 2 }
             return (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99)
           })
         setStaffList(activeStaff)
@@ -383,7 +382,7 @@ export default function NewShiftPage() {
                 <option value="">Select supervisor</option>
                 {staffList.map((staff) => (
                   <option key={staff.id} value={staff.id}>
-                    {staff.name} {staff.role !== 'cashier' ? `(${staff.role})` : ''}
+                    {staff.name} ({staff.role})
                   </option>
                 ))}
               </select>

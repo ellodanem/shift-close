@@ -51,6 +51,11 @@ export default function DaysPage() {
       .then(res => res.json())
       .then(data => {
         setDayReports(data)
+        // Auto-expand only the most recent day; collapse everything else
+        if (Array.isArray(data) && data.length > 0) {
+          const mostRecent = data.reduce((a: DayReport, b: DayReport) => a.date > b.date ? a : b)
+          setExpandedDates(new Set([mostRecent.date]))
+        }
         setLoading(false)
       })
       .catch(err => {
@@ -529,96 +534,51 @@ export default function DaysPage() {
               
               return (
                 <div key={dayReport.date} className="bg-white shadow-sm border border-gray-200 rounded">
-                  {/* Header */}
-                  <div className="p-4 border-b border-gray-200">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
-                        <div className="mt-2 flex gap-4 items-center">
-                          {getStatusBadge(dayReport.status)}
-                          <span className="text-sm text-gray-600">
-                            {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
-                          </span>
+                  {/* Clickable Header */}
+                  <div
+                    className="p-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
+                    onClick={() => toggleExpand(dayReport.date)}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-400 text-lg">{isExpanded ? '▼' : '▶'}</span>
+                        <div>
+                          <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
+                          <div className="mt-1 flex flex-wrap gap-3 items-center">
+                            {getStatusBadge(dayReport.status)}
+                            <span className="text-sm text-gray-600">
+                              {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
+                            </span>
+                            {!isExpanded && (
+                              <span className="text-sm text-gray-500">
+                                O/S:&nbsp;
+                                <span className={`font-semibold ${
+                                  dayReport.totals.overShortTotal > 0 ? 'text-green-600' :
+                                  dayReport.totals.overShortTotal < 0 ? 'text-red-600' : 'text-gray-700'
+                                }`}>
+                                  {formatCurrency(dayReport.totals.overShortTotal)}
+                                </span>
+                                &nbsp;· Deposits:&nbsp;
+                                <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDeposits)}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => exportToExcel(dayReport)}
-                          className="px-4 py-2 bg-green-600 text-white rounded text-sm font-semibold"
-                        >
-                          Export Excel
-                        </button>
-                        <button
-                          onClick={() => toggleExpand(dayReport.date)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-semibold"
-                        >
-                          {isExpanded ? 'Collapse' : 'Expand'}
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
+                        className="px-4 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
+                      >
+                        Export Excel
+                      </button>
                     </div>
                   </div>
-                  
-                  {/* Shift Breakdown */}
+
+                  {/* Collapsible body */}
                   {isExpanded && (
-                    <div className="p-4 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-900 mb-3">Shift Breakdown</h3>
-                      <div className="space-y-3">
-                        {dayReport.shifts.map((shift) => {
-                          const hasRedFlag = shift.hasRedFlag
-                          
-                          return (
-                            <div
-                              key={shift.id}
-                              className={`border rounded p-4 ${hasRedFlag ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <span className="font-semibold text-gray-900">{shift.shift}</span>
-                                  <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
-                                </div>
-                                <button
-                                  onClick={() => router.push(`/shifts/${shift.id}`)}
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  View Details
-                                </button>
-                              </div>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
-                                <div>
-                                  <span className="text-gray-600">Over/Short: </span>
-                                  <span className={`font-semibold ${
-                                    shift.overShortTotal > 0 ? 'text-green-600' : 
-                                    shift.overShortTotal < 0 ? 'text-red-600' : 'text-gray-900'
-                                  }`}>
-                                    {formatCurrency(shift.overShortTotal)}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Deposits: </span>
-                                  <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Notes: </span>
-                                  <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
-                                </div>
-                                {hasRedFlag && (
-                                  <div className="text-red-600 font-semibold">🚨 RED FLAG</div>
-                                )}
-                              </div>
-                              {shift.notes.trim() && (
-                                <div className="mt-2 text-sm text-gray-600 bg-white p-2 rounded border border-gray-200">
-                                  {shift.notes}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  
+                    <>
                   {/* Money Summary */}
-                  <div className="p-4 border-b border-gray-200">
+                  <div className="p-4 border-t border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900 mb-3">Money Summary</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
@@ -904,62 +864,61 @@ export default function DaysPage() {
                   </div>
                   
                   {/* Shift Breakdown */}
-                  {isExpanded && (
-                    <div className="p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">Shift Breakdown</h3>
-                      <div className="space-y-3">
-                        {dayReport.shifts.map((shift) => {
-                          const hasRedFlag = shift.hasRedFlag
-                          
-                          return (
-                            <div
-                              key={shift.id}
-                              className={`border rounded p-4 ${hasRedFlag ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <span className="font-semibold text-gray-900">{shift.shift}</span>
-                                  <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
-                                </div>
-                                <button
-                                  onClick={() => router.push(`/shifts/${shift.id}`)}
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  View Details
-                                </button>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3">Shift Breakdown</h3>
+                    <div className="space-y-3">
+                      {dayReport.shifts.map((shift) => {
+                        const hasRedFlag = shift.hasRedFlag
+                        return (
+                          <div
+                            key={shift.id}
+                            className={`border rounded p-4 ${hasRedFlag ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <span className="font-semibold text-gray-900">{shift.shift}</span>
+                                <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
                               </div>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
-                                <div>
-                                  <span className="text-gray-600">Over/Short: </span>
-                                  <span className={`font-semibold ${
-                                    shift.overShortTotal > 0 ? 'text-green-600' : 
-                                    shift.overShortTotal < 0 ? 'text-red-600' : 'text-gray-900'
-                                  }`}>
-                                    {formatCurrency(shift.overShortTotal)}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Deposits: </span>
-                                  <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Notes: </span>
-                                  <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
-                                </div>
-                                {hasRedFlag && (
-                                  <div className="text-red-600 font-semibold">🚨 RED FLAG</div>
-                                )}
+                              <button
+                                onClick={() => router.push(`/shifts/${shift.id}`)}
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                View Details
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
+                              <div>
+                                <span className="text-gray-600">Over/Short: </span>
+                                <span className={`font-semibold ${
+                                  shift.overShortTotal > 0 ? 'text-green-600' :
+                                  shift.overShortTotal < 0 ? 'text-red-600' : 'text-gray-900'
+                                }`}>
+                                  {formatCurrency(shift.overShortTotal)}
+                                </span>
                               </div>
-                              {shift.notes.trim() && (
-                                <div className="mt-2 text-sm text-gray-600 bg-white p-2 rounded border border-gray-200">
-                                  {shift.notes}
-                                </div>
+                              <div>
+                                <span className="text-gray-600">Deposits: </span>
+                                <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Notes: </span>
+                                <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
+                              </div>
+                              {hasRedFlag && (
+                                <div className="text-red-600 font-semibold">🚨 RED FLAG</div>
                               )}
                             </div>
-                          )
-                        })}
-                      </div>
+                            {shift.notes.trim() && (
+                              <div className="mt-2 text-sm text-gray-600 bg-white p-2 rounded border border-gray-200">
+                                {shift.notes}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
+                  </div>
+                  </>
                   )}
                 </div>
               )

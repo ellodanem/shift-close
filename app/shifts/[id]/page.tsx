@@ -210,7 +210,23 @@ export default function ShiftDetailPage() {
         })
     }
   }, [params.id])
-  
+
+  // Fetch supervisors and managers for the supervisor dropdown
+  useEffect(() => {
+    fetch('/api/staff')
+      .then(res => res.json())
+      .then(data => {
+        const supervisors = data
+          .filter((s: any) => s.status === 'active' && (s.role === 'supervisor' || s.role === 'manager'))
+          .sort((a: any, b: any) => {
+            const roleOrder: Record<string, number> = { supervisor: 1, manager: 2 }
+            return (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99)
+          })
+        setStaffList(supervisors)
+      })
+      .catch(err => console.error('Error fetching staff:', err))
+  }, [])
+
   const updateCheckbox = async (field: string, value: boolean | string) => {
     try {
       const updatePayload: any = { [field]: value }
@@ -518,6 +534,7 @@ export default function ShiftDetailPage() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           ...editData,
+                          supervisorId: supervisorId || null,
                           deposits: JSON.stringify(editData.deposits)
                         })
                       })
@@ -678,7 +695,7 @@ export default function ShiftDetailPage() {
                 <option value="">Select supervisor</option>
                 {staffList.map((staff) => (
                   <option key={staff.id} value={staff.id}>
-                    {staff.name} {staff.role !== 'cashier' ? `(${staff.role})` : ''}
+                    {staff.name} ({staff.role})
                   </option>
                 ))}
               </select>
