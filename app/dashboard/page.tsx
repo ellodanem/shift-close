@@ -94,6 +94,15 @@ interface CashbookSummary {
   entryCount: number
 }
 
+interface FuelComparisonDay {
+  date: string
+  priorDate: string
+  unleaded: number
+  diesel: number
+  prevUnleaded: number
+  prevDiesel: number
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<MonthSummary | null>(null)
@@ -103,6 +112,7 @@ export default function DashboardPage() {
   const [arSummary, setArSummary] = useState<CustomerArSummary | null>(null)
   const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
   const [cashbookSummary, setCashbookSummary] = useState<CashbookSummary | null>(null)
+  const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -164,6 +174,13 @@ export default function DashboardPage() {
       }
     }
     fetchToday()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/dashboard/fuel-comparison')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setFuelComparison(data) })
+      .catch(() => {})
   }, [])
 
   // Fetch A/R summary when summary data changes (respects month filter)
@@ -940,6 +957,75 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Fuel Volume Comparison Widget */}
+        {fuelComparison.length > 0 && (() => {
+          const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
+          const maxVal = Math.max(...allVals, 1)
+          const pct = (v: number) => `${Math.round((v / maxVal) * 100)}%`
+          const shortDate = (d: string) => {
+            const dt = new Date(d + 'T12:00:00')
+            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          }
+          return (
+            <div className="mb-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700">Fuel Volume — Last 5 Days</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">vs. same day prior year</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500"/><span>Unleaded</span></span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-800"/><span>Diesel</span></span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-200 border border-green-300"/><span>Prior yr</span></span>
+                  </div>
+                </div>
+                <div className="flex items-end gap-3 h-40">
+                  {fuelComparison.map((day) => (
+                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                      {/* Bar group */}
+                      <div className="w-full flex items-end justify-center gap-0.5 h-32">
+                        {/* Unleaded pair */}
+                        <div className="flex items-end gap-0.5 flex-1 justify-center">
+                          <div
+                            title={`Unleaded ${shortDate(day.date)}: ${day.unleaded.toFixed(1)}L`}
+                            className="w-full max-w-[20px] bg-green-500 rounded-t transition-all cursor-default"
+                            style={{ height: pct(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
+                          />
+                          <div
+                            title={`Unleaded ${shortDate(day.priorDate)} (prior yr): ${day.prevUnleaded.toFixed(1)}L`}
+                            className="w-full max-w-[20px] bg-green-200 border border-green-300 rounded-t transition-all cursor-default"
+                            style={{ height: pct(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
+                          />
+                        </div>
+                        {/* Small gap between fuel types */}
+                        <div className="w-1" />
+                        {/* Diesel pair */}
+                        <div className="flex items-end gap-0.5 flex-1 justify-center">
+                          <div
+                            title={`Diesel ${shortDate(day.date)}: ${day.diesel.toFixed(1)}L`}
+                            className="w-full max-w-[20px] bg-green-800 rounded-t transition-all cursor-default"
+                            style={{ height: pct(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
+                          />
+                          <div
+                            title={`Diesel ${shortDate(day.priorDate)} (prior yr): ${day.prevDiesel.toFixed(1)}L`}
+                            className="w-full max-w-[20px] bg-green-100 border border-green-400 rounded-t transition-all cursor-default"
+                            style={{ height: pct(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
+                          />
+                        </div>
+                      </div>
+                      {/* Date label */}
+                      <div className="text-xs text-gray-500 whitespace-nowrap">{shortDate(day.date)}</div>
+                      {/* Totals */}
+                      <div className="text-xs text-gray-400 whitespace-nowrap">{(day.unleaded + day.diesel).toFixed(0)}L</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Recent Fuel Payment - Full width row */}
         <div className="mb-6">
