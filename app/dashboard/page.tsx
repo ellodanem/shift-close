@@ -962,7 +962,8 @@ export default function DashboardPage() {
         {fuelComparison.length > 0 && (() => {
           const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
           const maxVal = Math.max(...allVals, 1)
-          const pct = (v: number) => `${Math.round((v / maxVal) * 100)}%`
+          const BAR_HEIGHT_PX = 128
+          const px = (v: number) => `${Math.round((v / maxVal) * BAR_HEIGHT_PX)}px`
           const shortDate = (d: string) => {
             const dt = new Date(d + 'T12:00:00')
             return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -991,12 +992,12 @@ export default function DashboardPage() {
                           <div
                             title={`Unleaded ${shortDate(day.date)}: ${day.unleaded.toFixed(1)}L`}
                             className="w-full max-w-[20px] bg-green-500 rounded-t transition-all cursor-default"
-                            style={{ height: pct(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
+                            style={{ height: px(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
                           />
                           <div
                             title={`Unleaded ${shortDate(day.priorDate)} (prior yr): ${day.prevUnleaded.toFixed(1)}L`}
                             className="w-full max-w-[20px] bg-green-200 border border-green-300 rounded-t transition-all cursor-default"
-                            style={{ height: pct(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
+                            style={{ height: px(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
                           />
                         </div>
                         {/* Small gap between fuel types */}
@@ -1006,12 +1007,12 @@ export default function DashboardPage() {
                           <div
                             title={`Diesel ${shortDate(day.date)}: ${day.diesel.toFixed(1)}L`}
                             className="w-full max-w-[20px] bg-green-800 rounded-t transition-all cursor-default"
-                            style={{ height: pct(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
+                            style={{ height: px(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
                           />
                           <div
                             title={`Diesel ${shortDate(day.priorDate)} (prior yr): ${day.prevDiesel.toFixed(1)}L`}
                             className="w-full max-w-[20px] bg-green-100 border border-green-400 rounded-t transition-all cursor-default"
-                            style={{ height: pct(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
+                            style={{ height: px(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
                           />
                         </div>
                       </div>
