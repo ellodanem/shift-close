@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Close Agent</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111; }
+    header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    header .subtitle { font-size: 0.8rem; opacity: 0.7; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-red { background: #ef4444; }
+    .dot-grey { background: #9ca3af; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
+    .card h2 { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 14px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; }
+    .stat .label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
+    .stat .value { font-size: 0.95rem; font-weight: 600; color: #111; }
+    .stat .sub { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
+    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    label { font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 4px; color: #374151; }
+    input { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; font-size: 0.875rem; outline: none; }
+    input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-green { background: #16a34a; color: white; }
+    .btn-green:hover:not(:disabled) { background: #15803d; }
+    .btn-amber { background: #d97706; color: white; }
+    .btn-amber:hover:not(:disabled) { background: #b45309; }
+    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-outline:hover:not(:disabled) { background: #f9fafb; }
+    .activity { list-style: none; max-height: 200px; overflow-y: auto; }
+    .activity li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #f3f4f6; display: flex; gap: 10px; }
+    .activity .time { color: #9ca3af; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .activity .msg { color: #374151; }
+    .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 10px; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    #toast { position: fixed; bottom: 20px; right: 20px; max-width: 320px; z-index: 99; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="status-dot dot-grey" id="headerDot"></div>
+    <div>
+      <h1>Shift Close Agent</h1>
+      <div class="subtitle" id="headerSub">Checking status…</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Status Cards -->
+    <div class="grid2">
+      <div class="stat">
+        <div class="label">Device</div>
+        <div class="value" id="statDevice">—</div>
+        <div class="sub" id="statDeviceIp">Not configured</div>
+      </div>
+      <div class="stat">
+        <div class="label">Uptime</div>
+        <div class="value" id="statUptime">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Last Attendance Sync</div>
+        <div class="value" id="statAttSync">Never</div>
+        <div class="sub" id="statAttResult">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Last Staff Sync</div>
+        <div class="value" id="statStaffSync">Never</div>
+        <div class="sub" id="statStaffResult">—</div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <h2>Actions</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnTestDevice">Test Device Connection</button>
+        <button class="btn btn-green" id="btnSyncAtt">Sync Attendance Now</button>
+        <button class="btn btn-amber" id="btnSyncStaff">Push Staff to Device</button>
+      </div>
+      <div id="actionResult" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="grid2" style="margin-bottom:12px;">
+        <div>
+          <label>Device IP Address</label>
+          <input id="cfgDeviceIp" type="text" placeholder="192.168.1.x" />
+        </div>
+        <div>
+          <label>Device Port</label>
+          <input id="cfgDevicePort" type="number" placeholder="4370" />
+        </div>
+        <div>
+          <label>Vercel App URL</label>
+          <input id="cfgVercelUrl" type="text" placeholder="https://your-app.vercel.app" />
+        </div>
+        <div>
+          <label>Agent Secret Key</label>
+          <input id="cfgSecret" type="password" placeholder="Enter to change" />
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnSaveConfig">Save Settings</button>
+    </div>
+
+    <!-- ADMS Info -->
+    <div class="card">
+      <h2>ADMS Device Setup</h2>
+      <div class="alert alert-info" id="admsUrl">Loading…</div>
+      <p style="font-size:0.82rem;color:#6b7280;margin-bottom:10px;">Configure on your F22 device: COMM → Cloud Server Setting</p>
+      <table style="font-size:0.82rem;border-collapse:collapse;width:100%;">
+        <tr><td style="padding:4px 0;color:#6b7280;width:160px;">Server Address</td><td id="admsHost" style="font-weight:600;"></td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;">Server Port</td><td style="font-weight:600;">443</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;">HTTPS</td><td style="font-weight:600;">ON</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;">Enable Domain Name</td><td style="font-weight:600;">ON</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;">API Path</td><td style="font-weight:600;">/api/attendance/adms</td></tr>
+      </table>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="card">
+      <h2>Recent Activity</h2>
+      <ul class="activity" id="activityList">
+        <li><span class="msg" style="color:#9ca3af">No activity yet</span></li>
+      </ul>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast')
+      toast.innerHTML = `<div class="alert alert-${type}">${msg}</div>`
+      setTimeout(() => toast.innerHTML = '', 3000)
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return 'Never'
+      const d = new Date(iso)
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status')
+        const s = await res.json()
+
+        // Header
+        const dot = document.getElementById('headerDot')
+        const sub = document.getElementById('headerSub')
+        if (s.configured) {
+          dot.className = 'status-dot ' + (s.deviceStatus === 'connected' ? 'dot-green' : s.deviceStatus === 'error' ? 'dot-red' : 'dot-yellow')
+          sub.textContent = s.deviceStatus === 'connected' ? 'Connected · ' + s.uptime : 'Running · ' + s.uptime
+        } else {
+          dot.className = 'status-dot dot-grey'
+          sub.textContent = 'Not fully configured'
+        }
+
+        document.getElementById('statDevice').textContent = s.deviceStatus || 'Unknown'
+        document.getElementById('statDeviceIp').textContent = s.deviceIp || 'Not set'
+        document.getElementById('statUptime').textContent = s.uptime
+        document.getElementById('statAttSync').textContent = s.lastAttendanceSync ? fmtTime(s.lastAttendanceSync) : 'Never'
+        document.getElementById('statAttResult').textContent = s.lastAttendanceSyncResult ? `${s.lastAttendanceSyncResult.synced ?? 0} records` : '—'
+        document.getElementById('statStaffSync').textContent = s.lastStaffSync ? fmtTime(s.lastStaffSync) : 'Never'
+        document.getElementById('statStaffResult').textContent = s.lastStaffSyncResult ? `${s.lastStaffSyncResult.pushed ?? 0} pushed` : '—'
+
+        // Activity
+        const list = document.getElementById('activityList')
+        if (s.activity && s.activity.length > 0) {
+          list.innerHTML = s.activity.map(a => `<li><span class="time">${a.time}</span><span class="msg">${a.message}</span></li>`).join('')
+        }
+
+        // ADMS
+        if (s.vercelUrl) {
+          document.getElementById('admsUrl').textContent = `ADMS Endpoint: ${s.vercelUrl}/api/attendance/adms`
+          const url = new URL(s.vercelUrl)
+          document.getElementById('admsHost').textContent = url.hostname
+        }
+      } catch {}
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config')
+        const c = await res.json()
+        document.getElementById('cfgDeviceIp').value = c.deviceIp || ''
+        document.getElementById('cfgDevicePort').value = c.devicePort || 4370
+        document.getElementById('cfgVercelUrl').value = c.vercelUrl || ''
+        document.getElementById('cfgSecret').placeholder = c.agentSecretSet ? '(saved — enter to change)' : 'Enter secret key'
+      } catch {}
+    }
+
+    document.getElementById('btnSaveConfig').addEventListener('click', async () => {
+      const body = {
+        deviceIp: document.getElementById('cfgDeviceIp').value.trim(),
+        devicePort: document.getElementById('cfgDevicePort').value,
+        vercelUrl: document.getElementById('cfgVercelUrl').value.trim(),
+        agentSecret: document.getElementById('cfgSecret').value || '***'
+      }
+      const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (res.ok) { showToast('Settings saved'); loadStatus() }
+      else showToast('Failed to save', 'error')
+    })
+
+    document.getElementById('btnTestDevice').addEventListener('click', async () => {
+      const btn = document.getElementById('btnTestDevice')
+      btn.disabled = true; btn.textContent = 'Testing…'
+      const res = await fetch('/api/test-device', { method: 'POST' })
+      const data = await res.json()
+      btn.disabled = false; btn.textContent = 'Test Device Connection'
+      const el = document.getElementById('actionResult')
+      el.innerHTML = data.ok
+        ? `<div class="alert alert-success">✓ Device connected successfully</div>`
+        : `<div class="alert alert-error">✗ ${data.error}</div>`
+      loadStatus()
+    })
+
+    document.getElementById('btnSyncAtt').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSyncAtt')
+      btn.disabled = true; btn.textContent = 'Syncing…'
+      const res = await fetch('/api/sync-attendance', { method: 'POST' })
+      const data = await res.json()
+      btn.disabled = false; btn.textContent = 'Sync Attendance Now'
+      const el = document.getElementById('actionResult')
+      el.innerHTML = data.error
+        ? `<div class="alert alert-error">✗ ${data.error}</div>`
+        : `<div class="alert alert-success">✓ Synced ${data.synced} new record${data.synced === 1 ? '' : 's'}</div>`
+      loadStatus()
+    })
+
+    document.getElementById('btnSyncStaff').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSyncStaff')
+      btn.disabled = true; btn.textContent = 'Pushing…'
+      const res = await fetch('/api/sync-staff', { method: 'POST' })
+      const data = await res.json()
+      btn.disabled = false; btn.textContent = 'Push Staff to Device'
+      const el = document.getElementById('actionResult')
+      el.innerHTML = data.error
+        ? `<div class="alert alert-error">✗ ${data.error}</div>`
+        : `<div class="alert alert-success">✓ Pushed ${data.pushed} staff member${data.pushed === 1 ? '' : 's'} (${data.skipped} already on device)</div>`
+      loadStatus()
+    })
+
+    // Poll status every 10 seconds
+    loadStatus()
+    loadConfig()
+    setInterval(loadStatus, 10000)
+  </script>
+</body>
+</html>
