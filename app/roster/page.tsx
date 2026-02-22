@@ -120,6 +120,12 @@ export default function RosterPage() {
   const [sendToOpen, setSendToOpen] = useState(false)
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
+  const [showDayOffModal, setShowDayOffModal] = useState(false)
+  const [dayOffStaffId, setDayOffStaffId] = useState('')
+  const [dayOffDate, setDayOffDate] = useState('')
+  const [dayOffReason, setDayOffReason] = useState('')
+  const [savingDayOff, setSavingDayOff] = useState(false)
+  const [dayOffSuccess, setDayOffSuccess] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -660,6 +666,31 @@ export default function RosterPage() {
     [displayStaff]
   )
 
+  const handleAddDayOff = async () => {
+    if (!dayOffStaffId || !dayOffDate) return
+    setSavingDayOff(true)
+    try {
+      const res = await fetch(`/api/staff/${dayOffStaffId}/day-off`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to save day off request')
+      }
+      setDayOffSuccess(true)
+      setDayOffDate('')
+      setDayOffReason('')
+      setTimeout(() => setDayOffSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error saving day off request', err)
+      alert(err instanceof Error ? err.message : 'Failed to save day off request')
+    } finally {
+      setSavingDayOff(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
@@ -670,12 +701,27 @@ export default function RosterPage() {
               Weekly staff roster using existing Staff as source of truth.
             </p>
           </div>
-          <a
-            href="/roster/templates"
-            className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 inline-block"
-          >
-            Shift Presets
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
+                setDayOffDate(formatInputDate(new Date()))
+                setDayOffReason('')
+                setDayOffSuccess(false)
+                setShowDayOffModal(true)
+              }}
+              className="px-4 py-2 bg-amber-500 text-white rounded font-semibold hover:bg-amber-600"
+            >
+              + Day Off Request
+            </button>
+            <a
+              href="/roster/templates"
+              className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 inline-block"
+            >
+              Shift Presets
+            </a>
+          </div>
         </div>
 
         {/* Week picker and actions */}
@@ -1035,6 +1081,103 @@ export default function RosterPage() {
             </div>
           )}
         </div>
+
+        {/* Day Off Request Modal */}
+        {showDayOffModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowDayOffModal(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="day-off-modal-title"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 id="day-off-modal-title" className="text-lg font-semibold text-gray-900">
+                  Day Off Request
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowDayOffModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
+                  <select
+                    value={dayOffStaffId}
+                    onChange={(e) => setDayOffStaffId(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="">— Select staff —</option>
+                    {allStaff
+                      .filter((s) => s.status === 'active' && s.role !== 'manager')
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.firstName?.trim() || s.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={dayOffDate}
+                    onChange={(e) => setDayOffDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={dayOffReason}
+                    onChange={(e) => setDayOffReason(e.target.value)}
+                    placeholder="e.g. Doctor appointment"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleAddDayOff() }}
+                  />
+                </div>
+
+                {dayOffSuccess && (
+                  <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                    Day off request saved successfully.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end mt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowDayOffModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAddDayOff()}
+                  disabled={!dayOffStaffId || !dayOffDate || savingDayOff}
+                  className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
+                >
+                  {savingDayOff ? 'Saving…' : 'Save Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Hidden display-only roster view for PNG/WhatsApp (no dropdowns) */}
         <div className="fixed -left-[9999px] -top-[9999px]" aria-hidden="true">
