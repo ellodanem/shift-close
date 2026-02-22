@@ -232,6 +232,14 @@ export default function DaysPage() {
 
   const filteredReports = getFilteredReports()
   
+  const OS_THRESHOLD = 20
+
+  const getOsColor = (amount: number) => {
+    if (Math.abs(amount) <= OS_THRESHOLD) return 'text-green-600'
+    if (amount > 0) return 'text-blue-600'
+    return 'text-red-600'
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Complete':
@@ -548,10 +556,7 @@ export default function DaysPage() {
                               <span className="text-sm text-gray-500 flex flex-wrap gap-x-3 gap-y-1 items-center">
                                 <span>
                                   O/S:&nbsp;
-                                  <span className={`font-semibold ${
-                                    dayReport.totals.overShortTotal > 0 ? 'text-green-600' :
-                                    dayReport.totals.overShortTotal < 0 ? 'text-red-600' : 'text-gray-700'
-                                  }`}>
+                                  <span className={`font-semibold ${getOsColor(dayReport.totals.overShortTotal)}`}>
                                     {formatCurrency(dayReport.totals.overShortTotal)}
                                   </span>
                                 </span>
@@ -606,10 +611,7 @@ export default function DaysPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <p className="text-sm text-gray-600">Total Over/Short</p>
-                        <p className={`text-lg font-bold ${
-                          dayReport.totals.overShortTotal > 0 ? 'text-green-600' : 
-                          dayReport.totals.overShortTotal < 0 ? 'text-red-600' : 'text-gray-900'
-                        }`}>
+                        <p className={`text-lg font-bold ${getOsColor(dayReport.totals.overShortTotal)}`}>
                           {formatCurrency(dayReport.totals.overShortTotal)}
                         </p>
                       </div>
@@ -912,10 +914,7 @@ export default function DaysPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
                               <div>
                                 <span className="text-gray-600">Over/Short: </span>
-                                <span className={`font-semibold ${
-                                  shift.overShortTotal > 0 ? 'text-green-600' :
-                                  shift.overShortTotal < 0 ? 'text-red-600' : 'text-gray-900'
-                                }`}>
+                                <span className={`font-semibold ${getOsColor(shift.overShortTotal)}`}>
                                   {formatCurrency(shift.overShortTotal)}
                                 </span>
                               </div>
