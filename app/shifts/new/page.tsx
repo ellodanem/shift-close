@@ -804,8 +804,8 @@ export default function NewShiftPage() {
           {/* File Uploads - Moved to Day Reports */}
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-gray-700">
-              <strong>Note:</strong> Document scans (deposit and debit) are now managed at the Day Reports level. 
-              You can upload them after closing the shift on the Day Reports page.
+              <strong>Note:</strong> Document scans (deposit and debit) are now managed at the End of Day level.
+              You can upload them after closing the shift on the End of Day page.
             </p>
           </div>
           

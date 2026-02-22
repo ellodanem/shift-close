@@ -1345,20 +1345,20 @@ export default function ShiftDetailPage() {
           )}
         </div>
         
-        {/* Document Scans - Link to Day Report */}
+        {/* Document Scans - Link to End of Day */}
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">📄 Document Scans</h3>
               <p className="text-sm text-gray-600">
-                View and manage deposit and debit scans for this day on the Day Report page.
+                View and manage deposit and debit scans for this day on the End of Day page.
               </p>
             </div>
             <button
               onClick={() => router.push('/days')}
               className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 whitespace-nowrap ml-4"
             >
-              View Day Report
+              View End of Day
             </button>
           </div>
         </div>

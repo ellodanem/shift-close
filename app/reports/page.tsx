@@ -67,7 +67,7 @@ export default function ReportsPage() {
     },
     {
       id: 'day',
-      title: 'Day Reports',
+      title: 'End of Day',
       description: 'Aggregated daily reports with completeness validation',
       icon: '📊',
       comingSoon: false,

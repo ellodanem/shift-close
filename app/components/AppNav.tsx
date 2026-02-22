@@ -11,7 +11,7 @@ const navConfig = [
     items: [
       { label: 'Dashboard', href: '/dashboard', permission: 'dashboard' },
       { label: 'Shifts', href: '/shifts', permission: 'shifts' },
-      { label: 'Days', href: '/days', permission: 'days' },
+      { label: 'End of Day', href: '/days', permission: 'days' },
     ],
   },
   {

@@ -255,7 +255,7 @@ export default function DaysPage() {
     
     // Day Summary
     const summaryData = [
-      ['Day Report'],
+      ['End of Day'],
       ['Date', dayReport.date],
       ['Day Type', dayReport.dayType],
       ['Status', dayReport.status],
@@ -405,7 +405,7 @@ export default function DaysPage() {
       )}
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">Day Reports</h1>
+          <h1 className="text-3xl font-bold text-gray-900">End of Day</h1>
         </div>
         
         {/* Filter Buttons */}
@@ -507,7 +507,7 @@ export default function DaysPage() {
           </div>
           {activeFilter !== 'all' && (
             <span className="text-sm text-gray-600 ml-2">
-              ({filteredReports.length} day report{filteredReports.length !== 1 ? 's' : ''})
+              ({filteredReports.length} end of day{filteredReports.length !== 1 ? 's' : ''})
             </span>
           )}
           <button
@@ -521,11 +521,11 @@ export default function DaysPage() {
         
         {dayReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
-            No day reports found. Create shifts to generate day reports.
+            No end of day records found. Create shifts to generate end of day records.
           </div>
         ) : filteredReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
-            No day reports found for the selected filter.
+            No end of day records found for the selected filter.
           </div>
         ) : (
           <div className="space-y-4">

@@ -468,7 +468,7 @@ export default function ShiftsPage() {
                   </p>
                   <ul className="list-disc list-inside text-gray-700 mb-6 space-y-1">
                     <li>All shift records</li>
-                    <li>All day reports</li>
+                    <li>All end of day records</li>
                     <li>All corrections</li>
                     <li>All uploaded files</li>
                   </ul>
@@ -540,7 +540,7 @@ export default function ShiftsPage() {
                     <strong className="text-red-600">This is your last chance to cancel.</strong>
                   </p>
                   <p className="text-gray-700 mb-6">
-                    Clicking "Confirm Delete" will immediately and permanently delete all shifts, day reports, corrections, and uploaded files. This cannot be reversed.
+                    Clicking "Confirm Delete" will immediately and permanently delete all shifts, end of day records, corrections, and uploaded files. This cannot be reversed.
                   </p>
                   <div className="flex gap-3">
                     <button
