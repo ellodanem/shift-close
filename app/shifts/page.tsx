@@ -430,11 +430,11 @@ export default function ShiftsPage() {
                           </span>
                         ) : (
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                            overShort === 0
+                            netOS === 0
                               ? 'bg-green-100 text-green-800 border border-green-300'
                               : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
                           }`}>
-                            {overShort === 0 ? 'OK' : 'Needs review'}
+                            {netOS === 0 ? 'OK' : 'Needs review'}
                           </span>
                         )}
                       </td>
