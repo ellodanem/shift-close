@@ -32,7 +32,7 @@ export async function GET() {
         where: { weekStart },
         include: {
           entries: {
-            where: { date: today },
+            where: { date: today, staff: { status: 'active' } },
             include: {
               staff: { select: { id: true, name: true } },
               shiftTemplate: { select: { id: true, name: true, color: true } }

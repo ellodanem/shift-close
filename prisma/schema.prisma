@@ -132,8 +132,13 @@ model OverShortItem {
   sortOrder   Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  // Cheque balance carry-forward fields (only populated when itemKind = "cheque_balance")
-  itemKind         String  @default("standard") @map("item_kind") // "standard" | "cheque_balance"
+  // Account Activity category fields
+  // itemKind: "cheque_received" | "debit_received" | "fuel_taken" | "withdrawal" | "return" | "other" | "standard" (legacy)
+  itemKind         String  @default("other") @map("item_kind")
+  // paymentMethod: "cheque" | "debit" — only used for account-balance items
+  paymentMethod    String? @map("payment_method")
+  // noteOnly: debit items don't affect O/S math
+  noteOnly         Boolean @default(false) @map("note_only")
   customerName     String? @map("customer_name")
   previousBalance  Float?  @map("previous_balance")
   dispensedAmount  Float?  @map("dispensed_amount")

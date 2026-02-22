@@ -5,41 +5,37 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/shifts/cheque-balances
- * Returns the most recent cheque balance entry per customer name
+ * Returns the most recent account balance per customer (cheque or debit)
  * where newBalance > 0 — used to auto-fill "Previous Balance" in the modal.
- *
- * Response: Array<{ customerName, newBalance, shiftDate, shiftPeriod }>
  */
 export async function GET() {
   try {
-    // Get all cheque_balance items that have a positive newBalance, most recent first
     const items = await prisma.overShortItem.findMany({
       where: {
-        itemKind: 'cheque_balance',
+        itemKind: { in: ['cheque_received', 'debit_received', 'fuel_taken', 'cheque_balance'] },
         newBalance: { gt: 0 }
       },
       include: {
-        shift: {
-          select: { date: true, shift: true }
-        }
+        shift: { select: { date: true, shift: true } }
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    // Deduplicate: keep only the most recent entry per customerName
     const seen = new Map<string, {
       customerName: string
       newBalance: number
+      paymentMethod: string
       shiftDate: string
       shiftPeriod: string
     }>()
 
     for (const item of items) {
-      const name = (item.customerName || '').toLowerCase()
-      if (!seen.has(name) && item.customerName && item.newBalance != null) {
-        seen.set(name, {
+      const key = (item.customerName || '').toLowerCase()
+      if (!seen.has(key) && item.customerName && item.newBalance != null) {
+        seen.set(key, {
           customerName: item.customerName,
           newBalance: item.newBalance,
+          paymentMethod: item.paymentMethod || 'cheque',
           shiftDate: item.shift.date,
           shiftPeriod: item.shift.shift
         })
@@ -48,7 +44,7 @@ export async function GET() {
 
     return NextResponse.json(Array.from(seen.values()))
   } catch (error) {
-    console.error('Error fetching cheque balances:', error)
+    console.error('Error fetching account balances:', error)
     return NextResponse.json({ error: 'Failed to fetch balances' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { DayReport } from '@/lib/types'
+import { computeNetOverShort } from '@/lib/calculations'
 
 // Always run on the server so Day Reports show latest shift updates (no static/cache)
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,10 @@ export async function GET() {
   try {
     const shifts = await prisma.shiftClose.findMany({
       orderBy: { date: 'desc' },
-      include: { corrections: true }
+      include: {
+        corrections: true,
+        overShortItems: true
+      }
     })
     
     // Group by date
@@ -55,7 +59,13 @@ export async function GET() {
       }
       
       const totals = {
-        overShortTotal: dayShifts.reduce((sum, s) => sum + (s.overShortTotal || 0), 0),
+        overShortTotal: dayShifts.reduce((sum, s) => {
+          const net = computeNetOverShort(
+            s.overShortTotal || 0,
+            (s.overShortItems ?? []).map(i => ({ type: i.type, amount: i.amount, noteOnly: i.noteOnly ?? false }))
+          )
+          return sum + net
+        }, 0),
         totalDeposits: dayShifts.reduce((sum, s) => sum + (s.totalDeposits || 0), 0),
         // Total Credit should reflect the separate Credit field in "Other Items", not the main table "Credits" row
         totalCredit: dayShifts.reduce((sum, s) => sum + s.otherCredit, 0),
@@ -125,10 +135,13 @@ export async function GET() {
           deposits: JSON.parse(s.deposits),
           notes: s.notes,
           overShortCash: s.overShortCash || 0,
-          overShortTotal: s.overShortTotal || 0,
+          overShortTotal: computeNetOverShort(
+            s.overShortTotal || 0,
+            (s.overShortItems ?? []).map(i => ({ type: i.type, amount: i.amount, noteOnly: i.noteOnly ?? false }))
+          ),
           totalDeposits: s.totalDeposits || 0,
           createdAt: s.createdAt,
-          hasRedFlag: (s.overShortTotal || 0) !== 0 && s.notes.trim() === ""
+          hasRedFlag: false
         })),
         totals,
         depositScans,

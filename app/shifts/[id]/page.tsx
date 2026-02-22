@@ -64,6 +64,8 @@ interface Shift {
     description: string
     sortOrder: number
     itemKind?: string
+    paymentMethod?: string | null
+    noteOnly?: boolean
     customerName?: string | null
     previousBalance?: number | null
     dispensedAmount?: number | null
@@ -82,18 +84,20 @@ export default function ShiftDetailPage() {
   const [overShortExplanationDraft, setOverShortExplanationDraft] = useState('')
   const [showOverShortModal, setShowOverShortModal] = useState(false)
   const [showAddOverShortModal, setShowAddOverShortModal] = useState(false)
-  const [addOverShortType, setAddOverShortType] = useState<'overage' | 'shortage'>('overage')
-  const [addOverShortAmount, setAddOverShortAmount] = useState('')
-  const [addOverShortDescription, setAddOverShortDescription] = useState('')
   const [savingOverShortItem, setSavingOverShortItem] = useState(false)
-  // Cheque balance fields
-  const [addItemKind, setAddItemKind] = useState<'standard' | 'cheque_balance'>('standard')
-  const [chequeTransactionType, setChequeTransactionType] = useState<'received' | 'dispensed'>('dispensed')
-  const [chequeCustomerName, setChequeCustomerName] = useState('')
-  const [chequePreviousBalance, setChequePreviousBalance] = useState('')
-  const [chequeDispensed, setChequeDispensed] = useState('')
-  const [chequeNewBalance, setChequeNewBalance] = useState('')
-  const [chequeBalances, setChequeBalances] = useState<Array<{ customerName: string; newBalance: number; shiftDate: string; shiftPeriod: string }>>([])
+  // Account Activity add item state
+  type ItemKind = 'cheque_received' | 'debit_received' | 'fuel_taken' | 'withdrawal' | 'return' | 'other' | null
+  const [selectedKind, setSelectedKind] = useState<ItemKind>(null)
+  const [acctCustomerName, setAcctCustomerName] = useState('')
+  const [acctPaymentMethod, setAcctPaymentMethod] = useState<'cheque' | 'debit'>('cheque')
+  const [acctPreviousBalance, setAcctPreviousBalance] = useState('')
+  const [acctAmount, setAcctAmount] = useState('')
+  const [acctNewBalance, setAcctNewBalance] = useState('')
+  const [acctDescription, setAcctDescription] = useState('')
+  const [acctOtherType, setAcctOtherType] = useState<'overage' | 'shortage'>('shortage')
+  const [acctBalances, setAcctBalances] = useState<Array<{ customerName: string; newBalance: number; paymentMethod: string; shiftDate: string; shiftPeriod: string }>>([])
+  // Keep legacy cheque state names for backward compat with cheque-balances fetch
+  const chequeBalances = acctBalances
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
@@ -224,13 +228,24 @@ export default function ShiftDetailPage() {
     }
   }, [params.id])
 
-  // Fetch outstanding cheque balances for carry-forward auto-fill
+  // Fetch outstanding account balances for carry-forward auto-fill
   useEffect(() => {
     fetch('/api/shifts/cheque-balances')
       .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setChequeBalances(data) })
+      .then(data => { if (Array.isArray(data)) setAcctBalances(data) })
       .catch(() => {})
   }, [])
+
+  function resetAddItemState() {
+    setSelectedKind(null)
+    setAcctCustomerName('')
+    setAcctPaymentMethod('cheque')
+    setAcctPreviousBalance('')
+    setAcctAmount('')
+    setAcctNewBalance('')
+    setAcctDescription('')
+    setAcctOtherType('shortage')
+  }
 
   // Fetch supervisors and managers for the supervisor dropdown
   useEffect(() => {
@@ -1653,15 +1668,20 @@ export default function ShiftDetailPage() {
         </div>
       )}
 
-      {/* Add Over/Short Item Modal */}
+      {/* Add Account Activity Item Modal */}
       {showAddOverShortModal && shift && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">Add Explained Item</h3>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-4 py-3 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm">Add Account Activity Item</h3>
+                {selectedKind && (
+                  <button type="button" onClick={() => setSelectedKind(null)} className="text-xs text-blue-600 hover:underline mt-0.5">← Back</button>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={() => { setShowAddOverShortModal(false); setAddItemKind('standard'); setChequeTransactionType('dispensed') }}
+                onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }}
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
               >
                 ×

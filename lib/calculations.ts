@@ -40,6 +40,20 @@ export function calculateShiftClose(input: ShiftCloseInput): Omit<ShiftCloseWith
   }
 }
 
+/**
+ * Computes the net (unexplained) Over/Short after applying Account Activity items.
+ * noteOnly items (e.g. debit received) do not affect the math.
+ */
+export function computeNetOverShort(
+  rawOS: number,
+  items: Array<{ type: string; amount: number; noteOnly: boolean }>
+): number {
+  const explained = items
+    .filter(i => !i.noteOnly)
+    .reduce((sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount), 0)
+  return rawOS - explained
+}
+
 export function getStatusColor(overShort: number, isExplained: boolean): "green" | "amber" | "red" {
   if (overShort === 0) return "green"
   if (isExplained) return "amber"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateShiftClose } from '@/lib/calculations'
+import { calculateShiftClose, computeNetOverShort } from '@/lib/calculations'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -68,11 +68,20 @@ export async function GET() {
         }
       }
       
+      const netOverShort = computeNetOverShort(
+        shift.overShortTotal || 0,
+        (shift.overShortItems ?? []).map(i => ({
+          type: i.type,
+          amount: i.amount,
+          noteOnly: i.noteOnly ?? false
+        }))
+      )
       return {
         ...shift,
         totalDeposits: recalculatedTotalDeposits,
         hasDayDepositScans: dayDepositScanStatus.get(shift.date) || false,
-        hasDayDebitScans: dayDebitScanStatus.get(shift.date) || false
+        hasDayDebitScans: dayDebitScanStatus.get(shift.date) || false,
+        netOverShort
       }
     })
     

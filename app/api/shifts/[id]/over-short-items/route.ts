@@ -3,6 +3,37 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+// Categories that carry account balances
+const ACCOUNT_KINDS = ['cheque_received', 'debit_received', 'fuel_taken']
+// Debit items are note-only (cashier already added to debit count column)
+const NOTE_ONLY_KINDS = ['debit_received', 'fuel_taken_debit']
+
+// Determine type (overage/shortage) and noteOnly from itemKind + paymentMethod
+function resolveItemMeta(
+  itemKind: string,
+  paymentMethod: string | undefined
+): { type: string; noteOnly: boolean } {
+  switch (itemKind) {
+    case 'cheque_received':
+      return { type: 'overage', noteOnly: false }
+    case 'debit_received':
+      return { type: 'overage', noteOnly: true }
+    case 'fuel_taken':
+      // Fuel taken against a debit account is note-only; cheque is a real shortage
+      return {
+        type: 'shortage',
+        noteOnly: paymentMethod === 'debit'
+      }
+    case 'withdrawal':
+      return { type: 'shortage', noteOnly: false }
+    case 'return':
+      return { type: 'overage', noteOnly: false }
+    case 'other':
+    default:
+      return { type: 'overage', noteOnly: false } // caller overrides type for 'other'
+  }
+}
+
 /** GET - List over/short items for a shift */
 export async function GET(
   request: NextRequest,
@@ -14,9 +45,8 @@ export async function GET(
       where: { id: shiftId },
       select: { id: true }
     })
-    if (!shift) {
-      return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
-    }
+    if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
+
     const items = await prisma.overShortItem.findMany({
       where: { shiftId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
@@ -28,7 +58,7 @@ export async function GET(
   }
 }
 
-/** POST - Create over/short item (standard or cheque balance) */
+/** POST - Create over/short item */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -38,43 +68,47 @@ export async function POST(
     const body = await request.json()
 
     const {
-      type,
+      itemKind = 'other',
+      paymentMethod,
       amount,
       description,
-      itemKind,
+      type: typeOverride, // only used for 'other' kind
       customerName,
       previousBalance,
       dispensedAmount,
       newBalance
     } = body as {
-      type?: string
+      itemKind?: string
+      paymentMethod?: string
       amount?: number
       description?: string
-      itemKind?: string
+      type?: string
       customerName?: string
       previousBalance?: number
       dispensedAmount?: number
       newBalance?: number
     }
 
-    const kind = itemKind === 'cheque_balance' ? 'cheque_balance' : 'standard'
+    // Resolve type and noteOnly from category
+    const { type: resolvedType, noteOnly } = resolveItemMeta(itemKind, paymentMethod)
+    const finalType = itemKind === 'other' && typeOverride ? typeOverride : resolvedType
 
-    if (!type || !['overage', 'shortage'].includes(type)) {
-      return NextResponse.json({ error: 'type must be "overage" or "shortage"' }, { status: 400 })
+    const amt = Math.abs(Number(amount) || 0)
+
+    // Validate amount — note-only items can have zero amount (it's just a log)
+    if (!noteOnly && amt <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 })
     }
 
-    const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : Number(amount)
-    if (amt <= 0) {
-      return NextResponse.json({ error: 'amount must be greater than 0' }, { status: 400 })
-    }
-
-    if (kind === 'cheque_balance') {
-      if (!customerName || !String(customerName).trim()) {
-        return NextResponse.json({ error: 'Customer name is required for cheque balance items' }, { status: 400 })
+    // Validate description / customer name
+    const isAccountKind = ACCOUNT_KINDS.includes(itemKind)
+    if (isAccountKind) {
+      if (!customerName?.trim()) {
+        return NextResponse.json({ error: 'Customer name is required' }, { status: 400 })
       }
     } else {
-      if (!description || !String(description).trim()) {
-        return NextResponse.json({ error: 'description is required' }, { status: 400 })
+      if (!description?.trim() && itemKind !== 'withdrawal' && itemKind !== 'return') {
+        // withdrawal and return can have empty description (who is optional)
       }
     }
 
@@ -82,9 +116,7 @@ export async function POST(
       where: { id: shiftId },
       select: { id: true }
     })
-    if (!shift) {
-      return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
-    }
+    if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
 
     const maxOrder = await prisma.overShortItem.findFirst({
       where: { shiftId },
@@ -92,24 +124,36 @@ export async function POST(
       select: { sortOrder: true }
     })
 
-    const descriptionText = kind === 'cheque_balance'
-      ? `${String(customerName).trim()} cheque${newBalance != null && newBalance > 0 ? ` (new bal $${Number(newBalance).toFixed(2)})` : ''}`
-      : String(description).trim()
+    // Auto-build description for account items
+    let finalDescription = (description || '').trim()
+    if (isAccountKind && customerName) {
+      const name = customerName.trim()
+      if (itemKind === 'cheque_received') finalDescription = `${name} — cheque received`
+      else if (itemKind === 'debit_received') finalDescription = `${name} — debit pre-auth`
+      else if (itemKind === 'fuel_taken') {
+        const method = paymentMethod === 'debit' ? 'debit account' : 'cheque account'
+        finalDescription = `${name} — fuel/cash from ${method}`
+        if (newBalance != null && newBalance > 0) finalDescription += ` (bal $${Number(newBalance).toFixed(2)})`
+      }
+    }
 
     const item = await prisma.overShortItem.create({
       data: {
         shiftId,
-        type,
-        amount: amt,
-        description: descriptionText,
+        type: finalType,
+        amount: noteOnly ? 0 : amt, // note-only items have zero financial impact
+        description: finalDescription,
         sortOrder: (maxOrder?.sortOrder ?? -1) + 1,
-        itemKind: kind,
-        customerName: kind === 'cheque_balance' ? String(customerName).trim() : null,
-        previousBalance: kind === 'cheque_balance' && previousBalance != null ? Number(previousBalance) : null,
-        dispensedAmount: kind === 'cheque_balance' && dispensedAmount != null ? Number(dispensedAmount) : null,
-        newBalance: kind === 'cheque_balance' && newBalance != null ? Number(newBalance) : null
+        itemKind,
+        paymentMethod: paymentMethod || null,
+        noteOnly,
+        customerName: customerName?.trim() || null,
+        previousBalance: previousBalance != null ? Number(previousBalance) : null,
+        dispensedAmount: dispensedAmount != null ? Number(dispensedAmount) : null,
+        newBalance: newBalance != null ? Number(newBalance) : null
       }
     })
+
     return NextResponse.json(item, { status: 201 })
   } catch (error) {
     console.error('Error creating over-short item:', error)
