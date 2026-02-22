@@ -51,11 +51,6 @@ export default function DaysPage() {
       .then(res => res.json())
       .then(data => {
         setDayReports(data)
-        // Auto-expand only the most recent day; collapse everything else
-        if (Array.isArray(data) && data.length > 0) {
-          const mostRecent = data.reduce((a: DayReport, b: DayReport) => a.date > b.date ? a : b)
-          setExpandedDates(new Set([mostRecent.date]))
-        }
         setLoading(false)
       })
       .catch(err => {
@@ -539,10 +534,10 @@ export default function DaysPage() {
                     className="p-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
                     onClick={() => toggleExpand(dayReport.date)}
                   >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-gray-400 text-lg">{isExpanded ? '▼' : '▶'}</span>
-                        <div>
+                    <div className="flex justify-between items-center gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-gray-400 text-lg flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                        <div className="min-w-0">
                           <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
                           <div className="mt-1 flex flex-wrap gap-3 items-center">
                             {getStatusBadge(dayReport.status)}
@@ -550,27 +545,55 @@ export default function DaysPage() {
                               {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
                             </span>
                             {!isExpanded && (
-                              <span className="text-sm text-gray-500">
-                                O/S:&nbsp;
-                                <span className={`font-semibold ${
-                                  dayReport.totals.overShortTotal > 0 ? 'text-green-600' :
-                                  dayReport.totals.overShortTotal < 0 ? 'text-red-600' : 'text-gray-700'
-                                }`}>
-                                  {formatCurrency(dayReport.totals.overShortTotal)}
+                              <span className="text-sm text-gray-500 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                                <span>
+                                  O/S:&nbsp;
+                                  <span className={`font-semibold ${
+                                    dayReport.totals.overShortTotal > 0 ? 'text-green-600' :
+                                    dayReport.totals.overShortTotal < 0 ? 'text-red-600' : 'text-gray-700'
+                                  }`}>
+                                    {formatCurrency(dayReport.totals.overShortTotal)}
+                                  </span>
                                 </span>
-                                &nbsp;· Deposits:&nbsp;
-                                <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDeposits)}</span>
+                                <span>Deposits: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDeposits)}</span></span>
+                                <span>Credit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalCredit)}</span></span>
+                                <span>Debit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDebit)}</span></span>
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
-                        className="px-4 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
-                      >
-                        Export Excel
-                      </button>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {/* Deposit & Debit slip upload indicators — collapsed only */}
+                        {!isExpanded && (
+                          <div className="flex items-center gap-2">
+                            {/* Deposit slip icon */}
+                            <div className="relative" title={dayReport.depositScans.length > 0 ? `${dayReport.depositScans.length} deposit slip(s) uploaded` : 'No deposit slips uploaded'}>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.depositScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}>
+                                {dayReport.depositScans.length > 0 ? '✓' : '✕'}
+                              </span>
+                            </div>
+                            {/* Debit slip icon */}
+                            <div className="relative" title={dayReport.debitScans.length > 0 ? `${dayReport.debitScans.length} debit slip(s) uploaded` : 'No debit slips uploaded'}>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                              </svg>
+                              <span className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.debitScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}>
+                                {dayReport.debitScans.length > 0 ? '✓' : '✕'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
+                          className="px-4 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
+                        >
+                          Export Excel
+                        </button>
+                      </div>
                     </div>
                   </div>
 
