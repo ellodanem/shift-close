@@ -119,6 +119,7 @@ export default function RosterPage() {
   const [sharing, setSharing] = useState(false)
   const [sendToOpen, setSendToOpen] = useState(false)
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
+  const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -181,6 +182,14 @@ export default function RosterPage() {
     }
     loadStatic()
   }, [])
+
+  // Close fill-week popover when clicking outside
+  useEffect(() => {
+    if (!fillWeekPopover) return
+    const handler = () => setFillWeekPopover(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [fillWeekPopover])
 
   // Load roster entries whenever weekStart changes
   useEffect(() => {
@@ -312,7 +321,28 @@ export default function RosterPage() {
     })
   }
 
+  const fillWeekForStaff = (staffId: string, shiftTemplateId: string | null) => {
+    const staff = allStaff.find((s) => s.id === staffId)
+    setEntries((prev) => {
+      let next = [...prev]
+      for (const date of weekDates) {
+        if (staff && isOnVacation(staff, date)) continue
+        const existing = next.find((e) => e.staffId === staffId && e.date === date)
+        if (existing) {
+          next = next.map((e) => (e === existing ? { ...e, shiftTemplateId } : e))
+        } else {
+          next = [...next, { staffId, date, shiftTemplateId, position: null, notes: '' }]
+        }
+      }
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = setTimeout(() => { void handleSave(next) }, 300)
+      return next
+    })
+    setFillWeekPopover(null)
+  }
+
   const handleChangeWeek = (direction: -1 | 1) => {
+    setFillWeekPopover(null)
     setWeekStart((current) => addDays(current, direction * 7))
   }
 
@@ -905,6 +935,55 @@ export default function RosterPage() {
                           </div>
                           <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
                         </div>
+                        {!isPastWeek && (
+                          <div className="relative ml-1">
+                            <button
+                              title="Fill entire week"
+                              onClick={() =>
+                                setFillWeekPopover(
+                                  fillWeekPopover?.staffId === s.id
+                                    ? null
+                                    : { staffId: s.id, shiftId: templates[0]?.id ?? '' }
+                                )
+                              }
+                              className="text-gray-400 hover:text-blue-600 text-xs px-1 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                            >
+                              ↔
+                            </button>
+                            {fillWeekPopover?.staffId === s.id && (
+                              <div
+                                className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 w-44"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <p className="text-xs font-semibold text-gray-700 mb-2">Fill entire week</p>
+                                <select
+                                  value={fillWeekPopover.shiftId}
+                                  onChange={(e) => setFillWeekPopover({ ...fillWeekPopover, shiftId: e.target.value })}
+                                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs mb-2"
+                                >
+                                  <option value="">Off</option>
+                                  {templates.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => fillWeekForStaff(s.id, fillWeekPopover.shiftId || null)}
+                                    className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+                                  >
+                                    Apply
+                                  </button>
+                                  <button
+                                    onClick={() => setFillWeekPopover(null)}
+                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                       {weekDates.map((date) => {
                         const onVacation = isOnVacation(s, date)
