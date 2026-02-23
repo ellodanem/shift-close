@@ -117,7 +117,8 @@ export default function RosterPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
-  const [sendToOpen, setSendToOpen] = useState(false)
+  const [shareMenuOpen, setShareMenuOpen] = useState(false)
+  const [smsSubmenuOpen, setSmsSubmenuOpen] = useState(false)
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const [showDayOffModal, setShowDayOffModal] = useState(false)
@@ -231,6 +232,15 @@ export default function RosterPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [copyConfirmOpen])
+
+  useEffect(() => {
+    if (!shareMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShareMenuOpen(false); setSmsSubmenuOpen(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [shareMenuOpen])
 
   const getEntryFor = (staffId: string, date: string): RosterEntry | undefined =>
     entries.find((e) => e.staffId === staffId && e.date === date)
@@ -658,7 +668,31 @@ export default function RosterPage() {
     const text = buildRosterText()
     const url = `https://wa.me/${num}?text=${encodeURIComponent(text)}`
     window.open(url, '_blank')
-    setSendToOpen(false)
+    setShareMenuOpen(false)
+  }
+
+  // Open sms: link to send roster text to a staff member's mobile
+  const handleSendSmsToStaff = (staff: Staff) => {
+    const num = staff.mobileNumber && mobileDigits(staff.mobileNumber)
+    if (!num) return
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first.')
+      return
+    }
+    const text = buildRosterText()
+    const url = `sms:${num}?body=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
+    setSmsSubmenuOpen(false)
+    setShareMenuOpen(false)
+  }
+
+  const handlePrintRoster = () => {
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first.')
+      return
+    }
+    window.print()
+    setShareMenuOpen(false)
   }
 
   const staffWithMobile = useMemo(
@@ -830,54 +864,78 @@ export default function RosterPage() {
               >
                 Clear week
               </button>
-              <button
-                onClick={handleWhatsAppShare}
-                disabled={sharing}
-                className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
-              >
-                WhatsApp (image)
-              </button>
-              <button
-                onClick={handleWhatsAppTextShare}
-                disabled={sharing || entries.length === 0}
-                className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
-              >
-                WhatsApp (text)
-              </button>
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setSendToOpen((o) => !o)}
-                  disabled={sharing || entries.length === 0 || staffWithMobile.length === 0}
-                  className="px-3 py-1.5 border border-green-600 text-green-700 rounded text-xs font-semibold hover:bg-green-50 disabled:opacity-60"
+                  onClick={() => setShareMenuOpen((o) => !o)}
+                  disabled={sharing || entries.length === 0}
+                  className="px-3 py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
                 >
-                  Send to staff ▼
+                  Share Roster ▼
                 </button>
-                {sendToOpen && (
+                {shareMenuOpen && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setSendToOpen(false)} aria-hidden />
-                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[180px] py-1 bg-white border border-gray-200 rounded shadow-lg">
-                      {staffWithMobile.map((s) => (
+                    <div className="fixed inset-0 z-10" onClick={() => { setShareMenuOpen(false); setSmsSubmenuOpen(false) }} aria-hidden />
+                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => { void handleWhatsAppShare(); setShareMenuOpen(false) }}
+                        disabled={sharing}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        WhatsApp (Image)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleWhatsAppTextShare(); setShareMenuOpen(false) }}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      >
+                        WhatsApp (Text)
+                      </button>
+                      <div className="relative">
                         <button
-                          key={s.id}
                           type="button"
-                          onClick={() => handleSendToStaff(s)}
-                          className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-green-50"
+                          onClick={() => setSmsSubmenuOpen((o) => !o)}
+                          disabled={staffWithMobile.length === 0}
+                          className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60 flex justify-between items-center"
                         >
-                          Send to {s.firstName?.trim() || s.name}
+                          SMS
+                          <span className="text-xs">{smsSubmenuOpen ? '▲' : '▶'}</span>
                         </button>
-                      ))}
+                        {smsSubmenuOpen && (
+                          <div className="absolute left-full top-0 ml-1 min-w-[160px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                            {staffWithMobile.map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => handleSendSmsToStaff(s)}
+                                className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                              >
+                                {s.firstName?.trim() || s.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { void handleEmailShare(); setShareMenuOpen(false) }}
+                        disabled={sharing}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        Email
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrintRoster}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      >
+                        Print
+                      </button>
                     </div>
                   </>
                 )}
               </div>
-              <button
-                onClick={handleEmailShare}
-                disabled={sharing}
-                className="px-3 py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
-              >
-                Email roster
-              </button>
               <span className="text-[11px] text-gray-500 min-w-[80px] text-right">
                 {isPastWeek ? 'Read-only' : saving ? 'Saving…' : 'All changes saved'}
               </span>
