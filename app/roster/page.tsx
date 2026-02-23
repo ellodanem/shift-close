@@ -686,13 +686,41 @@ export default function RosterPage() {
     setShareMenuOpen(false)
   }
 
-  const handlePrintRoster = () => {
+  const handlePrintRoster = async () => {
     if (entries.length === 0) {
       alert('There are no shifts saved for this week yet. Save the roster first.')
       return
     }
-    window.print()
     setShareMenuOpen(false)
+    try {
+      setSharing(true)
+      const dataUrl = await generateRosterImage()
+      const printWin = window.open('', '_blank')
+      if (!printWin) {
+        alert('Please allow pop-ups to print the roster.')
+        return
+      }
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Roster Print</title></head>
+          <body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">
+            <img src="${dataUrl}" alt="Roster" style="max-width:100%;height:auto;" />
+          </body>
+        </html>
+      `)
+      printWin.document.close()
+      printWin.focus()
+      setTimeout(() => {
+        printWin.print()
+        printWin.close()
+      }, 250)
+    } catch (err) {
+      console.error('Error printing roster', err)
+      alert('Failed to generate roster image for printing')
+    } finally {
+      setSharing(false)
+    }
   }
 
   const staffWithMobile = useMemo(
