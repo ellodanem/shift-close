@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { getMissingFields, isShiftFullyReviewed } from '@/lib/calculations'
+import { getMissingFields, isShiftFullyReviewed, computeNetOverShort, OS_REVIEW_THRESHOLD, calculateShiftClose } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
 
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
@@ -334,7 +334,17 @@ export default function ShiftDetailPage() {
   }, [editData, shift?.id, hasMissingHardCopyData, missingDataNotes, overShortExplained])
   
   const deposits = shift ? JSON.parse(shift.deposits) : []
-  const hasRedFlag = shift ? ((shift.overShortTotal || 0) !== 0 && !shift.overShortExplained) : false
+  const netOverShort = shift
+    ? computeNetOverShort(
+        shift.overShortTotal || 0,
+        (shift.overShortItems ?? []).map(i => ({
+          type: i.type,
+          amount: i.amount,
+          noteOnly: i.noteOnly ?? false
+        }))
+      )
+    : 0
+  const hasRedFlag = shift ? Math.abs(netOverShort) > OS_REVIEW_THRESHOLD : false
   const isDraft = shift?.status === 'draft'
   const isReopened = shift?.status === 'reopened'
   // Editable numeric fields when draft OR reopened (reopened edits are fully audited in backend)
@@ -413,11 +423,14 @@ export default function ShiftDetailPage() {
         notes: shift.notes,
         hasMissingHardCopyData: shift.hasMissingHardCopyData,
         missingDataNotes: shift.missingDataNotes,
-        overShortExplained: true,
-        overShortExplanation: overShortExplanationDraft,
         depositScanUrls: shift.depositScanUrls,
         debitScanUrls: shift.debitScanUrls,
-        missingFields
+        missingFields,
+        overShortItems: shift.overShortItems?.map(i => ({
+          type: i.type,
+          amount: i.amount,
+          noteOnly: i.noteOnly ?? false
+        }))
       })
       const payload: any = {
         overShortExplained: true,
@@ -479,7 +492,28 @@ export default function ShiftDetailPage() {
   const confirmCloseShift = async () => {
     setShowCloseConfirm(false)
     try {
-      // Save the current data and change status to closed
+      const missingFields = getMissingFields({
+        ...editData,
+        deposits: editData.deposits
+      })
+      const calculated = calculateShiftClose({
+        ...editData,
+        deposits: editData.deposits
+      } as any)
+      const fullyReviewed = isShiftFullyReviewed({
+        overShortTotal: calculated.overShortTotal,
+        notes: editData.notes,
+        hasMissingHardCopyData,
+        missingDataNotes,
+        missingFields,
+        overShortItems: shift?.overShortItems?.map(i => ({
+          type: i.type,
+          amount: i.amount,
+          noteOnly: i.noteOnly ?? false
+        }))
+      })
+      const statusToSet = fullyReviewed ? 'reviewed' : 'closed'
+
       const res = await fetch(`/api/shifts/${shift.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -487,7 +521,7 @@ export default function ShiftDetailPage() {
           ...editData,
           supervisorId: supervisorId || null,
           deposits: JSON.stringify(editData.deposits),
-          status: 'closed' // Change status to closed
+          status: statusToSet
         })
       })
       if (res.ok) {
@@ -679,7 +713,7 @@ export default function ShiftDetailPage() {
         {hasRedFlag && (
           <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded">
             <p className="text-yellow-900 font-bold text-lg">
-              ⚠️ Needs Review: Over/Short is not zero and has not been explained.
+              ⚠️ Needs Review: Unexplained over/short (${netOverShort.toFixed(2)}) exceeds ±${OS_REVIEW_THRESHOLD} threshold.
             </p>
           </div>
         )}

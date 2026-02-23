@@ -430,11 +430,11 @@ export default function ShiftsPage() {
                           </span>
                         ) : (
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                            netOS === 0
+                            Math.abs(netOS) <= OS_THRESHOLD
                               ? 'bg-green-100 text-green-800 border border-green-300'
                               : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
                           }`}>
-                            {netOS === 0 ? 'OK' : 'Needs review'}
+                            {Math.abs(netOS) <= OS_THRESHOLD ? 'OK' : 'Needs review'}
                           </span>
                         )}
                       </td>

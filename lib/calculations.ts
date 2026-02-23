@@ -204,38 +204,46 @@ export function canCloseShift(shift: {
   }
 }
 
+/** Unexplained over/short within this amount (dollars) does not require review */
+export const OS_REVIEW_THRESHOLD = 20
+
 /**
- * Check if a shift is fully reviewed (all conditions met for marking as reviewed)
+ * Check if a shift is fully reviewed (all conditions met for marking as reviewed).
+ * Uses net unexplained over/short (after Account Activity items) and threshold.
  */
 export function isShiftFullyReviewed(shift: {
   overShortTotal: number | null
   notes: string
   hasMissingHardCopyData?: boolean
   missingDataNotes?: string
-  overShortExplained: boolean
+  overShortExplained?: boolean
   overShortExplanation?: string | null
   depositScanUrls?: string
   debitScanUrls?: string
   missingFields: string[]
+  overShortItems?: Array<{ type: string; amount: number; noteOnly?: boolean }>
+  threshold?: number
 }): boolean {
-  // Must have over/short discrepancy explained if there is a non-zero over/short
-  const overShort = shift.overShortTotal || 0
-  if (overShort !== 0) {
-    if (!shift.overShortExplained) return false
-    if (!shift.overShortExplanation || shift.overShortExplanation.trim() === '') return false
-  }
-  
+  const threshold = shift.threshold ?? OS_REVIEW_THRESHOLD
+  const rawOS = shift.overShortTotal || 0
+  const items = (shift.overShortItems ?? []).map(i => ({
+    type: i.type,
+    amount: i.amount,
+    noteOnly: i.noteOnly ?? false
+  }))
+  const unexplained = computeNetOverShort(rawOS, items)
+
+  // Unexplained variance outside threshold requires review
+  if (Math.abs(unexplained) > threshold) return false
+
   // No missing numeric / deposit fields
   if (shift.missingFields.length > 0) return false
-  
+
   // If missing hard copy data is checked, must have notes explaining what is missing
   if (shift.hasMissingHardCopyData && (!shift.missingDataNotes || shift.missingDataNotes.trim() === '')) {
     return false
   }
-  
-  // Documents preferred but not strictly required; earlier checks already enforce data completeness.
-  // (We still parse them mainly so future rules can use them.)
-  // If we get here, all conditions for "reviewed" are met.
+
   return true
 }
 
