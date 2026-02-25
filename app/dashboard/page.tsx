@@ -35,12 +35,13 @@ interface FuelExpenseSummary {
 }
 
 interface UpcomingEvent {
-  type: 'birthday' | 'invoice' | 'contract' | 'other'
+  type: 'birthday' | 'invoice' | 'contract' | 'pay-day' | 'other'
   title: string
   date: string
   daysUntil: number
   priority: 'high' | 'medium' | 'low'
   reminderId?: string
+  payDayId?: string
 }
 
 interface RecentFuelPayment {
@@ -804,24 +805,33 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
-              <button
-                onClick={() => {
-                  const today = new Date()
-                  setReminderForm({
-                    title: '',
-                    date: today.toISOString().slice(0, 10),
-                    notes: '',
-                    notifyEmail: true,
-                    notifyWhatsApp: false,
-                    notifyDaysBefore: '7,3,1,0'
-                  })
-                  setReminderModalOpen(true)
-                }}
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
-                title="Add reminder"
-              >
-                +
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => router.push('/settings/pay-days')}
+                  className="text-xs text-gray-500 hover:text-indigo-600"
+                  title="Manage pay days"
+                >
+                  Pay Days
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date()
+                    setReminderForm({
+                      title: '',
+                      date: today.toISOString().slice(0, 10),
+                      notes: '',
+                      notifyEmail: true,
+                      notifyWhatsApp: false,
+                      notifyDaysBefore: '7,3,1,0'
+                    })
+                    setReminderModalOpen(true)
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+                  title="Add reminder"
+                >
+                  +
+                </button>
+              </div>
             </div>
             {upcoming.length === 0 ? (
               <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
@@ -833,6 +843,7 @@ export default function DashboardPage() {
                       case 'birthday': return '🎂'
                       case 'invoice': return '📄'
                       case 'contract': return '📋'
+                      case 'pay-day': return '💰'
                       default: return '📅'
                     }
                   }
@@ -882,6 +893,23 @@ export default function DashboardPage() {
                               }}
                               className="text-gray-400 hover:text-red-600 text-xs p-0.5"
                               title="Delete reminder"
+                            >
+                              ✕
+                            </button>
+                          )}
+                          {event.type === 'pay-day' && event.payDayId && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm('Delete this pay day?')) return
+                                try {
+                                  const res = await fetch(`/api/pay-days/${event.payDayId}`, { method: 'DELETE' })
+                                  if (res.ok) fetchUpcoming()
+                                } catch (err) {
+                                  console.error('Failed to delete pay day:', err)
+                                }
+                              }}
+                              className="text-gray-400 hover:text-red-600 text-xs p-0.5"
+                              title="Delete pay day"
                             >
                               ✕
                             </button>

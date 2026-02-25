@@ -20,6 +20,13 @@ export default function SettingsPage() {
       icon: '✉️',
       route: '/settings/email-recipients'
     },
+    {
+      id: 'pay-days',
+      title: 'Pay Days',
+      description: 'Set dates when accounting processes payments. Reminders sent 3 and 1 days before.',
+      icon: '💰',
+      route: '/settings/pay-days'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',

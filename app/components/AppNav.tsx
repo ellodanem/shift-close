@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // Nav config - permission-ready for future role-based access
 const navConfig = [
@@ -94,6 +94,19 @@ function isPathActive(pathname: string, href: string): boolean {
 export default function AppNav() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [todayPayDays, setTodayPayDays] = useState<Array<{ id: string; date: string; notes: string | null }>>([])
+
+  useEffect(() => {
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = String(today.getMonth() + 1).padStart(2, '0')
+    const d = String(today.getDate()).padStart(2, '0')
+    const todayStr = `${y}-${m}-${d}`
+    fetch(`/api/pay-days?date=${todayStr}`)
+      .then((res) => res.json())
+      .then((data) => setTodayPayDays(Array.isArray(data) ? data : []))
+      .catch(() => setTodayPayDays([]))
+  }, [])
 
   const sidebar = (
     <nav className="flex flex-col h-full w-64 bg-gray-800 text-white shrink-0">
@@ -102,6 +115,12 @@ export default function AppNav() {
           <span className="text-xl font-bold">Shift Close</span>
         </Link>
       </div>
+      {todayPayDays.length > 0 && (
+        <div className="px-3 py-2 bg-amber-600/90 text-white text-sm font-medium border-b border-amber-500/50">
+          <span className="inline-block mr-1">💰</span>
+          Today is Pay Day — Accounting will process payments
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto py-4">
         {navConfig.map((group) => (
           <div key={group.label} className="mb-4">

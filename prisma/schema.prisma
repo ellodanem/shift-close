@@ -575,6 +575,17 @@ model Reminder {
   @@map("reminders")
 }
 
+// Pay days: when accounting processes payments (not staff pay date)
+model PayDay {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD
+  notes     String?  @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("pay_days")
+}
+
 // Saved pay period report (attendance summary)
 model PayPeriod {
   id          String   @id @default(cuid())
