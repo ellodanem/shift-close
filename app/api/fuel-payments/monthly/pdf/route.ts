@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const pdfBuffer = await generateMonthlyReportPdfBuffer(month)
     const filename = `monthly-fuel-report-${month}.pdf`
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${filename}"`
