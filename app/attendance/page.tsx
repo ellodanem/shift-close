@@ -224,11 +224,19 @@ export default function AttendancePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            ZKTeco device integration — logs, staff sync, and device setup.
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              ZKTeco device integration — logs, staff sync, and device setup.
+            </p>
+          </div>
+          <a
+            href="/attendance/pay-period"
+            className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
+          >
+            Pay Period Report
+          </a>
         </div>
 
         {/* Tabs */}

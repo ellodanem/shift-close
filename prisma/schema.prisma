@@ -575,3 +575,17 @@ model Reminder {
   @@map("reminders")
 }
 
+// Saved pay period report (attendance summary)
+model PayPeriod {
+  id          String   @id @default(cuid())
+  startDate   String   @map("start_date")   // YYYY-MM-DD
+  endDate     String   @map("end_date")     // YYYY-MM-DD
+  reportDate  String   @map("report_date")  // YYYY-MM-DD (when report was generated)
+  entityName  String   @default("Total Auto Service Station") @map("entity_name")
+  rows        String   // JSON: [{ staffId, staffName, transTtl, vacation, shortage }]
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([startDate, endDate])
+  @@map("pay_periods")
+}
+
