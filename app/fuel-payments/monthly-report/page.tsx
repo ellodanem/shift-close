@@ -18,6 +18,7 @@ export default function MonthlyFuelPaymentReportPage() {
   const [month, setMonth] = useState(getDefaultMonth())
   const [data, setData] = useState<GroupedReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [emailing, setEmailing] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -41,6 +42,24 @@ export default function MonthlyFuelPaymentReportPage() {
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleEmailReport = async () => {
+    setEmailing(true)
+    try {
+      const res = await fetch('/api/fuel-payments/monthly/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to send email')
+      alert(result.message || `Report emailed successfully.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to send email')
+    } finally {
+      setEmailing(false)
+    }
   }
 
   if (loading) {
@@ -83,6 +102,20 @@ export default function MonthlyFuelPaymentReportPage() {
               className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
             >
               Print
+            </button>
+            <button
+              onClick={handleEmailReport}
+              disabled={emailing}
+              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {emailing ? 'Sending…' : 'Email Report'}
+            </button>
+            <button
+              disabled
+              title="Coming soon – share PDF via WhatsApp"
+              className="px-4 py-2 bg-slate-300 text-slate-500 rounded font-semibold cursor-not-allowed"
+            >
+              WhatsApp (PDF)
             </button>
           </div>
         </div>
