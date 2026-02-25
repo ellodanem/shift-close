@@ -989,31 +989,43 @@ export default function DashboardPage() {
                       <div className="w-full flex items-end justify-center gap-0.5 h-32">
                         {/* Unleaded pair */}
                         <div className="flex items-end gap-0.5 flex-1 justify-center">
-                          <div
-                            title={`Unleaded ${shortDate(day.date)}: ${day.unleaded.toFixed(1)}L`}
-                            className="w-full max-w-[20px] bg-green-500 rounded-t transition-all cursor-default"
-                            style={{ height: px(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
-                          />
-                          <div
-                            title={`Unleaded ${shortDate(day.priorDate)} (prior yr): ${day.prevUnleaded.toFixed(1)}L`}
-                            className="w-full max-w-[20px] bg-green-200 border border-green-300 rounded-t transition-all cursor-default"
-                            style={{ height: px(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
-                          />
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] font-medium text-gray-700 mb-0.5 leading-tight">{day.unleaded > 0 ? `${Math.round(day.unleaded)}L` : ''}</span>
+                            <div
+                              title={`Unleaded ${shortDate(day.date)}: ${day.unleaded.toFixed(1)}L`}
+                              className="w-full max-w-[20px] bg-green-500 rounded-t transition-all cursor-default"
+                              style={{ height: px(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
+                            />
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] font-medium text-gray-500 mb-0.5 leading-tight">{day.prevUnleaded > 0 ? `${Math.round(day.prevUnleaded)}L` : ''}</span>
+                            <div
+                              title={`Unleaded ${shortDate(day.priorDate)} (prior yr): ${day.prevUnleaded.toFixed(1)}L`}
+                              className="w-full max-w-[20px] bg-green-200 border border-green-300 rounded-t transition-all cursor-default"
+                              style={{ height: px(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
+                            />
+                          </div>
                         </div>
                         {/* Small gap between fuel types */}
                         <div className="w-1" />
                         {/* Diesel pair */}
                         <div className="flex items-end gap-0.5 flex-1 justify-center">
-                          <div
-                            title={`Diesel ${shortDate(day.date)}: ${day.diesel.toFixed(1)}L`}
-                            className="w-full max-w-[20px] bg-green-800 rounded-t transition-all cursor-default"
-                            style={{ height: px(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
-                          />
-                          <div
-                            title={`Diesel ${shortDate(day.priorDate)} (prior yr): ${day.prevDiesel.toFixed(1)}L`}
-                            className="w-full max-w-[20px] bg-green-100 border border-green-400 rounded-t transition-all cursor-default"
-                            style={{ height: px(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
-                          />
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] font-medium text-gray-700 mb-0.5 leading-tight">{day.diesel > 0 ? `${Math.round(day.diesel)}L` : ''}</span>
+                            <div
+                              title={`Diesel ${shortDate(day.date)}: ${day.diesel.toFixed(1)}L`}
+                              className="w-full max-w-[20px] bg-green-800 rounded-t transition-all cursor-default"
+                              style={{ height: px(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
+                            />
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] font-medium text-gray-500 mb-0.5 leading-tight">{day.prevDiesel > 0 ? `${Math.round(day.prevDiesel)}L` : ''}</span>
+                            <div
+                              title={`Diesel ${shortDate(day.priorDate)} (prior yr): ${day.prevDiesel.toFixed(1)}L`}
+                              className="w-full max-w-[20px] bg-green-100 border border-green-400 rounded-t transition-all cursor-default"
+                              style={{ height: px(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
+                            />
+                          </div>
                         </div>
                       </div>
                       {/* Date label */}
