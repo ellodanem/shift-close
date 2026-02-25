@@ -64,6 +64,9 @@ export default function AttendancePage() {
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
 
+  // --- Current period pay day ---
+  const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
+
   // --- Device tab state ---
   const [deviceUsers, setDeviceUsers] = useState<DeviceUser[]>([])
   const [deviceLoading, setDeviceLoading] = useState(false)
@@ -123,6 +126,23 @@ export default function AttendancePage() {
       } catch {}
     }
     void loadStaff()
+  }, [])
+
+  useEffect(() => {
+    const loadCurrentPeriodPayDay = async () => {
+      try {
+        const res = await fetch('/api/pay-days?period=current')
+        if (res.ok) {
+          const data = await res.json()
+          setCurrentPeriodPayDay(data?.date ? { date: data.date, notes: data.notes ?? null } : null)
+        } else {
+          setCurrentPeriodPayDay(null)
+        }
+      } catch {
+        setCurrentPeriodPayDay(null)
+      }
+    }
+    void loadCurrentPeriodPayDay()
   }, [])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
@@ -231,12 +251,20 @@ export default function AttendancePage() {
               ZKTeco device integration — logs, staff sync, and device setup.
             </p>
           </div>
-          <a
-            href="/attendance/pay-period"
-            className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
-          >
-            Pay Period Report
-          </a>
+          <div className="flex items-center gap-4">
+            {currentPeriodPayDay && (
+              <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                <span className="text-amber-800 font-medium">Pay day this period:</span>{' '}
+                <span className="text-amber-900">{formatDateDisplay(currentPeriodPayDay.date + 'T12:00:00')}</span>
+              </div>
+            )}
+            <a
+              href="/attendance/pay-period"
+              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
+            >
+              Pay Period Report
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}

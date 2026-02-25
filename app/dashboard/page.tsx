@@ -129,15 +129,21 @@ export default function DashboardPage() {
     notifyWhatsApp: false,
     notifyDaysBefore: '7,3,1,0'
   })
+  const [payDayModalOpen, setPayDayModalOpen] = useState(false)
+  const [payDayForm, setPayDayForm] = useState({ date: '', notes: '' })
+  const [payDaySaving, setPayDaySaving] = useState(false)
 
   useEffect(() => {
-    if (!reminderModalOpen) return
+    if (!reminderModalOpen && !payDayModalOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setReminderModalOpen(false)
+      if (e.key === 'Escape') {
+        setReminderModalOpen(false)
+        setPayDayModalOpen(false)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [reminderModalOpen])
+  }, [reminderModalOpen, payDayModalOpen])
 
   // Close custom picker when clicking outside
   useEffect(() => {
@@ -816,6 +822,23 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     const today = new Date()
+                    const y = today.getFullYear()
+                    const m = String(today.getMonth() + 1).padStart(2, '0')
+                    const d = String(today.getDate()).padStart(2, '0')
+                    setPayDayForm({
+                      date: `${y}-${m}-${d}`,
+                      notes: ''
+                    })
+                    setPayDayModalOpen(true)
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
+                  title="Add pay day"
+                >
+                  +
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date()
                     setReminderForm({
                       title: '',
                       date: today.toISOString().slice(0, 10),
@@ -1154,6 +1177,86 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Pay Day Modal */}
+      {payDayModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setPayDayModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Pay Day</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Date when accounting will process payments. Reminders sent 3 and 1 days before.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={payDayForm.date}
+                  onChange={(e) => setPayDayForm((f) => ({ ...f, date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={payDayForm.notes}
+                  onChange={(e) => setPayDayForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="e.g. March payroll"
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                onClick={() => setPayDayModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!payDayForm.date.trim()) {
+                    alert('Date is required.')
+                    return
+                  }
+                  setPayDaySaving(true)
+                  try {
+                    const res = await fetch('/api/pay-days', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        date: payDayForm.date,
+                        notes: payDayForm.notes.trim() || undefined
+                      })
+                    })
+                    if (res.ok) {
+                      setPayDayModalOpen(false)
+                      setPayDayForm({ date: '', notes: '' })
+                      fetchUpcoming()
+                    } else {
+                      const err = await res.json().catch(() => ({}))
+                      alert(err.error || 'Failed to add pay day')
+                    }
+                  } finally {
+                    setPayDaySaving(false)
+                  }
+                }}
+                disabled={payDaySaving || !payDayForm.date.trim()}
+                className="px-4 py-2 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700 disabled:opacity-50"
+              >
+                {payDaySaving ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Reminder Modal */}
       {reminderModalOpen && (
