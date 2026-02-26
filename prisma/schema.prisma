@@ -390,12 +390,14 @@ model CustomerArAccountSnapshot {
 // Manual balance override for account activity customers (cheque/debit)
 // Use when starting fresh — set current balance; new items build on top
 model CustomerAccountBalance {
-  id             String   @id @default(cuid())
-  customerName   String   @unique @map("customer_name")
-  balanceOverride Float   @map("balance_override")
-  notes          String?  @default("")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  customerName    String   @map("customer_name")
+  paymentMethod   String   @default("cheque") @map("payment_method") // "cheque" | "debit"
+  balanceOverride Float    @map("balance_override")
+  notes           String?  @default("")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
+  @@unique([customerName, paymentMethod])
   @@map("customer_account_balances")
 }
 

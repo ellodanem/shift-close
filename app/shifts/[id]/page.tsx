@@ -1739,7 +1739,12 @@ export default function ShiftDetailPage() {
                     <button
                       key={kind}
                       type="button"
-                      onClick={() => { setSelectedKind(kind); if (kind === 'fuel_taken') setAcctPaymentMethod('cheque') }}
+                      onClick={() => {
+                      setSelectedKind(kind)
+                      if (kind === 'cheque_received') setAcctPaymentMethod('cheque')
+                      else if (kind === 'debit_received') setAcctPaymentMethod('debit')
+                      else if (kind === 'fuel_taken') setAcctPaymentMethod('cheque')
+                    }}
                       className={`border-2 rounded-lg p-3 text-left transition-colors ${color}`}
                     >
                       <div className="font-semibold text-sm text-gray-900">{label}</div>
@@ -1773,7 +1778,7 @@ export default function ShiftDetailPage() {
                   <>
                     <div className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">Debit pre-auth received. Already counted by cashier — <strong>note only</strong>, no effect on Over/Short.</div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} placeholder="e.g. Company XYZ" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
+                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} list="acct-customer-list" placeholder="e.g. Company XYZ" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
                       <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
                     <div className="bg-blue-50 rounded px-3 py-2 text-sm text-blue-700">Note only — no Over/Short impact</div>
@@ -1787,8 +1792,8 @@ export default function ShiftDetailPage() {
                     </div>
                     <div className={`text-xs rounded px-3 py-2 ${acctPaymentMethod === 'cheque' ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>{acctPaymentMethod === 'cheque' ? 'Fuel/cash given against a cheque account. Records as a shortage.' : 'Fuel given against a debit account. Note only — cashier already counted the debit.'}</div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                      <input type="text" value={acctCustomerName} onChange={e => { setAcctCustomerName(e.target.value); const m = acctBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase()); if (m) setAcctPreviousBalance(String(m.newBalance)); else setAcctPreviousBalance('') }} list="acct-customer-list" placeholder="e.g. Andrew" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-                      {acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase()) && (<p className="text-xs text-blue-700 mt-1">✓ Balance on file: ${acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase())!.newBalance.toFixed(2)}</p>)}
+                      <input type="text" value={acctCustomerName} onChange={e => { setAcctCustomerName(e.target.value); const m = acctBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod); if (m) setAcctPreviousBalance(String(m.newBalance)); else setAcctPreviousBalance('') }} list="acct-customer-list" placeholder="e.g. Andrew" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                      {acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod) && (<p className="text-xs text-blue-700 mt-1">✓ Balance on file: ${acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod)!.newBalance.toFixed(2)}</p>)}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
@@ -1839,7 +1844,9 @@ export default function ShiftDetailPage() {
                     </div>
                   </>
                 )}
-                <datalist id="acct-customer-list">{acctBalances.map(b => <option key={b.customerName} value={b.customerName} />)}</datalist>
+                <datalist id="acct-customer-list">
+                  {acctBalances.filter(b => (b.paymentMethod || 'cheque') === (selectedKind === 'debit_received' ? 'debit' : selectedKind === 'cheque_received' ? 'cheque' : acctPaymentMethod)).map(b => <option key={`${b.customerName}-${b.paymentMethod || 'cheque'}`} value={b.customerName} />)}
+                </datalist>
               </div>
             )}
 

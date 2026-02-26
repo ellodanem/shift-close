@@ -8,6 +8,10 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+function makeKey(name: string, method: string) {
+  return `${(name || '').toLowerCase()}::${(method || 'cheque').toLowerCase()}`
+}
+
 async function getComputedBalances(): Promise<Map<string, { customerName: string; balance: number; paymentMethod: string; shiftDate: string; shiftPeriod: string }>> {
   const items = await prisma.overShortItem.findMany({
     where: {
@@ -19,12 +23,13 @@ async function getComputedBalances(): Promise<Map<string, { customerName: string
   })
   const seen = new Map<string, { customerName: string; balance: number; paymentMethod: string; shiftDate: string; shiftPeriod: string }>()
   for (const item of items) {
-    const key = (item.customerName || '').toLowerCase()
+    const method = item.paymentMethod || 'cheque'
+    const key = makeKey(item.customerName || '', method)
     if (!seen.has(key) && item.customerName && item.newBalance != null) {
       seen.set(key, {
         customerName: item.customerName,
         balance: item.newBalance,
-        paymentMethod: item.paymentMethod || 'cheque',
+        paymentMethod: method,
         shiftDate: item.shift.date,
         shiftPeriod: item.shift.shift
       })
@@ -50,11 +55,13 @@ export async function GET() {
     }>()
 
     for (const o of overrides) {
-      const key = o.customerName.toLowerCase()
+      const method = o.paymentMethod || 'cheque'
+      const key = makeKey(o.customerName, method)
       byKey.set(key, {
         customerName: o.customerName,
         balance: o.balanceOverride,
         isOverride: true,
+        paymentMethod: method,
         notes: o.notes
       })
     }
@@ -71,11 +78,13 @@ export async function GET() {
       }
       const existing = byKey.get(key)!
       if (!existing.lastActivity) existing.lastActivity = data.shiftDate + ' ' + data.shiftPeriod
-      if (!existing.paymentMethod) existing.paymentMethod = data.paymentMethod
     }
 
     const list = Array.from(byKey.values())
-    list.sort((a, b) => a.customerName.localeCompare(b.customerName))
+    list.sort((a, b) => {
+      const cmp = a.customerName.localeCompare(b.customerName)
+      return cmp !== 0 ? cmp : (a.paymentMethod || '').localeCompare(b.paymentMethod || '')
+    })
     return NextResponse.json(list)
   } catch (error) {
     console.error('Account customers GET error:', error)
@@ -86,21 +95,25 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customerName, balance, notes } = body
+    const { customerName, balance, notes, paymentMethod } = body
 
     if (!customerName || typeof customerName !== 'string' || !customerName.trim()) {
       return NextResponse.json({ error: 'Customer name is required' }, { status: 400 })
     }
     const name = customerName.trim()
+    const method = (paymentMethod === 'debit' ? 'debit' : 'cheque') as 'cheque' | 'debit'
     const bal = typeof balance === 'number' ? balance : parseFloat(String(balance))
     if (Number.isNaN(bal) || bal < 0) {
       return NextResponse.json({ error: 'Valid balance (≥ 0) is required' }, { status: 400 })
     }
 
     const updated = await prisma.customerAccountBalance.upsert({
-      where: { customerName: name },
+      where: {
+        customerName_paymentMethod: { customerName: name, paymentMethod: method }
+      },
       create: {
         customerName: name,
+        paymentMethod: method,
         balanceOverride: bal,
         notes: notes && typeof notes === 'string' ? notes.trim() || null : null
       },

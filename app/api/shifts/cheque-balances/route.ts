@@ -1,16 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+function makeKey(name: string, method: string) {
+  return `${(name || '').toLowerCase()}::${(method || 'cheque').toLowerCase()}`
+}
+
 /**
  * GET /api/shifts/cheque-balances
- * Returns the most recent account balance per customer (cheque or debit)
- * where newBalance > 0 — used to auto-fill "Previous Balance" in the modal.
- * Uses manual overrides from CustomerAccountBalance when set.
+ * Returns the most recent account balance per (customer, paymentMethod).
+ * Query: ?paymentMethod=cheque|debit to filter.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const paymentFilter = request.nextUrl.searchParams.get('paymentMethod')
+
     const [overrides, items] = await Promise.all([
       prisma.customerAccountBalance.findMany(),
       prisma.overShortItem.findMany({
@@ -25,9 +30,10 @@ export async function GET() {
       })
     ])
 
-    const overrideMap = new Map<string, { customerName: string; balance: number }>()
+    const overrideMap = new Map<string, { customerName: string; balance: number; paymentMethod: string }>()
     for (const o of overrides) {
-      overrideMap.set(o.customerName.toLowerCase(), { customerName: o.customerName, balance: o.balanceOverride })
+      const method = o.paymentMethod || 'cheque'
+      overrideMap.set(makeKey(o.customerName, method), { customerName: o.customerName, balance: o.balanceOverride, paymentMethod: method })
     }
 
     const seen = new Map<string, {
@@ -39,13 +45,14 @@ export async function GET() {
     }>()
 
     for (const item of items) {
-      const key = (item.customerName || '').toLowerCase()
+      const method = item.paymentMethod || 'cheque'
+      const key = makeKey(item.customerName || '', method)
       if (!seen.has(key) && item.customerName && item.newBalance != null) {
         const override = overrideMap.get(key)
         seen.set(key, {
           customerName: item.customerName,
           newBalance: override != null ? override.balance : item.newBalance,
-          paymentMethod: item.paymentMethod || 'cheque',
+          paymentMethod: method,
           shiftDate: item.shift.date,
           shiftPeriod: item.shift.shift
         })
@@ -53,19 +60,24 @@ export async function GET() {
     }
 
     for (const o of overrides) {
-      const key = o.customerName.toLowerCase()
+      const method = o.paymentMethod || 'cheque'
+      const key = makeKey(o.customerName, method)
       if (!seen.has(key) && o.balanceOverride > 0) {
         seen.set(key, {
           customerName: o.customerName,
           newBalance: o.balanceOverride,
-          paymentMethod: 'cheque',
+          paymentMethod: method,
           shiftDate: '',
           shiftPeriod: ''
         })
       }
     }
 
-    return NextResponse.json(Array.from(seen.values()))
+    let result = Array.from(seen.values())
+    if (paymentFilter === 'cheque' || paymentFilter === 'debit') {
+      result = result.filter((r) => (r.paymentMethod || 'cheque').toLowerCase() === paymentFilter.toLowerCase())
+    }
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error fetching account balances:', error)
     return NextResponse.json({ error: 'Failed to fetch balances' }, { status: 500 })

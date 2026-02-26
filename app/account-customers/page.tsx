@@ -16,14 +16,15 @@ export default function AccountCustomersPage() {
   const router = useRouter()
   const [list, setList] = useState<AccountCustomer[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ name: string; method: string } | null>(null)
   const [editBalance, setEditBalance] = useState('')
   const [editNotes, setEditNotes] = useState('')
-  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState<{ name: string; method: string } | null>(null)
   const [editNameValue, setEditNameValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBalance, setNewBalance] = useState('')
+  const [newPaymentMethod, setNewPaymentMethod] = useState<'cheque' | 'debit'>('cheque')
   const [adding, setAdding] = useState(false)
 
   const fetchList = () => {
@@ -39,7 +40,7 @@ export default function AccountCustomersPage() {
   }, [])
 
   const handleSetBalance = (c: AccountCustomer) => {
-    setEditing(c.customerName)
+    setEditing({ name: c.customerName, method: c.paymentMethod || 'cheque' })
     setEditBalance(c.balance.toFixed(2))
     setEditNotes(c.notes || '')
   }
@@ -57,9 +58,10 @@ export default function AccountCustomersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName: editing,
+          customerName: editing.name,
           balance: bal,
-          notes: editNotes.trim() || undefined
+          notes: editNotes.trim() || undefined,
+          paymentMethod: editing.method
         })
       })
       if (res.ok) {
@@ -75,13 +77,13 @@ export default function AccountCustomersPage() {
   }
 
   const handleStartEditName = (c: AccountCustomer) => {
-    setEditingName(c.customerName)
+    setEditingName({ name: c.customerName, method: c.paymentMethod || 'cheque' })
     setEditNameValue(c.customerName)
   }
 
   const handleSaveName = async () => {
     if (!editingName || !editNameValue.trim()) return
-    if (editNameValue.trim() === editingName) {
+    if (editNameValue.trim() === editingName.name) {
       setEditingName(null)
       return
     }
@@ -90,7 +92,7 @@ export default function AccountCustomersPage() {
       const res = await fetch('/api/account-customers/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldName: editingName, newName: editNameValue.trim() })
+        body: JSON.stringify({ oldName: editingName.name, newName: editNameValue.trim() })
       })
       if (res.ok) {
         setEditingName(null)
@@ -104,10 +106,10 @@ export default function AccountCustomersPage() {
     }
   }
 
-  const handleRemoveOverride = async (name: string) => {
-    if (!confirm(`Remove balance override for ${name}? Balance will revert to computed from shift items.`)) return
+  const handleRemoveOverride = async (c: AccountCustomer) => {
+    if (!confirm(`Remove balance override for ${c.customerName} (${c.paymentMethod})? Balance will revert to computed from shift items.`)) return
     try {
-      const res = await fetch(`/api/account-customers/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/account-customers/${encodeURIComponent(c.customerName)}?paymentMethod=${c.paymentMethod || 'cheque'}`, { method: 'DELETE' })
       if (res.ok) fetchList()
       else alert('Failed to remove override')
     } catch {
@@ -130,7 +132,7 @@ export default function AccountCustomersPage() {
       const res = await fetch('/api/account-customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: newName.trim(), balance: bal })
+        body: JSON.stringify({ customerName: newName.trim(), balance: bal, paymentMethod: newPaymentMethod })
       })
       if (res.ok) {
         setNewName('')
@@ -178,6 +180,17 @@ export default function AccountCustomersPage() {
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Account type</label>
+              <select
+                value={newPaymentMethod}
+                onChange={(e) => setNewPaymentMethod(e.target.value as 'cheque' | 'debit')}
+                className="border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="cheque">Cheque</option>
+                <option value="debit">Debit</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Balance ($)</label>
               <input
                 type="number"
@@ -210,11 +223,11 @@ export default function AccountCustomersPage() {
             <div className="space-y-2">
               {list.map((c) => (
                 <div
-                  key={c.customerName}
+                  key={`${c.customerName}::${c.paymentMethod || 'cheque'}`}
                   className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
                 >
                   <div>
-                    {editingName === c.customerName ? (
+                    {editingName?.name === c.customerName && editingName?.method === (c.paymentMethod || 'cheque') ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -232,6 +245,7 @@ export default function AccountCustomersPage() {
                         </button>
                         <button
                           onClick={() => setEditingName(null)}
+                          type="button"
                           className="px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
                         >
                           Cancel
@@ -254,14 +268,14 @@ export default function AccountCustomersPage() {
                       ) : (
                         <>From shift items{c.lastActivity && ` · ${c.lastActivity}`}</>
                       )}
-                      {c.paymentMethod && ` · ${c.paymentMethod}`}
+                      {' · '}{(c.paymentMethod || 'cheque')}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold text-gray-900 w-20 text-right">
                       ${c.balance.toFixed(2)}
                     </span>
-                    {editing === c.customerName ? (
+                    {editing?.name === c.customerName && editing?.method === (c.paymentMethod || 'cheque') ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -286,6 +300,7 @@ export default function AccountCustomersPage() {
                           Save
                         </button>
                         <button
+                          type="button"
                           onClick={() => setEditing(null)}
                           className="px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
                         >
@@ -302,7 +317,8 @@ export default function AccountCustomersPage() {
                         </button>
                         {c.isOverride && (
                           <button
-                            onClick={() => handleRemoveOverride(c.customerName)}
+                            type="button"
+                            onClick={() => handleRemoveOverride(c)}
                             className="text-sm text-red-600 hover:text-red-800"
                           >
                             Remove override

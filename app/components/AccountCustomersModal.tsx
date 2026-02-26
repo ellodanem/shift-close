@@ -19,14 +19,15 @@ interface AccountCustomersModalProps {
 export default function AccountCustomersModal({ open, onClose }: AccountCustomersModalProps) {
   const [list, setList] = useState<AccountCustomer[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ name: string; method: string } | null>(null)
   const [editBalance, setEditBalance] = useState('')
   const [editNotes, setEditNotes] = useState('')
-  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState<{ name: string; method: string } | null>(null)
   const [editNameValue, setEditNameValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBalance, setNewBalance] = useState('')
+  const [newPaymentMethod, setNewPaymentMethod] = useState<'cheque' | 'debit'>('cheque')
   const [adding, setAdding] = useState(false)
 
   const fetchList = () => {
@@ -45,7 +46,7 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
   }, [open])
 
   const handleSetBalance = (c: AccountCustomer) => {
-    setEditing(c.customerName)
+    setEditing({ name: c.customerName, method: c.paymentMethod || 'cheque' })
     setEditBalance(c.balance.toFixed(2))
     setEditNotes(c.notes || '')
   }
@@ -63,9 +64,10 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName: editing,
+          customerName: editing.name,
           balance: bal,
-          notes: editNotes.trim() || undefined
+          notes: editNotes.trim() || undefined,
+          paymentMethod: editing.method
         })
       })
       if (res.ok) {
@@ -81,13 +83,13 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
   }
 
   const handleStartEditName = (c: AccountCustomer) => {
-    setEditingName(c.customerName)
+    setEditingName({ name: c.customerName, method: c.paymentMethod || 'cheque' })
     setEditNameValue(c.customerName)
   }
 
   const handleSaveName = async () => {
     if (!editingName || !editNameValue.trim()) return
-    if (editNameValue.trim() === editingName) {
+    if (editNameValue.trim() === editingName.name) {
       setEditingName(null)
       return
     }
@@ -96,7 +98,7 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
       const res = await fetch('/api/account-customers/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldName: editingName, newName: editNameValue.trim() })
+        body: JSON.stringify({ oldName: editingName.name, newName: editNameValue.trim() })
       })
       if (res.ok) {
         setEditingName(null)
@@ -110,10 +112,10 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
     }
   }
 
-  const handleRemoveOverride = async (name: string) => {
-    if (!confirm(`Remove balance override for ${name}? Balance will revert to computed from shift items.`)) return
+  const handleRemoveOverride = async (c: AccountCustomer) => {
+    if (!confirm(`Remove balance override for ${c.customerName} (${c.paymentMethod})?`)) return
     try {
-      const res = await fetch(`/api/account-customers/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/account-customers/${encodeURIComponent(c.customerName)}?paymentMethod=${c.paymentMethod || 'cheque'}`, { method: 'DELETE' })
       if (res.ok) fetchList()
       else alert('Failed to remove override')
     } catch {
@@ -136,7 +138,7 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
       const res = await fetch('/api/account-customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: newName.trim(), balance: bal })
+        body: JSON.stringify({ customerName: newName.trim(), balance: bal, paymentMethod: newPaymentMethod })
       })
       if (res.ok) {
         setNewName('')
@@ -182,6 +184,13 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
                 />
               </div>
               <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Type</label>
+                <select value={newPaymentMethod} onChange={(e) => setNewPaymentMethod(e.target.value as 'cheque' | 'debit')} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+                  <option value="cheque">Cheque</option>
+                  <option value="debit">Debit</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs text-gray-600 mb-0.5">Balance ($)</label>
                 <input
                   type="number"
@@ -214,11 +223,11 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
               <div className="space-y-1.5">
                 {list.map((c) => (
                   <div
-                    key={c.customerName}
+                    key={`${c.customerName}::${c.paymentMethod || 'cheque'}`}
                     className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 text-sm"
                   >
                     <div className="min-w-0 flex-1">
-                      {editingName === c.customerName ? (
+                      {editingName?.name === c.customerName && editingName?.method === (c.paymentMethod || 'cheque') ? (
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <input
                             type="text"
@@ -238,14 +247,14 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
                           </div>
                           <div className="text-xs text-gray-500 truncate">
                             {c.isOverride ? <span className="text-amber-600">Manual</span> : <>From items{c.lastActivity && ` · ${c.lastActivity}`}</>}
-                            {c.paymentMethod && ` · ${c.paymentMethod}`}
+                            {' · '}{(c.paymentMethod || 'cheque')}
                           </div>
                         </>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
                       <span className="font-semibold text-gray-900 w-16 text-right">${c.balance.toFixed(2)}</span>
-                      {editing === c.customerName ? (
+                      {editing?.name === c.customerName && editing?.method === (c.paymentMethod || 'cheque') ? (
                         <div className="flex items-center gap-1">
                           <input
                             type="number"
@@ -262,7 +271,7 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
                         <>
                           <button onClick={() => handleSetBalance(c)} className="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Update</button>
                           {c.isOverride && (
-                            <button onClick={() => handleRemoveOverride(c.customerName)} className="text-red-600 hover:text-red-800 text-xs">Remove</button>
+                            <button type="button" onClick={() => handleRemoveOverride(c)} className="text-red-600 hover:text-red-800 text-xs">Remove</button>
                           )}
                         </>
                       )}

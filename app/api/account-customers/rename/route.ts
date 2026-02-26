@@ -25,19 +25,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'New name is the same as old name' }, { status: 400 })
     }
 
-    const existingOverride = await prisma.customerAccountBalance.findFirst({
-      where: { customerName: { equals: neu, mode: 'insensitive' } }
-    })
-    if (existingOverride) {
-      return NextResponse.json({ error: `A customer named "${neu}" already exists` }, { status: 400 })
-    }
-
-    const override = await prisma.customerAccountBalance.findFirst({
+    const overridesToRename = await prisma.customerAccountBalance.findMany({
       where: { customerName: { equals: old, mode: 'insensitive' } }
     })
-    if (override) {
+    for (const o of overridesToRename) {
+      const existing = await prisma.customerAccountBalance.findFirst({
+        where: {
+          customerName: { equals: neu, mode: 'insensitive' },
+          paymentMethod: o.paymentMethod
+        }
+      })
+      if (existing && existing.id !== o.id) {
+        return NextResponse.json({ error: `A customer "${neu}" (${o.paymentMethod}) already exists` }, { status: 400 })
+      }
+    }
+    for (const o of overridesToRename) {
       await prisma.customerAccountBalance.update({
-        where: { id: override.id },
+        where: { id: o.id },
         data: { customerName: neu }
       })
     }
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true, updated: items.length + (override ? 1 : 0) })
+    return NextResponse.json({ success: true, updated: items.length + overridesToRename.length })
   } catch (error) {
     console.error('Account customer rename error:', error)
     return NextResponse.json({ error: 'Failed to rename' }, { status: 500 })
