@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 
@@ -28,7 +28,7 @@ function formatDate(d: string) {
   })
 }
 
-export default function VendorMakePaymentPage() {
+function VendorMakePaymentPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -417,5 +417,19 @@ export default function VendorMakePaymentPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function VendorMakePaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      }
+    >
+      <VendorMakePaymentPageInner />
+    </Suspense>
   )
 }
