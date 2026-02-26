@@ -24,16 +24,18 @@ export async function GET(request: NextRequest) {
     const prevStartDate = `${prevYear}-${String(month).padStart(2, '0')}-01`
     const prevEndDate = `${prevYear}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
 
-    // Current year: aggregate from ShiftClose
-    const currentShifts = await prisma.shiftClose.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
-      select: { date: true, unleaded: true, diesel: true }
-    })
-
+    // Current year: HistoricalFuelData first (allows manual override), else ShiftClose
     // Previous year: HistoricalFuelData first, else ShiftClose
-    const [prevHistorical, prevShifts] = await Promise.all([
+    const [curHistorical, prevHistorical, currentShifts, prevShifts] = await Promise.all([
+      prisma.historicalFuelData.findMany({
+        where: { year, month }
+      }),
       prisma.historicalFuelData.findMany({
         where: { year: prevYear, month }
+      }),
+      prisma.shiftClose.findMany({
+        where: { date: { gte: startDate, lte: endDate } },
+        select: { date: true, unleaded: true, diesel: true }
       }),
       prisma.shiftClose.findMany({
         where: { date: { gte: prevStartDate, lte: prevEndDate } },
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    const curHistoricalByDate = new Map(curHistorical.map(r => [r.date, r]))
     const currentByDate = new Map<string, { unleaded: number; diesel: number }>()
     currentShifts.forEach(s => {
       const existing = currentByDate.get(s.date) ?? { unleaded: 0, diesel: 0 }
@@ -85,12 +88,13 @@ export async function GET(request: NextRequest) {
       const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       const prevDate = `${prevYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
-      const cur = currentByDate.get(date) ?? { unleaded: 0, diesel: 0 }
+      const curHist = curHistoricalByDate.get(date)
+      const curShift = currentByDate.get(date) ?? { unleaded: 0, diesel: 0 }
       const hist = prevHistoricalByDate.get(prevDate)
       const prevShift = prevShiftsByDate.get(prevDate) ?? { unleaded: 0, diesel: 0 }
 
-      const gasLitresCur = cur.unleaded
-      const dieselLitresCur = cur.diesel
+      const gasLitresCur = curHist?.unleadedLitres ?? curShift.unleaded
+      const dieselLitresCur = curHist?.dieselLitres ?? curShift.diesel
       const gasLitresPrev = hist?.unleadedLitres ?? prevShift.unleaded
       const dieselLitresPrev = hist?.dieselLitres ?? prevShift.diesel
 

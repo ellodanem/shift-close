@@ -26,33 +26,55 @@ export async function GET() {
       return dt.toISOString().slice(0, 10)
     })
 
-    const allDates = [...dates, ...priorDates]
-
-    const shifts = await prisma.shiftClose.findMany({
-      where: { date: { in: allDates } },
+    // Current year: from ShiftClose
+    const currentShifts = await prisma.shiftClose.findMany({
+      where: { date: { in: dates } },
       select: { date: true, unleaded: true, diesel: true }
     })
 
-    // Sum per date
-    const sumByDate = new Map<string, { unleaded: number; diesel: number }>()
-    shifts.forEach(s => {
-      const existing = sumByDate.get(s.date) ?? { unleaded: 0, diesel: 0 }
-      sumByDate.set(s.date, {
+    // Prior year: HistoricalFuelData first, else ShiftClose
+    const [priorHistorical, priorShifts] = await Promise.all([
+      prisma.historicalFuelData.findMany({
+        where: { date: { in: priorDates } }
+      }),
+      prisma.shiftClose.findMany({
+        where: { date: { in: priorDates } },
+        select: { date: true, unleaded: true, diesel: true }
+      })
+    ])
+
+    const currentByDate = new Map<string, { unleaded: number; diesel: number }>()
+    currentShifts.forEach(s => {
+      const existing = currentByDate.get(s.date) ?? { unleaded: 0, diesel: 0 }
+      currentByDate.set(s.date, {
+        unleaded: existing.unleaded + (s.unleaded || 0),
+        diesel: existing.diesel + (s.diesel || 0)
+      })
+    })
+
+    const priorHistoricalByDate = new Map(priorHistorical.map(r => [r.date, r]))
+    const priorShiftsByDate = new Map<string, { unleaded: number; diesel: number }>()
+    priorShifts.forEach(s => {
+      const existing = priorShiftsByDate.get(s.date) ?? { unleaded: 0, diesel: 0 }
+      priorShiftsByDate.set(s.date, {
         unleaded: existing.unleaded + (s.unleaded || 0),
         diesel: existing.diesel + (s.diesel || 0)
       })
     })
 
     const result = dates.map((date, i) => {
-      const current = sumByDate.get(date) ?? { unleaded: 0, diesel: 0 }
-      const prior = sumByDate.get(priorDates[i]) ?? { unleaded: 0, diesel: 0 }
+      const current = currentByDate.get(date) ?? { unleaded: 0, diesel: 0 }
+      const hist = priorHistoricalByDate.get(priorDates[i])
+      const priorShift = priorShiftsByDate.get(priorDates[i]) ?? { unleaded: 0, diesel: 0 }
+      const prevUnleaded = hist?.unleadedLitres ?? priorShift.unleaded
+      const prevDiesel = hist?.dieselLitres ?? priorShift.diesel
       return {
         date,
         priorDate: priorDates[i],
         unleaded: current.unleaded,
         diesel: current.diesel,
-        prevUnleaded: prior.unleaded,
-        prevDiesel: prior.diesel
+        prevUnleaded,
+        prevDiesel
       }
     })
 
