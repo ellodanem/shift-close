@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getMissingFields, isShiftFullyReviewed, computeNetOverShort, OS_REVIEW_THRESHOLD, calculateShiftClose } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
+import AccountCustomersModal from '@/app/components/AccountCustomersModal'
 
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
@@ -84,6 +85,7 @@ export default function ShiftDetailPage() {
   const [overShortExplanationDraft, setOverShortExplanationDraft] = useState('')
   const [showOverShortModal, setShowOverShortModal] = useState(false)
   const [showAddOverShortModal, setShowAddOverShortModal] = useState(false)
+  const [showManageCustomersModal, setShowManageCustomersModal] = useState(false)
   const [savingOverShortItem, setSavingOverShortItem] = useState(false)
   // Account Activity add item state
   type ItemKind = 'cheque_received' | 'debit_received' | 'fuel_taken' | 'withdrawal' | 'return' | 'other' | null
@@ -1474,13 +1476,22 @@ export default function ShiftDetailPage() {
                 {/* Header */}
                 <div className="bg-gray-800 text-white px-5 py-3 flex items-center justify-between">
                   <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
-                  <button
-                    type="button"
-                    onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
-                    className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
-                  >
-                    + Add Item
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManageCustomersModal(true)}
+                      className="px-3 py-1 bg-gray-600 text-white rounded font-medium text-xs hover:bg-gray-500"
+                    >
+                      Manage customers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
+                      className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
+                    >
+                      + Add Item
+                    </button>
+                  </div>
                 </div>
 
                 {/* Raw O/S row */}
@@ -1738,7 +1749,13 @@ export default function ShiftDetailPage() {
                   ))}
                 </div>
                 <p className="text-xs text-gray-400 mt-3">* Cheque shortage only. Debit fuel taken is note only.</p>
-                <a href="/account-customers" className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 inline-block">Manage customers & update balances →</a>
+                <button
+                  type="button"
+                  onClick={() => setShowManageCustomersModal(true)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 inline-block"
+                >
+                  Manage customers & update balances →
+                </button>
               </div>
             ) : (
               <div className="p-4 space-y-3">
@@ -1873,6 +1890,14 @@ export default function ShiftDetailPage() {
           </div>
         </div>
       )}
+
+      <AccountCustomersModal
+        open={showManageCustomersModal}
+        onClose={() => {
+          setShowManageCustomersModal(false)
+          fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setAcctBalances(d) }).catch(() => {})
+        }}
+      />
     </div>
   )
 }
