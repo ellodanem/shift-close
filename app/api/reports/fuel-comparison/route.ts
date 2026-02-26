@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.shiftClose.findMany({
         where: { date: { gte: startDate, lte: endDate } },
-        select: { date: true, unleaded: true, diesel: true }
+        select: { date: true, shift: true, unleaded: true, diesel: true }
       }),
       prisma.shiftClose.findMany({
         where: { date: { gte: prevStartDate, lte: prevEndDate } },
@@ -45,11 +45,18 @@ export async function GET(request: NextRequest) {
 
     const curHistoricalByDate = new Map(curHistorical.map(r => [r.date, r]))
     const currentByDate = new Map<string, { unleaded: number; diesel: number }>()
+    const currentShiftsByDate = new Map<string, Array<{ shift: string; unleaded: number; diesel: number }>>()
     currentShifts.forEach(s => {
       const existing = currentByDate.get(s.date) ?? { unleaded: 0, diesel: 0 }
       currentByDate.set(s.date, {
         unleaded: existing.unleaded + (s.unleaded || 0),
         diesel: existing.diesel + (s.diesel || 0)
+      })
+      if (!currentShiftsByDate.has(s.date)) currentShiftsByDate.set(s.date, [])
+      currentShiftsByDate.get(s.date)!.push({
+        shift: s.shift,
+        unleaded: s.unleaded ?? 0,
+        diesel: s.diesel ?? 0
       })
     })
 
@@ -62,6 +69,9 @@ export async function GET(request: NextRequest) {
         diesel: existing.diesel + (s.diesel || 0)
       })
     })
+
+    const EXPECTED_STANDARD_SHIFTS = ['6-1', '1-9']
+    const EXPECTED_CUSTOM_SHIFT = '7:30 - 2'
 
     const days: Array<{
       date: string
@@ -77,6 +87,8 @@ export async function GET(request: NextRequest) {
       totalGallonsCur: number
       totalGallonsPrev: number
       variance: number
+      hasMissingShiftData?: boolean
+      missingShiftInfo?: string
     }> = []
 
     let totGasCur = 0
@@ -90,11 +102,32 @@ export async function GET(request: NextRequest) {
 
       const curHist = curHistoricalByDate.get(date)
       const curShift = currentByDate.get(date) ?? { unleaded: 0, diesel: 0 }
+      const dayShifts = currentShiftsByDate.get(date) ?? []
       const hist = prevHistoricalByDate.get(prevDate)
       const prevShift = prevShiftsByDate.get(prevDate) ?? { unleaded: 0, diesel: 0 }
 
       const gasLitresCur = curHist?.unleadedLitres ?? curShift.unleaded
       const dieselLitresCur = curHist?.dieselLitres ?? curShift.diesel
+
+      let hasMissingShiftData = false
+      let missingShiftInfo = ''
+      if (!curHist && dayShifts.length > 0) {
+        const hasCustom = dayShifts.some(s => s.shift === EXPECTED_CUSTOM_SHIFT)
+        const expectedShifts = hasCustom ? [EXPECTED_CUSTOM_SHIFT] : EXPECTED_STANDARD_SHIFTS
+        const missing: string[] = []
+        for (const exp of expectedShifts) {
+          const found = dayShifts.find(s => s.shift === exp)
+          if (!found) {
+            missing.push(`${exp} (missing)`)
+          } else if (found.unleaded + found.diesel === 0) {
+            missing.push(`${exp} (no fuel data)`)
+          }
+        }
+        if (missing.length > 0) {
+          hasMissingShiftData = true
+          missingShiftInfo = missing.join(', ')
+        }
+      }
       const gasLitresPrev = hist?.unleadedLitres ?? prevShift.unleaded
       const dieselLitresPrev = hist?.dieselLitres ?? prevShift.diesel
 
@@ -119,7 +152,8 @@ export async function GET(request: NextRequest) {
         dieselGallonsPrev,
         totalGallonsCur,
         totalGallonsPrev,
-        variance
+        variance,
+        ...(hasMissingShiftData && { hasMissingShiftData: true, missingShiftInfo })
       })
 
       totGasCur += gasLitresCur

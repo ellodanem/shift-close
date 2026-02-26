@@ -19,6 +19,8 @@ interface DayRow {
   totalGallonsCur: number
   totalGallonsPrev: number
   variance: number
+  hasMissingShiftData?: boolean
+  missingShiftInfo?: string
 }
 
 interface ApiResponse {
@@ -323,6 +325,9 @@ export default function FuelComparisonPage() {
                 <span className="text-sm text-gray-600">
                   Edit {data.prevYear} data (GAS & DIESEL litres) below or paste from Excel.
                 </span>
+                <span className="text-sm text-amber-700 bg-amber-100 px-2 py-1 rounded" title="A shift (6-1 or 1-9) is missing or has no fuel data for that day">
+                  Yellow = incomplete shift data
+                </span>
                 <button
                   onClick={() => { setPasteColumn('GAS'); setShowPasteModal(true) }}
                   className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded font-medium text-sm hover:bg-blue-200"
@@ -382,10 +387,16 @@ export default function FuelComparisonPage() {
                       const totalCur = gasGallonsCur + dieselGallonsCur
                       const totalPrev = gasGallonsPrev + dieselGallonsPrev
                       const variance = totalCur - totalPrev
+                      const highlight = d.hasMissingShiftData
+                      const cellClass = (base: string) =>
+                        highlight ? `${base} bg-amber-100` : base
+                      const title = d.missingShiftInfo ? `Missing: ${d.missingShiftInfo}` : undefined
                       return (
                         <tr key={d.date} className="hover:bg-gray-50">
-                          <td className="border border-gray-300 px-3 py-2 font-medium text-gray-900">{formatDateShort(d.date)}</td>
-                          <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(d.gasLitresCur)}</td>
+                          <td className={`border border-gray-300 px-3 py-2 font-medium text-gray-900 ${highlight ? 'bg-amber-100' : ''}`} title={title}>
+                            {formatDateShort(d.date)}
+                          </td>
+                          <td className={cellClass('border border-gray-300 px-2 py-2 text-right')} title={title}>{formatNum(d.gasLitresCur)}</td>
                           <td className="border border-gray-300 px-2 py-2">
                             <input
                               type="number"
@@ -395,7 +406,7 @@ export default function FuelComparisonPage() {
                               className="w-full min-w-[4rem] px-2 py-1 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500"
                             />
                           </td>
-                          <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(d.dieselLitresCur)}</td>
+                          <td className={cellClass('border border-gray-300 px-2 py-2 text-right')} title={title}>{formatNum(d.dieselLitresCur)}</td>
                           <td className="border border-gray-300 px-2 py-2">
                             <input
                               type="number"
@@ -405,13 +416,13 @@ export default function FuelComparisonPage() {
                               className="w-full min-w-[4rem] px-2 py-1 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500"
                             />
                           </td>
-                          <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(gasGallonsCur)}</td>
+                          <td className={cellClass('border border-gray-300 px-2 py-2 text-right')} title={title}>{formatNum(gasGallonsCur)}</td>
                           <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(gasGallonsPrev)}</td>
-                          <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(dieselGallonsCur)}</td>
+                          <td className={cellClass('border border-gray-300 px-2 py-2 text-right')} title={title}>{formatNum(dieselGallonsCur)}</td>
                           <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(dieselGallonsPrev)}</td>
-                          <td className="border border-gray-300 px-2 py-2 text-right font-medium">{formatNum(totalCur)}</td>
+                          <td className={cellClass('border border-gray-300 px-2 py-2 text-right font-medium')} title={title}>{formatNum(totalCur)}</td>
                           <td className="border border-gray-300 px-2 py-2 text-right font-medium">{formatNum(totalPrev)}</td>
-                          <td className={`border border-gray-300 px-2 py-2 text-right font-medium ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`${cellClass('border border-gray-300 px-2 py-2 text-right font-medium')} ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`} title={title}>
                             {variance >= 0 ? '' : '-'}{formatNum(Math.abs(variance))}
                           </td>
                         </tr>

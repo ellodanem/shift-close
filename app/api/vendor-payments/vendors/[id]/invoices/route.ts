@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ vendorId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { vendorId } = await params
+    const { id: vendorId } = await params
     const invoices = await prisma.vendorInvoice.findMany({
       where: { vendorId },
       orderBy: [{ invoiceDate: 'desc' }, { invoiceNumber: 'asc' }]
@@ -20,10 +20,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ vendorId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { vendorId } = await params
+    const { id: vendorId } = await params
     const body = await request.json()
     const { invoiceNumber, amount, invoiceDate, dueDate, vat, notes } = body
 
