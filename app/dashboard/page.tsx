@@ -437,13 +437,13 @@ export default function DashboardPage() {
     const canMoveUp = idx > 0
     const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
     return (
-      <div className={`relative group mb-6 ${className}`}>
-        <div className="absolute top-2 right-2 flex flex-col gap-0.5 z-10">
+      <div className={`flex gap-3 items-start mb-6 ${className}`}>
+        <div className="flex flex-col gap-0.5 flex-shrink-0 pt-2">
           <button
             onClick={() => handleMoveUp(id)}
             disabled={!canMoveUp}
             title="Move up"
-            className="w-7 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium"
+            className="w-8 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium border border-gray-200"
           >
             ↑
           </button>
@@ -451,12 +451,14 @@ export default function DashboardPage() {
             onClick={() => handleMoveDown(id)}
             disabled={!canMoveDown}
             title="Move down"
-            className="w-7 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium"
+            className="w-8 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium border border-gray-200"
           >
             ↓
           </button>
         </div>
-        {children}
+        <div className="flex-1 min-w-0">
+          {children}
+        </div>
       </div>
     )
   }
@@ -868,7 +870,9 @@ export default function DashboardPage() {
             </div>
           </div>
             )}
-            {id === 'upcoming' && (
+            {id === 'upcoming-roster' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Upcoming */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
@@ -1011,8 +1015,7 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-            )}
-            {id === 'today-roster' && (
+          {/* Today's Roster */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">
@@ -1067,6 +1070,7 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+          </div>
           </div>
             )}
             {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
