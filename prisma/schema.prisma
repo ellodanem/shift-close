@@ -337,6 +337,87 @@ model PaymentCorrection {
   @@map("payment_corrections")
 }
 
+// Vendor payments (separate from fuel, shares Balance)
+model Vendor {
+  id                String   @id @default(cuid())
+  name              String
+  notificationEmail String   @map("notification_email")
+  notes             String   @default("")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  invoices VendorInvoice[]
+  batches  VendorPaymentBatch[]
+
+  @@map("vendors")
+}
+
+model VendorInvoice {
+  id            String   @id @default(cuid())
+  vendorId      String   @map("vendor_id")
+  invoiceNumber String   @map("invoice_number")
+  amount        Float
+  invoiceDate   DateTime @map("invoice_date")
+  dueDate       DateTime @map("due_date")
+  vat           Float?   @default(0) // VAT / Prepaid Tax if included
+  status        String   @default("pending") // 'pending' | 'paid'
+  notes         String   @default("")
+
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  paidInvoice   PaidVendorInvoice?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([vendorId, invoiceNumber])
+  @@index([vendorId])
+  @@index([status])
+  @@map("vendor_invoices")
+}
+
+model VendorPaymentBatch {
+  id                  String    @id @default(cuid())
+  vendorId            String    @map("vendor_id")
+  paymentDate         DateTime  @map("payment_date")
+  paymentMethod       String    @map("payment_method") // 'eft' | 'check'
+  bankRef             String    @map("bank_ref") // Reference # (EFT) or Check #
+  totalAmount         Float     @map("total_amount")
+  transferDescription String?   @map("transfer_description") // For EFT - copyable
+
+  balanceBefore Float?    @map("balance_before")
+  balanceAfter  Float?    @map("balance_after")
+  clearedAt     DateTime? @map("cleared_at") // When check was cashed (null = uncashed)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vendor   Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  invoices PaidVendorInvoice[]
+
+  @@index([vendorId])
+  @@index([paymentDate])
+  @@index([clearedAt])
+  @@map("vendor_payment_batches")
+}
+
+model PaidVendorInvoice {
+  id              String   @id @default(cuid())
+  vendorInvoiceId String   @unique @map("vendor_invoice_id")
+  batchId         String   @map("batch_id")
+
+  invoiceNumber String   @map("invoice_number")
+  amount        Float
+  invoiceDate   DateTime @map("invoice_date")
+  vat           Float?   @default(0)
+
+  vendorInvoice VendorInvoice       @relation(fields: [vendorInvoiceId], references: [id], onDelete: SetNull)
+  batch         VendorPaymentBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("paid_vendor_invoices")
+}
+
 // Lightweight monthly A/R summary for customer accounts (In-House)
 model CustomerArSummary {
   id        String   @id @default(cuid())
@@ -531,8 +612,9 @@ model CashbookEntry {
   paymentMethod String?           @map("payment_method")
 
   // Optional links into other modules for reconciliation (not required)
-  shiftId        String?         // If this row is related to a ShiftClose
-  paymentBatchId String?         // If related to a fuel PaymentBatch
+  shiftId              String?  // If this row is related to a ShiftClose
+  paymentBatchId       String?  // If related to a fuel PaymentBatch
+  vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
