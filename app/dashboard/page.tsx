@@ -141,6 +141,7 @@ export default function DashboardPage() {
   const [payDayForm, setPayDayForm] = useState({ date: '', notes: '' })
   const [payDaySaving, setPayDaySaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
+  const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
 
   useEffect(() => {
     setLayout(loadDashboardLayout())
@@ -438,6 +439,9 @@ export default function DashboardPage() {
     const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
     return (
       <div className={`flex gap-3 items-start mb-6 ${className}`}>
+        <div className="flex-1 min-w-0">
+          {children}
+        </div>
         <div className="flex flex-col gap-0.5 flex-shrink-0 pt-2">
           <button
             onClick={() => handleMoveUp(id)}
@@ -455,9 +459,6 @@ export default function DashboardPage() {
           >
             ↓
           </button>
-        </div>
-        <div className="flex-1 min-w-0">
-          {children}
         </div>
       </div>
     )
@@ -622,66 +623,82 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Customer Accounts + Fuel Net helper band */}
-            <div className="mt-2 pt-3 border-t border-dashed border-gray-200 space-y-1.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-gray-700">
-                    Customer Accounts (info only, not cash)
+            {/* Customer Accounts + Fuel Net helper band (collapsible) */}
+            <div className="mt-2 pt-3 border-t border-dashed border-gray-200">
+              <button
+                type="button"
+                onClick={() => setCustomerAccountsFuelNetExpanded(!customerAccountsFuelNetExpanded)}
+                className="w-full flex items-center justify-between gap-2 text-left py-1 -mx-1 px-1 rounded hover:bg-gray-50"
+              >
+                <span className="text-xs font-semibold text-gray-700">
+                  Customer Accounts & Fuel Net
+                </span>
+                <span className="text-gray-400 text-sm">
+                  {customerAccountsFuelNetExpanded ? '▼' : '▶'}
+                </span>
+              </button>
+              {customerAccountsFuelNetExpanded && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700">
+                        Customer Accounts (info only, not cash)
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Customer Charges (MTD):{' '}
+                        <span className="font-semibold text-gray-700">
+                          ${formatCurrency(summary.totals.inhouse)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
-                    Customer Charges (MTD):{' '}
-                    <span className="font-semibold text-gray-700">
-                      ${formatCurrency(summary.totals.inhouse)}
-                    </span>
+
+                  {/* Fuel Net (Revenue vs Expense) */}
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700">
+                        Fuel Net (Month-to-Date)
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5 max-w-sm">
+                        Cash-style Grand Total above minus paid fuel invoices for{' '}
+                        {summary.monthName} {summary.year}. Customer Charges (MTD) are
+                        shown separately here and are not included in this net.
+                      </div>
+                    </div>
+
+                    {fuelExpense !== null ? (
+                      <div className="text-right text-xs space-y-0.5">
+                        <div className="text-gray-600">
+                          <span className="font-semibold">Revenue:</span>{' '}
+                          ${formatCurrency(summary.totals.grandTotal)}
+                        </div>
+                        <div className="text-gray-600">
+                          <span className="font-semibold">Fuel Expense:</span>{' '}
+                          ${formatCurrency(fuelExpense)}
+                        </div>
+                        <div
+                          className={`mt-1 text-sm font-bold ${
+                            summary.totals.grandTotal - fuelExpense > 0
+                              ? 'text-green-600'
+                              : summary.totals.grandTotal - fuelExpense < 0
+                              ? 'text-red-600'
+                              : 'text-gray-600'
+                          }`}
+                        >
+                          Net:{' '}
+                          {summary.totals.grandTotal - fuelExpense >= 0 ? '+' : ''}
+                          {formatCurrency(summary.totals.grandTotal - fuelExpense)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400">
+                        Fuel net will appear once there is at least one paid fuel batch for this
+                        month.
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-
-              {/* Fuel Net (Revenue vs Expense) */}
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-gray-700">
-                    Fuel Net (Month-to-Date)
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5 max-w-sm">
-                    Cash-style Grand Total above minus paid fuel invoices for{' '}
-                    {summary.monthName} {summary.year}. Customer Charges (MTD) are
-                    shown separately here and are not included in this net.
-                  </div>
-                </div>
-
-                {fuelExpense !== null ? (
-                  <div className="text-right text-xs space-y-0.5">
-                    <div className="text-gray-600">
-                      <span className="font-semibold">Revenue:</span>{' '}
-                      ${formatCurrency(summary.totals.grandTotal)}
-                    </div>
-                    <div className="text-gray-600">
-                      <span className="font-semibold">Fuel Expense:</span>{' '}
-                      ${formatCurrency(fuelExpense)}
-                    </div>
-                    <div
-                      className={`mt-1 text-sm font-bold ${
-                        summary.totals.grandTotal - fuelExpense > 0
-                          ? 'text-green-600'
-                          : summary.totals.grandTotal - fuelExpense < 0
-                          ? 'text-red-600'
-                          : 'text-gray-600'
-                      }`}
-                    >
-                      Net:{' '}
-                      {summary.totals.grandTotal - fuelExpense >= 0 ? '+' : ''}
-                      {formatCurrency(summary.totals.grandTotal - fuelExpense)}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400">
-                    Fuel net will appear once there is at least one paid fuel batch for this
-                    month.
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
             )}
