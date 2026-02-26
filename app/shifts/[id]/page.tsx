@@ -1738,6 +1738,7 @@ export default function ShiftDetailPage() {
                   ))}
                 </div>
                 <p className="text-xs text-gray-400 mt-3">* Cheque shortage only. Debit fuel taken is note only.</p>
+                <a href="/account-customers" className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 inline-block">Manage customers & update balances →</a>
               </div>
             ) : (
               <div className="p-4 space-y-3">

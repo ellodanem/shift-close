@@ -7,19 +7,28 @@ export const dynamic = 'force-dynamic'
  * GET /api/shifts/cheque-balances
  * Returns the most recent account balance per customer (cheque or debit)
  * where newBalance > 0 — used to auto-fill "Previous Balance" in the modal.
+ * Uses manual overrides from CustomerAccountBalance when set.
  */
 export async function GET() {
   try {
-    const items = await prisma.overShortItem.findMany({
-      where: {
-        itemKind: { in: ['cheque_received', 'debit_received', 'fuel_taken', 'cheque_balance'] },
-        newBalance: { gt: 0 }
-      },
-      include: {
-        shift: { select: { date: true, shift: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
+    const [overrides, items] = await Promise.all([
+      prisma.customerAccountBalance.findMany(),
+      prisma.overShortItem.findMany({
+        where: {
+          itemKind: { in: ['cheque_received', 'debit_received', 'fuel_taken', 'cheque_balance'] },
+          newBalance: { gt: 0 }
+        },
+        include: {
+          shift: { select: { date: true, shift: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+    ])
+
+    const overrideMap = new Map<string, { customerName: string; balance: number }>()
+    for (const o of overrides) {
+      overrideMap.set(o.customerName.toLowerCase(), { customerName: o.customerName, balance: o.balanceOverride })
+    }
 
     const seen = new Map<string, {
       customerName: string
@@ -32,12 +41,26 @@ export async function GET() {
     for (const item of items) {
       const key = (item.customerName || '').toLowerCase()
       if (!seen.has(key) && item.customerName && item.newBalance != null) {
+        const override = overrideMap.get(key)
         seen.set(key, {
           customerName: item.customerName,
-          newBalance: item.newBalance,
+          newBalance: override != null ? override.balance : item.newBalance,
           paymentMethod: item.paymentMethod || 'cheque',
           shiftDate: item.shift.date,
           shiftPeriod: item.shift.shift
+        })
+      }
+    }
+
+    for (const o of overrides) {
+      const key = o.customerName.toLowerCase()
+      if (!seen.has(key) && o.balanceOverride > 0) {
+        seen.set(key, {
+          customerName: o.customerName,
+          newBalance: o.balanceOverride,
+          paymentMethod: 'cheque',
+          shiftDate: '',
+          shiftPeriod: ''
         })
       }
     }
