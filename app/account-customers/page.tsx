@@ -19,6 +19,8 @@ export default function AccountCustomersPage() {
   const [editing, setEditing] = useState<string | null>(null)
   const [editBalance, setEditBalance] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editNameValue, setEditNameValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBalance, setNewBalance] = useState('')
@@ -66,6 +68,36 @@ export default function AccountCustomersPage() {
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to save')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStartEditName = (c: AccountCustomer) => {
+    setEditingName(c.customerName)
+    setEditNameValue(c.customerName)
+  }
+
+  const handleSaveName = async () => {
+    if (!editingName || !editNameValue.trim()) return
+    if (editNameValue.trim() === editingName) {
+      setEditingName(null)
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/account-customers/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldName: editingName, newName: editNameValue.trim() })
+      })
+      if (res.ok) {
+        setEditingName(null)
+        fetchList()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to rename')
       }
     } finally {
       setSaving(false)
@@ -182,7 +214,40 @@ export default function AccountCustomersPage() {
                   className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
                 >
                   <div>
-                    <div className="font-medium text-gray-900">{c.customerName}</div>
+                    {editingName === c.customerName ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm w-48"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleSaveName}
+                          disabled={saving || !editNameValue.trim()}
+                          className="px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingName(null)}
+                          className="px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="font-medium text-gray-900">
+                        {c.customerName}
+                        <button
+                          onClick={() => handleStartEditName(c)}
+                          className="ml-2 text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                          Edit name
+                        </button>
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500">
                       {c.isOverride ? (
                         <span className="text-amber-600">Manual balance</span>
