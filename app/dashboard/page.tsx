@@ -2,6 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  type DashboardWidgetId,
+  getDefaultLayout,
+  loadDashboardLayout,
+  saveDashboardLayout,
+  moveWidgetUp,
+  moveWidgetDown
+} from '@/lib/dashboard-layout'
 
 interface MonthSummary {
   year: number
@@ -132,6 +140,11 @@ export default function DashboardPage() {
   const [payDayModalOpen, setPayDayModalOpen] = useState(false)
   const [payDayForm, setPayDayForm] = useState({ date: '', notes: '' })
   const [payDaySaving, setPayDaySaving] = useState(false)
+  const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
+
+  useEffect(() => {
+    setLayout(loadDashboardLayout())
+  }, [])
 
   useEffect(() => {
     if (!reminderModalOpen && !payDayModalOpen) return
@@ -397,6 +410,57 @@ export default function DashboardPage() {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   }
 
+  const visibleLayout = layout.filter(id => id !== 'fuel-volume' || fuelComparison.length > 0)
+
+  const handleMoveUp = (id: DashboardWidgetId) => {
+    const next = moveWidgetUp(layout, id)
+    setLayout(next)
+    saveDashboardLayout(next)
+  }
+
+  const handleMoveDown = (id: DashboardWidgetId) => {
+    const next = moveWidgetDown(layout, id)
+    setLayout(next)
+    saveDashboardLayout(next)
+  }
+
+  const WidgetWrapper = ({
+    id,
+    children,
+    className = ''
+  }: {
+    id: DashboardWidgetId
+    children: React.ReactNode
+    className?: string
+  }) => {
+    const idx = visibleLayout.indexOf(id)
+    const canMoveUp = idx > 0
+    const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
+    return (
+      <div className={`relative group mb-6 ${className}`}>
+        <div className="absolute top-2 right-2 flex flex-col gap-0.5 z-10">
+          <button
+            onClick={() => handleMoveUp(id)}
+            disabled={!canMoveUp}
+            title="Move up"
+            className="w-7 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium"
+          >
+            ↑
+          </button>
+          <button
+            onClick={() => handleMoveDown(id)}
+            disabled={!canMoveDown}
+            title="Move down"
+            className="w-7 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-600 text-sm font-medium"
+          >
+            ↓
+          </button>
+        </div>
+        {children}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -492,9 +556,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Month-to-Date Summary Card */}
-        {summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        {/* Moveable widgets */}
+        {visibleLayout.map((id) => (
+          <WidgetWrapper key={id} id={id}>
+            {id === 'month-summary' && summary && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-700">
                 Summary ({summary.monthName} {summary.year})
@@ -616,11 +682,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Phase 1 Status Widgets */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            )}
+            {id === 'phase1-status' && summary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Customer A/R Summary */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -803,11 +867,8 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Upcoming & Today Row (half boxes) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Upcoming Events - Half Box */}
+            )}
+            {id === 'upcoming' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
@@ -950,8 +1011,8 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
-          {/* Today's Roster - Half Box (scheduled + who's off) */}
+            )}
+            {id === 'today-roster' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">
@@ -1007,10 +1068,8 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Fuel Volume Comparison Widget */}
-        {fuelComparison.length > 0 && (() => {
+            )}
+            {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
           const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
           const maxVal = Math.max(...allVals, 1)
           const BAR_HEIGHT_PX = 128
@@ -1020,12 +1079,11 @@ export default function DashboardPage() {
             return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           }
           return (
-            <div className="mb-6">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <div>
+                  <div className="flex items-baseline gap-2">
                     <h3 className="text-sm font-semibold text-gray-700">Fuel Volume — Last 5 Days</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">vs. same day prior year</p>
+                    <span className="text-xs text-gray-400">vs. same day prior year</span>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500"/><span>Unleaded</span></span>
@@ -1087,12 +1145,9 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
-            </div>
           )
         })()}
-
-        {/* Recent Fuel Payment - Full width row */}
-        <div className="mb-6">
+            {id === 'recent-fuel-payment' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Recent Fuel Payment</h3>
@@ -1175,7 +1230,9 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-        </div>
+            )}
+          </WidgetWrapper>
+        ))}
       </div>
 
       {/* Add Pay Day Modal */}
