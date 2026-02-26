@@ -52,6 +52,14 @@ export default function ReportsPage() {
       route: '/reports/daily-financial-summary'
     },
     {
+      id: 'fuel-comparison',
+      title: 'Comparative Fuel Data',
+      description: 'Year-over-year fuel volume comparison (Unleaded & Diesel) by month',
+      icon: '⛽',
+      comingSoon: false,
+      route: '/reports/fuel-comparison'
+    },
+    {
       id: 'deposit',
       title: 'Deposit Reports',
       description: 'Deposit patterns, totals, and analysis',
