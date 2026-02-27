@@ -14,6 +14,13 @@ export default function SettingsPage() {
       route: '/settings/fuel-data'
     },
     {
+      id: 'smtp',
+      title: 'Email (SMTP)',
+      description: 'Configure SMTP server for sending emails. Works with Gmail, Outlook, or any SMTP server.',
+      icon: '📧',
+      route: '/settings/smtp'
+    },
+    {
       id: 'email-recipients',
       title: 'Email recipients',
       description: 'Manage the list of common recipients for the "Email report" dropdown.',

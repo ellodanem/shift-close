@@ -1,21 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { prisma } from '@/lib/prisma'
 import { formatAmount } from '@/lib/fuelPayments'
+import { sendMail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
-    const user = process.env.SMTP_USER
-    const pass = process.env.SMTP_PASS
-    const from = process.env.EMAIL_FROM || user
-
-    if (!user || !pass) {
-      return NextResponse.json(
-        { error: 'Email not configured. Set SMTP_USER and SMTP_PASS.' },
-        { status: 500 }
-      )
-    }
-
     const body = await request.json()
     const { batchId, ccEmail } = body as { batchId?: string; ccEmail?: string }
 
@@ -81,26 +70,12 @@ export async function POST(request: NextRequest) {
 </html>
     `.trim()
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: { user, pass }
-    })
-
-    const mailOptions: Parameters<typeof transporter.sendMail>[0] = {
-      from: from || user,
+    await sendMail({
       to: toEmail,
       subject: `Payment Notification – ${batch.vendor.name} – ${paymentDateStr}`,
-      text: html.replace(/<[^>]*>/g, ''),
-      html
-    }
-
-    if (ccEmail && String(ccEmail).trim()) {
-      mailOptions.cc = String(ccEmail).trim()
-    }
-
-    await transporter.sendMail(mailOptions)
+      html,
+      cc: ccEmail && String(ccEmail).trim() ? String(ccEmail).trim() : undefined
+    })
 
     return NextResponse.json({
       success: true,
