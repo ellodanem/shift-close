@@ -47,7 +47,7 @@ export async function GET() {
           vacationEnd: { not: null },
           AND: [
             { vacationStart: { lte: today } },
-            { vacationEnd: { gte: today } }
+            { vacationEnd: { gt: today } }
           ]
         },
         select: { id: true, name: true }

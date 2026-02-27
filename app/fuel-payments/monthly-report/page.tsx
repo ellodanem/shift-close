@@ -18,6 +18,12 @@ export default function MonthlyFuelPaymentReportPage() {
   const [month, setMonth] = useState(getDefaultMonth())
   const [data, setData] = useState<GroupedReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
+  const [emailToId, setEmailToId] = useState('')
+  const [emailOther, setEmailOther] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
   const [emailing, setEmailing] = useState(false)
 
   useEffect(() => {
@@ -44,17 +50,53 @@ export default function MonthlyFuelPaymentReportPage() {
     window.print()
   }
 
-  const handleEmailReport = async () => {
+  const openEmailModal = () => {
+    const [year, monthNum] = month.split('-').map(Number)
+    const monthName = new Date(year, monthNum - 1, 1).toLocaleString('default', {
+      month: 'long',
+      year: 'numeric'
+    })
+    setEmailSubject(`Monthly Fuel Payment Report – ${monthName}`)
+    setEmailBody(`Please find the Monthly Fuel Payment Report for ${monthName} attached.`)
+    setEmailToId('')
+    setEmailOther('')
+    fetch('/api/email-recipients')
+      .then((res) => res.json())
+      .then((data) => {
+        const raw = Array.isArray(data) ? data : []
+        const list = raw.map((r: { id: string; label?: string; email?: string }) => ({
+          id: String(r.id),
+          label: r.label ?? '',
+          email: r.email ?? ''
+        }))
+        setEmailRecipients(list)
+        if (list.length > 0) setEmailToId(list[0].id)
+        else setEmailToId('other')
+      })
+      .catch(() => {
+        setEmailRecipients([])
+        setEmailToId('other')
+      })
+    setShowEmailModal(true)
+  }
+
+  const sendEmailReport = async () => {
+    const to = emailOther.trim() || (emailToId && emailToId !== 'other' ? emailRecipients.find((r) => r.id === emailToId)?.email?.trim() : '') || ''
+    if (!to) {
+      alert('Choose a recipient from the list or enter an email address below.')
+      return
+    }
     setEmailing(true)
     try {
       const res = await fetch('/api/fuel-payments/monthly/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ month })
+        body: JSON.stringify({ month, to, subject: emailSubject, body: emailBody })
       })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Failed to send email')
-      alert(result.message || `Report emailed successfully.`)
+      setShowEmailModal(false)
+      alert(result.message || 'Report emailed successfully.')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send email')
     } finally {
@@ -104,11 +146,10 @@ export default function MonthlyFuelPaymentReportPage() {
               Print
             </button>
             <button
-              onClick={handleEmailReport}
-              disabled={emailing}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 disabled:opacity-60"
+              onClick={openEmailModal}
+              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
             >
-              {emailing ? 'Sending…' : 'Email Report'}
+              Email Report
             </button>
             <button
               disabled
@@ -237,6 +278,76 @@ export default function MonthlyFuelPaymentReportPage() {
           )}
         </div>
       </div>
+
+      {/* Email modal: select recipient, review message, then send */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Email Monthly Report</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
+                <select
+                  value={emailToId}
+                  onChange={(e) => setEmailToId(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  <option value="">Choose a recipient…</option>
+                  {emailRecipients.map((r) => (
+                    <option key={r.id} value={r.id}>{r.label} ({r.email})</option>
+                  ))}
+                  <option value="other">Other (enter below)</option>
+                </select>
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">Or enter another email address</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. someone@example.com"
+                    value={emailOther}
+                    onChange={(e) => setEmailOther(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEmailModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={sendEmailReport}
+                disabled={emailing || !(emailOther.trim() || (emailToId && emailToId !== 'other' && emailRecipients.some((r) => r.id === emailToId)))}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {emailing ? 'Sending…' : 'Send email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Print Styles */}
       <style jsx global>{`

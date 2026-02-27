@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { generateMonthlyReportPdfBuffer } from '@/lib/monthlyReportPdf'
 import { sendMail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { month } = body as { month?: string }
+    const req = await request.json()
+    const { month, to, subject, body: bodyText } = req as {
+      month?: string
+      to?: string
+      subject?: string
+      body?: string
+    }
 
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
       return NextResponse.json(
@@ -15,13 +19,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const recipients = await prisma.emailRecipient.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
-    })
-    const primary = recipients[0]
-    if (!primary?.email) {
+    const toEmail = (to && String(to).trim()) || ''
+    if (!toEmail) {
       return NextResponse.json(
-        { error: 'No email recipients configured. Add one in Settings → Email recipients.' },
+        { error: 'Recipient email (to) is required' },
         { status: 400 }
       )
     }
@@ -32,14 +33,19 @@ export async function POST(request: NextRequest) {
       year: 'numeric'
     })
 
+    const defaultSubject = `Monthly Fuel Payment Report – ${monthName}`
+    const defaultText = `Please find the Monthly Fuel Payment Report for ${monthName} attached.`
+    const finalSubject = (subject && String(subject).trim()) || defaultSubject
+    const finalText = (bodyText && String(bodyText).trim()) || defaultText
+
     const pdfBuffer = await generateMonthlyReportPdfBuffer(month)
     const filename = `monthly-fuel-report-${month}.pdf`
 
     await sendMail({
-      to: primary.email,
-      subject: `Monthly Fuel Payment Report – ${monthName}`,
-      text: `Please find the Monthly Fuel Payment Report for ${monthName} attached.`,
-      html: `<p>Please find the Monthly Fuel Payment Report for <strong>${monthName}</strong> attached.</p>`,
+      to: toEmail,
+      subject: finalSubject,
+      text: finalText,
+      html: `<p>${finalText.replace(/\n/g, '</p><p>')}</p>`,
       attachments: [
         {
           filename,
@@ -51,8 +57,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      to: primary.email,
-      message: `Report emailed to ${primary.email}`
+      to: toEmail,
+      message: `Report emailed to ${toEmail}`
     })
   } catch (error: unknown) {
     console.error('Monthly report email error:', error)
