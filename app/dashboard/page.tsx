@@ -135,7 +135,9 @@ export default function DashboardPage() {
     notes: '',
     notifyEmail: true,
     notifyWhatsApp: false,
-    notifyDaysBefore: '7,3,1,0'
+    notifyDaysBefore: '7,3,1,0',
+    recurrenceType: '' as '' | 'weekly' | 'biweekly' | 'monthly',
+    recurrenceEndDate: ''
   })
   const [payDayModalOpen, setPayDayModalOpen] = useState(false)
   const [payDayForm, setPayDayForm] = useState({ date: '', notes: '' })
@@ -927,7 +929,9 @@ export default function DashboardPage() {
                       notes: '',
                       notifyEmail: true,
                       notifyWhatsApp: false,
-                      notifyDaysBefore: '7,3,1,0'
+                      notifyDaysBefore: '7,3,1,0',
+                      recurrenceType: '',
+                      recurrenceEndDate: ''
                     })
                     setReminderModalOpen(true)
                   }}
@@ -972,7 +976,7 @@ export default function DashboardPage() {
                   }
                   
                   return (
-                    <div key={event.reminderId ?? index} className={`rounded p-2 ${getPriorityColor()}`}>
+                    <div key={`${event.type}-${event.reminderId ?? event.payDayId ?? index}-${event.date}`} className={`rounded p-2 ${getPriorityColor()}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="text-lg flex-shrink-0">{getIcon()}</span>
@@ -1368,6 +1372,30 @@ export default function DashboardPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Repeat</label>
+                <select
+                  value={reminderForm.recurrenceType}
+                  onChange={(e) => setReminderForm((f) => ({ ...f, recurrenceType: e.target.value as '' | 'weekly' | 'biweekly' | 'monthly' }))}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  <option value="">One-time</option>
+                  <option value="weekly">Every week</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                  <option value="monthly">Every month</option>
+                </select>
+                {reminderForm.recurrenceType && (
+                  <div className="mt-2">
+                    <label className="block text-xs text-gray-500 mb-1">End date (optional)</label>
+                    <input
+                      type="date"
+                      value={reminderForm.recurrenceEndDate}
+                      onChange={(e) => setReminderForm((f) => ({ ...f, recurrenceEndDate: e.target.value }))}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
                 <textarea
                   value={reminderForm.notes}
@@ -1438,7 +1466,9 @@ export default function DashboardPage() {
                         notes: reminderForm.notes.trim() || null,
                         notifyEmail: reminderForm.notifyEmail,
                         notifyWhatsApp: reminderForm.notifyWhatsApp,
-                        notifyDaysBefore: reminderForm.notifyDaysBefore
+                        notifyDaysBefore: reminderForm.notifyDaysBefore,
+                        recurrenceType: reminderForm.recurrenceType || null,
+                        recurrenceEndDate: reminderForm.recurrenceEndDate.trim() || null
                       })
                     })
                     const data = await res.json().catch(() => ({}))
