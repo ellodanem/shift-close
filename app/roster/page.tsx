@@ -18,8 +18,7 @@ interface Staff {
 function isOnVacation(staff: Staff, date: string): boolean {
   const start = staff.vacationStart
   const end = staff.vacationEnd
-  // End date is exclusive: "vacation ends Feb 27" = back on Feb 27, so last vacation day is Feb 26
-  return !!(start && end && date >= start && date < end)
+  return !!(start && end && date >= start && date <= end)
 }
 
 interface ShiftTemplate {
