@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -20,8 +21,21 @@ export async function GET(request: NextRequest) {
     const today = new Date()
     const todayStr = today.toISOString().split('T')[0]
 
+    // Fetch reminders that could have occurrences in the next 7 days (for "7 days before" notifications)
+    const weekAgo = new Date(today)
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    const weekAgoStr = weekAgo.toISOString().split('T')[0]
+    const weekAhead = new Date(today)
+    weekAhead.setDate(weekAhead.getDate() + 7)
+    const weekAheadStr = weekAhead.toISOString().split('T')[0]
+
     const reminders = await prisma.reminder.findMany({
-      where: { date: { gte: todayStr } },
+      where: {
+        OR: [
+          { date: { gte: weekAgoStr }, recurrenceType: null },
+          { recurrenceType: { not: null } }
+        ]
+      },
       orderBy: { date: 'asc' }
     })
 
@@ -80,13 +94,21 @@ export async function GET(request: NextRequest) {
       console.log(`[Pay Days] WhatsApp notification skipped for ${pd.date} (Twilio not configured)`)
     }
 
-    for (const reminder of reminders) {
+    const occurrences = reminders.flatMap((r) =>
+      getOccurrenceDates(
+        { ...r, recurrenceDayOfWeek: r.recurrenceDayOfWeek ?? undefined, recurrenceDayOfMonth: r.recurrenceDayOfMonth ?? undefined },
+        weekAgoStr,
+        weekAheadStr
+      )
+    )
+
+    for (const { date, reminder } of occurrences) {
       const daysBefore = (reminder.notifyDaysBefore || '7,3,1,0')
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
         .filter((n) => !Number.isNaN(n))
 
-      const reminderDate = new Date(reminder.date + 'T12:00:00')
+      const reminderDate = new Date(date + 'T12:00:00')
       const diffMs = reminderDate.getTime() - today.getTime()
       const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
 
@@ -97,7 +119,7 @@ export async function GET(request: NextRequest) {
       const html = `
         <h2>Reminder</h2>
         <p><strong>${reminder.title}</strong></p>
-        <p>Date: ${reminder.date}</p>
+        <p>Date: ${date}</p>
         ${reminder.notes ? `<p>${reminder.notes}</p>` : ''}
         <p><em>This is an automated reminder from Shift Close.</em></p>
       `
@@ -117,13 +139,13 @@ export async function GET(request: NextRequest) {
             })
           })
           if (res.ok) {
-            sent.push(`${reminder.id} -> ${rec.email}`)
+            sent.push(`${reminder.id}@${date} -> ${rec.email}`)
           } else {
             const err = await res.json().catch(() => ({}))
-            errors.push(`${reminder.title}: ${err.error || res.statusText}`)
+            errors.push(`${reminder.title} (${date}): ${err.error || res.statusText}`)
           }
         } catch (err) {
-          errors.push(`${reminder.title}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+          errors.push(`${reminder.title} (${date}): ${err instanceof Error ? err.message : 'Unknown error'}`)
         }
       }
 

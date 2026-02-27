@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,20 +114,30 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Custom reminders within next 7 days (use local date to avoid timezone shift)
+    // Custom reminders within next 7 days (one-time + recurring expanded)
     const reminders = await prisma.reminder.findMany({
       where: {
-        date: { gte: todayStr, lte: nextWeekStr }
+        OR: [
+          { date: { gte: todayStr, lte: nextWeekStr }, recurrenceType: null },
+          { recurrenceType: { not: null } }
+        ]
       },
       orderBy: { date: 'asc' }
     })
-    reminders.forEach(reminder => {
-      const daysUntil = Math.ceil((new Date(reminder.date + 'T12:00:00').getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const reminderOccurrences = reminders.flatMap((r) =>
+      getOccurrenceDates(
+        { ...r, recurrenceDayOfWeek: r.recurrenceDayOfWeek ?? undefined, recurrenceDayOfMonth: r.recurrenceDayOfMonth ?? undefined },
+        todayStr,
+        nextWeekStr
+      )
+    )
+    reminderOccurrences.forEach(({ date, reminder }) => {
+      const daysUntil = Math.ceil((new Date(date + 'T12:00:00').getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       if (daysUntil >= 0 && daysUntil <= 7) {
         upcoming.push({
           type: 'other',
           title: reminder.title,
-          date: reminder.date,
+          date,
           daysUntil,
           priority: daysUntil <= 3 ? 'high' : daysUntil <= 5 ? 'medium' : 'low',
           reminderId: reminder.id

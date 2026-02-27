@@ -658,14 +658,19 @@ model AppSettings {
 
 // Custom reminders with email/WhatsApp notifications
 model Reminder {
-  id              String   @id @default(cuid())
-  title           String
-  date            String   // YYYY-MM-DD
-  notes           String?  @default("")
-  notifyEmail     Boolean  @default(true) @map("notify_email")
-  notifyWhatsApp  Boolean  @default(false) @map("notify_whatsapp")
-  notifyDaysBefore String  @default("7,3,1,0") @map("notify_days_before") // e.g. "7,3,1,0" = 7d, 3d, 1d, day-of
-  createdAt       DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  title            String
+  date             String   // YYYY-MM-DD — single date for one-time, or first occurrence for recurring
+  notes            String?  @default("")
+  notifyEmail      Boolean  @default(true) @map("notify_email")
+  notifyWhatsApp   Boolean  @default(false) @map("notify_whatsapp")
+  notifyDaysBefore String   @default("7,3,1,0") @map("notify_days_before") // e.g. "7,3,1,0" = 7d, 3d, 1d, day-of
+  // Recurrence: null = one-time
+  recurrenceType       String?  @map("recurrence_type")   // 'weekly' | 'biweekly' | 'monthly'
+  recurrenceDayOfWeek  Int?     @map("recurrence_day_of_week")  // 0=Sun..6=Sat (for weekly/biweekly)
+  recurrenceDayOfMonth Int?     @map("recurrence_day_of_month") // 1-31 (for monthly)
+  recurrenceEndDate     String?  @map("recurrence_end_date")    // YYYY-MM-DD, optional stop
+  createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([date])
   @@map("reminders")

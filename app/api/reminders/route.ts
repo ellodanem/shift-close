@@ -38,7 +38,11 @@ export async function POST(request: NextRequest) {
       notes,
       notifyEmail = true,
       notifyWhatsApp = false,
-      notifyDaysBefore = '7,3,1,0'
+      notifyDaysBefore = '7,3,1,0',
+      recurrenceType,
+      recurrenceDayOfWeek,
+      recurrenceDayOfMonth,
+      recurrenceEndDate
     } = body as {
       title?: string
       date?: string
@@ -46,6 +50,10 @@ export async function POST(request: NextRequest) {
       notifyEmail?: boolean
       notifyWhatsApp?: boolean
       notifyDaysBefore?: string
+      recurrenceType?: string | null
+      recurrenceDayOfWeek?: number | null
+      recurrenceDayOfMonth?: number | null
+      recurrenceEndDate?: string | null
     }
 
     if (!title?.trim()) {
@@ -55,6 +63,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Date is required' }, { status: 400 })
     }
 
+    const recType = recurrenceType && ['weekly', 'biweekly', 'monthly'].includes(recurrenceType) ? recurrenceType : null
+
     const reminder = await prisma.reminder.create({
       data: {
         title: title.trim(),
@@ -62,7 +72,11 @@ export async function POST(request: NextRequest) {
         notes: notes?.trim() || null,
         notifyEmail: !!notifyEmail,
         notifyWhatsApp: !!notifyWhatsApp,
-        notifyDaysBefore: String(notifyDaysBefore || '7,3,1,0')
+        notifyDaysBefore: String(notifyDaysBefore || '7,3,1,0'),
+        recurrenceType: recType,
+        recurrenceDayOfWeek: recType && recurrenceDayOfWeek != null ? recurrenceDayOfWeek : null,
+        recurrenceDayOfMonth: recType === 'monthly' && recurrenceDayOfMonth != null ? recurrenceDayOfMonth : null,
+        recurrenceEndDate: recurrenceEndDate?.trim() || null
       }
     })
     return NextResponse.json(reminder, { status: 201 })
