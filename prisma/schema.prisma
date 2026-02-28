@@ -441,11 +441,12 @@ model CustomerArSummary {
 
 // Recipients for "Email report" dropdown (manageable in Settings)
 model EmailRecipient {
-  id        String   @id @default(cuid())
-  label     String   // e.g. "Mr. Elcock"
-  email     String
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  label        String   // e.g. "Mr. Elcock"
+  email        String
+  mobileNumber String?  @map("mobile_number") // E.164 for WhatsApp (e.g. +12465551234)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("email_recipients")
 }

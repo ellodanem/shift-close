@@ -7,6 +7,7 @@ interface EmailRecipient {
   id: string
   label: string
   email: string
+  mobileNumber?: string | null
   sortOrder: number
 }
 
@@ -17,6 +18,9 @@ export default function EmailRecipientsSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newEmail, setNewEmail] = useState('')
+  const [newMobile, setNewMobile] = useState('')
+  const [editingMobileId, setEditingMobileId] = useState<string | null>(null)
+  const [editingMobileValue, setEditingMobileValue] = useState('')
 
   const fetchList = () => {
     fetch('/api/email-recipients')
@@ -38,11 +42,12 @@ export default function EmailRecipientsSettingsPage() {
       const res = await fetch('/api/email-recipients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel.trim(), email: newEmail.trim() })
+        body: JSON.stringify({ label: newLabel.trim(), email: newEmail.trim(), mobileNumber: newMobile.trim() || null })
       })
       if (res.ok) {
         setNewLabel('')
         setNewEmail('')
+        setNewMobile('')
         fetchList()
       } else {
         const err = await res.json().catch(() => ({}))
@@ -50,6 +55,26 @@ export default function EmailRecipientsSettingsPage() {
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveMobile = async (id: string) => {
+    try {
+      const res = await fetch(`/api/email-recipients/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber: editingMobileValue.trim() || null })
+      })
+      if (res.ok) {
+        setEditingMobileId(null)
+        setEditingMobileValue('')
+        fetchList()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to update')
+      }
+    } catch {
+      alert('Failed to update')
     }
   }
 
@@ -77,7 +102,7 @@ export default function EmailRecipientsSettingsPage() {
           </button>
         </div>
         <p className="text-gray-600 mb-6">
-          These recipients appear in the &quot;Email report&quot; dropdown so you can quickly send reports to common contacts.
+          These recipients appear in the &quot;Email report&quot; dropdown. Add a mobile number (E.164, e.g. +12465551234) for WhatsApp reminders.
         </p>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -103,6 +128,16 @@ export default function EmailRecipientsSettingsPage() {
                 className="border border-gray-300 rounded px-3 py-2 w-56"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mobile (WhatsApp)</label>
+              <input
+                type="tel"
+                value={newMobile}
+                onChange={(e) => setNewMobile(e.target.value)}
+                placeholder="+12465551234"
+                className="border border-gray-300 rounded px-3 py-2 w-40"
+              />
+            </div>
             <button
               type="submit"
               disabled={saving || !newLabel.trim() || !newEmail.trim()}
@@ -126,8 +161,35 @@ export default function EmailRecipientsSettingsPage() {
                   key={r.id}
                   className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0"
                 >
-                  <span className="font-medium text-gray-900">{r.label}</span>
-                  <span className="text-gray-600 text-sm">{r.email}</span>
+                  <div>
+                    <span className="font-medium text-gray-900">{r.label}</span>
+                    <span className="text-gray-600 text-sm ml-2">{r.email}</span>
+                    {r.mobileNumber && !editingMobileId && (
+                      <span className="text-green-600 text-xs ml-2">WhatsApp ✓</span>
+                    )}
+                    {editingMobileId === r.id ? (
+                      <span className="ml-2 inline-flex gap-1">
+                        <input
+                          type="tel"
+                          value={editingMobileValue}
+                          onChange={(e) => setEditingMobileValue(e.target.value)}
+                          placeholder="+12465551234"
+                          className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
+                          autoFocus
+                        />
+                        <button type="button" onClick={() => handleSaveMobile(r.id)} className="text-blue-600 text-xs">Save</button>
+                        <button type="button" onClick={() => { setEditingMobileId(null); setEditingMobileValue('') }} className="text-gray-500 text-xs">Cancel</button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingMobileId(r.id); setEditingMobileValue(r.mobileNumber || '') }}
+                        className="text-blue-600 text-xs ml-2 hover:underline"
+                      >
+                        {r.mobileNumber ? 'Edit mobile' : 'Add mobile'}
+                      </button>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleDelete(r.id)}

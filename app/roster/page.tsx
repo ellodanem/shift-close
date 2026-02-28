@@ -127,6 +127,10 @@ export default function RosterPage() {
   const [dayOffReason, setDayOffReason] = useState('')
   const [savingDayOff, setSavingDayOff] = useState(false)
   const [dayOffSuccess, setDayOffSuccess] = useState(false)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [whatsappRecipients, setWhatsappRecipients] = useState<{ id: string; label: string; mobileNumber?: string | null }[]>([])
+  const [whatsappToId, setWhatsappToId] = useState('')
+  const [whatsappOther, setWhatsappOther] = useState('')
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -634,6 +638,68 @@ export default function RosterPage() {
   }
 
   // Share roster as text: copy and open WhatsApp Web (or wa.me with no number on mobile)
+  const openWhatsAppDirectModal = () => {
+    setShareMenuOpen(false)
+    if (entries.length === 0) {
+      alert('There are no shifts saved for this week yet. Save the roster first.')
+      return
+    }
+    fetch('/api/email-recipients')
+      .then((res) => res.json())
+      .then((data) => {
+        const raw = Array.isArray(data) ? data : []
+        const withMobile = raw
+          .filter((r: { mobileNumber?: string | null }) => r.mobileNumber?.trim())
+          .map((r: { id: string; label?: string; mobileNumber?: string | null }) => ({
+            id: String(r.id),
+            label: r.label ?? '',
+            mobileNumber: r.mobileNumber ?? ''
+          }))
+        setWhatsappRecipients(withMobile)
+        setWhatsappToId(withMobile.length > 0 ? withMobile[0].id : 'other')
+        setWhatsappOther('')
+      })
+      .catch(() => {
+        setWhatsappRecipients([])
+        setWhatsappToId('other')
+      })
+    setShowWhatsAppModal(true)
+  }
+
+  const handleWhatsAppDirectSend = async () => {
+    const to =
+      whatsappOther.trim() ||
+      (whatsappToId && whatsappToId !== 'other'
+        ? whatsappRecipients.find((r) => r.id === whatsappToId)?.mobileNumber?.trim()
+        : '') ||
+      ''
+    if (!to) {
+      alert('Choose a recipient or enter a mobile number.')
+      return
+    }
+    setSharing(true)
+    try {
+      const dataUrl = await generateRosterImage()
+      const res = await fetch('/api/roster/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          imageBase64: dataUrl,
+          weekStart
+        })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to send')
+      setShowWhatsAppModal(false)
+      alert(result.message || 'Roster sent via WhatsApp.')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to send roster via WhatsApp')
+    } finally {
+      setSharing(false)
+    }
+  }
+
   const handleWhatsAppTextShare = () => {
     if (entries.length === 0) {
       alert('There are no shifts saved for this week yet. Save the roster first, then share.')
@@ -919,6 +985,14 @@ export default function RosterPage() {
                         className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
                       >
                         WhatsApp (Text)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openWhatsAppDirectModal}
+                        disabled={sharing}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        WhatsApp (Direct)
                       </button>
                       <div className="relative">
                         <button
@@ -1259,6 +1333,74 @@ export default function RosterPage() {
                   className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
                 >
                   {savingDayOff ? 'Saving…' : 'Save Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Direct modal */}
+        {showWhatsAppModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowWhatsAppModal(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Roster via WhatsApp</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
+                  <select
+                    value={whatsappToId}
+                    onChange={(e) => setWhatsappToId(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  >
+                    <option value="">Choose recipient…</option>
+                    {whatsappRecipients.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.label} ({r.mobileNumber})
+                      </option>
+                    ))}
+                    <option value="other">Other (enter below)</option>
+                  </select>
+                  <div className="mt-2">
+                    <label className="block text-xs text-gray-500 mb-1">Or enter a mobile number</label>
+                    <input
+                      type="tel"
+                      placeholder="+12465551234"
+                      value={whatsappOther}
+                      onChange={(e) => setWhatsappOther(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+                {whatsappRecipients.length === 0 && !whatsappOther && (
+                  <p className="text-sm text-amber-700 bg-amber-50 rounded px-3 py-2">
+                    Add mobile numbers in Settings → Email recipients, or enter a number above.
+                  </p>
+                )}
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWhatsAppModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleWhatsAppDirectSend()}
+                  disabled={
+                    sharing ||
+                    !(whatsappOther.trim() || (whatsappToId && whatsappToId !== 'other' && whatsappRecipients.some((r) => r.id === whatsappToId)))
+                  }
+                  className="px-4 py-2 bg-green-600 text-white rounded font-medium hover:bg-green-700 disabled:opacity-50"
+                >
+                  {sharing ? 'Sending…' : 'Send'}
                 </button>
               </div>
             </div>

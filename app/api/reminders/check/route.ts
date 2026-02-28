@@ -1,11 +1,12 @@
 /**
  * Cron endpoint: call daily to send reminder notifications.
  * Vercel Cron: add to vercel.json: "crons": [{ "path": "/api/reminders/check", "schedule": "0 8 * * *" }]
- * Sends emails for reminders due for notification today (based on notifyDaysBefore).
+ * Sends emails and WhatsApp for reminders due for notification today (based on notifyDaysBefore).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
+import { sendWhatsApp, isWhatsAppConfigured } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
       const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
 
       if (!daysBefore.includes(daysUntil)) continue
-      if (!reminder.notifyEmail || recipients.length === 0) continue
+      if (!reminder.notifyEmail && !reminder.notifyWhatsApp) continue
 
       const subject = `Reminder: ${reminder.title}${daysUntil === 0 ? ' (Today)' : daysUntil === 1 ? ' (Tomorrow)' : ` (in ${daysUntil} days)`}`
       const html = `
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
         <p><em>This is an automated reminder from Shift Close.</em></p>
       `
 
+      if (reminder.notifyEmail && recipients.length > 0) {
       for (const rec of recipients) {
         try {
           const baseUrl = process.env.VERCEL_URL
@@ -148,10 +150,27 @@ export async function GET(request: NextRequest) {
           errors.push(`${reminder.title} (${date}): ${err instanceof Error ? err.message : 'Unknown error'}`)
         }
       }
+      }
 
-      // WhatsApp: not implemented (requires Twilio). Log for now.
+      // WhatsApp: send to recipients with mobileNumber when notifyWhatsApp is true
       if (reminder.notifyWhatsApp) {
-        console.log(`[Reminders] WhatsApp notification skipped for "${reminder.title}" (Twilio not configured)`)
+        if (!isWhatsAppConfigured()) {
+          console.log(`[Reminders] WhatsApp skipped for "${reminder.title}" (Twilio not configured)`)
+        } else {
+          const whatsappBody = `Reminder: ${reminder.title}${daysUntil === 0 ? ' (Today)' : daysUntil === 1 ? ' (Tomorrow)' : ` (in ${daysUntil} days)`}\nDate: ${date}${reminder.notes ? `\n${reminder.notes}` : ''}\n\n— Shift Close`
+          const recipientsWithMobile = recipients.filter((r) => r.mobileNumber?.trim())
+          for (const rec of recipientsWithMobile) {
+            try {
+              await sendWhatsApp(rec.mobileNumber!.trim(), whatsappBody)
+              sent.push(`${reminder.id}@${date} -> WhatsApp ${rec.label}`)
+            } catch (err) {
+              errors.push(`${reminder.title} WhatsApp (${rec.label}): ${err instanceof Error ? err.message : 'Unknown error'}`)
+            }
+          }
+          if (recipientsWithMobile.length === 0) {
+            console.log(`[Reminders] WhatsApp skipped for "${reminder.title}" (no recipients with mobile number)`)
+          }
+        }
       }
     }
 

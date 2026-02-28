@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { label, email } = body as { label?: string; email?: string }
+    const { label, email, mobileNumber } = body as { label?: string; email?: string; mobileNumber?: string | null }
     if (!label?.trim() || !email?.trim()) {
       return NextResponse.json(
         { error: 'Label and email are required' },
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       data: {
         label: label.trim(),
         email: email.trim().toLowerCase(),
+        mobileNumber: mobileNumber?.trim() || null,
         sortOrder
       }
     })
