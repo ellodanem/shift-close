@@ -1730,7 +1730,7 @@ export default function ShiftDetailPage() {
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { kind: 'cheque_received', label: 'Cheque Received', sub: 'New cheque in drawer', color: 'border-green-300 bg-green-50 hover:bg-green-100', badge: '+ Overage' },
-                    { kind: 'debit_received', label: 'Debit Received', sub: 'Pre-auth / account top-up', color: 'border-blue-300 bg-blue-50 hover:bg-blue-100', badge: 'Note only' },
+                    { kind: 'debit_received', label: 'Debit Received', sub: 'Pre-auth / account top-up', color: 'border-blue-300 bg-blue-50 hover:bg-blue-100', badge: '+ Overage' },
                     { kind: 'fuel_taken', label: 'Fuel / Cash Taken', sub: 'Against existing account', color: 'border-amber-300 bg-amber-50 hover:bg-amber-100', badge: '− Shortage*' },
                     { kind: 'withdrawal', label: 'Withdrawal', sub: 'Cash taken from drawer', color: 'border-red-300 bg-red-50 hover:bg-red-100', badge: '− Shortage' },
                     { kind: 'return', label: 'Return', sub: 'Cash returned to drawer', color: 'border-teal-300 bg-teal-50 hover:bg-teal-100', badge: '+ Overage' },
@@ -1776,12 +1776,12 @@ export default function ShiftDetailPage() {
                 )}
                 {selectedKind === 'debit_received' && (
                   <>
-                    <div className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">Debit pre-auth received. Already counted by cashier — <strong>note only</strong>, no effect on Over/Short.</div>
+                    <div className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">Debit pre-auth received. You will count this amount over until staff picks it up — records as an <strong>overage</strong>.</div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
                       <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} list="acct-customer-list" placeholder="e.g. Company XYZ" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
                       <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className="bg-blue-50 rounded px-3 py-2 text-sm text-blue-700">Note only — no Over/Short impact</div>
+                    <div className="bg-blue-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-blue-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
                   </>
                 )}
                 {selectedKind === 'fuel_taken' && (

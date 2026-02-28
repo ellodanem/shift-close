@@ -5,8 +5,6 @@ export const dynamic = 'force-dynamic'
 
 // Categories that carry account balances
 const ACCOUNT_KINDS = ['cheque_received', 'debit_received', 'fuel_taken']
-// Debit items are note-only (cashier already added to debit count column)
-const NOTE_ONLY_KINDS = ['debit_received', 'fuel_taken_debit']
 
 // Determine type (overage/shortage) and noteOnly from itemKind + paymentMethod
 function resolveItemMeta(
@@ -17,7 +15,8 @@ function resolveItemMeta(
     case 'cheque_received':
       return { type: 'overage', noteOnly: false }
     case 'debit_received':
-      return { type: 'overage', noteOnly: true }
+      // Debit swiped = physical overage until picked up; affects over/short
+      return { type: 'overage', noteOnly: false }
     case 'fuel_taken':
       // Fuel taken against a debit account is note-only; cheque is a real shortage
       return {
