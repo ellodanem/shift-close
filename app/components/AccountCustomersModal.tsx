@@ -146,7 +146,7 @@ export default function AccountCustomersModal({ open, onClose }: AccountCustomer
         fetchList()
       } else {
         const err = await res.json().catch(() => ({}))
-        alert(err.error || 'Failed to add')
+        alert(err.details ? `${err.error}: ${err.details}` : err.error || 'Failed to add')
       }
     } finally {
       setAdding(false)

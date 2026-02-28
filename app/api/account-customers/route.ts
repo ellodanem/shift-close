@@ -125,6 +125,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(updated)
   } catch (error) {
     console.error('Account customers POST error:', error)
-    return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json(
+      { error: 'Failed to save', details: message },
+      { status: 500 }
+    )
   }
 }
