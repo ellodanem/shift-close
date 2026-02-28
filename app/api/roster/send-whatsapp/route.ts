@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     const errors: string[] = []
     for (const phone of recipients) {
       try {
-        await sendWhatsAppWithMedia(phone, messageBody, blob.url)
+        await sendWhatsAppWithMedia(phone, messageBody, blob.url, { weekStart })
         sent.push(phone)
       } catch (err) {
         errors.push(`${phone}: ${err instanceof Error ? err.message : 'Unknown error'}`)
