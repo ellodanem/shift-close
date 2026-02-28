@@ -15,12 +15,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { to, imageBase64, weekStart } = body as {
-      to?: string
+      to?: string | string[]
       imageBase64?: string
       weekStart?: string
     }
 
-    if (!to?.trim()) {
+    const recipients = Array.isArray(to)
+      ? (to as string[]).map((t) => t?.trim()).filter(Boolean)
+      : to?.trim()
+        ? [to.trim()]
+        : []
+    if (recipients.length === 0) {
       return NextResponse.json({ error: 'Recipient (to) is required' }, { status: 400 })
     }
     if (!imageBase64?.trim()) {
@@ -40,11 +45,25 @@ export async function POST(request: NextRequest) {
       ? `Roster – Week of ${weekStart}\n\n— Shift Close`
       : 'Roster – Shift Close'
 
-    await sendWhatsAppWithMedia(to.trim(), messageBody, blob.url)
+    const sent: string[] = []
+    const errors: string[] = []
+    for (const phone of recipients) {
+      try {
+        await sendWhatsAppWithMedia(phone, messageBody, blob.url)
+        sent.push(phone)
+      } catch (err) {
+        errors.push(`${phone}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Roster sent to ${to}`
+      sent: sent.length,
+      details: sent,
+      errors: errors.length > 0 ? errors : undefined,
+      message: sent.length === recipients.length
+        ? `Roster sent to ${sent.length} recipients`
+        : `Sent to ${sent.length} of ${recipients.length}. ${errors.length} failed.`
     })
   } catch (error: unknown) {
     console.error('Roster WhatsApp send error:', error)

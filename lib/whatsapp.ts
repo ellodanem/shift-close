@@ -16,6 +16,10 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
     )
   }
 
+  const fromWhatsApp = from.trim().toLowerCase().startsWith('whatsapp:')
+    ? from.trim()
+    : `whatsapp:${from.trim().startsWith('+') ? from.trim() : '+' + from.trim().replace(/\D/g, '')}`
+
   // Normalize to E.164: ensure + prefix
   let normalizedTo = to.replace(/\D/g, '')
   if (!normalizedTo.startsWith('1') && normalizedTo.length === 10) {
@@ -26,7 +30,7 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
   const client = twilio(accountSid, authToken)
   await client.messages.create({
     body,
-    from,
+    from: fromWhatsApp,
     to: toWhatsApp
   })
 }
@@ -46,6 +50,10 @@ export async function sendWhatsAppWithMedia(
     )
   }
 
+  const fromWhatsApp = from.trim().toLowerCase().startsWith('whatsapp:')
+    ? from.trim()
+    : `whatsapp:${from.trim().startsWith('+') ? from.trim() : '+' + from.trim().replace(/\D/g, '')}`
+
   let normalizedTo = to.replace(/\D/g, '')
   if (!normalizedTo.startsWith('1') && normalizedTo.length === 10) {
     normalizedTo = '1' + normalizedTo
@@ -55,7 +63,7 @@ export async function sendWhatsAppWithMedia(
   const client = twilio(accountSid, authToken)
   await client.messages.create({
     body,
-    from,
+    from: fromWhatsApp,
     to: toWhatsApp,
     mediaUrl: [mediaUrl]
   })

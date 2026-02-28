@@ -128,9 +128,9 @@ export default function RosterPage() {
   const [savingDayOff, setSavingDayOff] = useState(false)
   const [dayOffSuccess, setDayOffSuccess] = useState(false)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
-  const [whatsappRecipients, setWhatsappRecipients] = useState<{ id: string; label: string; mobileNumber?: string | null }[]>([])
-  const [whatsappToId, setWhatsappToId] = useState('')
-  const [whatsappOther, setWhatsappOther] = useState('')
+  const [whatsappStaffWithMobile, setWhatsappStaffWithMobile] = useState<Staff[]>([])
+  const [whatsappStaffWithoutMobile, setWhatsappStaffWithoutMobile] = useState<Staff[]>([])
+  const [whatsappStep, setWhatsappStep] = useState<'warning' | 'confirm'>('warning')
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
 
@@ -637,54 +637,36 @@ export default function RosterPage() {
     }
   }
 
-  // Share roster as text: copy and open WhatsApp Web (or wa.me with no number on mobile)
   const openWhatsAppDirectModal = () => {
     setShareMenuOpen(false)
     if (entries.length === 0) {
       alert('There are no shifts saved for this week yet. Save the roster first.')
       return
     }
-    fetch('/api/email-recipients')
-      .then((res) => res.json())
-      .then((data) => {
-        const raw = Array.isArray(data) ? data : []
-        const withMobile = raw
-          .filter((r: { mobileNumber?: string | null }) => r.mobileNumber?.trim())
-          .map((r: { id: string; label?: string; mobileNumber?: string | null }) => ({
-            id: String(r.id),
-            label: r.label ?? '',
-            mobileNumber: r.mobileNumber ?? ''
-          }))
-        setWhatsappRecipients(withMobile)
-        setWhatsappToId(withMobile.length > 0 ? withMobile[0].id : 'other')
-        setWhatsappOther('')
-      })
-      .catch(() => {
-        setWhatsappRecipients([])
-        setWhatsappToId('other')
-      })
+    const withMobile = displayStaff.filter((s) => s.mobileNumber && mobileDigits(s.mobileNumber!))
+    const withoutMobile = displayStaff.filter((s) => !s.mobileNumber || !mobileDigits(s.mobileNumber!))
+    setWhatsappStaffWithMobile(withMobile)
+    setWhatsappStaffWithoutMobile(withoutMobile)
+    setWhatsappStep(withoutMobile.length > 0 ? 'warning' : 'confirm')
     setShowWhatsAppModal(true)
   }
 
   const handleWhatsAppDirectSend = async () => {
-    const to =
-      whatsappOther.trim() ||
-      (whatsappToId && whatsappToId !== 'other'
-        ? whatsappRecipients.find((r) => r.id === whatsappToId)?.mobileNumber?.trim()
-        : '') ||
-      ''
-    if (!to) {
-      alert('Choose a recipient or enter a mobile number.')
+    if (whatsappStaffWithMobile.length === 0) {
+      alert('No staff have mobile numbers. Add them in Staff settings.')
       return
     }
     setSharing(true)
     try {
       const dataUrl = await generateRosterImage()
+      const toList = whatsappStaffWithMobile
+        .map((s) => mobileDigits(s.mobileNumber!))
+        .filter(Boolean)
       const res = await fetch('/api/roster/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to,
+          to: toList,
           imageBase64: dataUrl,
           weekStart
         })
@@ -692,7 +674,12 @@ export default function RosterPage() {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Failed to send')
       setShowWhatsAppModal(false)
-      alert(result.message || 'Roster sent via WhatsApp.')
+      const msg = result.message || `Roster sent to ${result.sent ?? whatsappStaffWithMobile.length} staff.`
+      if (result.errors?.length) {
+        alert(`${msg}\n\nFailed: ${result.errors.join('\n')}`)
+      } else {
+        alert(msg)
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send roster via WhatsApp')
     } finally {
@@ -1339,7 +1326,7 @@ export default function RosterPage() {
           </div>
         )}
 
-        {/* WhatsApp Direct modal */}
+        {/* WhatsApp Direct modal: send to all staff with mobile numbers */}
         {showWhatsAppModal && (
           <div
             className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
@@ -1350,59 +1337,80 @@ export default function RosterPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Roster via WhatsApp</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
-                  <select
-                    value={whatsappToId}
-                    onChange={(e) => setWhatsappToId(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  >
-                    <option value="">Choose recipient…</option>
-                    {whatsappRecipients.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.label} ({r.mobileNumber})
-                      </option>
-                    ))}
-                    <option value="other">Other (enter below)</option>
-                  </select>
-                  <div className="mt-2">
-                    <label className="block text-xs text-gray-500 mb-1">Or enter a mobile number</label>
-                    <input
-                      type="tel"
-                      placeholder="+12465551234"
-                      value={whatsappOther}
-                      onChange={(e) => setWhatsappOther(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-2"
-                    />
+
+              {whatsappStep === 'warning' && whatsappStaffWithoutMobile.length > 0 && (
+                <>
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 mb-4">
+                    <p className="text-sm font-medium text-amber-800 mb-2">
+                      The following staff don&apos;t have mobile numbers and won&apos;t receive the roster:
+                    </p>
+                    <ul className="text-sm text-amber-700 list-disc list-inside">
+                      {whatsappStaffWithoutMobile.map((s) => (
+                        <li key={s.id}>{s.firstName?.trim() || s.name}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-amber-600 mt-2">
+                      Cancel to add their numbers in Staff settings, or continue to send to the rest.
+                    </p>
                   </div>
-                </div>
-                {whatsappRecipients.length === 0 && !whatsappOther && (
-                  <p className="text-sm text-amber-700 bg-amber-50 rounded px-3 py-2">
-                    Add mobile numbers in Settings → Email recipients, or enter a number above.
-                  </p>
-                )}
-              </div>
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowWhatsAppModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleWhatsAppDirectSend()}
-                  disabled={
-                    sharing ||
-                    !(whatsappOther.trim() || (whatsappToId && whatsappToId !== 'other' && whatsappRecipients.some((r) => r.id === whatsappToId)))
-                  }
-                  className="px-4 py-2 bg-green-600 text-white rounded font-medium hover:bg-green-700 disabled:opacity-50"
-                >
-                  {sharing ? 'Sending…' : 'Send'}
-                </button>
-              </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsAppModal(false)}
+                      className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWhatsappStep('confirm')}
+                      className="px-4 py-2 bg-amber-600 text-white rounded font-medium hover:bg-amber-700"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {whatsappStep === 'confirm' && (
+                <>
+                  <div className="space-y-4 mb-4">
+                    {whatsappStaffWithMobile.length === 0 ? (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded px-3 py-2">
+                        No staff have mobile numbers. Add them in Staff settings.
+                      </p>
+                    ) : (
+                      <>
+                    <p className="text-sm text-gray-700">
+                      Send roster to <strong>{whatsappStaffWithMobile.length}</strong> staff member{whatsappStaffWithMobile.length !== 1 ? 's' : ''}:
+                    </p>
+                    <ul className="text-sm text-gray-600 max-h-32 overflow-y-auto">
+                      {whatsappStaffWithMobile.map((s) => (
+                        <li key={s.id}>• {s.firstName?.trim() || s.name}</li>
+                      ))}
+                    </ul>
+                    </>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsAppModal(false)}
+                      className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleWhatsAppDirectSend()}
+                      disabled={sharing || whatsappStaffWithMobile.length === 0}
+                      className="px-4 py-2 bg-green-600 text-white rounded font-medium hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {sharing ? 'Sending…' : 'Send'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
