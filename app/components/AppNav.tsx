@@ -225,9 +225,9 @@ export default function AppNav() {
         />
       )}
 
-      {/* Sidebar - hidden on mobile unless open; h-screen ensures internal scroll works */}
+      {/* Sidebar - hidden on mobile unless open; min-h-screen fills page, stretches with content */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-40 h-screen flex flex-col transform transition-transform duration-200 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 min-h-screen flex flex-col transform transition-transform duration-200 ease-in-out ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
