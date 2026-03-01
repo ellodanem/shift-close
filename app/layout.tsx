@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import FutureFeatures from "./components/FutureFeatures";
 import AppNav from "./components/AppNav";
 
 export const metadata: Metadata = {
@@ -22,7 +21,6 @@ export default function RootLayout({
             {children}
           </main>
         </div>
-        <FutureFeatures />
       </body>
     </html>
   );

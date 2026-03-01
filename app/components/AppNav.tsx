@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import FutureFeatures from './FutureFeatures'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -105,6 +106,7 @@ export default function AppNav() {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
   })
   const [todayPayDays, setTodayPayDays] = useState<Array<{ id: string; date: string; notes: string | null }>>([])
+  const [showFeaturesModal, setShowFeaturesModal] = useState(false)
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -129,8 +131,8 @@ export default function AppNav() {
   }, [])
 
   const sidebar = (
-    <nav className={`flex flex-col h-full bg-gray-800 text-white shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
-      <div className={`border-b border-gray-700 min-h-[57px] flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 py-3 px-2' : 'flex-row justify-between px-4 py-4 gap-2'}`}>
+    <nav className={`flex flex-col h-full min-h-0 bg-gray-800 text-white shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
+      <div className={`border-b border-gray-700 min-h-[57px] flex-shrink-0 flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 py-3 px-2' : 'flex-row justify-between px-4 py-4 gap-2'}`}>
         <Link href="/dashboard" className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
           {sidebarCollapsed ? (
             <span className="text-lg font-bold">SC</span>
@@ -157,12 +159,12 @@ export default function AppNav() {
         </button>
       </div>
       {!sidebarCollapsed && todayPayDays.length > 0 && (
-        <div className="px-3 py-2 bg-amber-600/90 text-white text-sm font-medium border-b border-amber-500/50">
+        <div className="flex-shrink-0 px-3 py-2 bg-amber-600/90 text-white text-sm font-medium border-b border-amber-500/50">
           <span className="inline-block mr-1">💰</span>
           Today is Pay Day — Accounting will process payments
         </div>
       )}
-      <div className={`flex-1 overflow-y-auto py-4 ${sidebarCollapsed ? 'hidden' : ''}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto py-4 ${sidebarCollapsed ? 'hidden' : ''}`}>
         {navConfig.map((group) => (
           <div key={group.label} className="mb-4">
             <div className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -180,6 +182,18 @@ export default function AppNav() {
             </div>
           </div>
         ))}
+      </div>
+      {/* Feature notes icon - fixed at bottom of sidebar */}
+      <div className={`flex-shrink-0 border-t border-gray-700 p-2 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => setShowFeaturesModal(true)}
+          className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="View planned features"
+          aria-label="View planned features"
+        >
+          <span className="text-xl">ℹ️</span>
+        </button>
       </div>
     </nav>
   )
@@ -211,14 +225,15 @@ export default function AppNav() {
         />
       )}
 
-      {/* Sidebar - hidden on mobile unless open */}
+      {/* Sidebar - hidden on mobile unless open; h-screen ensures internal scroll works */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-40 transform transition-transform duration-200 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 h-screen flex flex-col transform transition-transform duration-200 ease-in-out ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {sidebar}
       </div>
+      <FutureFeatures open={showFeaturesModal} onClose={() => setShowFeaturesModal(false)} />
     </>
   )
 }
