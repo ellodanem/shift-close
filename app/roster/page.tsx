@@ -817,6 +817,12 @@ export default function RosterPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/staff"
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50 inline-block"
+            >
+              Staff
+            </a>
             <button
               type="button"
               onClick={() => {
