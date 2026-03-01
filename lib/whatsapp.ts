@@ -43,8 +43,8 @@ export async function sendWhatsAppWithMedia(
 ): Promise<void> {
   const templateSid = process.env.TWILIO_WHATSAPP_ROSTER_TEMPLATE_SID?.trim()
   if (templateSid) {
-    const weekText = options?.weekStart ?? body
-    await sendWhatsAppTemplate(to, templateSid, { '1': weekText, '2': mediaUrl })
+    // Template has body "Your weekly roster is ready" (static) + media {{1}}
+    await sendWhatsAppTemplate(to, templateSid, { '1': mediaUrl })
     return
   }
 
