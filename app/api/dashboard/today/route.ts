@@ -34,7 +34,7 @@ export async function GET() {
           entries: {
             where: { date: today, staff: { status: 'active' } },
             include: {
-              staff: { select: { id: true, name: true } },
+              staff: { select: { id: true, name: true, firstName: true } },
               shiftTemplate: { select: { id: true, name: true, color: true } }
             }
           }
@@ -50,9 +50,12 @@ export async function GET() {
             { vacationEnd: { gte: today } }
           ]
         },
-        select: { id: true, name: true }
+        select: { id: true, name: true, firstName: true }
       })
     ])
+
+    const firstName = (s: { name: string; firstName: string | null }) =>
+      (s.firstName && s.firstName.trim()) || s.name.split(' ')[0] || s.name
 
     const entries = week?.entries ?? []
     const scheduled = entries
@@ -60,24 +63,25 @@ export async function GET() {
       .map((e) => ({
         staffId: e.staff.id,
         staffName: e.staff.name,
+        staffFirstName: firstName(e.staff),
         shiftName: e.shiftTemplate?.name ?? 'Off',
         shiftColor: e.shiftTemplate?.color ?? null
       }))
 
     const rosterOffToday = entries
       .filter((e) => e.shiftTemplateId == null)
-      .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name }))
+      .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name, staffFirstName: firstName(e.staff) }))
 
-    const offMap = new Map<string, string>()
-    rosterOffToday.forEach((s) => offMap.set(s.staffId, s.staffName))
-    vacationStaff.forEach((s) => offMap.set(s.id, s.name))
-    const off = Array.from(offMap.entries()).map(([staffId, staffName]) => ({ staffId, staffName }))
+    const offMap = new Map<string, { staffName: string; staffFirstName: string }>()
+    rosterOffToday.forEach((s) => offMap.set(s.staffId, { staffName: s.staffName, staffFirstName: s.staffFirstName }))
+    vacationStaff.forEach((s) => offMap.set(s.id, { staffName: s.name, staffFirstName: firstName(s) }))
+    const off = Array.from(offMap.entries()).map(([staffId, v]) => ({ staffId, staffName: v.staffName, staffFirstName: v.staffFirstName }))
 
     return NextResponse.json({
       date: today,
       weekStart,
       scheduled,
-      onVacation: vacationStaff.map((s) => ({ staffId: s.id, staffName: s.name })),
+      onVacation: vacationStaff.map((s) => ({ staffId: s.id, staffName: s.name, staffFirstName: firstName(s) })),
       off
     })
   } catch (error) {

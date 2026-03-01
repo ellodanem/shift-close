@@ -79,6 +79,7 @@ type MonthFilterType = 'currentMonth' | 'previousMonth' | 'custom'
 interface TodayScheduled {
   staffId: string
   staffName: string
+  staffFirstName?: string
   shiftName: string
   shiftColor: string | null
 }
@@ -86,6 +87,7 @@ interface TodayScheduled {
 interface TodayOnVacation {
   staffId: string
   staffName: string
+  staffFirstName?: string
 }
 
 interface TodayRoster {
@@ -366,14 +368,15 @@ export default function DashboardPage() {
   const groupScheduledByShift = (items: TodayScheduled[]) => {
     const map = new Map<string, { shiftName: string; color: string | null; names: string[] }>()
     items.forEach((item) => {
+      const displayName = item.staffFirstName ?? item.staffName
       const existing = map.get(item.shiftName)
       if (existing) {
-        existing.names.push(item.staffName)
+        existing.names.push(displayName)
       } else {
         map.set(item.shiftName, {
           shiftName: item.shiftName,
           color: item.shiftColor,
-          names: [item.staffName]
+          names: [displayName]
         })
       }
     })
@@ -1082,7 +1085,7 @@ export default function DashboardPage() {
                   <ul className="space-y-1">
                     {todayRoster.off.map((s) => (
                       <li key={s.staffId} className="text-xs text-gray-700">
-                        {s.staffName}
+                        {s.staffFirstName ?? s.staffName}
                       </li>
                     ))}
                   </ul>

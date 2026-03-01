@@ -164,7 +164,7 @@ export default function AppNav() {
           Today is Pay Day — Accounting will process payments
         </div>
       )}
-      <div className={`flex-1 min-h-0 overflow-y-auto py-4 ${sidebarCollapsed ? 'hidden' : ''}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 scrollbar-subtle ${sidebarCollapsed ? 'hidden' : ''}`}>
         {navConfig.map((group) => (
           <div key={group.label} className="mb-4">
             <div className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
