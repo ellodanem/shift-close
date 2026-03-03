@@ -702,3 +702,52 @@ model PayPeriod {
   @@map("pay_periods")
 }
 
+// Job application forms (configurable, multiple per position)
+model ApplicantForm {
+  id        String   @id @default(cuid())
+  name      String   // e.g. "Pump Attendant Application"
+  slug      String   @unique // e.g. "pump-attendant" → /apply/pump-attendant
+  position  String   @default("") // e.g. "Pump Attendant"
+  introText String   @default("") @map("intro_text") // HTML or plain text
+  fields    String   // JSON: [{ name, label, type, required, options? }]
+  confirmationText   String   @default("") @map("confirmation_text")
+  confirmationBullets String  @default("[]") @map("confirmation_bullets") // JSON array
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  applications ApplicantApplication[]
+
+  @@map("applicant_forms")
+}
+
+// Individual application submissions
+model ApplicantApplication {
+  id             String   @id @default(cuid())
+  formId         String   @map("form_id")
+
+  applicantName  String   @map("applicant_name")
+  applicantEmail String?  @map("applicant_email")
+
+  pdfUrl         String   @map("pdf_url")   // Generated from form data
+  resumeUrl      String?  @map("resume_url") // Optional CV upload
+  formData       String   @map("form_data") // JSON of submitted fields
+
+  submittedAt    DateTime @default(now()) @map("submitted_at")
+
+  status         String   @default("new") @map("status")
+  viewedAt       DateTime? @map("viewed_at")
+  printedAt      DateTime? @map("printed_at")
+  contactedAt    DateTime? @map("contacted_at")
+
+  notes          String?  @default("")
+
+  form           ApplicantForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([applicantEmail])
+  @@index([applicantName])
+  @@index([formId, status])
+  @@index([submittedAt])
+  @@map("applicant_applications")
+}
+
