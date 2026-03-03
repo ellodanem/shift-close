@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import AppNav from "./components/AppNav";
+import LayoutWrapper from "./components/LayoutWrapper";
 
 export const metadata: Metadata = {
   title: "Shift Close",
@@ -15,12 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex min-h-screen bg-gray-50">
-          <AppNav />
-          <main className="flex-1 min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
-            {children}
-          </main>
-        </div>
+        <LayoutWrapper>{children}</LayoutWrapper>
       </body>
     </html>
   );
