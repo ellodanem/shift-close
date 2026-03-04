@@ -134,22 +134,6 @@ export default function ApplicationsPage() {
         {applications.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
             <p className="text-gray-500">No applications yet.</p>
-            <p className="text-sm text-gray-500 mt-2">Copy this URL to share in Google Ads (not linked in app):</p>
-            <div className="mt-2 flex justify-center gap-2">
-              <code className="bg-gray-100 px-2 py-1 rounded text-xs break-all">
-                {typeof window !== 'undefined' ? `${window.location.origin}/apply/pump-attendant` : 'https://yoursite.com/apply/pump-attendant'}
-              </code>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = typeof window !== 'undefined' ? `${window.location.origin}/apply/pump-attendant` : ''
-                  if (url) navigator.clipboard.writeText(url).then(() => alert('Copied to clipboard'))
-                }}
-                className="text-sm text-blue-600 hover:text-blue-800 shrink-0"
-              >
-                Copy
-              </button>
-            </div>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
