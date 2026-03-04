@@ -704,10 +704,11 @@ model PayPeriod {
 
 // Job application forms (configurable, multiple per position)
 model ApplicantForm {
-  id        String   @id @default(cuid())
-  name      String   // e.g. "Pump Attendant Application"
-  slug      String   @unique // e.g. "pump-attendant" → /apply/pump-attendant
-  position  String   @default("") // e.g. "Pump Attendant"
+  id              String   @id @default(cuid())
+  name            String   // e.g. "Pump Attendant Application"
+  slug            String   @unique // e.g. "pump-attendant" → /apply/pump-attendant
+  deftformFormId  String?  @map("deftform_form_id") // Deftform form ID for API sync
+  position        String   @default("") // e.g. "Pump Attendant"
   introText String   @default("") @map("intro_text") // HTML or plain text
   fields    String   // JSON: [{ name, label, type, required, options? }]
   confirmationText   String   @default("") @map("confirmation_text")
@@ -723,15 +724,16 @@ model ApplicantForm {
 
 // Individual application submissions
 model ApplicantApplication {
-  id             String   @id @default(cuid())
-  formId         String   @map("form_id")
+  id                 String   @id @default(cuid())
+  formId             String   @map("form_id")
+  deftformResponseId String?  @unique @map("deftform_response_id") // Deftform UUID for dedup
 
-  applicantName  String   @map("applicant_name")
-  applicantEmail String?  @map("applicant_email")
+  applicantName      String   @map("applicant_name")
+  applicantEmail     String?  @map("applicant_email")
 
-  pdfUrl         String   @map("pdf_url")   // Generated from form data
-  resumeUrl      String?  @map("resume_url") // Optional CV upload
-  formData       String   @map("form_data") // JSON of submitted fields
+  pdfUrl             String   @map("pdf_url")   // Generated from form data or Deftform
+  resumeUrl          String?  @map("resume_url") // Optional CV upload
+  formData           String   @map("form_data") // JSON of submitted fields
 
   submittedAt    DateTime @default(now()) @map("submitted_at")
 

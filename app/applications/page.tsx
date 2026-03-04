@@ -42,6 +42,8 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/applicant-forms/seed', { method: 'POST' }).catch(() => {})
@@ -64,6 +66,27 @@ export default function ApplicationsPage() {
     minute: '2-digit'
   })
 
+  const handleSyncDeftform = async () => {
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const res = await fetch('/api/applications/sync-deftform', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setSyncMessage(data.error || 'Sync failed')
+        return
+      }
+      setSyncMessage(`Imported ${data.imported} new application(s) from Deftform`)
+      const url = statusFilter ? `/api/applications?status=${statusFilter}` : '/api/applications'
+      const apps = await fetch(url).then((r) => r.json())
+      setApplications(apps)
+    } catch {
+      setSyncMessage('Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -77,7 +100,18 @@ export default function ApplicationsPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Applications</h1>
+          <button
+            type="button"
+            onClick={handleSyncDeftform}
+            disabled={syncing}
+            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {syncing ? 'Syncing…' : 'Sync from Deftform'}
+          </button>
         </div>
+        {syncMessage && (
+          <p className="mb-4 text-sm text-gray-600">{syncMessage}</p>
+        )}
 
         <div className="mb-4 flex gap-2 flex-wrap">
           <button

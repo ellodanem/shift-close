@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS "applicant_forms" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
+    "deftform_form_id" TEXT,
     "position" TEXT NOT NULL DEFAULT '',
     "intro_text" TEXT NOT NULL DEFAULT '',
     "fields" TEXT NOT NULL,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS "applicant_forms" (
 CREATE TABLE IF NOT EXISTS "applicant_applications" (
     "id" TEXT NOT NULL,
     "form_id" TEXT NOT NULL,
+    "deftform_response_id" TEXT,
     "applicant_name" TEXT NOT NULL,
     "applicant_email" TEXT,
     "pdf_url" TEXT NOT NULL,
@@ -40,6 +42,8 @@ CREATE INDEX IF NOT EXISTS "applicant_applications_applicant_email_idx" ON "appl
 CREATE INDEX IF NOT EXISTS "applicant_applications_applicant_name_idx" ON "applicant_applications"("applicant_name");
 CREATE INDEX IF NOT EXISTS "applicant_applications_form_id_status_idx" ON "applicant_applications"("form_id", "status");
 CREATE INDEX IF NOT EXISTS "applicant_applications_submitted_at_idx" ON "applicant_applications"("submitted_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "applicant_applications_deftform_response_id_key"
+  ON "applicant_applications"("deftform_response_id") WHERE "deftform_response_id" IS NOT NULL;
 
 DO $$
 BEGIN
