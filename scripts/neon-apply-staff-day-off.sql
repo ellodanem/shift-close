@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS "staff_day_off" (
     "id"         TEXT      NOT NULL PRIMARY KEY,
     "staff_id"   TEXT      NOT NULL REFERENCES "staff"("id") ON DELETE CASCADE,
     "date"       TEXT      NOT NULL,
+    "type"       TEXT      NOT NULL DEFAULT 'day_off',
     "reason"     TEXT,
     "status"     TEXT      NOT NULL DEFAULT 'approved',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

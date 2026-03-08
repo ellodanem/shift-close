@@ -122,6 +122,7 @@ export default function RosterPage() {
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const [showDayOffModal, setShowDayOffModal] = useState(false)
+  const [dayOffType, setDayOffType] = useState<'day_off' | 'sick_leave'>('day_off')
   const [dayOffStaffId, setDayOffStaffId] = useState('')
   const [dayOffDate, setDayOffDate] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
@@ -788,7 +789,7 @@ export default function RosterPage() {
       const res = await fetch(`/api/staff/${dayOffStaffId}/day-off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
+        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason, type: dayOffType })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -826,6 +827,7 @@ export default function RosterPage() {
             <button
               type="button"
               onClick={() => {
+                setDayOffType('day_off')
                 setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
                 setDayOffDate(formatInputDate(new Date()))
                 setDayOffReason('')
@@ -835,6 +837,20 @@ export default function RosterPage() {
               className="px-4 py-2 bg-amber-500 text-white rounded font-semibold hover:bg-amber-600"
             >
               + Day Off Request
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDayOffType('sick_leave')
+                setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
+                setDayOffDate(formatInputDate(new Date()))
+                setDayOffReason('')
+                setDayOffSuccess(false)
+                setShowDayOffModal(true)
+              }}
+              className="px-4 py-2 bg-rose-500 text-white rounded font-semibold hover:bg-rose-600"
+            >
+              + Sick Leave
             </button>
             <a
               href="/roster/templates"
@@ -1250,7 +1266,7 @@ export default function RosterPage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 id="day-off-modal-title" className="text-lg font-semibold text-gray-900">
-                  Day Off Request
+                  {dayOffType === 'sick_leave' ? 'Sick Leave' : 'Day Off Request'}
                 </h3>
                 <button
                   type="button"
@@ -1298,7 +1314,7 @@ export default function RosterPage() {
                     type="text"
                     value={dayOffReason}
                     onChange={(e) => setDayOffReason(e.target.value)}
-                    placeholder="e.g. Doctor appointment"
+                    placeholder={dayOffType === 'sick_leave' ? 'e.g. Flu' : 'e.g. Doctor appointment'}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                     onKeyDown={(e) => { if (e.key === 'Enter') void handleAddDayOff() }}
                   />
@@ -1306,7 +1322,7 @@ export default function RosterPage() {
 
                 {dayOffSuccess && (
                   <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-                    Day off request saved successfully.
+                    {dayOffType === 'sick_leave' ? 'Sick leave' : 'Day off request'} saved successfully.
                   </p>
                 )}
               </div>
@@ -1323,9 +1339,9 @@ export default function RosterPage() {
                   type="button"
                   onClick={() => void handleAddDayOff()}
                   disabled={!dayOffStaffId || !dayOffDate || savingDayOff}
-                  className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
+                  className={`px-4 py-2 text-white rounded text-sm font-semibold disabled:opacity-60 ${dayOffType === 'sick_leave' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-amber-500 hover:bg-amber-600'}`}
                 >
-                  {savingDayOff ? 'Saving…' : 'Save Request'}
+                  {savingDayOff ? 'Saving…' : dayOffType === 'sick_leave' ? 'Save Sick Leave' : 'Save Request'}
                 </button>
               </div>
             </div>

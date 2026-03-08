@@ -57,6 +57,7 @@ model StaffDayOff {
   id        String   @id @default(cuid())
   staffId   String   @map("staff_id")
   date      String   // YYYY-MM-DD (single day)
+  type      String   @default("day_off") @map("type") // 'day_off' | 'sick_leave'
   reason    String?  @default("")
   status    String   @default("approved") // 'requested' | 'approved' | 'denied'
   createdAt DateTime @default(now()) @map("created_at")

@@ -42,6 +42,7 @@ interface StaffDocument {
 interface StaffDayOff {
   id: string
   date: string
+  type?: string
   reason?: string | null
   status: string
 }
@@ -78,6 +79,7 @@ export default function EditStaffPage() {
   const [dayOffs, setDayOffs] = useState<StaffDayOff[]>([])
   const [dayOffDate, setDayOffDate] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
+  const [dayOffType, setDayOffType] = useState<'day_off' | 'sick_leave'>('day_off')
   const [savingDayOff, setSavingDayOff] = useState(false)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [showTemplateSelection, setShowTemplateSelection] = useState(false)
@@ -549,13 +551,24 @@ export default function EditStaffPage() {
           </div>
         </form>
 
-        {/* Day Off Requests Section */}
+        {/* Day Off / Sick Leave Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Day Off Requests</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Day Off & Sick Leave</h2>
 
           {/* Add new request form */}
-          <div className="flex gap-3 items-end mb-5">
-            <div className="flex-1">
+          <div className="flex flex-wrap gap-3 items-end mb-5">
+            <div className="flex gap-2 items-center">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={dayOffType}
+                onChange={e => setDayOffType(e.target.value as 'day_off' | 'sick_leave')}
+                className="border border-gray-300 rounded px-3 py-2 text-sm"
+              >
+                <option value="day_off">Day Off</option>
+                <option value="sick_leave">Sick Leave</option>
+              </select>
+            </div>
+            <div className="flex-1 min-w-[120px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
                 type="date"
@@ -564,13 +577,13 @@ export default function EditStaffPage() {
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
               />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-[140px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
               <input
                 type="text"
                 value={dayOffReason}
                 onChange={e => setDayOffReason(e.target.value)}
-                placeholder="e.g. Medical appointment"
+                placeholder={dayOffType === 'sick_leave' ? 'e.g. Flu' : 'e.g. Medical appointment'}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
               />
             </div>
@@ -583,7 +596,7 @@ export default function EditStaffPage() {
                   const res = await fetch(`/api/staff/${id}/day-off`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
+                    body: JSON.stringify({ date: dayOffDate, reason: dayOffReason, type: dayOffType })
                   })
                   if (res.ok) {
                     setDayOffDate('')
@@ -606,20 +619,22 @@ export default function EditStaffPage() {
 
           {/* Requests list */}
           {dayOffs.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No day off requests recorded.</p>
+            <p className="text-sm text-gray-400 text-center py-4">No day off or sick leave recorded.</p>
           ) : (
             <div className="space-y-2">
               {[...dayOffs].sort((a, b) => b.date.localeCompare(a.date)).map(d => {
                 const isPast = d.date < new Date().toISOString().slice(0, 10)
+                const isSick = d.type === 'sick_leave'
                 const statusColors: Record<string, string> = {
                   approved: 'bg-green-100 text-green-800',
                   denied: 'bg-red-100 text-red-800',
                   requested: 'bg-yellow-100 text-yellow-800'
                 }
                 return (
-                  <div key={d.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : 'border-blue-100 bg-blue-50'}`}>
+                  <div key={d.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : isSick ? 'border-rose-200 bg-rose-50' : 'border-blue-100 bg-blue-50'}`}>
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{d.date}</span>
+                      {isSick && <span className="px-2 py-0.5 rounded text-xs font-semibold bg-rose-200 text-rose-800">Sick</span>}
                       {d.reason && <span className="text-sm text-gray-500 truncate">{d.reason}</span>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
