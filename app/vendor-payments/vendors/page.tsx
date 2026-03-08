@@ -16,6 +16,11 @@ interface ImportResult {
   skipped: number
   errors: { row: number; vendor: string; invoiceNumber: string; message: string }[]
   vendorsCreated: string[]
+  totalRows?: number
+  columnNames?: string[]
+  skippedNoVendor?: number
+  skippedNoInvoice?: number
+  skippedHeaderTotal?: number
 }
 
 export default function VendorsPage() {
@@ -237,6 +242,28 @@ export default function VendorsPage() {
                     <p className="text-gray-600">
                       New vendors: {importResult.vendorsCreated.join(', ')}
                     </p>
+                  )}
+                  {importResult.created === 0 && importResult.totalRows !== undefined && (
+                    <div className="mt-2 p-3 bg-amber-50 rounded border border-amber-200">
+                      <p className="font-medium text-amber-800">No invoices imported. Your file had {importResult.totalRows} row(s).</p>
+                      {importResult.columnNames && importResult.columnNames.length > 0 && (
+                        <p className="mt-1 text-amber-700 text-xs">
+                          Detected columns: {importResult.columnNames.join(', ')}
+                        </p>
+                      )}
+                      <p className="mt-1 text-amber-700 text-xs">
+                        Expected: Vendor (or Vendor Name, Payee), Invoice# (or Invoice, Invoice No), Date, Invoice Amount (or Amount, Total)
+                      </p>
+                      {(importResult.skippedNoVendor ?? 0) > 0 && (
+                        <p className="mt-1 text-amber-600">Skipped {importResult.skippedNoVendor} row(s) with no vendor name</p>
+                      )}
+                      {(importResult.skippedNoInvoice ?? 0) > 0 && (
+                        <p className="text-amber-600">Skipped {importResult.skippedNoInvoice} row(s) with no invoice number</p>
+                      )}
+                      {(importResult.skippedHeaderTotal ?? 0) > 0 && (
+                        <p className="text-amber-600">Skipped {importResult.skippedHeaderTotal} header/total row(s)</p>
+                      )}
+                    </div>
                   )}
                   {importResult.errors.length > 0 && (
                     <div className="mt-2">

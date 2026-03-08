@@ -15,6 +15,7 @@ function getCol(row: Record<string, unknown>, ...names: string[]): unknown {
   return null
 }
 
+
 function parseCurrency(val: unknown): number {
   if (typeof val === 'number' && !isNaN(val)) return Math.round(val * 100) / 100
   const s = String(val ?? '').replace(/[$,]/g, '').trim()
@@ -59,34 +60,48 @@ export async function POST(request: NextRequest) {
     const errors: { row: number; vendor: string; invoiceNumber: string; message: string }[] = []
     const vendorsCreated: string[] = []
     let skippedRubis = 0
+    let skippedNoVendor = 0
+    let skippedNoInvoice = 0
+    let skippedHeaderTotal = 0
+
+    const columnNames = rows.length > 0 ? Object.keys(rows[0]) : []
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
       const rowNum = i + 2
 
-      const vendorRaw = getCol(row, 'Vendor', 'vendor')
+      const vendorRaw = getCol(row, 'Vendor', 'vendor', 'Vendor Name', 'Payee', 'Supplier')
       const vendorName = String(vendorRaw ?? '').trim()
-      if (!vendorName) continue
+      if (!vendorName) {
+        skippedNoVendor++
+        continue
+      }
 
       if (RUBIS_VENDOR.test(vendorName)) {
         skippedRubis++
         continue
       }
 
-      if (isHeaderOrTotalRow(row, vendorName)) continue
+      if (isHeaderOrTotalRow(row, vendorName)) {
+        skippedHeaderTotal++
+        continue
+      }
 
-      const invNumRaw = getCol(row, 'Invoice#', 'Invoice #', 'Invoice', 'invoice')
+      const invNumRaw = getCol(row, 'Invoice#', 'Invoice #', 'Invoice', 'invoice', 'Invoice No', 'Invoice No.', 'Inv #', 'Inv No', 'Invoice Number')
       const invoiceNumber = String(invNumRaw ?? '').trim()
-      if (!invoiceNumber) continue
+      if (!invoiceNumber) {
+        skippedNoInvoice++
+        continue
+      }
 
-      const dateVal = getCol(row, 'Date', 'date')
+      const dateVal = getCol(row, 'Date', 'date', 'Invoice Date', 'Payment Date')
       const invoiceDate = parseDate(dateVal)
       if (!invoiceDate) {
         errors.push({ row: rowNum, vendor: vendorName, invoiceNumber, message: 'Invalid or missing date' })
         continue
       }
 
-      const invoiceAmount = parseCurrency(getCol(row, 'Invoice Amount', 'invoice amount', 'Invoice Amount (Invoice info)', 'Invoice Amount (Payment info)'))
+      const invoiceAmount = parseCurrency(getCol(row, 'Invoice Amount', 'invoice amount', 'Invoice Amount (Invoice info)', 'Invoice Amount (Payment info)', 'Amount', 'Total', 'Invoice Total', 'Payment Amount'))
       const purchaseAmount = parseCurrency(getCol(row, 'Purchase Amount', 'purchase amount'))
       const prepaidTax = parseCurrency(getCol(row, 'Prepaid Tax', 'prepaid tax'))
       const amount = invoiceAmount > 0 ? invoiceAmount : purchaseAmount + prepaidTax
@@ -146,7 +161,12 @@ export async function POST(request: NextRequest) {
       created: created.length,
       skipped: skippedRubis,
       errors,
-      vendorsCreated
+      vendorsCreated,
+      totalRows: rows.length,
+      columnNames,
+      skippedNoVendor,
+      skippedNoInvoice,
+      skippedHeaderTotal
     })
   } catch (error) {
     console.error('Vendor invoice import error:', error)
