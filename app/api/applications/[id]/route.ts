@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { deriveNameFromFormData } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,10 @@ export async function GET(
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
 
+    const displayName = (application.applicantName === 'Unknown' && application.formData)
+      ? (deriveNameFromFormData(application.formData) ?? application.applicantName)
+      : application.applicantName
+
     const count = application.applicantEmail
       ? await prisma.applicantApplication.count({
           where: {
@@ -32,7 +37,7 @@ export async function GET(
           }
         })
 
-    return NextResponse.json({ ...application, applicationCount: count })
+    return NextResponse.json({ ...application, applicantName: displayName, applicationCount: count })
   } catch (error) {
     console.error('Error fetching application:', error)
     return NextResponse.json({ error: 'Failed to fetch application' }, { status: 500 })

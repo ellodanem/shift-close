@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { deriveNameFromFormData } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,16 +21,24 @@ export async function GET(request: NextRequest) {
       orderBy: { submittedAt: 'desc' }
     })
 
+    // Use derived name from formData when applicantName is "Unknown"
+    const withDisplayName = applications.map((app) => {
+      const displayName = (app.applicantName === 'Unknown' && app.formData)
+        ? (deriveNameFromFormData(app.formData) ?? app.applicantName)
+        : app.applicantName
+      return { ...app, applicantName: displayName }
+    })
+
     // Compute application count per person (by email or name)
     const byPerson = new Map<string, number>()
-    for (const app of applications) {
+    for (const app of withDisplayName) {
       const key = (app.applicantEmail || '').trim()
         ? app.applicantEmail!.toLowerCase().trim()
         : app.applicantName.toLowerCase().trim()
       byPerson.set(key, (byPerson.get(key) || 0) + 1)
     }
 
-    const withCount = applications.map((app) => {
+    const withCount = withDisplayName.map((app) => {
       const key = (app.applicantEmail || '').trim()
         ? app.applicantEmail!.toLowerCase().trim()
         : app.applicantName.toLowerCase().trim()

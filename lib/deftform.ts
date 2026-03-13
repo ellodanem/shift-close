@@ -138,6 +138,14 @@ export function getResponseUuidForPdf(r: DeftformResponse): string | null {
   return id
 }
 
+/** Extract string value from field - handles response as string or array (e.g. file URLs) */
+function fieldValue(f: Record<string, unknown>): string {
+  const r = f.response ?? f.value
+  if (typeof r === 'string') return r.trim()
+  if (Array.isArray(r) && r.length > 0 && typeof r[0] === 'string') return r[0].trim()
+  return ''
+}
+
 /** Extract applicant name and email from Deftform response data */
 export function parseApplicantFromResponse(r: DeftformResponse): { name: string; email: string | null; formData: Record<string, string> } {
   const formData: Record<string, string> = {}
@@ -146,11 +154,25 @@ export function parseApplicantFromResponse(r: DeftformResponse): { name: string;
 
   const rec = r as Record<string, unknown>
   const data = r.data ?? rec.fields ?? rec.responses ?? (rec.response as Record<string, unknown>)?.data ?? (rec.submission as Record<string, unknown>)?.data
+
+  // Structure 1: data is object keyed by custom_key or UUID (e.g. { full_name: "John", email_address: "..." })
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const entries = Object.entries(data as Record<string, unknown>)
+    for (const [k, v] of entries) {
+      const val = typeof v === 'string' ? v.trim() : Array.isArray(v) && typeof v[0] === 'string' ? v[0].trim() : ''
+      const keyStr = k.toLowerCase().replace(/\s+/g, '_')
+      if (val) formData[keyStr] = val
+      if (keyStr.includes('name') && !keyStr.includes('email') && !name) name = val
+      if ((keyStr.includes('email') || keyStr === 'email') && !email) email = val || null
+    }
+  }
+
+  // Structure 2: data is array of fields (or array of arrays)
   const flat = Array.isArray(data) ? data.flat() : []
   for (const field of flat) {
     if (!field || typeof field !== 'object') continue
     const f = field as Record<string, unknown>
-    const val = String(f.response ?? f.value ?? '').trim()
+    const val = fieldValue(f)
     const key = (f.custom_key ?? f.label ?? f.uuid) as string
     const keyStr = typeof key === 'string' ? key.toLowerCase().replace(/\s+/g, '_') : String(f.uuid ?? '')
     if (val) formData[keyStr || `f${flat.indexOf(field)}`] = val
@@ -160,12 +182,53 @@ export function parseApplicantFromResponse(r: DeftformResponse): { name: string;
     if ((label.includes('email') || keyStr === 'email') && !email) email = val || null
   }
 
+  // Fallbacks for name (try common keys in formData)
+  const nameKeys = ['full_name', 'fullname', 'name', 'applicant_name', 'your_name', 'first_name', 'firstname']
   if (!name) {
-    name = formData.full_name || formData.name || formData.first_name || 'Unknown'
+    for (const k of nameKeys) {
+      if (formData[k]) {
+        name = formData[k]
+        break
+      }
+    }
+  }
+  if (!name && formData.first_name && formData.last_name) {
+    name = `${formData.first_name} ${formData.last_name}`.trim()
+  }
+  if (!name) {
+    // Check top-level response for name-like keys (some APIs put fields at root)
+    for (const [k, v] of Object.entries(rec)) {
+      if (['id', 'uuid', 'number', 'form_id', 'form_name', 'referrer', 'created_at', 'data', 'fields', 'responses', 'response', 'submission'].includes(k)) continue
+      const keyLower = k.toLowerCase()
+      if ((keyLower.includes('name') && !keyLower.includes('email')) && typeof v === 'string' && v.trim()) {
+        name = v.trim()
+        break
+      }
+    }
   }
   if (!email) {
     email = formData.email || formData.email_address || null
   }
 
   return { name: name || 'Unknown', email, formData }
+}
+
+/** Derive display name from stored formData (for apps that were imported with "Unknown") */
+export function deriveNameFromFormData(formData: Record<string, string> | string | null): string | null {
+  if (!formData) return null
+  const data = typeof formData === 'string' ? (() => { try { return JSON.parse(formData) as Record<string, string> } catch { return null } })() : formData
+  if (!data || typeof data !== 'object') return null
+  const nameKeys = ['full_name', 'fullname', 'name', 'applicant_name', 'your_name', 'first_name', 'firstname']
+  for (const k of nameKeys) {
+    const v = data[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  if (data.first_name && data.last_name) return `${data.first_name} ${data.last_name}`.trim()
+  // Fallback: any key containing "name" (except email)
+  for (const [k, v] of Object.entries(data)) {
+    if (k.toLowerCase().includes('name') && !k.toLowerCase().includes('email') && typeof v === 'string' && v.trim()) {
+      return v.trim()
+    }
+  }
+  return null
 }
