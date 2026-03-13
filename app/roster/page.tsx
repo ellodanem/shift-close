@@ -1488,7 +1488,7 @@ export default function RosterPage() {
                 <button
                   type="button"
                   onClick={() => void handleAddSickLeave()}
-                  disabled={!sickLeaveStaffId || !sickLeaveStartDate || savingSickLeave || (sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
+                  disabled={!sickLeaveStaffId || !sickLeaveStartDate || savingSickLeave || !!(sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
                   className="px-4 py-2 bg-rose-500 text-white rounded text-sm font-semibold hover:bg-rose-600 disabled:opacity-60"
                 >
                   {savingSickLeave ? 'Saving…' : 'Save Sick Leave'}
