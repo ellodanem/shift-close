@@ -1,12 +1,46 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
+  fetchForms,
   fetchResponses,
   fetchResponsePdf,
   parseApplicantFromResponse
 } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
+
+/** GET: Diagnostic info to verify Deftform config (forms list, response count) */
+export async function GET() {
+  const token = process.env.DEFTFORM_ACCESS_TOKEN
+  const formId = process.env.DEFTFORM_FORM_ID
+
+  if (!token) {
+    return NextResponse.json(
+      { error: 'DEFTFORM_ACCESS_TOKEN is not set', forms: null },
+      { status: 400 }
+    )
+  }
+
+  try {
+    const forms = await fetchForms()
+    let responseCount: number | null = null
+    if (formId) {
+      const responses = await fetchResponses(formId)
+      responseCount = responses.length
+    }
+    return NextResponse.json({
+      configuredFormId: formId || null,
+      forms: forms.map((f) => ({ id: f.id, name: f.name })),
+      responseCount
+    })
+  } catch (error) {
+    console.error('Deftform diagnostic error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to connect to Deftform', forms: null },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST() {
   const token = process.env.DEFTFORM_ACCESS_TOKEN
@@ -88,7 +122,8 @@ export async function POST() {
       imported,
       total: responses.length,
       skipped: responses.length - imported - errors.length,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
+      errorCount: errors.length
     })
   } catch (error) {
     console.error('Deftform sync error:', error)

@@ -65,14 +65,19 @@ export async function fetchForms(): Promise<DeftformForm[]> {
 
 export async function fetchResponses(formId: string): Promise<DeftformResponse[]> {
   const res = await fetch(`${BASE_URL}/responses/${formId}`, { headers: getHeaders() })
-  const json = (await res.json()) as DeftformApiResponse<DeftformResponse[]>
+  const json = (await res.json()) as DeftformApiResponse<DeftformResponse[] | { responses?: DeftformResponse[] }>
   if (!res.ok) {
     throw new Error(json.message || `Deftform API error: ${res.status}`)
   }
-  if (!json.success || !json.data) {
+  if (!json.success) {
     throw new Error(json.message || 'Failed to fetch responses')
   }
-  return Array.isArray(json.data) ? json.data : []
+  const data = json.data
+  if (Array.isArray(data)) return data
+  if (data && typeof data === 'object' && 'responses' in data && Array.isArray((data as { responses?: DeftformResponse[] }).responses)) {
+    return (data as { responses: DeftformResponse[] }).responses
+  }
+  return []
 }
 
 export async function fetchResponsePdf(responseUuid: string): Promise<string> {
