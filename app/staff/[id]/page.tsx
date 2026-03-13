@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from './DocumentGenerationModal'
@@ -42,9 +42,17 @@ interface StaffDocument {
 interface StaffDayOff {
   id: string
   date: string
-  type?: string
   reason?: string | null
   status: string
+}
+
+interface StaffSickLeave {
+  id: string
+  startDate: string
+  endDate: string
+  reason?: string | null
+  status: string
+  documents?: { id: string; fileName: string; fileUrl: string }[]
 }
 
 export default function EditStaffPage() {
@@ -79,8 +87,14 @@ export default function EditStaffPage() {
   const [dayOffs, setDayOffs] = useState<StaffDayOff[]>([])
   const [dayOffDate, setDayOffDate] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
-  const [dayOffType, setDayOffType] = useState<'day_off' | 'sick_leave'>('day_off')
   const [savingDayOff, setSavingDayOff] = useState(false)
+  const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
+  const [sickLeaveStartDate, setSickLeaveStartDate] = useState('')
+  const [sickLeaveEndDate, setSickLeaveEndDate] = useState('')
+  const [sickLeaveReason, setSickLeaveReason] = useState('')
+  const [sickLeaveDocFile, setSickLeaveDocFile] = useState<File | null>(null)
+  const sickLeaveDocInputRef = useRef<HTMLInputElement>(null)
+  const [savingSickLeave, setSavingSickLeave] = useState(false)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [showTemplateSelection, setShowTemplateSelection] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<string>('')
@@ -108,6 +122,7 @@ export default function EditStaffPage() {
     
     fetchDocuments()
     fetchDayOffs()
+    fetchSickLeaves()
     
     // Check if generate parameter is in URL - show template selection modal instead of auto-generating
     const params = new URLSearchParams(window.location.search)
@@ -140,6 +155,18 @@ export default function EditStaffPage() {
       }
     } catch (error) {
       console.error('Error fetching day off records:', error)
+    }
+  }
+
+  const fetchSickLeaves = async () => {
+    try {
+      const res = await fetch(`/api/staff/${id}/sick-leave`)
+      if (res.ok) {
+        const data: StaffSickLeave[] = await res.json()
+        setSickLeaves(data)
+      }
+    } catch (error) {
+      console.error('Error fetching sick leave records:', error)
     }
   }
 
@@ -551,23 +578,11 @@ export default function EditStaffPage() {
           </div>
         </form>
 
-        {/* Day Off / Sick Leave Section */}
+        {/* Day Off Requests Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Day Off & Sick Leave</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Day Off Requests</h2>
 
-          {/* Add new request form */}
           <div className="flex flex-wrap gap-3 items-end mb-5">
-            <div className="flex gap-2 items-center">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select
-                value={dayOffType}
-                onChange={e => setDayOffType(e.target.value as 'day_off' | 'sick_leave')}
-                className="border border-gray-300 rounded px-3 py-2 text-sm"
-              >
-                <option value="day_off">Day Off</option>
-                <option value="sick_leave">Sick Leave</option>
-              </select>
-            </div>
             <div className="flex-1 min-w-[120px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
@@ -583,7 +598,7 @@ export default function EditStaffPage() {
                 type="text"
                 value={dayOffReason}
                 onChange={e => setDayOffReason(e.target.value)}
-                placeholder={dayOffType === 'sick_leave' ? 'e.g. Flu' : 'e.g. Medical appointment'}
+                placeholder="e.g. Medical appointment"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
               />
             </div>
@@ -596,7 +611,7 @@ export default function EditStaffPage() {
                   const res = await fetch(`/api/staff/${id}/day-off`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: dayOffDate, reason: dayOffReason, type: dayOffType })
+                    body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
                   })
                   if (res.ok) {
                     setDayOffDate('')
@@ -617,24 +632,21 @@ export default function EditStaffPage() {
             </button>
           </div>
 
-          {/* Requests list */}
           {dayOffs.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No day off or sick leave recorded.</p>
+            <p className="text-sm text-gray-400 text-center py-4">No day off requests recorded.</p>
           ) : (
             <div className="space-y-2">
               {[...dayOffs].sort((a, b) => b.date.localeCompare(a.date)).map(d => {
                 const isPast = d.date < new Date().toISOString().slice(0, 10)
-                const isSick = d.type === 'sick_leave'
                 const statusColors: Record<string, string> = {
                   approved: 'bg-green-100 text-green-800',
                   denied: 'bg-red-100 text-red-800',
                   requested: 'bg-yellow-100 text-yellow-800'
                 }
                 return (
-                  <div key={d.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : isSick ? 'border-rose-200 bg-rose-50' : 'border-blue-100 bg-blue-50'}`}>
+                  <div key={d.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : 'border-blue-100 bg-blue-50'}`}>
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{d.date}</span>
-                      {isSick && <span className="px-2 py-0.5 rounded text-xs font-semibold bg-rose-200 text-rose-800">Sick</span>}
                       {d.reason && <span className="text-sm text-gray-500 truncate">{d.reason}</span>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -648,6 +660,152 @@ export default function EditStaffPage() {
                           try {
                             await fetch(`/api/staff/day-off/${d.id}`, { method: 'DELETE' })
                             fetchDayOffs()
+                          } catch {
+                            alert('Failed to delete')
+                          }
+                        }}
+                        className="text-gray-400 hover:text-red-600 text-sm leading-none"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Sick Leave Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Sick Leave</h2>
+
+          <div className="flex flex-wrap gap-3 items-end mb-5">
+            <div className="min-w-[120px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+              <input
+                type="date"
+                value={sickLeaveStartDate}
+                onChange={e => setSickLeaveStartDate(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="min-w-[120px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+              <input
+                type="date"
+                value={sickLeaveEndDate}
+                onChange={e => setSickLeaveEndDate(e.target.value)}
+                min={sickLeaveStartDate}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input
+                type="text"
+                value={sickLeaveReason}
+                onChange={e => setSickLeaveReason(e.target.value)}
+                placeholder="e.g. Flu"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="min-w-[180px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor&apos;s note <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input
+                ref={sickLeaveDocInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={e => setSickLeaveDocFile(e.target.files?.[0] ?? null)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-rose-50 file:text-rose-700"
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!sickLeaveStartDate || savingSickLeave || (sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
+              onClick={async () => {
+                setSavingSickLeave(true)
+                try {
+                  const end = sickLeaveEndDate || sickLeaveStartDate
+                  const res = await fetch(`/api/staff/${id}/sick-leave`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ startDate: sickLeaveStartDate, endDate: end, reason: sickLeaveReason })
+                  })
+                  if (!res.ok) {
+                    alert('Failed to save sick leave')
+                    return
+                  }
+                  const created = await res.json()
+                  if (sickLeaveDocFile && sickLeaveDocFile.size > 0 && sickLeaveDocFile.size < 10 * 1024 * 1024) {
+                    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+                    if (validTypes.includes(sickLeaveDocFile.type)) {
+                      const docForm = new FormData()
+                      docForm.append('file', sickLeaveDocFile)
+                      docForm.append('type', 'sick-leave')
+                      docForm.append('sickLeaveId', created.id)
+                      await fetch(`/api/staff/${id}/documents`, { method: 'POST', body: docForm })
+                    }
+                  }
+                  setSickLeaveStartDate('')
+                  setSickLeaveEndDate('')
+                  setSickLeaveReason('')
+                  setSickLeaveDocFile(null)
+                  if (sickLeaveDocInputRef.current) sickLeaveDocInputRef.current.value = ''
+                  fetchSickLeaves()
+                  fetchDocuments()
+                } catch {
+                  alert('Failed to save sick leave')
+                } finally {
+                  setSavingSickLeave(false)
+                }
+              }}
+              className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-semibold hover:bg-rose-700 disabled:opacity-50 whitespace-nowrap"
+            >
+              {savingSickLeave ? 'Saving…' : '+ Add'}
+            </button>
+          </div>
+
+          {sickLeaves.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No sick leave recorded.</p>
+          ) : (
+            <div className="space-y-2">
+              {[...sickLeaves].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(s => {
+                const isPast = s.endDate < new Date().toISOString().slice(0, 10)
+                const statusColors: Record<string, string> = {
+                  approved: 'bg-green-100 text-green-800',
+                  denied: 'bg-red-100 text-red-800',
+                  requested: 'bg-yellow-100 text-yellow-800'
+                }
+                const rangeLabel = s.startDate === s.endDate ? s.startDate : `${s.startDate} – ${s.endDate}`
+                return (
+                  <div key={s.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : 'border-rose-200 bg-rose-50'}`}>
+                    <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{rangeLabel}</span>
+                      {s.reason && <span className="text-sm text-gray-500 truncate">{s.reason}</span>}
+                      {s.documents && s.documents.length > 0 && (
+                        <a
+                          href={s.documents[0].fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-rose-700 hover:text-rose-900 underline"
+                        >
+                          📄 {s.documents[0].fileName}
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[s.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                        {s.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm('Remove this sick leave record?')) return
+                          try {
+                            await fetch(`/api/staff/sick-leave/${s.id}`, { method: 'DELETE' })
+                            fetchSickLeaves()
                           } catch {
                             alert('Failed to delete')
                           }
@@ -679,7 +837,11 @@ export default function EditStaffPage() {
             </div>
           </div>
 
-          <StaffDocumentUpload staffId={id} onUploadComplete={fetchDocuments} />
+          <StaffDocumentUpload
+              staffId={id}
+              onUploadComplete={() => { fetchDocuments(); fetchSickLeaves() }}
+              sickLeaves={sickLeaves.map((s) => ({ id: s.id, startDate: s.startDate, endDate: s.endDate }))}
+            />
 
           {documents.length > 0 && (
             <div className="mt-4 space-y-2">

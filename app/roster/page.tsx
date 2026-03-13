@@ -122,12 +122,18 @@ export default function RosterPage() {
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const [showDayOffModal, setShowDayOffModal] = useState(false)
-  const [dayOffType, setDayOffType] = useState<'day_off' | 'sick_leave'>('day_off')
   const [dayOffStaffId, setDayOffStaffId] = useState('')
   const [dayOffDate, setDayOffDate] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
   const [savingDayOff, setSavingDayOff] = useState(false)
   const [dayOffSuccess, setDayOffSuccess] = useState(false)
+  const [showSickLeaveModal, setShowSickLeaveModal] = useState(false)
+  const [sickLeaveStaffId, setSickLeaveStaffId] = useState('')
+  const [sickLeaveStartDate, setSickLeaveStartDate] = useState('')
+  const [sickLeaveEndDate, setSickLeaveEndDate] = useState('')
+  const [sickLeaveReason, setSickLeaveReason] = useState('')
+  const [savingSickLeave, setSavingSickLeave] = useState(false)
+  const [sickLeaveSuccess, setSickLeaveSuccess] = useState(false)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [whatsappStaffWithMobile, setWhatsappStaffWithMobile] = useState<Staff[]>([])
   const [whatsappStaffWithoutMobile, setWhatsappStaffWithoutMobile] = useState<Staff[]>([])
@@ -789,7 +795,7 @@ export default function RosterPage() {
       const res = await fetch(`/api/staff/${dayOffStaffId}/day-off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason, type: dayOffType })
+        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -804,6 +810,41 @@ export default function RosterPage() {
       alert(err instanceof Error ? err.message : 'Failed to save day off request')
     } finally {
       setSavingDayOff(false)
+    }
+  }
+
+  const handleAddSickLeave = async () => {
+    if (!sickLeaveStaffId || !sickLeaveStartDate) return
+    const end = sickLeaveEndDate || sickLeaveStartDate
+    if (end < sickLeaveStartDate) {
+      alert('End date must be on or after start date')
+      return
+    }
+    setSavingSickLeave(true)
+    try {
+      const res = await fetch(`/api/staff/${sickLeaveStaffId}/sick-leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: sickLeaveStartDate,
+          endDate: end,
+          reason: sickLeaveReason
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to save sick leave')
+      }
+      setSickLeaveSuccess(true)
+      setSickLeaveStartDate('')
+      setSickLeaveEndDate('')
+      setSickLeaveReason('')
+      setTimeout(() => setSickLeaveSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error saving sick leave', err)
+      alert(err instanceof Error ? err.message : 'Failed to save sick leave')
+    } finally {
+      setSavingSickLeave(false)
     }
   }
 
@@ -827,7 +868,6 @@ export default function RosterPage() {
             <button
               type="button"
               onClick={() => {
-                setDayOffType('day_off')
                 setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
                 setDayOffDate(formatInputDate(new Date()))
                 setDayOffReason('')
@@ -841,12 +881,13 @@ export default function RosterPage() {
             <button
               type="button"
               onClick={() => {
-                setDayOffType('sick_leave')
-                setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
-                setDayOffDate(formatInputDate(new Date()))
-                setDayOffReason('')
-                setDayOffSuccess(false)
-                setShowDayOffModal(true)
+                const today = formatInputDate(new Date())
+                setSickLeaveStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
+                setSickLeaveStartDate(today)
+                setSickLeaveEndDate(today)
+                setSickLeaveReason('')
+                setSickLeaveSuccess(false)
+                setShowSickLeaveModal(true)
               }}
               className="px-4 py-2 bg-rose-500 text-white rounded font-semibold hover:bg-rose-600"
             >
@@ -1266,7 +1307,7 @@ export default function RosterPage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 id="day-off-modal-title" className="text-lg font-semibold text-gray-900">
-                  {dayOffType === 'sick_leave' ? 'Sick Leave' : 'Day Off Request'}
+                  Day Off Request
                 </h3>
                 <button
                   type="button"
@@ -1314,7 +1355,7 @@ export default function RosterPage() {
                     type="text"
                     value={dayOffReason}
                     onChange={(e) => setDayOffReason(e.target.value)}
-                    placeholder={dayOffType === 'sick_leave' ? 'e.g. Flu' : 'e.g. Doctor appointment'}
+                    placeholder="e.g. Doctor appointment"
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                     onKeyDown={(e) => { if (e.key === 'Enter') void handleAddDayOff() }}
                   />
@@ -1322,7 +1363,7 @@ export default function RosterPage() {
 
                 {dayOffSuccess && (
                   <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-                    {dayOffType === 'sick_leave' ? 'Sick leave' : 'Day off request'} saved successfully.
+                    Day off request saved successfully.
                   </p>
                 )}
               </div>
@@ -1339,9 +1380,118 @@ export default function RosterPage() {
                   type="button"
                   onClick={() => void handleAddDayOff()}
                   disabled={!dayOffStaffId || !dayOffDate || savingDayOff}
-                  className={`px-4 py-2 text-white rounded text-sm font-semibold disabled:opacity-60 ${dayOffType === 'sick_leave' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-amber-500 hover:bg-amber-600'}`}
+                  className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
                 >
-                  {savingDayOff ? 'Saving…' : dayOffType === 'sick_leave' ? 'Save Sick Leave' : 'Save Request'}
+                  {savingDayOff ? 'Saving…' : 'Save Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sick Leave Modal */}
+        {showSickLeaveModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowSickLeaveModal(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sick-leave-modal-title"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 id="sick-leave-modal-title" className="text-lg font-semibold text-gray-900">
+                  Sick Leave
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowSickLeaveModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
+                  <select
+                    value={sickLeaveStaffId}
+                    onChange={(e) => setSickLeaveStaffId(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  >
+                    <option value="">— Select staff —</option>
+                    {allStaff
+                      .filter((s) => s.status === 'active' && s.role !== 'manager')
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.firstName?.trim() || s.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={sickLeaveStartDate}
+                      onChange={(e) => setSickLeaveStartDate(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={sickLeaveEndDate}
+                      onChange={(e) => setSickLeaveEndDate(e.target.value)}
+                      min={sickLeaveStartDate}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sickLeaveReason}
+                    onChange={(e) => setSickLeaveReason(e.target.value)}
+                    placeholder="e.g. Flu"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleAddSickLeave() }}
+                  />
+                </div>
+
+                {sickLeaveSuccess && (
+                  <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                    Sick leave saved successfully.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end mt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowSickLeaveModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAddSickLeave()}
+                  disabled={!sickLeaveStaffId || !sickLeaveStartDate || savingSickLeave || (sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
+                  className="px-4 py-2 bg-rose-500 text-white rounded text-sm font-semibold hover:bg-rose-600 disabled:opacity-60"
+                >
+                  {savingSickLeave ? 'Saving…' : 'Save Sick Leave'}
                 </button>
               </div>
             </div>

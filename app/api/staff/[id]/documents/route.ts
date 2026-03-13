@@ -31,13 +31,18 @@ export async function POST(
     const formData = await request.formData()
     const file = formData.get('file') as File
     const type = formData.get('type') as string // 'sick-leave', 'contract', 'id', 'other'
-    
+    const sickLeaveId = (formData.get('sickLeaveId') as string)?.trim() || null
+
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
-    
+
     if (!type) {
       return NextResponse.json({ error: 'Document type is required' }, { status: 400 })
+    }
+
+    if (sickLeaveId && type !== 'sick-leave') {
+      return NextResponse.json({ error: 'sickLeaveId is only valid for sick-leave documents' }, { status: 400 })
     }
     
     // Verify staff exists
@@ -80,10 +85,21 @@ export async function POST(
     // Generate URL path
     const url = `/uploads/staff/${id}/${filename}`
     
+    // Verify sickLeaveId belongs to this staff if provided
+    if (sickLeaveId) {
+      const sickLeave = await prisma.staffSickLeave.findFirst({
+        where: { id: sickLeaveId, staffId: id }
+      })
+      if (!sickLeave) {
+        return NextResponse.json({ error: 'Sick leave record not found or does not belong to this staff' }, { status: 400 })
+      }
+    }
+
     // Create document record
     const document = await prisma.staffDocument.create({
       data: {
         staffId: id,
+        sickLeaveId: sickLeaveId || undefined,
         type,
         fileName: file.name,
         fileUrl: url

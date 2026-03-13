@@ -34,7 +34,7 @@ export async function POST(
   try {
     const { id } = params
     const body = await request.json()
-    const { date, reason, type } = body as { date?: string; reason?: string; type?: string }
+    const { date, reason } = body as { date?: string; reason?: string }
 
     if (!date || !date.trim()) {
       return NextResponse.json(
@@ -43,9 +43,6 @@ export async function POST(
       )
     }
 
-    const recordType = type === 'sick_leave' ? 'sick_leave' : 'day_off'
-
-    // Upsert so repeated requests for the same staff/date just update the reason and type
     const record = await prisma.staffDayOff.upsert({
       where: {
         staff_day_off_staff_date: {
@@ -54,14 +51,12 @@ export async function POST(
         }
       },
       update: {
-        type: recordType,
         reason: reason?.trim() || '',
         status: 'approved'
       },
       create: {
         staffId: id,
         date: date.trim(),
-        type: recordType,
         reason: reason?.trim() || '',
         status: 'approved'
       }

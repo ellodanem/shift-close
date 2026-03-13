@@ -35,19 +35,22 @@ model Staff {
   attendanceLogs AttendanceLog[]
   staffRole      StaffRole?    @relation(fields: [roleId], references: [id])
   dayOffs        StaffDayOff[]
+  sickLeaves     StaffSickLeave[]
 
   @@map("staff")
 }
 
 model StaffDocument {
-  id         String   @id @default(cuid())
-  staffId    String   @map("staff_id")
-  type       String // 'sick-leave', 'contract', 'id', 'other'
-  fileName   String   @map("file_name")
-  fileUrl    String   @map("file_url")
-  uploadedAt DateTime @default(now()) @map("uploaded_at")
+  id           String   @id @default(cuid())
+  staffId      String   @map("staff_id")
+  sickLeaveId  String?  @map("sick_leave_id") // Link to StaffSickLeave when type is sick-leave (doctor's note)
+  type         String // 'sick-leave', 'contract', 'id', 'other'
+  fileName     String   @map("file_name")
+  fileUrl      String   @map("file_url")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
 
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staff     Staff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  sickLeave StaffSickLeave? @relation(fields: [sickLeaveId], references: [id], onDelete: SetNull)
 
   @@map("staff_document")
 }
@@ -57,7 +60,6 @@ model StaffDayOff {
   id        String   @id @default(cuid())
   staffId   String   @map("staff_id")
   date      String   // YYYY-MM-DD (single day)
-  type      String   @default("day_off") @map("type") // 'day_off' | 'sick_leave'
   reason    String?  @default("")
   status    String   @default("approved") // 'requested' | 'approved' | 'denied'
   createdAt DateTime @default(now()) @map("created_at")
@@ -66,6 +68,22 @@ model StaffDayOff {
 
   @@unique([staffId, date], name: "staff_day_off_staff_date")
   @@map("staff_day_off")
+}
+
+// Sick leave period (unplanned absence due to illness)
+model StaffSickLeave {
+  id        String   @id @default(cuid())
+  staffId   String   @map("staff_id")
+  startDate String   @map("start_date") // YYYY-MM-DD
+  endDate   String   @map("end_date")   // YYYY-MM-DD
+  reason    String?  @default("")
+  status    String   @default("approved") // 'requested' | 'approved' | 'denied'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  staff     Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  documents StaffDocument[]
+
+  @@map("staff_sick_leave")
 }
 
 model ShiftClose {
