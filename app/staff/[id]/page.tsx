@@ -723,7 +723,7 @@ export default function EditStaffPage() {
             </div>
             <button
               type="button"
-              disabled={!sickLeaveStartDate || savingSickLeave || (sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
+              disabled={!sickLeaveStartDate || savingSickLeave || !!(sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
               onClick={async () => {
                 setSavingSickLeave(true)
                 try {
