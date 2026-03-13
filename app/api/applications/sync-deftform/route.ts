@@ -4,6 +4,7 @@ import {
   fetchForms,
   fetchResponses,
   fetchResponsePdf,
+  getResponseId,
   parseApplicantFromResponse
 } from '@/lib/deftform'
 
@@ -91,17 +92,29 @@ export async function POST() {
     let imported = 0
     const errors: string[] = []
 
-    for (const r of responses) {
-      if (existingIds.has(r.id)) continue
+    for (let i = 0; i < responses.length; i++) {
+      const r = responses[i]
+      const responseId = getResponseId(r)
+      if (!responseId) {
+        errors.push(`[${i}] No id/uuid in response`)
+        continue
+      }
+      if (existingIds.has(responseId)) continue
 
       try {
         const { name, email, formData } = parseApplicantFromResponse(r)
-        const pdfUrl = await fetchResponsePdf(r.id)
+        let pdfUrl: string
+        try {
+          pdfUrl = await fetchResponsePdf(responseId)
+        } catch (pdfErr) {
+          pdfUrl = 'https://deftform.com'
+          errors.push(`${responseId}: PDF unavailable (${pdfErr instanceof Error ? pdfErr.message : 'unknown'})`)
+        }
 
         await prisma.applicantApplication.create({
           data: {
             formId: form.id,
-            deftformResponseId: r.id,
+            deftformResponseId: responseId,
             applicantName: name,
             applicantEmail: email,
             pdfUrl,
@@ -111,9 +124,9 @@ export async function POST() {
           }
         })
         imported++
-        existingIds.add(r.id)
+        existingIds.add(responseId)
       } catch (err) {
-        errors.push(`${r.id}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        errors.push(`${responseId}: ${err instanceof Error ? err.message : 'Unknown error'}`)
       }
     }
 

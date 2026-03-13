@@ -13,14 +13,15 @@ export interface DeftformFieldResponse {
 }
 
 export interface DeftformResponse {
-  id: string // UUID
+  id?: string // UUID (may be in different field depending on API version)
+  uuid?: string
   number?: number
   number_formatted?: string
   form_id?: string
   form_name?: string
   referrer?: string | null
   created_at?: string
-  data: Array<Array<DeftformFieldResponse>>
+  data?: Array<Array<DeftformFieldResponse>>
 }
 
 export interface DeftformForm {
@@ -92,13 +93,26 @@ export async function fetchResponsePdf(responseUuid: string): Promise<string> {
   return json.data.pdf_url
 }
 
+/** Get the response UUID for PDF fetch (API may use id, uuid, or nested fields) */
+export function getResponseId(r: DeftformResponse): string | null {
+  const rec = r as Record<string, unknown>
+  let id = rec.id || rec.uuid || rec.response_id || rec.submission_id
+  if (!id && (rec.response || rec.submission)) {
+    const inner = rec.response || rec.submission as Record<string, unknown>
+    id = inner.id || inner.uuid
+  }
+  return (typeof id === 'string' ? id : null)?.trim() || null
+}
+
 /** Extract applicant name and email from Deftform response data */
 export function parseApplicantFromResponse(r: DeftformResponse): { name: string; email: string | null; formData: Record<string, string> } {
   const formData: Record<string, string> = {}
   let name = ''
   let email: string | null = null
 
-  const flat = r.data?.flat() ?? []
+  const rec = r as Record<string, unknown>
+  const data = r.data ?? rec.fields ?? rec.responses ?? (rec.response as Record<string, unknown>)?.data ?? (rec.submission as Record<string, unknown>)?.data
+  const flat = Array.isArray(data) ? data.flat() : []
   for (const field of flat) {
     const val = String(field.response ?? '').trim()
     const key = field.custom_key || field.label?.toLowerCase().replace(/\s+/g, '_') || field.uuid
