@@ -3,17 +3,21 @@ import { prisma } from '@/lib/prisma'
 import {
   fetchForms,
   fetchResponses,
+  fetchResponsesRaw,
   fetchResponsePdf,
   getResponseId,
+  getResponseUuidForPdf,
   parseApplicantFromResponse
 } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
 
-/** GET: Diagnostic info to verify Deftform config (forms list, response count) */
-export async function GET() {
+/** GET: Diagnostic info to verify Deftform config (forms list, response count, optional raw sample) */
+export async function GET(request: Request) {
   const token = process.env.DEFTFORM_ACCESS_TOKEN
   const formId = process.env.DEFTFORM_FORM_ID
+  const { searchParams } = new URL(request.url)
+  const showSample = searchParams.get('sample') === '1'
 
   if (!token) {
     return NextResponse.json(
@@ -25,14 +29,20 @@ export async function GET() {
   try {
     const forms = await fetchForms()
     let responseCount: number | null = null
+    let sampleResponse: unknown = null
     if (formId) {
       const responses = await fetchResponses(formId)
       responseCount = responses.length
+      if (showSample) {
+        const raw = await fetchResponsesRaw(formId)
+        sampleResponse = { parsedFirst: responses[0] ?? null, rawApiResponse: raw }
+      }
     }
     return NextResponse.json({
       configuredFormId: formId || null,
       forms: forms.map((f) => ({ id: f.id, name: f.name })),
-      responseCount
+      responseCount,
+      sampleResponse
     })
   } catch (error) {
     console.error('Deftform diagnostic error:', error)
@@ -95,26 +105,39 @@ export async function POST() {
     for (let i = 0; i < responses.length; i++) {
       const r = responses[i]
       const responseId = getResponseId(r)
-      if (!responseId) {
-        errors.push(`[${i}] No id/uuid in response`)
+      // Fallback for dedup when API returns number but not UUID (e.g. older format)
+      const dedupId = responseId ?? (typeof (r as Record<string, unknown>).number === 'number'
+        ? `${formId}-${(r as Record<string, unknown>).number}`
+        : `${formId}-idx-${i}`)
+      if (!responseId && !(r as Record<string, unknown>).number) {
+        const keys = typeof r === 'object' && r !== null ? Object.keys(r as object).join(',') : 'non-object'
+        errors.push(`[${i}] No id/uuid/number (keys: ${keys})`)
         continue
       }
-      if (existingIds.has(responseId)) continue
+      if (existingIds.has(dedupId)) continue
 
       try {
         const { name, email, formData } = parseApplicantFromResponse(r)
+        const pdfUuid = getResponseUuidForPdf(r)
         let pdfUrl: string
-        try {
-          pdfUrl = await fetchResponsePdf(responseId)
-        } catch (pdfErr) {
+        if (pdfUuid) {
+          try {
+            pdfUrl = await fetchResponsePdf(pdfUuid)
+          } catch (pdfErr) {
+            pdfUrl = 'https://deftform.com'
+            errors.push(`${dedupId}: PDF unavailable (${pdfErr instanceof Error ? pdfErr.message : 'unknown'})`)
+          }
+        } else {
           pdfUrl = 'https://deftform.com'
-          errors.push(`${responseId}: PDF unavailable (${pdfErr instanceof Error ? pdfErr.message : 'unknown'})`)
+          if (responseId) {
+            errors.push(`${dedupId}: No valid UUID for PDF (id=${responseId})`)
+          }
         }
 
         await prisma.applicantApplication.create({
           data: {
             formId: form.id,
-            deftformResponseId: responseId,
+            deftformResponseId: dedupId,
             applicantName: name,
             applicantEmail: email,
             pdfUrl,
@@ -124,9 +147,10 @@ export async function POST() {
           }
         })
         imported++
-        existingIds.add(responseId)
+        existingIds.add(dedupId)
       } catch (err) {
-        errors.push(`${responseId}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        const id = dedupId ?? `[${i}]`
+        errors.push(`${id}: ${err instanceof Error ? err.message : 'Unknown error'}`)
       }
     }
 
@@ -135,7 +159,7 @@ export async function POST() {
       imported,
       total: responses.length,
       skipped: responses.length - imported - errors.length,
-      errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
+      errors: errors.length > 0 ? errors.slice(0, 15) : undefined,
       errorCount: errors.length
     })
   } catch (error) {

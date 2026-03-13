@@ -44,7 +44,7 @@ export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
-  const [diagnostic, setDiagnostic] = useState<{ forms: { id: string; name: string }[]; responseCount?: number; configuredFormId?: string } | null>(null)
+  const [diagnostic, setDiagnostic] = useState<{ forms: { id: string; name: string }[]; responseCount?: number; configuredFormId?: string; sampleResponse?: unknown } | null>(null)
 
   useEffect(() => {
     fetch('/api/applicant-forms/seed', { method: 'POST' }).catch(() => {})
@@ -69,13 +69,14 @@ export default function ApplicationsPage() {
 
   const handleCheckDeftform = async () => {
     try {
-      const res = await fetch('/api/applications/sync-deftform')
+      const res = await fetch('/api/applications/sync-deftform?sample=1')
       const data = await res.json()
       if (res.ok) {
         setDiagnostic({
           forms: data.forms || [],
           responseCount: data.responseCount ?? null,
-          configuredFormId: data.configuredFormId
+          configuredFormId: data.configuredFormId,
+          sampleResponse: data.sampleResponse
         })
       } else {
         setDiagnostic(null)
@@ -162,6 +163,14 @@ export default function ApplicationsPage() {
                 ))}
               </p>
             )}
+            {diagnostic.sampleResponse != null ? (
+                <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-gray-600">Raw API sample</summary>
+                <pre className="mt-1 p-2 bg-white rounded text-xs overflow-auto max-h-48">
+                  {JSON.stringify(diagnostic.sampleResponse, null, 2)}
+                </pre>
+              </details>
+            ) : null}
             <button
               type="button"
               onClick={() => setDiagnostic(null)}
