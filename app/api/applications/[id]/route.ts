@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { deriveNameFromFormData } from '@/lib/deftform'
+import { deriveNameFromFormData, fetchResponsePdf, isValidDeftformUuid } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +20,23 @@ export async function GET(
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
 
+    // Refresh expired Deftform PDF URLs when we have a valid UUID
+    let pdfUrl = application.pdfUrl
+    if (isValidDeftformUuid(application.deftformResponseId)) {
+      try {
+        const freshUrl = await fetchResponsePdf(application.deftformResponseId!)
+        if (freshUrl) {
+          pdfUrl = freshUrl
+          await prisma.applicantApplication.update({
+            where: { id },
+            data: { pdfUrl: freshUrl }
+          })
+        }
+      } catch {
+        // Use stored URL if refresh fails (e.g. token not set, API error)
+      }
+    }
+
     const displayName = (application.applicantName === 'Unknown' && application.formData)
       ? (deriveNameFromFormData(application.formData) ?? application.applicantName)
       : application.applicantName
@@ -37,7 +54,12 @@ export async function GET(
           }
         })
 
-    return NextResponse.json({ ...application, applicantName: displayName, applicationCount: count })
+    return NextResponse.json({
+      ...application,
+      applicantName: displayName,
+      pdfUrl,
+      applicationCount: count
+    })
   } catch (error) {
     console.error('Error fetching application:', error)
     return NextResponse.json({ error: 'Failed to fetch application' }, { status: 500 })

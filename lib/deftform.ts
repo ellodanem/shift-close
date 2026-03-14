@@ -116,6 +116,11 @@ export async function fetchResponsePdf(responseUuid: string): Promise<string> {
 /** UUID pattern - Deftform PDF endpoint requires this format */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** Check if a string is a valid Deftform response UUID (for PDF refresh) */
+export function isValidDeftformUuid(id: string | null | undefined): boolean {
+  return !!id && UUID_REGEX.test(id)
+}
+
 /** Get a unique ID for deduplication (any unique string) */
 export function getResponseId(r: DeftformResponse): string | null {
   const rec = r as Record<string, unknown>
@@ -213,6 +218,14 @@ export function parseApplicantFromResponse(r: DeftformResponse): { name: string;
   return { name: name || 'Unknown', email, formData }
 }
 
+/** Check if a value looks like a name (not email, date, or phone) */
+function looksLikeName(v: string): boolean {
+  const s = v.trim()
+  if (!s || s.length < 2) return false
+  if (/@/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s) || /^\d{10,}$/.test(s)) return false
+  return true
+}
+
 /** Derive display name from stored formData (for apps that were imported with "Unknown") */
 export function deriveNameFromFormData(formData: Record<string, string> | string | null): string | null {
   if (!formData) return null
@@ -224,11 +237,20 @@ export function deriveNameFromFormData(formData: Record<string, string> | string
     if (typeof v === 'string' && v.trim()) return v.trim()
   }
   if (data.first_name && data.last_name) return `${data.first_name} ${data.last_name}`.trim()
+  // Fallback: F0 + F1 (Deftform often uses generic keys - first two fields are often first/last name)
+  const f0 = typeof data.f0 === 'string' ? data.f0.trim() : ''
+  const f1 = typeof data.f1 === 'string' ? data.f1.trim() : ''
+  if (f0 && f1 && looksLikeName(f0) && looksLikeName(f1)) return `${f0} ${f1}`.trim()
+  if (f0 && looksLikeName(f0)) return f0
   // Fallback: any key containing "name" (except email)
   for (const [k, v] of Object.entries(data)) {
     if (k.toLowerCase().includes('name') && !k.toLowerCase().includes('email') && typeof v === 'string' && v.trim()) {
       return v.trim()
     }
   }
+  // Last resort: first two values that look like names (skip email, date, phone)
+  const values = Object.values(data).filter((v): v is string => typeof v === 'string' && looksLikeName(v))
+  if (values.length >= 2) return `${values[0]} ${values[1]}`.trim()
+  if (values.length === 1) return values[0].trim()
   return null
 }
