@@ -26,6 +26,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
 
+    /** Count calendar days of sick leave that fall within the pay period */
+    function sickDaysInPeriod(sickStart: Date, sickEnd: Date): { days: number; rangeStart: Date; rangeEnd: Date } | null {
+      const overlapStart = sickStart > start ? sickStart : start
+      const overlapEnd = sickEnd < end ? sickEnd : end
+      if (overlapStart > overlapEnd) return null
+      const days = Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / (24 * 60 * 60 * 1000)) + 1
+      return { days, rangeStart: overlapStart, rangeEnd: overlapEnd }
+    }
+
+    function formatShortDate(d: Date): string {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
     // Fetch active staff (non-manager for report)
     const staff = await prisma.staff.findMany({
       where: { status: 'active', role: { not: 'manager' } },
@@ -88,8 +101,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch sick leave overlapping the pay period (approved only)
+    const sickLeaves = await prisma.staffSickLeave.findMany({
+      where: {
+        status: 'approved',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate }
+      }
+    })
+
+    const sickLeaveByStaff = new Map<string, { days: number; ranges: string }>()
+    for (const sl of sickLeaves) {
+      const sickStart = new Date(sl.startDate + 'T00:00:00')
+      const sickEnd = new Date(sl.endDate + 'T23:59:59')
+      const overlap = sickDaysInPeriod(sickStart, sickEnd)
+      if (!overlap || overlap.days <= 0) continue
+      const existing = sickLeaveByStaff.get(sl.staffId)
+      const rangeStr = `${formatShortDate(overlap.rangeStart)} – ${formatShortDate(overlap.rangeEnd)}`
+      if (existing) {
+        sickLeaveByStaff.set(sl.staffId, {
+          days: existing.days + overlap.days,
+          ranges: existing.ranges ? `${existing.ranges}; ${rangeStr}` : rangeStr
+        })
+      } else {
+        sickLeaveByStaff.set(sl.staffId, { days: overlap.days, ranges: rangeStr })
+      }
+    }
+
     // Build rows
-    const rows: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number }> = []
+    const rows: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number; sickLeaveDays: number; sickLeaveRanges: string }> = []
 
     for (const s of staff) {
       const transTtl = transTtlByStaff.get(s.id) ?? (s.deviceUserId ? transTtlByStaff.get(s.deviceUserId) ?? 0 : 0)
@@ -102,13 +142,16 @@ export async function POST(request: NextRequest) {
         }
       }
       const shortage = Math.round((shortageByStaff.get(s.id) || 0) * 100) / 100
+      const sickLeave = sickLeaveByStaff.get(s.id)
 
       rows.push({
         staffId: s.id,
         staffName: s.firstName?.trim() || s.name,
         transTtl,
         vacation,
-        shortage
+        shortage,
+        sickLeaveDays: sickLeave?.days ?? 0,
+        sickLeaveRanges: sickLeave?.ranges ?? ''
       })
     }
 

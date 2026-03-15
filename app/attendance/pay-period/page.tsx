@@ -10,6 +10,8 @@ interface PayPeriodRow {
   transTtl: number
   vacation: string
   shortage: number
+  sickLeaveDays?: number
+  sickLeaveRanges?: string
 }
 
 interface PayPeriodData {
@@ -155,6 +157,8 @@ export default function PayPeriodPage() {
                 <th style="text-align: left; padding: 8px;">Staff</th>
                 <th style="text-align: right; padding: 8px;">Trans Ttl</th>
                 <th style="text-align: center; padding: 8px;">Vacation</th>
+                <th style="text-align: right; padding: 8px;">Sick Days</th>
+                <th style="text-align: left; padding: 8px;">Sick Leave</th>
                 <th style="text-align: right; padding: 8px;">Shortage</th>
               </tr>
             </thead>
@@ -164,12 +168,16 @@ export default function PayPeriodPage() {
                   <td style="padding: 8px;">${r.staffName}</td>
                   <td style="text-align: right; padding: 8px;">${r.transTtl.toFixed(2)}</td>
                   <td style="text-align: center; padding: 8px;">${r.vacation || ''}</td>
+                  <td style="text-align: right; padding: 8px;">${r.sickLeaveDays ?? 0}</td>
+                  <td style="text-align: left; padding: 8px;">${r.sickLeaveRanges ?? ''}</td>
                   <td style="text-align: right; padding: 8px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
                 </tr>
               `).join('')}
               <tr style="border-top: 2px solid #000; font-weight: bold;">
                 <td style="padding: 8px;">Total</td>
                 <td style="text-align: right; padding: 8px;">${totalTrans.toFixed(1)}</td>
+                <td style="padding: 8px;"></td>
+                <td style="text-align: right; padding: 8px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                 <td style="padding: 8px;"></td>
                 <td style="text-align: right; padding: 8px;">${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</td>
               </tr>
@@ -194,9 +202,9 @@ export default function PayPeriodPage() {
       ['Date Range:', formatDateRange(data.startDate, data.endDate)],
       [data.entityName],
       [],
-      ['Staff', 'Trans Ttl', 'Vacation', 'Shortage'],
-      ...rows.map(r => [r.staffName, r.transTtl, r.vacation, r.shortage > 0 ? r.shortage : '']),
-      ['Total', totalTrans, '', totalShortage > 0 ? totalShortage : '']
+      ['Staff', 'Trans Ttl', 'Vacation', 'Sick Days', 'Sick Leave', 'Shortage'],
+      ...rows.map(r => [r.staffName, r.transTtl, r.vacation, r.sickLeaveDays ?? 0, r.sickLeaveRanges ?? '', r.shortage > 0 ? r.shortage : '']),
+      ['Total', totalTrans, '', rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0), '', totalShortage > 0 ? totalShortage : '']
     ]
     const ws = XLSX.utils.aoa_to_sheet(wsData)
     const wb = XLSX.utils.book_new()
@@ -224,9 +232,9 @@ export default function PayPeriodPage() {
         <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
         <p><strong>${data.entityName}</strong></p>
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-          <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Shortage</th></tr>
-          ${rows.map(r => `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`).join('')}
-          <tr><td><strong>Total</strong></td><td><strong>${totalTrans.toFixed(1)}</strong></td><td></td><td><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
+          <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
+          ${rows.map(r => `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.sickLeaveDays ?? 0}</td><td>${r.sickLeaveRanges ?? ''}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`).join('')}
+          <tr><td><strong>Total</strong></td><td><strong>${totalTrans.toFixed(1)}</strong></td><td></td><td><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td></td><td><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
         </table>
       `
       const res = await fetch('/api/send-email', {
@@ -370,6 +378,8 @@ export default function PayPeriodPage() {
                     <th className="text-left py-2">Staff</th>
                     <th className="text-right py-2">Trans Ttl</th>
                     <th className="text-center py-2">Vacation</th>
+                    <th className="text-right py-2">Sick Days</th>
+                    <th className="text-left py-2">Sick Leave</th>
                     <th className="text-right py-2">Shortage</th>
                   </tr>
                 </thead>
@@ -379,12 +389,16 @@ export default function PayPeriodPage() {
                       <td className="py-1">{r.staffName}</td>
                       <td className="text-right">{r.transTtl.toFixed(2)}</td>
                       <td className="text-center">{r.vacation || ''}</td>
+                      <td className="text-right">{r.sickLeaveDays ?? 0}</td>
+                      <td className="text-left text-gray-600">{r.sickLeaveRanges ?? ''}</td>
                       <td className="text-right">{r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
                     </tr>
                   ))}
                   <tr className="font-bold border-t-2 border-gray-300">
                     <td className="py-2">Total</td>
                     <td className="text-right">{displayData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
+                    <td></td>
+                    <td className="text-right">{displayData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                     <td></td>
                     <td className="text-right">
                       {displayData.rows.reduce((s, r) => s + r.shortage, 0) > 0
@@ -417,6 +431,8 @@ export default function PayPeriodPage() {
                     <th className="text-left py-2">Staff</th>
                     <th className="text-right py-2 w-24">Trans Ttl</th>
                     <th className="text-center py-2 w-24">Vacation</th>
+                    <th className="text-right py-2 w-20">Sick Days</th>
+                    <th className="text-left py-2 min-w-[140px]">Sick Leave</th>
                     <th className="text-right py-2 w-28">Shortage</th>
                   </tr>
                 </thead>
@@ -445,6 +461,25 @@ export default function PayPeriodPage() {
                       <td className="text-right">
                         <input
                           type="number"
+                          min={0}
+                          value={r.sickLeaveDays ?? ''}
+                          onChange={(e) => updateRow(i, 'sickLeaveDays', e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
+                          className="w-full text-right border border-gray-300 rounded px-2 py-1"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={r.sickLeaveRanges ?? ''}
+                          onChange={(e) => updateRow(i, 'sickLeaveRanges', e.target.value)}
+                          placeholder="Mar 3 – Mar 5"
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-gray-600"
+                        />
+                      </td>
+                      <td className="text-right">
+                        <input
+                          type="number"
                           step="0.01"
                           value={r.shortage || ''}
                           onChange={(e) => updateRow(i, 'shortage', parseFloat(e.target.value) || 0)}
@@ -457,6 +492,8 @@ export default function PayPeriodPage() {
                   <tr className="font-bold border-t-2 border-gray-300">
                     <td className="py-2">Total</td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
+                    <td></td>
+                    <td className="text-right">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                     <td></td>
                     <td className="text-right">
                       {reportData.rows.reduce((s, r) => s + r.shortage, 0) > 0

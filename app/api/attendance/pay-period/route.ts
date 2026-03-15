@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       endDate?: string
       reportDate?: string
       entityName?: string
-      rows?: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number }>
+      rows?: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number; sickLeaveDays?: number; sickLeaveRanges?: string }>
     }
 
     if (!startDate || !endDate || !rows || !Array.isArray(rows)) {
