@@ -3,36 +3,6 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-// Categories that carry account balances
-const ACCOUNT_KINDS = ['cheque_received', 'debit_received', 'fuel_taken']
-
-// Determine type (overage/shortage) and noteOnly from itemKind + paymentMethod
-function resolveItemMeta(
-  itemKind: string,
-  paymentMethod: string | undefined
-): { type: string; noteOnly: boolean } {
-  switch (itemKind) {
-    case 'cheque_received':
-      return { type: 'overage', noteOnly: false }
-    case 'debit_received':
-      // Debit swiped = physical overage until picked up; affects over/short
-      return { type: 'overage', noteOnly: false }
-    case 'fuel_taken':
-      // Fuel taken against a debit account is note-only; cheque is a real shortage
-      return {
-        type: 'shortage',
-        noteOnly: paymentMethod === 'debit'
-      }
-    case 'withdrawal':
-      return { type: 'shortage', noteOnly: false }
-    case 'return':
-      return { type: 'overage', noteOnly: false }
-    case 'other':
-    default:
-      return { type: 'overage', noteOnly: false } // caller overrides type for 'other'
-  }
-}
-
 /** GET - List over/short items for a shift */
 export async function GET(
   request: NextRequest,
@@ -57,7 +27,7 @@ export async function GET(
   }
 }
 
-/** POST - Create over/short item */
+/** POST - Create over/short item. Body: { type: "add"|"subtract"|"note", amount: number, description: string } */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -65,50 +35,22 @@ export async function POST(
   try {
     const { id: shiftId } = await params
     const body = await request.json()
-
-    const {
-      itemKind = 'other',
-      paymentMethod,
-      amount,
-      description,
-      type: typeOverride, // only used for 'other' kind
-      customerName,
-      previousBalance,
-      dispensedAmount,
-      newBalance
-    } = body as {
-      itemKind?: string
-      paymentMethod?: string
+    const { type: itemType, amount, description } = body as {
+      type?: string
       amount?: number
       description?: string
-      type?: string
-      customerName?: string
-      previousBalance?: number
-      dispensedAmount?: number
-      newBalance?: number
     }
 
-    // Resolve type and noteOnly from category
-    const { type: resolvedType, noteOnly } = resolveItemMeta(itemKind, paymentMethod)
-    const finalType = itemKind === 'other' && typeOverride ? typeOverride : resolvedType
+    const typeMap = { add: 'overage', subtract: 'shortage', note: 'overage' } as const
+    const resolved = typeMap[itemType as keyof typeof typeMap] ?? typeMap.add
+    const isNote = itemType === 'note'
 
     const amt = Math.abs(Number(amount) || 0)
-
-    // Validate amount — note-only items can have zero amount (it's just a log)
-    if (!noteOnly && amt <= 0) {
+    if (!isNote && amt <= 0) {
       return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 })
     }
-
-    // Validate description / customer name
-    const isAccountKind = ACCOUNT_KINDS.includes(itemKind)
-    if (isAccountKind) {
-      if (!customerName?.trim()) {
-        return NextResponse.json({ error: 'Customer name is required' }, { status: 400 })
-      }
-    } else {
-      if (!description?.trim() && itemKind !== 'withdrawal' && itemKind !== 'return') {
-        // withdrawal and return can have empty description (who is optional)
-      }
+    if (!(description ?? '').trim()) {
+      return NextResponse.json({ error: 'Description is required' }, { status: 400 })
     }
 
     const shift = await prisma.shiftClose.findUnique({
@@ -123,33 +65,15 @@ export async function POST(
       select: { sortOrder: true }
     })
 
-    // Auto-build description for account items
-    let finalDescription = (description || '').trim()
-    if (isAccountKind && customerName) {
-      const name = customerName.trim()
-      if (itemKind === 'cheque_received') finalDescription = `${name} — cheque received`
-      else if (itemKind === 'debit_received') finalDescription = `${name} — debit pre-auth`
-      else if (itemKind === 'fuel_taken') {
-        const method = paymentMethod === 'debit' ? 'debit account' : 'cheque account'
-        finalDescription = `${name} — fuel/cash from ${method}`
-        if (newBalance != null && newBalance > 0) finalDescription += ` (bal $${Number(newBalance).toFixed(2)})`
-      }
-    }
-
     const item = await prisma.overShortItem.create({
       data: {
         shiftId,
-        type: finalType,
-        amount: noteOnly ? 0 : amt, // note-only items have zero financial impact
-        description: finalDescription,
+        type: resolved,
+        amount: isNote ? 0 : amt,
+        description: (description || '').trim(),
         sortOrder: (maxOrder?.sortOrder ?? -1) + 1,
-        itemKind,
-        paymentMethod: paymentMethod || null,
-        noteOnly,
-        customerName: customerName?.trim() || null,
-        previousBalance: previousBalance != null ? Number(previousBalance) : null,
-        dispensedAmount: dispensedAmount != null ? Number(dispensedAmount) : null,
-        newBalance: newBalance != null ? Number(newBalance) : null
+        itemKind: 'other',
+        noteOnly: isNote
       }
     })
 

@@ -4,8 +4,6 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getMissingFields, isShiftFullyReviewed, computeNetOverShort, computeOverShortTally, OS_REVIEW_THRESHOLD, calculateShiftClose } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
-import AccountCustomersModal from '@/app/components/AccountCustomersModal'
-
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -85,21 +83,11 @@ export default function ShiftDetailPage() {
   const [overShortExplanationDraft, setOverShortExplanationDraft] = useState('')
   const [showOverShortModal, setShowOverShortModal] = useState(false)
   const [showAddOverShortModal, setShowAddOverShortModal] = useState(false)
-  const [showManageCustomersModal, setShowManageCustomersModal] = useState(false)
   const [savingOverShortItem, setSavingOverShortItem] = useState(false)
-  // Account Activity add item state
-  type ItemKind = 'cheque_received' | 'debit_received' | 'fuel_taken' | 'withdrawal' | 'return' | 'other' | null
-  const [selectedKind, setSelectedKind] = useState<ItemKind>(null)
-  const [acctCustomerName, setAcctCustomerName] = useState('')
-  const [acctPaymentMethod, setAcctPaymentMethod] = useState<'cheque' | 'debit'>('cheque')
-  const [acctPreviousBalance, setAcctPreviousBalance] = useState('')
-  const [acctAmount, setAcctAmount] = useState('')
-  const [acctNewBalance, setAcctNewBalance] = useState('')
-  const [acctDescription, setAcctDescription] = useState('')
-  const [acctOtherType, setAcctOtherType] = useState<'overage' | 'shortage'>('shortage')
-  const [acctBalances, setAcctBalances] = useState<Array<{ customerName: string; newBalance: number; paymentMethod: string; shiftDate: string; shiftPeriod: string }>>([])
-  // Keep legacy cheque state names for backward compat with cheque-balances fetch
-  const chequeBalances = acctBalances
+  // Account Activity add item state (simplified: amount, description, type)
+  const [addItemAmount, setAddItemAmount] = useState('')
+  const [addItemDescription, setAddItemDescription] = useState('')
+  const [addItemType, setAddItemType] = useState<'add' | 'subtract' | 'note'>('add')
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
@@ -230,23 +218,10 @@ export default function ShiftDetailPage() {
     }
   }, [params.id])
 
-  // Fetch outstanding account balances for carry-forward auto-fill
-  useEffect(() => {
-    fetch('/api/shifts/cheque-balances')
-      .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setAcctBalances(data) })
-      .catch(() => {})
-  }, [])
-
   function resetAddItemState() {
-    setSelectedKind(null)
-    setAcctCustomerName('')
-    setAcctPaymentMethod('cheque')
-    setAcctPreviousBalance('')
-    setAcctAmount('')
-    setAcctNewBalance('')
-    setAcctDescription('')
-    setAcctOtherType('shortage')
+    setAddItemAmount('')
+    setAddItemDescription('')
+    setAddItemType('add')
   }
 
   // Fetch supervisors and managers for the supervisor dropdown
@@ -1479,22 +1454,13 @@ export default function ShiftDetailPage() {
                 {/* Header */}
                 <div className="bg-gray-800 text-white px-5 py-3 flex items-center justify-between">
                   <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowManageCustomersModal(true)}
-                      className="px-3 py-1 bg-gray-600 text-white rounded font-medium text-xs hover:bg-gray-500"
-                    >
-                      Manage customers
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
-                      className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
-                    >
-                      + Add Item
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
+                    className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
+                  >
+                    + Add Item
+                  </button>
                 </div>
 
                 {/* Starting balance */}
@@ -1724,14 +1690,9 @@ export default function ShiftDetailPage() {
       {/* Add Account Activity Item Modal */}
       {showAddOverShortModal && shift && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-4 py-3 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="font-semibold text-gray-900 text-sm">Add Account Activity Item</h3>
-                {selectedKind && (
-                  <button type="button" onClick={() => setSelectedKind(null)} className="text-xs text-blue-600 hover:underline mt-0.5">← Back</button>
-                )}
-              </div>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 text-sm">Add Account Activity Item</h3>
               <button
                 type="button"
                 onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }}
@@ -1740,189 +1701,79 @@ export default function ShiftDetailPage() {
                 ×
               </button>
             </div>
-
-            {/* Step 1 — Type selector cards */}
-            {!selectedKind ? (
-              <div className="p-4">
-                <p className="text-xs text-gray-500 mb-3">What are you recording?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { kind: 'cheque_received', label: 'Cheque Received', sub: 'New cheque in drawer', color: 'border-green-300 bg-green-50 hover:bg-green-100', badge: '+ Overage' },
-                    { kind: 'debit_received', label: 'Debit Received', sub: 'Pre-auth / account top-up', color: 'border-blue-300 bg-blue-50 hover:bg-blue-100', badge: '+ Overage' },
-                    { kind: 'fuel_taken', label: 'Fuel / Cash Taken', sub: 'Against existing account', color: 'border-amber-300 bg-amber-50 hover:bg-amber-100', badge: '− Shortage*' },
-                    { kind: 'withdrawal', label: 'Withdrawal', sub: 'Cash taken from drawer', color: 'border-red-300 bg-red-50 hover:bg-red-100', badge: '− Shortage' },
-                    { kind: 'return', label: 'Return', sub: 'Cash returned to drawer', color: 'border-teal-300 bg-teal-50 hover:bg-teal-100', badge: '+ Overage' },
-                    { kind: 'other', label: 'Other', sub: "Short pay, customer didn't pay, etc.", color: 'border-gray-300 bg-gray-50 hover:bg-gray-100', badge: 'You choose' },
-                  ] as const).map(({ kind, label, sub, color, badge }) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      onClick={() => {
-                      setSelectedKind(kind)
-                      if (kind === 'cheque_received') setAcctPaymentMethod('cheque')
-                      else if (kind === 'debit_received') setAcctPaymentMethod('debit')
-                      else if (kind === 'fuel_taken') setAcctPaymentMethod('cheque')
-                    }}
-                      className={`border-2 rounded-lg p-3 text-left transition-colors ${color}`}
-                    >
-                      <div className="font-semibold text-sm text-gray-900">{label}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{sub}</div>
-                      <div className="text-xs font-medium text-gray-600 mt-1">{badge}</div>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-400 mt-3">* Cheque shortage only. Debit fuel taken is note only.</p>
-                <button
-                  type="button"
-                  onClick={() => setShowManageCustomersModal(true)}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 inline-block"
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={addItemType}
+                  onChange={e => setAddItemType(e.target.value as 'add' | 'subtract' | 'note')}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                 >
-                  Manage customers & update balances →
-                </button>
+                  <option value="add">Money added (adds to drawer)</option>
+                  <option value="subtract">Money subtracted (removed from drawer)</option>
+                  <option value="note">Note only (no effect on balance)</option>
+                </select>
               </div>
-            ) : (
-              <div className="p-4 space-y-3">
-                {selectedKind === 'cheque_received' && (
-                  <>
-                    <div className="text-xs text-green-700 bg-green-50 rounded px-3 py-2">Cheque received this shift. Sits in the drawer — records as an <strong>overage</strong>. Balance carries forward for future fuel.</div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} list="acct-customer-list" placeholder="e.g. Rumie Tours" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Cheque Amount ($)</label>
-                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className="bg-green-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-green-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
-                  </>
-                )}
-                {selectedKind === 'debit_received' && (
-                  <>
-                    <div className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2">Debit pre-auth received. You will count this amount over until staff picks it up — records as an <strong>overage</strong>.</div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                      <input type="text" value={acctCustomerName} onChange={e => setAcctCustomerName(e.target.value)} list="acct-customer-list" placeholder="e.g. Company XYZ" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(e.target.value) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className="bg-blue-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-blue-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
-                  </>
-                )}
-                {selectedKind === 'fuel_taken' && (
-                  <>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setAcctPaymentMethod('cheque')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctPaymentMethod === 'cheque' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-300'}`}>Cheque Account</button>
-                      <button type="button" onClick={() => setAcctPaymentMethod('debit')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctPaymentMethod === 'debit' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-300'}`}>Debit Account</button>
-                    </div>
-                    <div className={`text-xs rounded px-3 py-2 ${acctPaymentMethod === 'cheque' ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>{acctPaymentMethod === 'cheque' ? 'Fuel/cash given against a cheque account. Records as a shortage.' : 'Fuel given against a debit account. Note only — cashier already counted the debit.'}</div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                      <input type="text" value={acctCustomerName} onChange={e => { setAcctCustomerName(e.target.value); const m = acctBalances.find(b => b.customerName.toLowerCase() === e.target.value.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod); if (m) setAcctPreviousBalance(String(m.newBalance)); else setAcctPreviousBalance('') }} list="acct-customer-list" placeholder="e.g. Andrew" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-                      {acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod) && (<p className="text-xs text-blue-700 mt-1">✓ Balance on file: ${acctBalances.find(b => b.customerName.toLowerCase() === acctCustomerName.toLowerCase() && (b.paymentMethod || 'cheque') === acctPaymentMethod)!.newBalance.toFixed(2)}</p>)}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance ($)</label>
-                        <input type="number" step="0.01" min="0" value={acctPreviousBalance} onChange={e => { setAcctPreviousBalance(e.target.value); setAcctNewBalance(Math.max(0, (Number(e.target.value) || 0) - (Number(acctAmount) || 0)).toFixed(2)) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount Taken ($)</label>
-                        <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => { setAcctAmount(e.target.value); setAcctNewBalance(Math.max(0, (Number(acctPreviousBalance) || 0) - (Number(e.target.value) || 0)).toFixed(2)) }} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    </div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">New Balance ($) <span className="text-gray-400 font-normal">carries forward</span></label>
-                      <input type="number" step="0.01" min="0" value={acctNewBalance} onChange={e => setAcctNewBalance(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50" /></div>
-                    <div className={`rounded px-3 py-2 text-sm ${acctPaymentMethod === 'cheque' ? 'bg-red-50' : 'bg-blue-50'}`}>
-                      {acctPaymentMethod === 'cheque' ? (<><span className="text-gray-600">Shortage: </span><span className="font-semibold text-red-700">−${Number(acctAmount || 0).toFixed(2)}</span>{Number(acctNewBalance) > 0 && <span className="text-gray-400 ml-2">· Remaining ${Number(acctNewBalance).toFixed(2)}</span>}</>) : (<span className="text-blue-700">Note only{Number(acctNewBalance) > 0 ? ` · Remaining $${Number(acctNewBalance).toFixed(2)}` : ''}</span>)}
-                    </div>
-                  </>
-                )}
-                {selectedKind === 'withdrawal' && (
-                  <>
-                    <div className="text-xs text-red-700 bg-red-50 rounded px-3 py-2">Cash physically removed from the drawer. Records as a <strong>shortage</strong>.</div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(who took it)</span></label>
-                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Manager requested $200" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className="bg-red-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Shortage: </span><span className="font-semibold text-red-700">−${Number(acctAmount || 0).toFixed(2)}</span></div>
-                  </>
-                )}
-                {selectedKind === 'return' && (
-                  <>
-                    <div className="text-xs text-teal-700 bg-teal-50 rounded px-3 py-2">Cash returned to the drawer. Records as an <strong>overage</strong>.</div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(who returned it)</span></label>
-                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Manager returned $200" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className="bg-teal-50 rounded px-3 py-2 text-sm"><span className="text-gray-600">Overage: </span><span className="font-semibold text-teal-700">+${Number(acctAmount || 0).toFixed(2)}</span></div>
-                  </>
-                )}
-                {selectedKind === 'other' && (
-                  <>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setAcctOtherType('shortage')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctOtherType === 'shortage' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300'}`}>− Shortage</button>
-                      <button type="button" onClick={() => setAcctOtherType('overage')} className={`flex-1 py-1.5 rounded text-sm font-semibold border ${acctOtherType === 'overage' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300'}`}>+ Overage</button>
-                    </div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                      <input type="number" step="0.01" min="0" value={acctAmount} onChange={e => setAcctAmount(e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <input type="text" value={acctDescription} onChange={e => setAcctDescription(e.target.value)} placeholder="e.g. Customer short-paid $5, pump voided, etc." className="w-full border border-gray-300 rounded px-3 py-2 text-sm" /></div>
-                    <div className={`rounded px-3 py-2 text-sm ${acctOtherType === 'overage' ? 'bg-green-50' : 'bg-red-50'}`}>
-                      <span className="text-gray-600">{acctOtherType === 'overage' ? 'Overage' : 'Shortage'}: </span>
-                      <span className={`font-semibold ${acctOtherType === 'overage' ? 'text-green-700' : 'text-red-700'}`}>{acctOtherType === 'overage' ? '+' : '−'}${Number(acctAmount || 0).toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
-                <datalist id="acct-customer-list">
-                  {acctBalances.filter(b => (b.paymentMethod || 'cheque') === (selectedKind === 'debit_received' ? 'debit' : selectedKind === 'cheque_received' ? 'cheque' : acctPaymentMethod)).map(b => <option key={`${b.customerName}-${b.paymentMethod || 'cheque'}`} value={b.customerName} />)}
-                </datalist>
+              {addItemType !== 'note' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={addItemAmount}
+                    onChange={e => setAddItemAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={addItemDescription}
+                  onChange={e => setAddItemDescription(e.target.value)}
+                  placeholder="e.g. Manager returned $200"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                />
               </div>
-            )}
-
-            {selectedKind && (
-              <div className="px-4 py-3 border-t flex justify-end gap-2 sticky bottom-0 bg-white">
-                <button type="button" onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }} className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
-                <button
-                  type="button"
-                  disabled={
-                    savingOverShortItem ||
-                    (['cheque_received', 'debit_received'].includes(selectedKind) && (!acctCustomerName.trim() || !acctAmount || Number(acctAmount) <= 0)) ||
-                    (selectedKind === 'fuel_taken' && (!acctCustomerName.trim() || !acctAmount || Number(acctAmount) <= 0)) ||
-                    (['withdrawal', 'return'].includes(selectedKind) && (!acctAmount || Number(acctAmount) <= 0)) ||
-                    (selectedKind === 'other' && (!acctAmount || Number(acctAmount) <= 0 || !acctDescription.trim()))
-                  }
-                  onClick={async () => {
-                    setSavingOverShortItem(true)
-                    try {
-                      const isAccount = ['cheque_received', 'debit_received', 'fuel_taken'].includes(selectedKind)
-                      const payload: Record<string, unknown> = {
-                        itemKind: selectedKind,
-                        paymentMethod: isAccount ? acctPaymentMethod : undefined,
-                        amount: Number(acctAmount) || 0,
-                        description: acctDescription.trim(),
-                        type: selectedKind === 'other' ? acctOtherType : selectedKind === 'return' ? 'overage' : selectedKind === 'withdrawal' ? 'shortage' : selectedKind === 'cheque_received' ? 'overage' : 'overage',
-                        customerName: isAccount ? acctCustomerName.trim() : undefined,
-                        previousBalance: isAccount && acctPreviousBalance ? Number(acctPreviousBalance) : undefined,
-                        dispensedAmount: isAccount && acctAmount ? Number(acctAmount) : undefined,
-                        newBalance: isAccount && acctNewBalance ? Number(acctNewBalance) : undefined,
-                      }
-                      const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                      if (!res.ok) throw new Error((await res.json()).error || 'Failed to add')
-                      const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
-                      setShift(updated)
-                      setShowAddOverShortModal(false)
-                      resetAddItemState()
-                      fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setAcctBalances(d) }).catch(() => {})
-                    } catch (err) {
-                      alert(err instanceof Error ? err.message : 'Failed to add item')
-                    } finally {
-                      setSavingOverShortItem(false)
+            </div>
+            <div className="px-4 py-3 border-t flex justify-end gap-2">
+              <button type="button" onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }} className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+              <button
+                type="button"
+                disabled={
+                  savingOverShortItem ||
+                  !addItemDescription.trim() ||
+                  (addItemType !== 'note' && (!addItemAmount || Number(addItemAmount) <= 0))
+                }
+                onClick={async () => {
+                  setSavingOverShortItem(true)
+                  try {
+                    const payload = {
+                      type: addItemType,
+                      amount: addItemType === 'note' ? 0 : Number(addItemAmount) || 0,
+                      description: addItemDescription.trim(),
                     }
-                  }}
-                  className="px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 bg-gray-800 text-white hover:bg-gray-700"
-                >{savingOverShortItem ? 'Saving…' : 'Save Item'}</button>
-              </div>
-            )}
+                    const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                    if (!res.ok) throw new Error((await res.json()).error || 'Failed to add')
+                    const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
+                    setShift(updated)
+                    setShowAddOverShortModal(false)
+                    resetAddItemState()
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : 'Failed to add item')
+                  } finally {
+                    setSavingOverShortItem(false)
+                  }
+                }}
+                className="px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 bg-gray-800 text-white hover:bg-gray-700"
+              >{savingOverShortItem ? 'Saving…' : 'Save Item'}</button>
+            </div>
           </div>
         </div>
       )}
-
-      <AccountCustomersModal
-        open={showManageCustomersModal}
-        onClose={() => {
-          setShowManageCustomersModal(false)
-          fetch('/api/shifts/cheque-balances').then(r => r.json()).then(d => { if (Array.isArray(d)) setAcctBalances(d) }).catch(() => {})
-        }}
-      />
     </div>
   )
 }
