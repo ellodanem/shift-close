@@ -46,12 +46,33 @@ export function calculateShiftClose(input: ShiftCloseInput): Omit<ShiftCloseWith
  */
 export function computeNetOverShort(
   rawOS: number,
-  items: Array<{ type: string; amount: number; noteOnly: boolean }>
+  items: Array<{ type: string; amount: number; noteOnly?: boolean }>
 ): number {
   const explained = items
     .filter(i => !i.noteOnly)
     .reduce((sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount), 0)
   return rawOS - explained
+}
+
+/**
+ * Tally-style: running balance after each item (for display).
+ * Each item "accounts for" part of the over/short:
+ * - Shortage item (money out): adds to balance (reduces the short)
+ * - Overage item (money in): subtracts from balance (reduces the over)
+ */
+export function computeOverShortTally<T extends { type: string; amount: number; noteOnly?: boolean }>(
+  rawOS: number,
+  items: T[]
+): Array<{ item: T; balanceAfter: number }> {
+  const result: Array<{ item: T; balanceAfter: number }> = []
+  let balance = rawOS
+  for (const i of items) {
+    if (i.noteOnly) continue
+    const contribution = i.type === 'shortage' ? i.amount : -i.amount
+    balance += contribution
+    result.push({ item: i, balanceAfter: balance })
+  }
+  return result
 }
 
 export function getStatusColor(overShort: number, isExplained: boolean): "green" | "amber" | "red" {
