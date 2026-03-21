@@ -4,6 +4,7 @@
  */
 export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
+  'average-deposit',
   'phase1-status',
   'upcoming-roster',
   'fuel-volume',

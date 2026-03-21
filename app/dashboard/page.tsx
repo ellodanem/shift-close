@@ -114,6 +114,14 @@ interface FuelComparisonDay {
   prevDiesel: number
 }
 
+interface AverageDepositData {
+  avgDepositMTD: number
+  totalDepositsMTD: number
+  daysElapsed: number
+  sameDayLastMonth: { date: string; total: number } | null
+  sameDayLastYear: { date: string; total: number } | null
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<MonthSummary | null>(null)
@@ -124,6 +132,7 @@ export default function DashboardPage() {
   const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
   const [cashbookSummary, setCashbookSummary] = useState<CashbookSummary | null>(null)
   const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
+  const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -206,6 +215,16 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setFuelComparison(data) })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/dashboard/average-deposit')
+      .then(r => r.json())
+      .then(data => {
+        if (data?.avgDepositMTD != null) setAverageDeposit(data)
+        else setAverageDeposit(null)
+      })
+      .catch(() => setAverageDeposit(null))
   }, [])
 
   // Fetch A/R summary when summary data changes (respects month filter)
@@ -705,6 +724,54 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </div>
+            )}
+            {id === 'average-deposit' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-700">Average Deposit</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Month-to-date average vs same day last month and last year
+              </p>
+            </div>
+            {averageDeposit ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-sm font-medium text-gray-700">This month (MTD)</span>
+                  <span className="text-lg font-bold text-blue-900">
+                    ${formatCurrency(averageDeposit.avgDepositMTD)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-sm font-medium text-gray-700">
+                    Same day last month
+                    {averageDeposit.sameDayLastMonth && (
+                      <span className="text-gray-500 font-normal ml-1">
+                        ({new Date(averageDeposit.sameDayLastMonth.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {averageDeposit.sameDayLastMonth != null ? `$${formatCurrency(averageDeposit.sameDayLastMonth.total)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Same day last year
+                    {averageDeposit.sameDayLastYear && (
+                      <span className="text-gray-500 font-normal ml-1">
+                        ({new Date(averageDeposit.sameDayLastYear.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {averageDeposit.sameDayLastYear != null ? `$${formatCurrency(averageDeposit.sameDayLastYear.total)}` : '—'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No deposit data available</p>
+            )}
           </div>
             )}
             {id === 'phase1-status' && summary && (
