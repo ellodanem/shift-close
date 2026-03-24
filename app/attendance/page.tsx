@@ -20,6 +20,14 @@ interface Staff {
   id: string
   name: string
   deviceUserId: string | null
+  status?: string
+}
+
+/** Match API + device-only rows (before staff_id was linked). */
+function logBelongsToStaff(log: AttendanceLog, staff: Pick<Staff, 'id' | 'deviceUserId'>): boolean {
+  if (log.staffId === staff.id) return true
+  const dev = staff.deviceUserId?.trim()
+  return Boolean(dev && log.deviceUserId === dev)
 }
 
 interface DeviceUser {
@@ -61,6 +69,10 @@ function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function nowDatetimeLocalValue(): string {
+  return toDatetimeLocalValue(new Date().toISOString())
+}
+
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<Tab>('logs')
 
@@ -82,6 +94,13 @@ export default function AttendancePage() {
   const [editPunchType, setEditPunchType] = useState<'in' | 'out'>('in')
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+
+  const [showAddPunch, setShowAddPunch] = useState(false)
+  const [addStaffId, setAddStaffId] = useState('')
+  const [addPunchLocal, setAddPunchLocal] = useState('')
+  const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
+  const [addSaving, setAddSaving] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   // --- Current period pay day ---
   const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
@@ -131,8 +150,7 @@ export default function AttendancePage() {
     setError(null)
     try {
       const params = new URLSearchParams({ startDate, endDate })
-      if (staffFilter) params.set('staffId', staffFilter)
-      const res = await fetch(`/api/attendance/logs?${params}`)
+      const res = await fetch(`/api/attendance/logs?${params}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('Failed to load logs')
       const data: AttendanceLog[] = await res.json()
       setLogs(data)
@@ -141,7 +159,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate, staffFilter])
+  }, [startDate, endDate])
 
   useEffect(() => {
     fetchLogs()
@@ -186,11 +204,6 @@ export default function AttendancePage() {
         const data = (await res.json()) as { cutoffDate?: string | null }
         const c = data.cutoffDate ?? null
         setPayPeriodCutoff(c)
-        if (c) {
-          setDateRange('sinceLastReport')
-          setCustomStart(c)
-          setCustomEnd(formatDate(new Date()))
-        }
       } catch {
         // ignore
       }
@@ -199,6 +212,30 @@ export default function AttendancePage() {
   }, [])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
+
+  /** Active staff with device mapping — used for quick-filter tabs. */
+  const activeStaffWithDevice = useMemo(
+    () => allStaff.filter((s) => s.deviceUserId && s.status !== 'inactive'),
+    [allStaff]
+  )
+
+  const displayedLogs = useMemo(() => {
+    if (!staffFilter) return logs
+    const s = staffWithDevice.find((x) => x.id === staffFilter)
+    if (!s) return []
+    return logs.filter((log) => logBelongsToStaff(log, s))
+  }, [logs, staffFilter, staffWithDevice])
+
+  /** Per-tab health: green = no irregular punches for that person in range; red = at least one. */
+  const allTabOk = useMemo(() => !logs.some((l) => l.hasIrregularity), [logs])
+  const staffTabHasIssue = useMemo(() => {
+    const m = new Map<string, boolean>()
+    for (const s of activeStaffWithDevice) {
+      const theirs = logs.filter((log) => logBelongsToStaff(log, s))
+      m.set(s.id, theirs.some((l) => l.hasIrregularity))
+    }
+    return m
+  }, [logs, activeStaffWithDevice])
 
   // Load device settings from DB on mount
   useEffect(() => {
@@ -233,6 +270,7 @@ export default function AttendancePage() {
   }
 
   const openEditLog = (log: AttendanceLog) => {
+    setShowAddPunch(false)
     setEditingLog(log)
     setEditPunchLocal(toDatetimeLocalValue(log.punchTime))
     setEditPunchType(log.punchType === 'out' ? 'out' : 'in')
@@ -242,6 +280,55 @@ export default function AttendancePage() {
   const closeEditLog = () => {
     setEditingLog(null)
     setEditError(null)
+  }
+
+  const openAddPunch = () => {
+    setEditingLog(null)
+    setAddError(null)
+    const first = staffWithDevice[0]?.id ?? ''
+    setAddStaffId(staffFilter || first)
+    setAddPunchLocal(nowDatetimeLocalValue())
+    setAddPunchType('in')
+    setShowAddPunch(true)
+  }
+
+  const closeAddPunch = () => {
+    if (addSaving) return
+    setShowAddPunch(false)
+    setAddError(null)
+  }
+
+  const handleSaveAddPunch = async () => {
+    if (!addStaffId.trim()) {
+      setAddError('Select a staff member')
+      return
+    }
+    setAddSaving(true)
+    setAddError(null)
+    try {
+      const punchTime = new Date(addPunchLocal)
+      if (isNaN(punchTime.getTime())) {
+        setAddError('Invalid date and time')
+        return
+      }
+      const res = await fetch('/api/attendance/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staffId: addStaffId,
+          punchTime: punchTime.toISOString(),
+          punchType: addPunchType
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
+      closeAddPunch()
+      await fetchLogs()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setAddSaving(false)
+    }
   }
 
   const handleSaveEditLog = async () => {
@@ -417,6 +504,19 @@ export default function AttendancePage() {
               >
                 {syncing ? 'Syncing…' : 'Sync from device'}
               </button>
+              <button
+                type="button"
+                onClick={openAddPunch}
+                disabled={staffWithDevice.length === 0}
+                title={
+                  staffWithDevice.length === 0
+                    ? 'Map staff to device users on the Device Management tab first'
+                    : 'Record a missed clock-in or clock-out'
+                }
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add punch
+              </button>
 
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Range:</span>
@@ -450,24 +550,68 @@ export default function AttendancePage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Staff:</span>
-                <select
-                  value={staffFilter}
-                  onChange={(e) => setStaffFilter(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm min-w-[140px]"
-                >
-                  <option value="">All</option>
-                  {staffWithDevice.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
               {irregularityCount > 0 && (
                 <div className="ml-auto px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
                   {irregularityCount} irregularit{irregularityCount === 1 ? 'y' : 'ies'} need attention
                 </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Staff</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStaffFilter('')}
+                  title={
+                    allTabOk
+                      ? 'No irregular punches in this date range'
+                      : 'At least one irregular punch in this range — review or correct rows'
+                  }
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    staffFilter === ''
+                      ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  All
+                  <span
+                    className={`inline-block w-3 h-3 rounded-sm shrink-0 ${allTabOk ? 'bg-emerald-500' : 'bg-red-500'}`}
+                    aria-hidden
+                  />
+                </button>
+                {activeStaffWithDevice.map((s) => {
+                  const hasIssue = staffTabHasIssue.get(s.id) ?? false
+                  const selected = staffFilter === s.id
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStaffFilter(s.id)}
+                      title={
+                        hasIssue
+                          ? 'Has irregular punches in this range — review or correct'
+                          : 'In/out pairing looks complete for this range'
+                      }
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors max-w-[200px] ${
+                        selected
+                          ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                          : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span className="truncate">{s.name}</span>
+                      <span
+                        className={`inline-block w-3 h-3 rounded-sm shrink-0 ${hasIssue ? 'bg-red-500' : 'bg-emerald-500'}`}
+                        aria-hidden
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+              {activeStaffWithDevice.length === 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Map active staff to device users on Device Management to enable quick filters.
+                </p>
               )}
             </div>
 
@@ -492,10 +636,16 @@ export default function AttendancePage() {
                   <tbody>
                     {loading ? (
                       <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">Loading…</td></tr>
-                    ) : logs.length === 0 ? (
-                      <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">No attendance logs. Sync from device or configure ADMS to pull data.</td></tr>
+                    ) : displayedLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
+                          {staffFilter
+                            ? 'No attendance logs for this staff in this date range.'
+                            : 'No attendance logs in this range. Sync from the device, or use Add punch for a missed clock-in/out.'}
+                        </td>
+                      </tr>
                     ) : (
-                      logs.map((log) => (
+                      displayedLogs.map((log) => (
                         <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${log.hasIrregularity ? 'bg-red-50/50' : ''}`}>
                           <td className="px-3 py-2">
                             {log.hasIrregularity ? (
@@ -536,6 +686,79 @@ export default function AttendancePage() {
                 </table>
               </div>
             </div>
+
+            {showAddPunch && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="add-punch-title"
+                onClick={(e) => e.target === e.currentTarget && !addSaving && closeAddPunch()}
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-md w-full p-5">
+                  <h2 id="add-punch-title" className="text-lg font-semibold text-gray-900 mb-1">Add punch</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Record a clock-in or clock-out someone forgot. It appears like other logs with source &quot;manual&quot;.
+                  </p>
+                  {addError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 whitespace-pre-line">{addError}</div>
+                  )}
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Staff</label>
+                      <select
+                        value={addStaffId}
+                        onChange={(e) => setAddStaffId(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      >
+                        <option value="">Select…</option>
+                        {staffWithDevice.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date and time</label>
+                      <input
+                        type="datetime-local"
+                        value={addPunchLocal}
+                        onChange={(e) => setAddPunchLocal(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                      <select
+                        value={addPunchType}
+                        onChange={(e) => setAddPunchType(e.target.value as 'in' | 'out')}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      >
+                        <option value="in">In</option>
+                        <option value="out">Out</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeAddPunch}
+                      disabled={addSaving}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAddPunch}
+                      disabled={addSaving}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {addSaving ? 'Saving…' : 'Add punch'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {editingLog && (
               <div
