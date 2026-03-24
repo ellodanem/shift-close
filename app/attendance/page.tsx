@@ -11,6 +11,7 @@ interface AttendanceLog {
   punchTime: string
   punchType: string
   source: string
+  correctedAt?: string | null
   hasIrregularity: boolean
   staff: { id: string; name: string } | null
 }
@@ -53,6 +54,13 @@ function formatDateDisplay(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** For `<input type="datetime-local" />` (local wall time). */
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<Tab>('logs')
 
@@ -68,6 +76,12 @@ export default function AttendancePage() {
   const [customStart, setCustomStart] = useState(formatDate(new Date()))
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
+
+  const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null)
+  const [editPunchLocal, setEditPunchLocal] = useState('')
+  const [editPunchType, setEditPunchType] = useState<'in' | 'out'>('in')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   // --- Current period pay day ---
   const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
@@ -216,6 +230,65 @@ export default function AttendancePage() {
       if (res.ok) setSettingsSaved(true)
     } catch {}
     finally { setSettingsSaving(false) }
+  }
+
+  const openEditLog = (log: AttendanceLog) => {
+    setEditingLog(log)
+    setEditPunchLocal(toDatetimeLocalValue(log.punchTime))
+    setEditPunchType(log.punchType === 'out' ? 'out' : 'in')
+    setEditError(null)
+  }
+
+  const closeEditLog = () => {
+    setEditingLog(null)
+    setEditError(null)
+  }
+
+  const handleSaveEditLog = async () => {
+    if (!editingLog) return
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      const punchTime = new Date(editPunchLocal)
+      if (isNaN(punchTime.getTime())) {
+        setEditError('Invalid date and time')
+        return
+      }
+      const res = await fetch(`/api/attendance/logs/${editingLog.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          punchTime: punchTime.toISOString(),
+          punchType: editPunchType
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
+      closeEditLog()
+      await fetchLogs()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const handleDeleteEditLog = async () => {
+    if (!editingLog) return
+    if (!window.confirm('Delete this punch permanently? Use only for duplicate or mistaken entries.')) return
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      const res = await fetch(`/api/attendance/logs/${editingLog.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to delete')
+      closeEditLog()
+      await fetchLogs()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   const handleSync = async () => {
@@ -413,13 +486,14 @@ export default function AttendancePage() {
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Staff</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Source</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700 w-28">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-500">Loading…</td></tr>
+                      <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">Loading…</td></tr>
                     ) : logs.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-500">No attendance logs. Sync from device or configure ADMS to pull data.</td></tr>
+                      <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">No attendance logs. Sync from device or configure ADMS to pull data.</td></tr>
                     ) : (
                       logs.map((log) => (
                         <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${log.hasIrregularity ? 'bg-red-50/50' : ''}`}>
@@ -430,7 +504,14 @@ export default function AttendancePage() {
                               <span className="inline-block w-4 h-4 bg-green-500 rounded-sm shrink-0 opacity-60" title="OK" />
                             )}
                           </td>
-                          <td className="px-3 py-2 text-gray-700">{formatDateDisplay(log.punchTime)}</td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {formatDateDisplay(log.punchTime)}
+                            {log.correctedAt && (
+                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-indigo-100 text-indigo-800" title={`Adjusted in app at ${new Date(log.correctedAt).toLocaleString()}`}>
+                                Corrected
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 font-medium">{formatTime(log.punchTime)}</td>
                           <td className="px-3 py-2">
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${log.punchType === 'in' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
@@ -439,6 +520,15 @@ export default function AttendancePage() {
                           </td>
                           <td className="px-3 py-2">{log.staff?.name ?? log.deviceUserName ?? `Device ${log.deviceUserId}`}</td>
                           <td className="px-3 py-2 text-xs text-gray-400">{log.source}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openEditLog(log)}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              Edit
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -446,6 +536,76 @@ export default function AttendancePage() {
                 </table>
               </div>
             </div>
+
+            {editingLog && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="edit-punch-title"
+                onClick={(e) => e.target === e.currentTarget && !editSaving && closeEditLog()}
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-md w-full p-5">
+                  <h2 id="edit-punch-title" className="text-lg font-semibold text-gray-900 mb-1">Correct punch</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {editingLog.staff?.name ?? editingLog.deviceUserName ?? `Device ${editingLog.deviceUserId}`}
+                  </p>
+                  {editError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{editError}</div>
+                  )}
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date and time</label>
+                      <input
+                        type="datetime-local"
+                        value={editPunchLocal}
+                        onChange={(e) => setEditPunchLocal(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                      <select
+                        value={editPunchType}
+                        onChange={(e) => setEditPunchType(e.target.value as 'in' | 'out')}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      >
+                        <option value="in">In</option>
+                        <option value="out">Out</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDeleteEditLog}
+                      disabled={editSaving}
+                      className="px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                    >
+                      Delete punch
+                    </button>
+                    <div className="flex gap-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={closeEditLog}
+                        disabled={editSaving}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEditLog}
+                        disabled={editSaving}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {editSaving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 

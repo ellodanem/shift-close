@@ -528,6 +528,7 @@ model AttendanceLog {
   punchType   String   @map("punch_type") // "in" | "out"
   source      String   @default("zkteco")
   createdAt   DateTime @default(now()) @map("created_at")
+  correctedAt DateTime? @map("corrected_at") // Set when punch time/type edited in UI
 
   staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
