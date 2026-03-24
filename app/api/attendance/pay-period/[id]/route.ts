@@ -22,3 +22,33 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to get pay period' }, { status: 500 })
   }
 }
+
+/** PATCH /api/attendance/pay-period/[id] — e.g. mark report as emailed (sets emailSentAt) */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json().catch(() => ({}))
+    const markEmailSent = Boolean((body as { markEmailSent?: boolean }).markEmailSent)
+
+    if (!markEmailSent) {
+      return NextResponse.json({ error: 'markEmailSent: true required' }, { status: 400 })
+    }
+
+    const existing = await prisma.payPeriod.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Pay period not found' }, { status: 404 })
+    }
+
+    const period = await prisma.payPeriod.update({
+      where: { id },
+      data: { emailSentAt: new Date() }
+    })
+    return NextResponse.json(period)
+  } catch (error) {
+    console.error('Pay period patch error:', error)
+    return NextResponse.json({ error: 'Failed to update pay period' }, { status: 500 })
+  }
+}

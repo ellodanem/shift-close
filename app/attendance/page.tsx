@@ -62,7 +62,9 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom'>('week')
+  const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom' | 'sinceLastReport'>('week')
+  /** Inclusive start when a pay period report was saved & emailed (day after that period’s end). */
+  const [payPeriodCutoff, setPayPeriodCutoff] = useState<string | null>(null)
   const [customStart, setCustomStart] = useState(formatDate(new Date()))
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
@@ -88,10 +90,19 @@ export default function AttendancePage() {
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date()
+    const todayStr = formatDate(now)
+    if (dateRange === 'sinceLastReport' && payPeriodCutoff) {
+      return { startDate: payPeriodCutoff, endDate: todayStr }
+    }
+    if (dateRange === 'sinceLastReport' && !payPeriodCutoff) {
+      const start = new Date(now)
+      start.setDate(start.getDate() - 7)
+      return { startDate: formatDate(start), endDate: todayStr }
+    }
     if (dateRange === 'week') {
       const start = new Date(now)
       start.setDate(start.getDate() - 7)
-      return { startDate: formatDate(start), endDate: formatDate(now) }
+      return { startDate: formatDate(start), endDate: todayStr }
     }
     if (dateRange === 'month') {
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -99,7 +110,7 @@ export default function AttendancePage() {
       return { startDate: formatDate(start), endDate: formatDate(end) }
     }
     return { startDate: customStart, endDate: customEnd }
-  }, [dateRange, customStart, customEnd])
+  }, [dateRange, payPeriodCutoff, customStart, customEnd])
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -150,6 +161,27 @@ export default function AttendancePage() {
       }
     }
     void loadCurrentPeriodPayDay()
+  }, [])
+
+  /** Default log range: from day after last pay period that was saved & emailed, through today. */
+  useEffect(() => {
+    const loadCutoff = async () => {
+      try {
+        const res = await fetch('/api/attendance/pay-period/last-sent-cutoff')
+        if (!res.ok) return
+        const data = (await res.json()) as { cutoffDate?: string | null }
+        const c = data.cutoffDate ?? null
+        setPayPeriodCutoff(c)
+        if (c) {
+          setDateRange('sinceLastReport')
+          setCustomStart(c)
+          setCustomEnd(formatDate(new Date()))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void loadCutoff()
   }, [])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
@@ -317,14 +349,25 @@ export default function AttendancePage() {
                 <span className="text-sm text-gray-600">Range:</span>
                 <select
                   value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value as 'week' | 'month' | 'custom')}
+                  onChange={(e) =>
+                    setDateRange(e.target.value as 'week' | 'month' | 'custom' | 'sinceLastReport')
+                  }
                   className="border border-gray-300 rounded px-2 py-1 text-sm"
                 >
+                  {payPeriodCutoff && (
+                    <option value="sinceLastReport">Since last pay report (emailed)</option>
+                  )}
                   <option value="week">This week</option>
                   <option value="month">This month</option>
                   <option value="custom">Custom</option>
                 </select>
               </div>
+
+              {dateRange === 'sinceLastReport' && payPeriodCutoff && (
+                <span className="text-xs text-gray-500 max-w-md">
+                  Showing {payPeriodCutoff} through today — based on the latest pay period report that was saved and emailed.
+                </span>
+              )}
 
               {dateRange === 'custom' && (
                 <div className="flex items-center gap-2">

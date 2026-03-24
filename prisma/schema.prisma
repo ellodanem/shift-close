@@ -716,8 +716,11 @@ model PayPeriod {
   entityName  String   @default("Total Auto Service Station") @map("entity_name")
   rows        String   // JSON: [{ staffId, staffName, transTtl, vacation, shortage }]
   createdAt   DateTime @default(now()) @map("created_at")
+  /// Set when the report is emailed successfully — drives default Attendance log range
+  emailSentAt DateTime? @map("email_sent_at")
 
   @@index([startDate, endDate])
+  @@index([emailSentAt])
   @@map("pay_periods")
 }
 

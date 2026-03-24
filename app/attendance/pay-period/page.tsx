@@ -15,6 +15,7 @@ interface PayPeriodRow {
 }
 
 interface PayPeriodData {
+  id?: string
   startDate: string
   endDate: string
   reportDate: string
@@ -30,6 +31,7 @@ interface SavedPayPeriod {
   entityName: string
   rows: string
   createdAt: string
+  emailSentAt: string | null
 }
 
 function formatDateDisplay(d: string): string {
@@ -215,6 +217,10 @@ export default function PayPeriodPage() {
   const handleEmail = async (data: PayPeriodData) => {
     setEmailing(true)
     try {
+      if (!data.id) {
+        alert('Save this pay period first, then use Email from the saved list.')
+        return
+      }
       const recipientsRes = await fetch('/api/email-recipients')
       const list = recipientsRes.ok ? await recipientsRes.json() : []
       const primary = Array.isArray(list) && list.length > 0 ? list[0] : null
@@ -247,7 +253,17 @@ export default function PayPeriodPage() {
         })
       })
       if (!res.ok) throw new Error('Failed to send email')
-      alert(`Report emailed to ${to}`)
+
+      const patchRes = await fetch(`/api/attendance/pay-period/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markEmailSent: true })
+      })
+      if (!patchRes.ok) {
+        console.error('Failed to mark pay period as emailed')
+      }
+      await loadSavedPeriods()
+      alert(`Report emailed to ${to}. Attendance logs will default to transactions after this period.`)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send email')
     } finally {
@@ -322,8 +338,13 @@ export default function PayPeriodPage() {
                     key={p.id}
                     className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
-                    <span className="font-medium">
+                    <span className="font-medium flex flex-wrap items-center gap-2">
                       {formatDateDisplay(p.startDate)} – {formatDateDisplay(p.endDate)}
+                      {p.emailSentAt && (
+                        <span className="text-xs font-normal px-2 py-0.5 rounded bg-green-100 text-green-800">
+                          Emailed
+                        </span>
+                      )}
                     </span>
                     <div className="flex gap-2">
                       <button
