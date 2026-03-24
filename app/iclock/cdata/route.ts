@@ -3,10 +3,7 @@ import { zkPushGET, zkPushPOST } from '@/lib/zk-iclock-push'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * Legacy alias for ZKTeco push — prefer /iclock/cdata and /iclock/getrequest (standard paths).
- */
-
+/** ZKTeco standard: POST attendance and other tables (table=ATTLOG for punches). */
 export async function GET(request: NextRequest) {
   return zkPushGET(request)
 }

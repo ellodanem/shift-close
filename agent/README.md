@@ -88,7 +88,8 @@ The agent's attendance sync is a **backup**. For real-time punches, configure AD
 1. On device: **COMM → Cloud Server Setting**
 2. Set Server Address to your Vercel domain (without https://)
 3. Port: `443`, HTTPS: ON, Enable Domain: ON
-4. The device will push every punch to `/api/attendance/adms` automatically
+4. **Push URL** (if the device asks for a full path): `https://YOUR_DOMAIN/iclock/cdata` — ZKTeco’s standard path. Legacy alias: `/api/attendance/adms`
+5. **Poll URL** (if separate): `https://YOUR_DOMAIN/iclock/getrequest`
 
 ---
 

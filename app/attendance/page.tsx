@@ -480,22 +480,41 @@ export default function AttendancePage() {
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <h2 className="font-semibold text-gray-900 mb-3">ADMS Setup (Real-time Push)</h2>
               <p className="text-sm text-gray-600 mb-4">
-                Configure your ZKTeco F22 to push punches directly to this app in real time.
-                Go to <strong>COMM → Cloud Server Setting</strong> on the device and enter:
+                ZKTeco devices use the standard <strong>iClock</strong> paths (<code className="bg-gray-100 px-1 rounded text-xs">/iclock/…</code>), not only <code className="bg-gray-100 px-1 rounded text-xs">/api/…</code>.
+                Go to <strong>COMM → Cloud Server Setting</strong> on the F22 and enter:
               </p>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-1">
-                <div className="flex gap-4"><span className="text-gray-500 w-40">Server Address</span><span className="font-semibold text-gray-900">{admsBaseUrl.replace('https://', '').replace('http://', '')}</span></div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-2">
+                <div className="flex gap-4 flex-wrap"><span className="text-gray-500 w-40 shrink-0">Server Address</span><span className="font-semibold text-gray-900 break-all">{admsBaseUrl.replace('https://', '').replace('http://', '')}</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">Server Port</span><span className="font-semibold text-gray-900">443</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">HTTPS</span><span className="font-semibold text-gray-900">ON</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">Enable Domain Name</span><span className="font-semibold text-gray-900">ON</span></div>
-                <div className="flex gap-4"><span className="text-gray-500 w-40">API Endpoint</span><span className="font-semibold text-blue-700">{admsBaseUrl}/api/attendance/adms</span></div>
+                <div className="border-t border-gray-200 pt-2 mt-1">
+                  <div className="text-xs font-semibold text-gray-700 mb-1">Push URL (punches) — prefer this</div>
+                  <div className="font-semibold text-blue-700 break-all">{admsBaseUrl}/iclock/cdata</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-700 mb-1">Poll URL (heartbeat / commands)</div>
+                  <div className="text-blue-800 break-all">{admsBaseUrl}/iclock/getrequest</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Legacy (still works)</div>
+                  <div className="text-gray-600 break-all">{admsBaseUrl}/api/attendance/adms</div>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                Once configured, every punch will appear in Attendance Logs automatically — no manual sync needed.
+                If your device has a single &ldquo;API Endpoint&rdquo; field, set the <strong>Push URL</strong> line. Punches should appear in Attendance Logs within seconds after the device uploads.
+              </p>
+              <p className="text-xs text-gray-600 mt-2">
+                <strong>Test:</strong> Open{' '}
+                <a className="text-blue-600 underline break-all" href={`${admsBaseUrl}/iclock/getrequest?SN=test`} target="_blank" rel="noreferrer">
+                  {admsBaseUrl}/iclock/getrequest?SN=test
+                </a>
+                {' '}in a browser — you should see <code className="bg-gray-100 px-1 rounded">OK</code>. In Vercel → Logs you should see{' '}
+                <code className="bg-gray-100 px-1 rounded">[ADMS] edge GET /iclock/getrequest</code> (or similar). If there are <strong>no</strong> lines containing{' '}
+                <code className="bg-gray-100 px-1 rounded">[ADMS]</code>, the device is not reaching this deployment — fix Push URL, HTTPS, and DNS on the device.
               </p>
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-                <strong>ZKTeco note:</strong> Some keypads cannot type hyphens in the hostname. If your default URL had a hyphen, rename the Vercel project or set a hyphen-free host in
-                <strong> Public app URL</strong> above and save — the values shown here update automatically.
+                <strong>Hostname:</strong> If the keypad cannot type hyphens, set <strong>Public app URL</strong> above to your renamed Vercel host and save.
               </p>
             </div>
 
