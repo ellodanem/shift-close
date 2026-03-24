@@ -799,7 +799,7 @@ export default function RosterPage() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to save day off request')
+        throw new Error((err as { error?: string }).error || 'Failed to save day off request')
       }
       setDayOffSuccess(true)
       setDayOffDate('')
