@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { normalizePublicAppUrl } from '@/lib/public-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +9,8 @@ const ALLOWED_KEYS = [
   'zk_device_ip',
   'zk_device_port',
   'agent_secret',
-  'zk_adms_enabled'
+  'zk_adms_enabled',
+  'public_app_url'
 ]
 
 /**
@@ -31,7 +33,11 @@ export async function GET(request: NextRequest) {
     const envFallback: Record<string, string | undefined> = {
       zk_device_ip: process.env.ZK_DEVICE_IP,
       zk_device_port: process.env.ZK_DEVICE_PORT,
-      agent_secret: process.env.AGENT_SECRET
+      agent_secret: process.env.AGENT_SECRET,
+      public_app_url:
+        process.env.APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : undefined)
     }
 
     for (const key of keys) {
@@ -43,6 +49,9 @@ export async function GET(request: NextRequest) {
         result[key] = key === 'agent_secret' ? '***' : envFallback[key]!
       } else {
         result[key] = ''
+      }
+      if (key === 'public_app_url' && result[key] && result[key] !== '***') {
+        result[key] = normalizePublicAppUrl(result[key])
       }
     }
 
@@ -83,10 +92,13 @@ export async function POST(request: NextRequest) {
       // Don't overwrite agent_secret with the masked placeholder
       if (key === 'agent_secret' && value === '***') continue
 
+      const normalized =
+        key === 'public_app_url' ? normalizePublicAppUrl(String(value ?? '')) : String(value ?? '')
+
       await prisma.appSettings.upsert({
         where: { key },
-        update: { value },
-        create: { key, value }
+        update: { value: normalized },
+        create: { key, value: normalized }
       })
     }
 

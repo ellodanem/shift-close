@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  *
  * Configure the device:
  *   COMM → Cloud Server Setting
- *   Server Address : your-app.vercel.app
+ *   Server Address : canonical host (see Attendance → Public app URL, or APP_URL / NEXT_PUBLIC_APP_URL)
  *   Server Port    : 443
  *   HTTPS          : ON
  *   Enable Domain  : ON

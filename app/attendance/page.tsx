@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { normalizePublicAppUrl } from '@/lib/public-url'
 
 interface AttendanceLog {
   id: string
@@ -29,6 +30,8 @@ interface DeviceUser {
 interface DeviceSettings {
   zk_device_ip: string
   zk_device_port: string
+  /** Canonical HTTPS base URL for ADMS (no trailing slash). Empty = use current browser origin. */
+  public_app_url: string
 }
 
 type Tab = 'logs' | 'device'
@@ -75,7 +78,11 @@ export default function AttendancePage() {
   const [mappingSaving, setMappingSaving] = useState(false)
   const [pushingStaff, setPushingStaff] = useState(false)
   const [deviceActionResult, setDeviceActionResult] = useState<string | null>(null)
-  const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>({ zk_device_ip: '', zk_device_port: '4370' })
+  const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>({
+    zk_device_ip: '',
+    zk_device_port: '4370',
+    public_app_url: ''
+  })
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
@@ -151,12 +158,13 @@ export default function AttendancePage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const res = await fetch('/api/settings?keys=zk_device_ip,zk_device_port')
+        const res = await fetch('/api/settings?keys=zk_device_ip,zk_device_port,public_app_url')
         if (res.ok) {
           const data = await res.json()
           setDeviceSettings({
             zk_device_ip: data.zk_device_ip || '',
-            zk_device_port: data.zk_device_port || '4370'
+            zk_device_port: data.zk_device_port || '4370',
+            public_app_url: data.public_app_url ? normalizePublicAppUrl(data.public_app_url) : ''
           })
         }
       } catch {}
@@ -239,7 +247,13 @@ export default function AttendancePage() {
 
   const irregularityCount = useMemo(() => logs.filter((l) => l.hasIrregularity).length, [logs])
 
-  const vercelUrl = typeof window !== 'undefined' ? `${window.location.origin}` : 'https://your-app.vercel.app'
+  /** URL shown for ZKTeco ADMS — saved canonical URL, else current browser origin. */
+  const admsBaseUrl = useMemo(() => {
+    const saved = deviceSettings.public_app_url?.trim()
+    if (saved) return normalizePublicAppUrl(saved)
+    if (typeof window !== 'undefined') return window.location.origin
+    return 'https://your-app.vercel.app'
+  }, [deviceSettings.public_app_url])
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -424,7 +438,22 @@ export default function AttendancePage() {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Public app URL <span className="text-gray-400 font-normal">(for ADMS on the device)</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://your-project.vercel.app"
+                  value={deviceSettings.public_app_url}
+                  onChange={(e) => setDeviceSettings((s) => ({ ...s, public_app_url: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Set this to your production hostname after renaming the Vercel project (no hyphens if the keypad cannot type them). Leave blank to use whatever URL you opened in the browser.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 mt-4">
                 <button
                   onClick={handleSaveDeviceSettings}
                   disabled={settingsSaving}
@@ -452,14 +481,18 @@ export default function AttendancePage() {
                 Go to <strong>COMM → Cloud Server Setting</strong> on the device and enter:
               </p>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-1">
-                <div className="flex gap-4"><span className="text-gray-500 w-40">Server Address</span><span className="font-semibold text-gray-900">{vercelUrl.replace('https://', '').replace('http://', '')}</span></div>
+                <div className="flex gap-4"><span className="text-gray-500 w-40">Server Address</span><span className="font-semibold text-gray-900">{admsBaseUrl.replace('https://', '').replace('http://', '')}</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">Server Port</span><span className="font-semibold text-gray-900">443</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">HTTPS</span><span className="font-semibold text-gray-900">ON</span></div>
                 <div className="flex gap-4"><span className="text-gray-500 w-40">Enable Domain Name</span><span className="font-semibold text-gray-900">ON</span></div>
-                <div className="flex gap-4"><span className="text-gray-500 w-40">API Endpoint</span><span className="font-semibold text-blue-700">{vercelUrl}/api/attendance/adms</span></div>
+                <div className="flex gap-4"><span className="text-gray-500 w-40">API Endpoint</span><span className="font-semibold text-blue-700">{admsBaseUrl}/api/attendance/adms</span></div>
               </div>
               <p className="text-xs text-gray-500 mt-3">
                 Once configured, every punch will appear in Attendance Logs automatically — no manual sync needed.
+              </p>
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                <strong>ZKTeco note:</strong> Some keypads cannot type hyphens in the hostname. If your default URL had a hyphen, rename the Vercel project or set a hyphen-free host in
+                <strong> Public app URL</strong> above and save — the values shown here update automatically.
               </p>
             </div>
 

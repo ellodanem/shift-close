@@ -4,6 +4,7 @@
  * Sends emails and WhatsApp for reminders due for notification today (based on notifyDaysBefore).
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { getPublicAppUrlFromEnv } from '@/lib/public-url'
 import { prisma } from '@/lib/prisma'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 import { sendWhatsApp, isWhatsAppConfigured } from '@/lib/whatsapp'
@@ -69,9 +70,11 @@ export async function GET(request: NextRequest) {
       `
       for (const rec of recipients) {
         try {
-          const baseUrl = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : process.env.NEXTAUTH_URL || request.nextUrl.origin || 'http://localhost:3000'
+          const baseUrl =
+            getPublicAppUrlFromEnv() ||
+            process.env.NEXTAUTH_URL ||
+            request.nextUrl.origin ||
+            'http://localhost:3000'
           const res = await fetch(`${baseUrl}/api/send-email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -128,9 +131,11 @@ export async function GET(request: NextRequest) {
       if (reminder.notifyEmail && recipients.length > 0) {
       for (const rec of recipients) {
         try {
-          const baseUrl = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : process.env.NEXTAUTH_URL || request.nextUrl.origin || 'http://localhost:3000'
+          const baseUrl =
+            getPublicAppUrlFromEnv() ||
+            process.env.NEXTAUTH_URL ||
+            request.nextUrl.origin ||
+            'http://localhost:3000'
           const res = await fetch(`${baseUrl}/api/send-email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
