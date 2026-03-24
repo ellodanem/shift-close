@@ -557,56 +557,60 @@ export default function AttendancePage() {
               )}
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Staff</div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStaffFilter('')}
-                  title={
-                    allTabOk
-                      ? 'No irregular punches in this date range'
-                      : 'At least one irregular punch in this range — review or correct rows'
-                  }
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    staffFilter === ''
-                      ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
-                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  All
-                  <span
-                    className={`inline-block w-3 h-3 rounded-sm shrink-0 ${allTabOk ? 'bg-emerald-500' : 'bg-red-500'}`}
-                    aria-hidden
-                  />
-                </button>
-                {activeStaffWithDevice.map((s) => {
-                  const hasIssue = staffTabHasIssue.get(s.id) ?? false
-                  const selected = staffFilter === s.id
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setStaffFilter(s.id)}
-                      title={
-                        hasIssue
-                          ? 'Has irregular punches in this range — review or correct'
-                          : 'In/out pairing looks complete for this range'
-                      }
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors max-w-[200px] ${
-                        selected
-                          ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
-                          : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span className="truncate">{s.name}</span>
-                      <span
-                        className={`inline-block w-3 h-3 rounded-sm shrink-0 ${hasIssue ? 'bg-red-500' : 'bg-emerald-500'}`}
-                        aria-hidden
-                      />
-                    </button>
-                  )
-                })}
+            <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 mb-4">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                Staff
+              </div>
+              {/* Compact pills (~25+ fit on wide layouts); scroll horizontally on smaller widths. */}
+              <div className="overflow-x-auto overflow-y-hidden scrollbar-subtle">
+                <div className="inline-flex flex-nowrap items-center gap-1 min-w-0 pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setStaffFilter('')}
+                    title={
+                      allTabOk
+                        ? 'No irregular punches in this date range'
+                        : 'At least one irregular punch in this range — review or correct rows'
+                    }
+                    className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium leading-tight transition-colors ${
+                      staffFilter === ''
+                        ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                        : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    All
+                    <span
+                      className={`inline-block w-2 h-2 rounded-[2px] shrink-0 ${allTabOk ? 'bg-emerald-500' : 'bg-red-500'}`}
+                      aria-hidden
+                    />
+                  </button>
+                  {activeStaffWithDevice.map((s) => {
+                    const hasIssue = staffTabHasIssue.get(s.id) ?? false
+                    const selected = staffFilter === s.id
+                    const statusHint = hasIssue
+                      ? 'Has irregular punches in this range — review or correct'
+                      : 'In/out pairing looks complete for this range'
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setStaffFilter(s.id)}
+                        title={`${s.name} — ${statusHint}`}
+                        className={`shrink-0 inline-flex min-w-0 max-w-[4.5rem] items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs font-medium leading-tight transition-colors sm:max-w-[5.5rem] ${
+                          selected
+                            ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                            : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1 truncate text-left">{s.name}</span>
+                        <span
+                          className={`inline-block w-2 h-2 shrink-0 rounded-[2px] ${hasIssue ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          aria-hidden
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               {activeStaffWithDevice.length === 0 && (
                 <p className="text-xs text-gray-500 mt-2">
