@@ -192,7 +192,10 @@ export default function AttendancePage() {
     try {
       const res = await fetch('/api/attendance/sync', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Sync failed')
+      if (!res.ok) {
+        const parts = [data.error, data.hint].filter(Boolean)
+        throw new Error(parts.length ? parts.join('\n\n') : 'Sync failed')
+      }
       await fetchLogs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed')
@@ -353,7 +356,7 @@ export default function AttendancePage() {
             </div>
 
             {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 whitespace-pre-line">{error}</div>
             )}
 
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">

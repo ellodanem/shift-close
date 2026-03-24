@@ -3,6 +3,19 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+/** True if IP is RFC1918 / loopback (not reachable from Vercel’s cloud). */
+function isPrivateLanIp(ip: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip.trim())
+  if (!m) return false
+  const a = Number(m[1])
+  const b = Number(m[2])
+  if (a === 10) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 127) return true
+  return false
+}
+
 /** POST /api/attendance/sync
  * Connects to ZKTeco device, pulls attendance logs, stores in DB.
  * Requires ZK_DEVICE_IP (and optionally ZK_DEVICE_PORT) in env.
@@ -29,6 +42,18 @@ export async function POST(request: NextRequest) {
         {
           error: 'Device IP not configured.',
           hint: 'Go to Attendance → Device Management → Device Settings to add your ZKTeco device IP. Note: direct sync only works when the app is running on the same local network as the device. Use the Windows Agent or ADMS for cloud sync.'
+        },
+        { status: 400 }
+      )
+    }
+
+    // Vercel cannot reach private LAN IPs — avoid opaque timeout errors
+    if (process.env.VERCEL && isPrivateLanIp(ip)) {
+      return NextResponse.json(
+        {
+          error: 'Cannot sync from the cloud: the device is on a private network.',
+          hint:
+            'This button runs on Vercel’s servers, which cannot reach 192.168.x.x or similar. Configure ADMS on the device so punches push to this app, or use the Windows Agent on a PC at the station. Use “Sync from device” only when the app runs on the same LAN (e.g. local Next.js on your PC).'
         },
         { status: 400 }
       )
@@ -121,9 +146,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Attendance sync error:', error)
     const msg = error instanceof Error ? error.message : 'Failed to sync from device'
-    return NextResponse.json(
-      { error: msg, hint: 'Ensure ZK_DEVICE_IP is correct and the device is reachable on your network.' },
-      { status: 500 }
-    )
+    const hint = process.env.VERCEL
+      ? 'On Vercel, the server usually cannot open a TCP connection to a local device IP. Use ADMS (real-time push) or the Windows Agent on a PC at the station. For “Sync from device”, run the app locally on the same network as the ZKTeco.'
+      : 'Ensure the device IP and port are correct and the device is reachable from this machine (same network or routed).'
+    return NextResponse.json({ error: msg, hint }, { status: 500 })
   }
 }
