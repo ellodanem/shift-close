@@ -8,6 +8,7 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get('next') || '/dashboard'
+  const timedOut = searchParams.get('timeout') === '1'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -44,6 +45,11 @@ function LoginForm() {
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-gray-200 p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Shift Close</h1>
         <p className="text-sm text-gray-600 mb-6">Sign in to continue</p>
+        {timedOut && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            You were signed out after 15 minutes of inactivity.
+          </div>
+        )}
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
         )}

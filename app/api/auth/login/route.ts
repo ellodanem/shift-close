@@ -58,6 +58,15 @@ export async function POST(request: NextRequest) {
     return res
   } catch (e) {
     console.error('login error', e)
+    if (e instanceof Error && e.message.includes('AUTH_SECRET')) {
+      return NextResponse.json(
+        {
+          error:
+            'Server configuration: AUTH_SECRET is missing or too short. Add it in Vercel → Environment Variables (min 16 characters), then redeploy.'
+        },
+        { status: 503 }
+      )
+    }
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === 'P2021') {
         return NextResponse.json(

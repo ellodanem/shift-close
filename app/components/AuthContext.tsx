@@ -3,6 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { canEditRoster, canManageAppUsers, canViewStaffSensitiveFields } from '@/lib/roles'
 
+/** Sign out automatically after this long with no user activity (mouse, keyboard, scroll, etc.). */
+export const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+
+const ACTIVITY_THROTTLE_MS = 1000
+
 export interface AuthUser {
   id: string
   username: string
@@ -46,11 +51,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refresh()
   }, [refresh])
 
-  const logout = useCallback(async () => {
+  const endSession = useCallback(async (reason: 'manual' | 'idle') => {
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
-    window.location.href = '/login'
+    window.location.href = reason === 'idle' ? '/login?timeout=1' : '/login'
   }, [])
+
+  const logout = useCallback(async () => {
+    await endSession('manual')
+  }, [endSession])
+
+  useEffect(() => {
+    if (!user) return
+
+    let timeoutId: ReturnType<typeof setTimeout>
+    let lastThrottle = 0
+
+    const arm = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        void endSession('idle')
+      }, SESSION_IDLE_TIMEOUT_MS)
+    }
+
+    const onActivity = () => {
+      const now = Date.now()
+      if (now - lastThrottle < ACTIVITY_THROTTLE_MS) return
+      lastThrottle = now
+      arm()
+    }
+
+    arm()
+    const events: (keyof WindowEventMap)[] = [
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'scroll',
+      'touchstart',
+      'click',
+      'wheel'
+    ]
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }))
+    return () => {
+      clearTimeout(timeoutId)
+      events.forEach((e) => window.removeEventListener(e, onActivity))
+    }
+  }, [user, endSession])
 
   const role = user?.role ?? ''
   const value: AuthContextValue = {
