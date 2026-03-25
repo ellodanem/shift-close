@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSessionFromRequest } from '@/lib/session'
+import { redactStaffRecord } from '@/lib/staff-redact'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request)
+    const role = session?.role ?? ''
     const staff = await prisma.staff.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       include: { staffRole: true }
     })
-    return NextResponse.json(staff)
+    const out = session ? staff.map((s) => redactStaffRecord(s, role)) : staff
+    return NextResponse.json(out)
   } catch (error) {
     console.error('Error fetching staff:', error)
     const message =

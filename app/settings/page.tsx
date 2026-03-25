@@ -1,11 +1,24 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/app/components/AuthContext'
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { canManageUsers, loading } = useAuth()
 
   const settingsOptions = [
+    ...(!loading && canManageUsers
+      ? [
+          {
+            id: 'users',
+            title: 'User accounts',
+            description: 'Create and manage app logins, roles, and passwords.',
+            icon: '👤',
+            route: '/settings/users'
+          }
+        ]
+      : []),
     {
       id: 'fuel-data',
       title: 'Update Past Fuel Data',

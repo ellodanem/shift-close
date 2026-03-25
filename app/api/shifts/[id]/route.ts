@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { notifyManagersShiftReopened } from '@/lib/notify-shift-reopen'
 
 export async function GET(
   request: NextRequest,
@@ -288,6 +289,10 @@ export async function PATCH(
       )
     }
     
+    const becameReopened =
+      updateData.status === 'reopened' &&
+      ['closed', 'reviewed'].includes(existingShift.status)
+
     const shift = await prisma.shiftClose.update({
       where: { id },
       data: updateData,
@@ -300,6 +305,14 @@ export async function PATCH(
         }
       }
     })
+
+    if (becameReopened) {
+      void notifyManagersShiftReopened({
+        id: shift.id,
+        date: shift.date,
+        shift: shift.shift
+      })
+    }
     
     // Recalculate totalDeposits from deposits field if it's 0 or null (for display)
     let recalculatedTotalDeposits = shift.totalDeposits

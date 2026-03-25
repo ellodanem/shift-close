@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
+import { useAuth } from './AuthContext'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -97,11 +98,34 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/attendance') return pathname.startsWith('/attendance')
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
   if (href === '/settings') return pathname.startsWith('/settings')
+  if (href === '/overseer/deposit-debit-scans') return pathname.startsWith('/overseer/')
   return pathname === href
+}
+
+function navItemVisibleForRole(href: string, role: string): boolean {
+  if (role === 'admin' || role === 'manager') return true
+  if (role === 'stakeholder') {
+    return href === '/dashboard' || href.startsWith('/overseer/')
+  }
+  if (role === 'supervisor' || role === 'senior_supervisor') {
+    const blocked = [
+      '/financial',
+      '/fuel-payments',
+      '/vendor-payments',
+      '/reports',
+      '/settings',
+      '/customer-accounts',
+      '/account-customers',
+      '/roster/templates'
+    ]
+    return !blocked.some((b) => href.startsWith(b))
+  }
+  return true
 }
 
 export default function AppNav() {
   const pathname = usePathname()
+  const { user, logout, canManageUsers } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -131,6 +155,39 @@ export default function AppNav() {
       .then((data) => setTodayPayDays(Array.isArray(data) ? data : []))
       .catch(() => setTodayPayDays([]))
   }, [])
+
+  const role = user?.role ?? ''
+
+  const filteredNav = useMemo(() => {
+    const groups = navConfig
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => navItemVisibleForRole(item.href, role))
+      }))
+      .filter((g) => g.items.length > 0)
+
+    if (role === 'stakeholder' || role === 'admin' || role === 'manager') {
+      groups.splice(1, 0, {
+        label: 'Overseer',
+        items: [{ label: 'Deposit & debit scans', href: '/overseer/deposit-debit-scans', permission: 'overseer' }]
+      })
+    }
+
+    if (canManageUsers) {
+      const si = groups.findIndex((g) => g.label === 'Settings')
+      if (si >= 0) {
+        groups[si] = {
+          ...groups[si],
+          items: [
+            ...groups[si].items,
+            { label: 'User accounts', href: '/settings/users', permission: 'settings.users' }
+          ]
+        }
+      }
+    }
+
+    return groups
+  }, [role, canManageUsers])
 
   const sidebar = (
     <nav className={`flex flex-col h-full min-h-0 bg-gray-800 text-white shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
@@ -167,7 +224,7 @@ export default function AppNav() {
         </div>
       )}
       <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 scrollbar-subtle ${sidebarCollapsed ? 'hidden' : ''}`}>
-        {navConfig.map((group) => (
+        {filteredNav.map((group) => (
           <div key={group.label} className="mb-4">
             <div className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
               {group.label}
@@ -185,8 +242,13 @@ export default function AppNav() {
           </div>
         ))}
       </div>
-      {/* Feature notes icon - fixed at bottom of sidebar */}
-      <div className={`flex-shrink-0 border-t border-gray-700 p-2 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+      {!sidebarCollapsed && user && (
+        <div className="flex-shrink-0 border-t border-gray-700 px-3 py-2 text-xs text-gray-400 truncate" title={user.email}>
+          {user.username}
+          <span className="block text-[10px] text-gray-500 capitalize">{user.role.replace('_', ' ')}</span>
+        </div>
+      )}
+      <div className={`flex-shrink-0 border-t border-gray-700 p-2 flex gap-1 ${sidebarCollapsed ? 'flex-col items-center' : 'justify-between'}`}>
         <button
           type="button"
           onClick={() => setShowFeaturesModal(true)}
@@ -196,6 +258,15 @@ export default function AppNav() {
         >
           <span className="text-xl">ℹ️</span>
         </button>
+        {!sidebarCollapsed && (
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700"
+          >
+            Log out
+          </button>
+        )}
       </div>
     </nav>
   )

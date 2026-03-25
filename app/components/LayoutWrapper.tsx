@@ -10,8 +10,12 @@ export default function LayoutWrapper({
 }) {
   const pathname = usePathname()
   const isApplyRoute = pathname?.startsWith('/apply')
+  const isAuthRoute =
+    pathname === '/login' ||
+    pathname === '/reset-password' ||
+    pathname === '/forgot-password'
 
-  if (isApplyRoute) {
+  if (isApplyRoute || isAuthRoute) {
     return <>{children}</>
   }
 

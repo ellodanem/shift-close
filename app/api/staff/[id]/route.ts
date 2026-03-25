@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSessionFromRequest } from '@/lib/session'
+import { redactStaffRecord } from '@/lib/staff-redact'
+import { canViewStaffSensitiveFields } from '@/lib/roles'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getSessionFromRequest(request)
+    const role = session?.role ?? ''
     const staff = await prisma.staff.findUnique({
       where: { id: params.id },
       include: {
@@ -19,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     }
 
-    return NextResponse.json(staff)
+    return NextResponse.json(session ? redactStaffRecord(staff, role) : staff)
   } catch (error) {
     console.error('Error fetching staff:', error)
     return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 })
@@ -31,6 +36,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getSessionFromRequest(request)
+    const appRole = session?.role ?? ''
     const body = await request.json()
     const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, deviceUserId, bankName, accountNumber, mobileNumber, notes, vacationStart, vacationEnd } = body
 
@@ -40,10 +47,10 @@ export async function PATCH(
       ...(status !== undefined && { status }),
       ...(role !== undefined && { role }),
       ...(roleId !== undefined && { roleId: roleId || null }),
-      ...(nicNumber !== undefined && { nicNumber: nicNumber || null }),
+      ...(canViewStaffSensitiveFields(appRole) && nicNumber !== undefined && { nicNumber: nicNumber || null }),
       ...(deviceUserId !== undefined && { deviceUserId: deviceUserId && String(deviceUserId).trim() ? String(deviceUserId).trim() : null }),
-      ...(bankName !== undefined && { bankName: bankName || null }),
-      ...(accountNumber !== undefined && { accountNumber: accountNumber || null }),
+      ...(canViewStaffSensitiveFields(appRole) && bankName !== undefined && { bankName: bankName || null }),
+      ...(canViewStaffSensitiveFields(appRole) && accountNumber !== undefined && { accountNumber: accountNumber || null }),
       ...(mobileNumber !== undefined && { mobileNumber: mobileNumber || null }),
       ...(notes !== undefined && { notes: notes || '' }),
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
@@ -73,7 +80,9 @@ export async function PATCH(
       data: data as any
     })
 
-    return NextResponse.json(staff)
+    return NextResponse.json(
+      canViewStaffSensitiveFields(appRole) ? staff : redactStaffRecord(staff, appRole)
+    )
   } catch (error) {
     console.error('Error updating staff:', error)
     return NextResponse.json({ error: 'Failed to update staff' }, { status: 500 })

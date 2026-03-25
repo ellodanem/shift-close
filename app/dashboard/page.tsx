@@ -10,6 +10,8 @@ import {
   moveWidgetUp,
   moveWidgetDown
 } from '@/lib/dashboard-layout'
+import { getDashboardWidgetIdsForRole } from '@/lib/roles'
+import { useAuth } from '@/app/components/AuthContext'
 
 interface MonthSummary {
   year: number
@@ -124,6 +126,8 @@ interface AverageDepositData {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { user, loading: authLoading, isStakeholder, isSupervisorLike } = useAuth()
+  const appRole = user?.role ?? ''
   const [summary, setSummary] = useState<MonthSummary | null>(null)
   const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([])
   const [recentPayment, setRecentPayment] = useState<RecentFuelPayment | null>(null)
@@ -157,8 +161,14 @@ export default function DashboardPage() {
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
 
   useEffect(() => {
-    setLayout(loadDashboardLayout())
-  }, [])
+    if (authLoading) return
+    const restricted = getDashboardWidgetIdsForRole(appRole)
+    if (restricted === 'all') {
+      setLayout(loadDashboardLayout())
+    } else {
+      setLayout(restricted)
+    }
+  }, [authLoading, appRole])
 
   useEffect(() => {
     if (!reminderModalOpen && !payDayModalOpen) return
@@ -190,12 +200,19 @@ export default function DashboardPage() {
   }, [showCustomPicker])
 
   useEffect(() => {
-    fetchSummary()
-    fetchUpcoming()
-    fetchRecentPayment()
-  }, [activeFilter, customStartDate, customEndDate])
+    if (authLoading) return
+    if (isStakeholder) {
+      void fetchSummary()
+      void fetchUpcoming()
+      return
+    }
+    void fetchSummary()
+    void fetchUpcoming()
+    void fetchRecentPayment()
+  }, [activeFilter, customStartDate, customEndDate, authLoading, isStakeholder])
 
   useEffect(() => {
+    if (authLoading || isStakeholder) return
     const fetchToday = async () => {
       try {
         const res = await fetch('/api/dashboard/today')
@@ -207,17 +224,19 @@ export default function DashboardPage() {
         console.error('Error fetching today roster:', err)
       }
     }
-    fetchToday()
-  }, [])
+    void fetchToday()
+  }, [authLoading, isStakeholder])
 
   useEffect(() => {
+    if (authLoading || isStakeholder || isSupervisorLike) return
     fetch('/api/dashboard/fuel-comparison')
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setFuelComparison(data) })
       .catch(() => {})
-  }, [])
+  }, [authLoading, isStakeholder, isSupervisorLike])
 
   useEffect(() => {
+    if (authLoading || isStakeholder || isSupervisorLike) return
     fetch('/api/dashboard/average-deposit')
       .then(r => r.json())
       .then(data => {
@@ -225,19 +244,27 @@ export default function DashboardPage() {
         else setAverageDeposit(null)
       })
       .catch(() => setAverageDeposit(null))
-  }, [])
+  }, [authLoading, isStakeholder, isSupervisorLike])
 
   // Fetch A/R summary when summary data changes (respects month filter)
   useEffect(() => {
+    if (isStakeholder || isSupervisorLike) {
+      setArSummary(null)
+      return
+    }
     if (summary?.year && summary?.month) {
       fetchArSummary(summary.year, summary.month)
     } else {
       setArSummary(null)
     }
-  }, [summary])
+  }, [summary, isStakeholder, isSupervisorLike])
 
   // Fetch cashbook summary for the displayed month
   useEffect(() => {
+    if (isStakeholder || isSupervisorLike) {
+      setCashbookSummary(null)
+      return
+    }
     if (!summary?.year || !summary?.month) {
       setCashbookSummary(null)
       return
@@ -266,7 +293,7 @@ export default function DashboardPage() {
       }
     }
     void load()
-  }, [summary?.year, summary?.month])
+  }, [summary?.year, summary?.month, isStakeholder, isSupervisorLike])
 
   const getMonthRange = (
     filter: MonthFilterType
@@ -329,7 +356,7 @@ export default function DashboardPage() {
       setSummary(data)
 
       // Keep fuel expense aligned with whatever month the summary resolves to
-      if (data?.year && data?.month) {
+      if (data?.year && data?.month && !isStakeholder && !isSupervisorLike) {
         try {
           const monthKey = `${data.year}-${String(data.month).padStart(2, '0')}`
           const fuelRes = await fetch(`/api/fuel-payments/monthly?month=${monthKey}`)

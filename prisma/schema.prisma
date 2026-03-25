@@ -776,3 +776,32 @@ model ApplicantApplication {
   @@map("applicant_applications")
 }
 
+// App login users (separate from Staff). Roles: admin, manager, senior_supervisor, supervisor, stakeholder
+model AppUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String // admin | manager | senior_supervisor | supervisor | stakeholder
+  isSuperAdmin Boolean  @default(false) @map("is_super_admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  resetTokens PasswordResetToken[]
+
+  @@map("app_users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+

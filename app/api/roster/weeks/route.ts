@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSessionFromRequest } from '@/lib/session'
+import { canEditRoster } from '@/lib/roles'
 
 // Roster week API: load and save weekly assignments
 export const dynamic = 'force-dynamic'
@@ -35,6 +37,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getSessionFromRequest(request)
+  if (!session || !canEditRoster(session.role)) {
+    return NextResponse.json({ error: 'Roster is view-only for your role' }, { status: 403 })
+  }
   try {
     const body = await request.json()
     const {

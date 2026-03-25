@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
+import { useAuth } from '@/app/components/AuthContext'
 
 interface Staff {
   id: string
@@ -107,6 +108,7 @@ function mobileDigits(phone: string): string {
 
 export default function RosterPage() {
   const router = useRouter()
+  const { canEditRoster } = useAuth()
   const [allStaff, setAllStaff] = useState<Staff[]>([])
   const [templates, setTemplates] = useState<ShiftTemplate[]>([])
   const [weekStart, setWeekStart] = useState<string>(() =>
@@ -162,6 +164,9 @@ export default function RosterPage() {
     const weekSunday = addDays(weekStart, 6)
     return today >= weekSunday
   }, [weekStart])
+
+  /** Past calendar week OR role cannot edit roster (supervisor = view-only). */
+  const rosterLockedEdit = isPastWeek || !canEditRoster
 
   // For locked weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
   const displayStaff = useMemo(() => {
@@ -311,6 +316,7 @@ export default function RosterPage() {
   }
 
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
+    if (rosterLockedEdit) return
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
       let next: RosterEntry[]
@@ -345,6 +351,7 @@ export default function RosterPage() {
   }
 
   const fillWeekForStaff = (staffId: string, shiftTemplateId: string | null) => {
+    if (rosterLockedEdit) return
     const staff = allStaff.find((s) => s.id === staffId)
     setEntries((prev) => {
       let next = [...prev]
@@ -370,6 +377,7 @@ export default function RosterPage() {
   }
 
   const handleSave = async (entriesToPersist?: RosterEntry[]) => {
+    if (!canEditRoster) return
     const today = formatInputDate(new Date())
     const weekSunday = addDays(weekStart, 6)
     if (today >= weekSunday) return // Weeks lock on Sunday
@@ -953,7 +961,7 @@ export default function RosterPage() {
               <button
                 type="button"
                 onClick={() => setCopyConfirmOpen(true)}
-                disabled={loading || sharing || isPastWeek}
+                disabled={loading || sharing || rosterLockedEdit}
                 className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
                 Copy previous week
@@ -1003,7 +1011,7 @@ export default function RosterPage() {
               )}
               <button
                 onClick={handleClearWeek}
-                disabled={loading || sharing || entries.length === 0 || isPastWeek}
+                disabled={loading || sharing || entries.length === 0 || rosterLockedEdit}
                 className="px-3 py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
               >
                 Clear week
@@ -1089,7 +1097,7 @@ export default function RosterPage() {
                 )}
               </div>
               <span className="text-[11px] text-gray-500 min-w-[80px] text-right">
-                {isPastWeek ? 'Read-only' : saving ? 'Saving…' : 'All changes saved'}
+                {rosterLockedEdit ? 'Read-only' : saving ? 'Saving…' : 'All changes saved'}
               </span>
             </div>
           </div>
@@ -1168,7 +1176,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'up')}
-                              disabled={index === 0 || isPastWeek}
+                              disabled={index === 0 || rosterLockedEdit}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move up"
                               aria-label="Move up"
@@ -1178,7 +1186,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'down')}
-                              disabled={index === displayStaff.length - 1 || isPastWeek}
+                              disabled={index === displayStaff.length - 1 || rosterLockedEdit}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move down"
                               aria-label="Move down"
@@ -1188,7 +1196,7 @@ export default function RosterPage() {
                           </div>
                           <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
                         </div>
-                        {!isPastWeek && (
+                        {!rosterLockedEdit && (
                           <div className="relative ml-1">
                             <button
                               title="Fill entire week"
@@ -1257,7 +1265,7 @@ export default function RosterPage() {
                           >
                             {onVacation ? (
                               <span className="text-xs font-medium text-gray-500">Vacation</span>
-                            ) : isPastWeek ? (
+                            ) : rosterLockedEdit ? (
                               <span className="text-xs font-medium text-gray-700">
                                 {template?.name || 'Off'}
                               </span>
