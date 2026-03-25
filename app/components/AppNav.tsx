@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
+import { formatAppUserDisplayName, normalizeAppRole } from '@/lib/roles'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -103,11 +104,12 @@ function isPathActive(pathname: string, href: string): boolean {
 }
 
 function navItemVisibleForRole(href: string, role: string): boolean {
-  if (role === 'admin' || role === 'manager') return true
-  if (role === 'stakeholder') {
+  const r = normalizeAppRole(role)
+  if (r === 'admin' || r === 'manager') return true
+  if (r === 'stakeholder') {
     return href === '/dashboard' || href.startsWith('/overseer/')
   }
-  if (role === 'supervisor' || role === 'senior_supervisor') {
+  if (r === 'supervisor' || r === 'senior_supervisor') {
     const blocked = [
       '/financial',
       '/fuel-payments',
@@ -159,6 +161,7 @@ export default function AppNav() {
   const role = user?.role ?? ''
 
   const filteredNav = useMemo(() => {
+    const nr = normalizeAppRole(role)
     const groups = navConfig
       .map((group) => ({
         ...group,
@@ -166,7 +169,7 @@ export default function AppNav() {
       }))
       .filter((g) => g.items.length > 0)
 
-    if (role === 'stakeholder' || role === 'admin' || role === 'manager') {
+    if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager') {
       groups.splice(1, 0, {
         label: 'Overseer',
         items: [{ label: 'Deposit & debit scans', href: '/overseer/deposit-debit-scans', permission: 'overseer' }]
@@ -244,8 +247,8 @@ export default function AppNav() {
       </div>
       {!sidebarCollapsed && user && (
         <div className="flex-shrink-0 border-t border-gray-700 px-3 py-2 text-xs text-gray-400 truncate" title={user.email}>
-          {user.username}
-          <span className="block text-[10px] text-gray-500 capitalize">{user.role.replace('_', ' ')}</span>
+          {formatAppUserDisplayName(user)}
+          <span className="block text-[10px] text-gray-500 capitalize">{user.role.replace(/_/g, ' ')}</span>
         </div>
       )}
       <div className={`flex-shrink-0 border-t border-gray-700 p-2 flex gap-1 ${sidebarCollapsed ? 'flex-col items-center' : 'justify-between items-center'}`}>

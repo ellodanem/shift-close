@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { isFullAccessRole, isSupervisorLike } from '@/lib/roles'
+import { isFullAccessRole, isSupervisorLike, normalizeAppRole } from '@/lib/roles'
 
 /** Paths that never require auth */
 export function isPublicPath(pathname: string): boolean {
@@ -24,7 +24,7 @@ export function isPublicPath(pathname: string): boolean {
 export function pathnameAllowedForRole(pathname: string, role: string): boolean {
   if (isFullAccessRole(role)) return true
 
-  if (role === 'stakeholder') {
+  if (normalizeAppRole(role) === 'stakeholder') {
     if (pathname.startsWith('/api/')) {
       return (
         pathname.startsWith('/api/auth/') ||
@@ -72,7 +72,7 @@ export function apiWriteAllowedForRole(
     return pathnameAllowedForRole(pathname, role)
   }
   if (isFullAccessRole(role)) return true
-  if (role === 'stakeholder') {
+  if (normalizeAppRole(role) === 'stakeholder') {
     return pathname.startsWith('/api/auth/') || pathname.startsWith('/api/overseer/')
   }
   if (isSupervisorLike(role)) {

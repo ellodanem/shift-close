@@ -16,12 +16,19 @@ export const APP_ROLES: AppRole[] = [
   'stakeholder'
 ]
 
+/** Normalize role for comparisons (DB/JWT may vary in casing). */
+export function normalizeAppRole(role: string): string {
+  return role.trim().toLowerCase()
+}
+
 export function isFullAccessRole(role: string): boolean {
-  return role === 'admin' || role === 'manager'
+  const r = normalizeAppRole(role)
+  return r === 'admin' || r === 'manager'
 }
 
 export function isSupervisorLike(role: string): boolean {
-  return role === 'supervisor' || role === 'senior_supervisor'
+  const r = normalizeAppRole(role)
+  return r === 'supervisor' || r === 'senior_supervisor'
 }
 
 /** NIC, bank account — only admin/manager (not supervisors; not stakeholders). */
@@ -30,13 +37,15 @@ export function canViewStaffSensitiveFields(role: string): boolean {
 }
 
 export function canEditRoster(role: string): boolean {
+  const r = normalizeAppRole(role)
   if (isFullAccessRole(role)) return true
-  if (role === 'stakeholder') return false
+  if (r === 'stakeholder') return false
   return !isSupervisorLike(role)
 }
 
 export function canManageAppUsers(role: string): boolean {
-  return role === 'admin' || role === 'manager'
+  const r = normalizeAppRole(role)
+  return r === 'admin' || r === 'manager'
 }
 
 /** Dashboard widgets for supervisor / senior_supervisor: ops status + upcoming only. */
@@ -53,9 +62,22 @@ export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'upcoming-roster'
 ]
 
+/** Display name for nav/header: "First Last" when present, else username. */
+export function formatAppUserDisplayName(u: {
+  username: string
+  firstName?: string | null
+  lastName?: string | null
+}): string {
+  const fn = u.firstName?.trim()
+  const ln = u.lastName?.trim()
+  if (fn || ln) return [fn, ln].filter(Boolean).join(' ')
+  return u.username
+}
+
 export function getDashboardWidgetIdsForRole(role: string | undefined): DashboardWidgetId[] | 'all' {
   if (!role || isFullAccessRole(role)) return 'all'
-  if (role === 'stakeholder') return [...STAKEHOLDER_DASHBOARD_WIDGETS]
+  const r = normalizeAppRole(role)
+  if (r === 'stakeholder') return [...STAKEHOLDER_DASHBOARD_WIDGETS]
   if (isSupervisorLike(role)) return [...SUPERVISOR_DASHBOARD_WIDGETS]
   return 'all'
 }

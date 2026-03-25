@@ -12,6 +12,8 @@ async function main() {
     where: { username: 'sadmin' },
     update: {
       email: 'ellodanemedia@gmail.com',
+      firstName: 'Super',
+      lastName: 'Admin',
       passwordHash: h1,
       role: 'admin',
       isSuperAdmin: true
@@ -19,6 +21,8 @@ async function main() {
     create: {
       username: 'sadmin',
       email: 'ellodanemedia@gmail.com',
+      firstName: 'Super',
+      lastName: 'Admin',
       passwordHash: h1,
       role: 'admin',
       isSuperAdmin: true
@@ -29,6 +33,8 @@ async function main() {
     where: { username: 'delcock' },
     update: {
       email: 'dane.elrus1@gmail.com',
+      firstName: 'Dane',
+      lastName: 'Elcock',
       passwordHash: h2,
       role: 'stakeholder',
       isSuperAdmin: false
@@ -36,6 +42,8 @@ async function main() {
     create: {
       username: 'delcock',
       email: 'dane.elrus1@gmail.com',
+      firstName: 'Dane',
+      lastName: 'Elcock',
       passwordHash: h2,
       role: 'stakeholder',
       isSuperAdmin: false

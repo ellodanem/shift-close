@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
-import { canManageAppUsers } from '@/lib/roles'
-import { APP_ROLES } from '@/lib/roles'
+import { APP_ROLES, canManageAppUsers, normalizeAppRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,13 +18,20 @@ export async function GET(request: NextRequest) {
       id: true,
       username: true,
       email: true,
+      firstName: true,
+      lastName: true,
       role: true,
       isSuperAdmin: true,
       createdAt: true,
       updatedAt: true
     }
   })
-  return NextResponse.json(users)
+  return NextResponse.json(
+    users.map((u) => ({
+      ...u,
+      role: normalizeAppRole(u.role)
+    }))
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -39,7 +45,9 @@ export async function POST(request: NextRequest) {
     const username = String(body.username ?? '').trim().toLowerCase()
     const email = String(body.email ?? '').trim()
     const password = String(body.password ?? '')
-    const role = String(body.role ?? '').trim()
+    const role = normalizeAppRole(String(body.role ?? ''))
+    const firstName = body.firstName !== undefined ? String(body.firstName).trim() || null : null
+    const lastName = body.lastName !== undefined ? String(body.lastName).trim() || null : null
 
     if (!username || !email || !password || !APP_ROLES.includes(role as (typeof APP_ROLES)[number])) {
       return NextResponse.json({ error: 'Invalid username, email, password, or role' }, { status: 400 })
@@ -50,6 +58,8 @@ export async function POST(request: NextRequest) {
       data: {
         username,
         email,
+        firstName,
+        lastName,
         passwordHash,
         role,
         isSuperAdmin: false
@@ -58,13 +68,15 @@ export async function POST(request: NextRequest) {
         id: true,
         username: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         isSuperAdmin: true,
         createdAt: true,
         updatedAt: true
       }
     })
-    return NextResponse.json(user)
+    return NextResponse.json({ ...user, role: normalizeAppRole(user.role) })
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'P2002'
       ? 'Username or email already exists'

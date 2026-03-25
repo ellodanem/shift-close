@@ -9,6 +9,8 @@ interface AppUserRow {
   id: string
   username: string
   email: string
+  firstName: string | null
+  lastName: string | null
   role: string
   isSuperAdmin: boolean
   createdAt: string
@@ -25,12 +27,20 @@ export default function SettingsUsersPage() {
   const [form, setForm] = useState({
     username: '',
     email: '',
+    firstName: '',
+    lastName: '',
     password: '',
     role: 'supervisor' as string
   })
 
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ email: '', role: '', password: '' })
+  const [editForm, setEditForm] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    role: '',
+    password: ''
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -73,7 +83,7 @@ export default function SettingsUsersPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Create failed')
-      setForm({ username: '', email: '', password: '', role: 'supervisor' })
+      setForm({ username: '', email: '', firstName: '', lastName: '', password: '', role: 'supervisor' })
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed')
@@ -85,7 +95,12 @@ export default function SettingsUsersPage() {
   const saveEdit = async (id: string) => {
     setError(null)
     try {
-      const body: Record<string, string> = { email: editForm.email, role: editForm.role }
+      const body: Record<string, string> = {
+        email: editForm.email,
+        firstName: editForm.firstName,
+        lastName: editForm.lastName,
+        role: editForm.role
+      }
       if (editForm.password.trim()) body.password = editForm.password
       const res = await fetch(`/api/users/${id}`, {
         method: 'PATCH',
@@ -145,6 +160,22 @@ export default function SettingsUsersPage() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+              <input
+                value={form.firstName}
+                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+              <input
+                value={form.lastName}
+                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
                 type="email"
@@ -200,6 +231,7 @@ export default function SettingsUsersPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="text-left px-4 py-2">Name</th>
                     <th className="text-left px-4 py-2">Username</th>
                     <th className="text-left px-4 py-2">Email</th>
                     <th className="text-left px-4 py-2">Role</th>
@@ -209,6 +241,9 @@ export default function SettingsUsersPage() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.id} className="border-t border-gray-100">
+                      <td className="px-4 py-2 text-gray-800">
+                        {[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}
+                      </td>
                       <td className="px-4 py-2 font-medium">
                         {u.username}
                         {u.isSuperAdmin && (
@@ -222,6 +257,18 @@ export default function SettingsUsersPage() {
                           <span className="text-gray-400 text-xs">—</span>
                         ) : editingId === u.id ? (
                           <div className="flex flex-col gap-2 items-end">
+                            <input
+                              placeholder="First name"
+                              value={editForm.firstName}
+                              onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))}
+                              className="border rounded px-2 py-1 text-xs w-48"
+                            />
+                            <input
+                              placeholder="Last name"
+                              value={editForm.lastName}
+                              onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))}
+                              className="border rounded px-2 py-1 text-xs w-48"
+                            />
                             <input
                               type="email"
                               value={editForm.email}
@@ -262,7 +309,13 @@ export default function SettingsUsersPage() {
                               className="text-blue-600 hover:underline"
                               onClick={() => {
                                 setEditingId(u.id)
-                                setEditForm({ email: u.email, role: u.role, password: '' })
+                                setEditForm({
+                                  email: u.email,
+                                  firstName: u.firstName ?? '',
+                                  lastName: u.lastName ?? '',
+                                  role: u.role,
+                                  password: ''
+                                })
                               }}
                             >
                               Edit

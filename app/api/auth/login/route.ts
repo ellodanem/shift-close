@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { SESSION_COOKIE, signSessionToken } from '@/lib/session'
+import { normalizeAppRole } from '@/lib/roles'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,10 +28,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 })
     }
 
+    const roleNorm = normalizeAppRole(user.role)
     const token = await signSessionToken(
       {
         id: user.id,
-        role: user.role,
+        role: roleNorm,
         isSuperAdmin: user.isSuperAdmin
       },
       { rememberMe }
@@ -42,7 +44,9 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: roleNorm,
         isSuperAdmin: user.isSuperAdmin
       }
     })

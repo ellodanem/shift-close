@@ -1,7 +1,14 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { canEditRoster, canManageAppUsers, canViewStaffSensitiveFields } from '@/lib/roles'
+import {
+  canEditRoster,
+  canManageAppUsers,
+  canViewStaffSensitiveFields,
+  isFullAccessRole,
+  isSupervisorLike,
+  normalizeAppRole
+} from '@/lib/roles'
 
 /** Sign out automatically after this long with no user activity (mouse, keyboard, scroll, etc.). */
 export const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
@@ -12,6 +19,8 @@ export interface AuthUser {
   id: string
   username: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
   role: string
   isSuperAdmin: boolean
 }
@@ -39,7 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch('/api/auth/me', { cache: 'no-store' })
       const data = await res.json()
-      setUser(data.user ?? null)
+      const raw = data.user as AuthUser | null | undefined
+      if (raw && typeof raw === 'object' && raw.id && raw.username) {
+        setUser({
+          ...raw,
+          role: normalizeAppRole(raw.role ?? '')
+        })
+      } else {
+        setUser(null)
+      }
     } catch {
       setUser(null)
     } finally {
@@ -107,9 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canEditRoster: canEditRoster(role),
     canManageUsers: canManageAppUsers(role),
     canViewStaffSensitive: canViewStaffSensitiveFields(role),
-    isFullAccess: role === 'admin' || role === 'manager',
-    isStakeholder: role === 'stakeholder',
-    isSupervisorLike: role === 'supervisor' || role === 'senior_supervisor'
+    isFullAccess: isFullAccessRole(role),
+    isStakeholder: normalizeAppRole(role) === 'stakeholder',
+    isSupervisorLike: isSupervisorLike(role)
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

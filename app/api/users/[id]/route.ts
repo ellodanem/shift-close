@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
-import { canManageAppUsers } from '@/lib/roles'
-import { APP_ROLES } from '@/lib/roles'
+import { APP_ROLES, canManageAppUsers, normalizeAppRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +30,10 @@ export async function PATCH(
 
     if (body.username !== undefined) data.username = String(body.username).trim().toLowerCase()
     if (body.email !== undefined) data.email = String(body.email).trim()
+    if (body.firstName !== undefined) data.firstName = String(body.firstName).trim() || null
+    if (body.lastName !== undefined) data.lastName = String(body.lastName).trim() || null
     if (body.role !== undefined) {
-      const r = String(body.role).trim()
+      const r = normalizeAppRole(String(body.role))
       if (!APP_ROLES.includes(r as (typeof APP_ROLES)[number])) {
         return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
       }
@@ -53,13 +54,15 @@ export async function PATCH(
         id: true,
         username: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         isSuperAdmin: true,
         createdAt: true,
         updatedAt: true
       }
     })
-    return NextResponse.json(user)
+    return NextResponse.json({ ...user, role: normalizeAppRole(user.role) })
   } catch (e: unknown) {
     const msg =
       e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'P2002'

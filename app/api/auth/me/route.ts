@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
+import { normalizeAppRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest) {
       id: true,
       username: true,
       email: true,
+      firstName: true,
+      lastName: true,
       role: true,
       isSuperAdmin: true
     }
@@ -25,5 +28,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: null }, { status: 200 })
   }
 
-  return NextResponse.json({ user })
+  return NextResponse.json({
+    user: {
+      ...user,
+      role: normalizeAppRole(user.role)
+    }
+  })
 }

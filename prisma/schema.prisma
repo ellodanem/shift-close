@@ -781,6 +781,8 @@ model AppUser {
   id           String   @id @default(cuid())
   username     String   @unique
   email        String   @unique
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
   passwordHash String   @map("password_hash")
   role         String // admin | manager | senior_supervisor | supervisor | stakeholder
   isSuperAdmin Boolean  @default(false) @map("is_super_admin")
