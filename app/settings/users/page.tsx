@@ -2,8 +2,50 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { APP_ROLES } from '@/lib/roles'
+import { APP_ROLES, normalizeAppRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
+
+function PasswordField({
+  value,
+  onChange,
+  placeholder,
+  className,
+  inputClassName,
+  minLength,
+  required
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  className?: string
+  inputClassName?: string
+  minLength?: number
+  required?: boolean
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className={`relative flex w-full items-center ${className ?? ''}`}>
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={inputClassName ?? 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm pr-14'}
+        autoComplete="new-password"
+        minLength={minLength}
+        required={required}
+      />
+      <button
+        type="button"
+        className="absolute right-2 text-xs font-medium text-gray-600 hover:text-gray-900"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? 'Hide password' : 'Show password'}
+      >
+        {show ? 'Hide' : 'Show'}
+      </button>
+    </div>
+  )
+}
 
 interface AppUserRow {
   id: string
@@ -38,9 +80,14 @@ export default function SettingsUsersPage() {
     email: '',
     firstName: '',
     lastName: '',
-    role: '',
+    role: 'stakeholder' as string,
     password: ''
   })
+
+  const roleForSelect = (role: string) => {
+    const n = normalizeAppRole(role)
+    return APP_ROLES.includes(n as (typeof APP_ROLES)[number]) ? n : 'stakeholder'
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -95,11 +142,16 @@ export default function SettingsUsersPage() {
   const saveEdit = async (id: string) => {
     setError(null)
     try {
+      const roleNorm = normalizeAppRole(editForm.role || 'stakeholder')
+      if (!APP_ROLES.includes(roleNorm as (typeof APP_ROLES)[number])) {
+        setError('Invalid role')
+        return
+      }
       const body: Record<string, string> = {
-        email: editForm.email,
+        email: editForm.email.trim(),
         firstName: editForm.firstName,
         lastName: editForm.lastName,
-        role: editForm.role
+        role: roleNorm
       }
       if (editForm.password.trim()) body.password = editForm.password
       const res = await fetch(`/api/users/${id}`, {
@@ -187,14 +239,14 @@ export default function SettingsUsersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
+              <PasswordField
                 value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                onChange={(v) => setForm((f) => ({ ...f, password: v }))}
+                inputClassName="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm pr-14"
                 required
                 minLength={8}
               />
+              <input type="text" name="username" autoComplete="username" className="sr-only" tabIndex={-1} aria-hidden />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
@@ -205,7 +257,7 @@ export default function SettingsUsersPage() {
               >
                 {APP_ROLES.map((r) => (
                   <option key={r} value={r}>
-                    {r.replace('_', ' ')}
+                    {r.replace(/_/g, ' ')}
                   </option>
                 ))}
               </select>
@@ -251,7 +303,7 @@ export default function SettingsUsersPage() {
                         )}
                       </td>
                       <td className="px-4 py-2">{u.email}</td>
-                      <td className="px-4 py-2 capitalize">{u.role.replace('_', ' ')}</td>
+                      <td className="px-4 py-2 capitalize">{u.role.replace(/_/g, ' ')}</td>
                       <td className="px-4 py-2 text-right">
                         {u.isSuperAdmin ? (
                           <span className="text-gray-400 text-xs">—</span>
@@ -277,21 +329,23 @@ export default function SettingsUsersPage() {
                             />
                             <select
                               value={editForm.role}
-                              onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, role: roleForSelect(e.target.value) }))
+                              }
                               className="border rounded px-2 py-1 text-xs"
                             >
                               {APP_ROLES.map((r) => (
                                 <option key={r} value={r}>
-                                  {r}
+                                  {r.replace(/_/g, ' ')}
                                 </option>
                               ))}
                             </select>
-                            <input
-                              type="password"
-                              placeholder="New password (optional)"
+                            <PasswordField
                               value={editForm.password}
-                              onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
-                              className="border rounded px-2 py-1 text-xs w-48"
+                              onChange={(v) => setEditForm((f) => ({ ...f, password: v }))}
+                              placeholder="New password (optional)"
+                              className="w-48"
+                              inputClassName="w-full border rounded px-2 py-1 text-xs pr-12"
                             />
                             <div className="flex gap-2">
                               <button type="button" className="text-blue-600 text-xs" onClick={() => void saveEdit(u.id)}>
@@ -313,7 +367,7 @@ export default function SettingsUsersPage() {
                                   email: u.email,
                                   firstName: u.firstName ?? '',
                                   lastName: u.lastName ?? '',
-                                  role: u.role,
+                                  role: roleForSelect(u.role),
                                   password: ''
                                 })
                               }}
