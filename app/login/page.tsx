@@ -4,9 +4,11 @@ import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { PasswordField } from '@/app/components/PasswordField'
+import { useAuth } from '@/app/components/AuthContext'
 
 function LoginForm() {
   const router = useRouter()
+  const { refresh } = useAuth()
   const searchParams = useSearchParams()
   const next = searchParams.get('next') || '/dashboard'
   const timedOut = searchParams.get('timeout') === '1'
@@ -32,6 +34,8 @@ function LoginForm() {
         setError(typeof data.error === 'string' ? data.error : 'Login failed')
         return
       }
+      // Session cookie is set on this response; re-fetch /api/auth/me so nav shows user, logout, and role-based links.
+      await refresh()
       router.push(next.startsWith('/') ? next : '/dashboard')
       router.refresh()
     } catch {
