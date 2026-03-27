@@ -201,9 +201,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading) return
+    if (isStakeholder) {
+      void fetchSummary()
+      void fetchUpcoming()
+      return
+    }
     void fetchSummary()
     void fetchUpcoming()
-    if (!isStakeholder) void fetchRecentPayment()
+    void fetchRecentPayment()
   }, [activeFilter, customStartDate, customEndDate, authLoading, isStakeholder])
 
   useEffect(() => {
@@ -798,7 +803,8 @@ export default function DashboardPage() {
             )}
             {id === 'phase1-status' && summary && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Customer A/R Summary */}
+            {/* Customer A/R Summary — hidden for stakeholders */}
+            {!isStakeholder && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-gray-600">Customer A/R</div>
@@ -869,6 +875,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+            )}
             {/* Cashbook Income/Expense */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -987,54 +994,52 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
-              {!isStakeholder && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => router.push('/settings/pay-days')}
-                    className="text-xs text-gray-500 hover:text-indigo-600"
-                    title="Manage pay days"
-                  >
-                    Pay Days
-                  </button>
-                  <button
-                    onClick={() => {
-                      const today = new Date()
-                      const y = today.getFullYear()
-                      const m = String(today.getMonth() + 1).padStart(2, '0')
-                      const d = String(today.getDate()).padStart(2, '0')
-                      setPayDayForm({
-                        date: `${y}-${m}-${d}`,
-                        notes: ''
-                      })
-                      setPayDayModalOpen(true)
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
-                    title="Add pay day"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={() => {
-                      const today = new Date()
-                      setReminderForm({
-                        title: '',
-                        date: today.toISOString().slice(0, 10),
-                        notes: '',
-                        notifyEmail: true,
-                        notifyWhatsApp: false,
-                        notifyDaysBefore: '7,3,1,0',
-                        recurrenceType: '',
-                        recurrenceEndDate: ''
-                      })
-                      setReminderModalOpen(true)
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
-                    title="Add reminder"
-                  >
-                    +
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => router.push('/settings/pay-days')}
+                  className="text-xs text-gray-500 hover:text-indigo-600"
+                  title="Manage pay days"
+                >
+                  Pay Days
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date()
+                    const y = today.getFullYear()
+                    const m = String(today.getMonth() + 1).padStart(2, '0')
+                    const d = String(today.getDate()).padStart(2, '0')
+                    setPayDayForm({
+                      date: `${y}-${m}-${d}`,
+                      notes: ''
+                    })
+                    setPayDayModalOpen(true)
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
+                  title="Add pay day"
+                >
+                  +
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date()
+                    setReminderForm({
+                      title: '',
+                      date: today.toISOString().slice(0, 10),
+                      notes: '',
+                      notifyEmail: true,
+                      notifyWhatsApp: false,
+                      notifyDaysBefore: '7,3,1,0',
+                      recurrenceType: '',
+                      recurrenceEndDate: ''
+                    })
+                    setReminderModalOpen(true)
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+                  title="Add reminder"
+                >
+                  +
+                </button>
+              </div>
             </div>
             {upcoming.length === 0 ? (
               <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
@@ -1083,7 +1088,7 @@ export default function DashboardPage() {
                           <div className="text-xs font-semibold text-gray-700">
                           {getDaysText()}
                           </div>
-                          {!isStakeholder && event.type === 'other' && event.reminderId && (
+                          {event.type === 'other' && event.reminderId && (
                             <button
                               onClick={async () => {
                                 if (!confirm('Delete this reminder?')) return
@@ -1100,7 +1105,7 @@ export default function DashboardPage() {
                               ✕
                             </button>
                           )}
-                          {!isStakeholder && event.type === 'pay-day' && event.payDayId && (
+                          {event.type === 'pay-day' && event.payDayId && (
                             <button
                               onClick={async () => {
                                 if (!confirm('Delete this pay day?')) return
