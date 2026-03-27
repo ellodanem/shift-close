@@ -55,9 +55,10 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'upcoming-roster'
 ]
 
-/** Stakeholder: summary + upcoming/today roster (no A/R, cashbook, shift ops metrics). */
+/** Stakeholder: month summary, ops status (Customer A/R hidden in UI), upcoming + today roster. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
+  'phase1-status',
   'upcoming-roster'
 ]
 
