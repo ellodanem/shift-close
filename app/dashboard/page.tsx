@@ -212,7 +212,7 @@ export default function DashboardPage() {
   }, [activeFilter, customStartDate, customEndDate, authLoading, isStakeholder])
 
   useEffect(() => {
-    if (authLoading || isStakeholder) return
+    if (authLoading) return
     const fetchToday = async () => {
       try {
         const res = await fetch('/api/dashboard/today')
@@ -225,7 +225,7 @@ export default function DashboardPage() {
       }
     }
     void fetchToday()
-  }, [authLoading, isStakeholder])
+  }, [authLoading])
 
   useEffect(() => {
     if (authLoading || isStakeholder || isSupervisorLike) return
@@ -803,7 +803,8 @@ export default function DashboardPage() {
             )}
             {id === 'phase1-status' && summary && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Customer A/R Summary */}
+            {/* Customer A/R Summary — not shown to stakeholders */}
+            {!isStakeholder && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-gray-600">Customer A/R</div>
@@ -874,6 +875,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+            )}
             {/* Cashbook Income/Expense */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
