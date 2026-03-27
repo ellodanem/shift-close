@@ -201,14 +201,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading) return
-    if (isStakeholder) {
-      void fetchSummary()
-      void fetchUpcoming()
-      return
-    }
     void fetchSummary()
     void fetchUpcoming()
-    void fetchRecentPayment()
+    if (!isStakeholder) void fetchRecentPayment()
   }, [activeFilter, customStartDate, customEndDate, authLoading, isStakeholder])
 
   useEffect(() => {
@@ -343,8 +338,8 @@ export default function DashboardPage() {
       
       if (range) {
         const params = new URLSearchParams()
-        params.append('year', range.year.toString())
-        params.append('month', range.month.toString())
+          params.append('year', range.year.toString())
+          params.append('month', range.month.toString())
         url += `?${params.toString()}`
       }
 
@@ -670,9 +665,9 @@ export default function DashboardPage() {
                   title="Does not include Customer Charges (In-House)."
                 >
                   ${formatCurrency(summary.totals.grandTotal)}
-                </div>
               </div>
             </div>
+          </div>
 
             {/* Customer Accounts + Fuel Net helper band (collapsible) */}
             <div className="mt-2 pt-3 border-t border-dashed border-gray-200">
@@ -803,8 +798,7 @@ export default function DashboardPage() {
             )}
             {id === 'phase1-status' && summary && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Customer A/R Summary — not shown to stakeholders */}
-            {!isStakeholder && (
+            {/* Customer A/R Summary */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-gray-600">Customer A/R</div>
@@ -875,7 +869,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            )}
             {/* Cashbook Income/Expense */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -987,59 +980,61 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-            )}
+        )}
             {id === 'upcoming-roster' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upcoming */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => router.push('/settings/pay-days')}
-                  className="text-xs text-gray-500 hover:text-indigo-600"
-                  title="Manage pay days"
-                >
-                  Pay Days
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date()
-                    const y = today.getFullYear()
-                    const m = String(today.getMonth() + 1).padStart(2, '0')
-                    const d = String(today.getDate()).padStart(2, '0')
-                    setPayDayForm({
-                      date: `${y}-${m}-${d}`,
-                      notes: ''
-                    })
-                    setPayDayModalOpen(true)
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
-                  title="Add pay day"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date()
-                    setReminderForm({
-                      title: '',
-                      date: today.toISOString().slice(0, 10),
-                      notes: '',
-                      notifyEmail: true,
-                      notifyWhatsApp: false,
-                      notifyDaysBefore: '7,3,1,0',
-                      recurrenceType: '',
-                      recurrenceEndDate: ''
-                    })
-                    setReminderModalOpen(true)
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
-                  title="Add reminder"
-                >
-                  +
-                </button>
-              </div>
+              {!isStakeholder && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => router.push('/settings/pay-days')}
+                    className="text-xs text-gray-500 hover:text-indigo-600"
+                    title="Manage pay days"
+                  >
+                    Pay Days
+                  </button>
+                  <button
+                    onClick={() => {
+                      const today = new Date()
+                      const y = today.getFullYear()
+                      const m = String(today.getMonth() + 1).padStart(2, '0')
+                      const d = String(today.getDate()).padStart(2, '0')
+                      setPayDayForm({
+                        date: `${y}-${m}-${d}`,
+                        notes: ''
+                      })
+                      setPayDayModalOpen(true)
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
+                    title="Add pay day"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={() => {
+                      const today = new Date()
+                      setReminderForm({
+                        title: '',
+                        date: today.toISOString().slice(0, 10),
+                        notes: '',
+                        notifyEmail: true,
+                        notifyWhatsApp: false,
+                        notifyDaysBefore: '7,3,1,0',
+                        recurrenceType: '',
+                        recurrenceEndDate: ''
+                      })
+                      setReminderModalOpen(true)
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+                    title="Add reminder"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
             </div>
             {upcoming.length === 0 ? (
               <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
@@ -1086,9 +1081,9 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <div className="text-xs font-semibold text-gray-700">
-                            {getDaysText()}
+                          {getDaysText()}
                           </div>
-                          {event.type === 'other' && event.reminderId && (
+                          {!isStakeholder && event.type === 'other' && event.reminderId && (
                             <button
                               onClick={async () => {
                                 if (!confirm('Delete this reminder?')) return
@@ -1105,7 +1100,7 @@ export default function DashboardPage() {
                               ✕
                             </button>
                           )}
-                          {event.type === 'pay-day' && event.payDayId && (
+                          {!isStakeholder && event.type === 'pay-day' && event.payDayId && (
                             <button
                               onClick={async () => {
                                 if (!confirm('Delete this pay day?')) return
@@ -1141,12 +1136,15 @@ export default function DashboardPage() {
               <h3 className="text-sm font-semibold text-gray-700">
                 {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
               </h3>
-              <button
-                onClick={() => router.push('/roster')}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Roster →
-              </button>
+              {!isStakeholder && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/roster')}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Roster →
+                </button>
+              )}
             </div>
             <div className="space-y-3">
               <div>
@@ -1357,7 +1355,7 @@ export default function DashboardPage() {
             )}
           </WidgetWrapper>
         ))}
-      </div>
+        </div>
 
       {/* Add Pay Day Modal */}
       {payDayModalOpen && (
@@ -1382,7 +1380,7 @@ export default function DashboardPage() {
                   onChange={(e) => setPayDayForm((f) => ({ ...f, date: e.target.value }))}
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 />
-              </div>
+        </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
                 <input
@@ -1392,7 +1390,7 @@ export default function DashboardPage() {
                   placeholder="e.g. March payroll"
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 />
-              </div>
+      </div>
             </div>
             <div className="mt-6 flex gap-2 justify-end">
               <button
