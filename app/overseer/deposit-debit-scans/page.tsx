@@ -118,15 +118,19 @@ function LoadingSkeleton() {
   )
 }
 
+type SearchMode = 'single' | 'range'
+
 export default function DepositDebitScansPage() {
   const today = new Date()
-  const defaultEnd = today.toISOString().slice(0, 10)
+  const todayIso = today.toISOString().slice(0, 10)
   const start = new Date(today)
   start.setDate(start.getDate() - 30)
-  const defaultStart = start.toISOString().slice(0, 10)
+  const defaultRangeStart = start.toISOString().slice(0, 10)
 
-  const [startDate, setStartDate] = useState(defaultStart)
-  const [endDate, setEndDate] = useState(defaultEnd)
+  const [searchMode, setSearchMode] = useState<SearchMode>('single')
+  const [singleDate, setSingleDate] = useState(todayIso)
+  const [rangeStart, setRangeStart] = useState(defaultRangeStart)
+  const [rangeEnd, setRangeEnd] = useState(todayIso)
   const [rows, setRows] = useState<ScanRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,6 +138,21 @@ export default function DepositDebitScansPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    let startDate: string
+    let endDate: string
+    if (searchMode === 'single') {
+      startDate = singleDate
+      endDate = singleDate
+    } else {
+      if (rangeStart > rangeEnd) {
+        setError('"From" must be on or before "To".')
+        setLoading(false)
+        setRows([])
+        return
+      }
+      startDate = rangeStart
+      endDate = rangeEnd
+    }
     try {
       const params = new URLSearchParams({ startDate, endDate })
       const res = await fetch(`/api/overseer/scans?${params}`, { cache: 'no-store' })
@@ -146,7 +165,7 @@ export default function DepositDebitScansPage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate])
+  }, [searchMode, singleDate, rangeStart, rangeEnd])
 
   useEffect(() => {
     void load()
@@ -162,37 +181,86 @@ export default function DepositDebitScansPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Deposit & debit scans</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
           End-of-day deposit and debit scans grouped by <strong>calendar day</strong> (one section per day). Attachments
-          from all shifts that day are merged; duplicate links appear once. Use the date range to search.
+          from all shifts that day are merged; duplicate links appear once. Search a <strong>single day</strong> by
+          default, or switch to a <strong>date range</strong> to browse multiple days.
         </p>
 
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-            <div className="min-w-0 flex-1 sm:max-w-[200px]">
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">From</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div className="min-w-0 flex-1 sm:max-w-[200px]">
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">To</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
+          <div className="mb-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void load()}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              onClick={() => setSearchMode('single')}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                searchMode === 'single'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-pressed={searchMode === 'single'}
             >
-              Search
+              Single day
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchMode('range')}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                searchMode === 'range'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-pressed={searchMode === 'range'}
+            >
+              Date range
             </button>
           </div>
+
+          {searchMode === 'single' ? (
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-0 flex-1 sm:max-w-[220px]">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Day</label>
+                <input
+                  type="date"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Search
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-0 flex-1 sm:max-w-[200px]">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">From</label>
+                <input
+                  type="date"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="min-w-0 flex-1 sm:max-w-[200px]">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">To</label>
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Search
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -206,8 +274,14 @@ export default function DepositDebitScansPage() {
           </div>
         ) : !hasAny ? (
           <div className="mt-8 rounded-xl border border-dashed border-gray-300 bg-white/60 px-6 py-10 text-center text-gray-600 shadow-sm">
-            <p className="font-medium text-gray-800">No scans in this range</p>
-            <p className="mt-1 text-sm text-gray-500">Try widening the date range or pick different dates.</p>
+            <p className="font-medium text-gray-800">
+              {searchMode === 'single' ? 'No scans for this day' : 'No scans in this range'}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchMode === 'single'
+                ? 'Pick another day or try a date range to search multiple days.'
+                : 'Try widening the date range or pick different dates.'}
+            </p>
           </div>
         ) : (
           <div className="mt-8 space-y-8">
