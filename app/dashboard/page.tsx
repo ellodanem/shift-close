@@ -120,6 +120,8 @@ interface AverageDepositData {
   avgDepositMTD: number
   totalDepositsMTD: number
   daysElapsed: number
+  lastShiftDate: string | null
+  periodLabel?: string
   sameDayLastMonth: { date: string; total: number } | null
   sameDayLastYear: { date: string; total: number } | null
 }
@@ -254,9 +256,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (authLoading || isStakeholder || isSupervisorLike) return
     fetch('/api/dashboard/average-deposit')
-      .then(r => r.json())
-      .then(data => {
-        if (data?.avgDepositMTD != null) setAverageDeposit(data)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && typeof data.avgDepositMTD === 'number' && !data.error) setAverageDeposit(data)
         else setAverageDeposit(null)
       })
       .catch(() => setAverageDeposit(null))
@@ -867,10 +869,15 @@ export default function DashboardPage() {
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-gray-700">Average Deposit</h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    Month-to-date average vs same day last month and last year
+                    From shift close deposits, month-to-date through the <strong>last shift close</strong> (not
+                    necessarily today). Compared to the same calendar day last month and last year.
                   </p>
+                  {averageDeposit?.lastShiftDate && averageDeposit.periodLabel && (
+                    <p className="mt-2 text-xs text-gray-500">{averageDeposit.periodLabel}</p>
+                  )}
                 </div>
                 {averageDeposit ? (
+                  averageDeposit.lastShiftDate ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-2">
                       <span className="text-sm font-medium text-gray-700">This month (MTD)</span>
@@ -905,6 +912,11 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 mt-1">
+                      {averageDeposit.periodLabel ?? 'No shift closes recorded this month yet.'}
+                    </p>
+                  )
                 ) : (
                   <p className="text-sm text-gray-400 italic">No deposit data available</p>
                 )}
