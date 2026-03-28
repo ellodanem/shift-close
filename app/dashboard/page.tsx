@@ -152,6 +152,7 @@ export default function DashboardPage() {
   const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [fuelMtdSold, setFuelMtdSold] = useState<FuelMtdSoldPayload | null>(null)
+  const [fuelMtdLoadState, setFuelMtdLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -313,21 +314,41 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!summary?.year || !summary?.month) {
       setFuelMtdSold(null)
+      setFuelMtdLoadState('idle')
       return
     }
-    const ac = new AbortController()
+    let cancelled = false
+    setFuelMtdLoadState('loading')
     const params = new URLSearchParams({
       year: String(summary.year),
       month: String(summary.month)
     })
-    fetch(`/api/dashboard/fuel-mtd-sold?${params}`, { signal: ac.signal, cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: FuelMtdSoldPayload | null) => {
-        if (data && typeof data.avgUnleadedPerDay === 'number') setFuelMtdSold(data)
-        else setFuelMtdSold(null)
+    fetch(`/api/dashboard/fuel-mtd-sold?${params}`, { cache: 'no-store' })
+      .then(async (res) => {
+        if (cancelled) return
+        if (!res.ok) {
+          setFuelMtdSold(null)
+          setFuelMtdLoadState('done')
+          return
+        }
+        const data = (await res.json()) as FuelMtdSoldPayload
+        if (cancelled) return
+        if (data && typeof data.avgUnleadedPerDay === 'number') {
+          setFuelMtdSold(data)
+        } else {
+          setFuelMtdSold(null)
+        }
+        setFuelMtdLoadState('done')
       })
-      .catch(() => setFuelMtdSold(null))
-    return () => ac.abort()
+      .catch(() => {
+        if (!cancelled) {
+          setFuelMtdSold(null)
+          setFuelMtdLoadState('done')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [summary?.year, summary?.month])
 
   const getMonthRange = (
@@ -803,7 +824,9 @@ export default function DashboardPage() {
                     by calendar days in the period (current month: 1st through today; past months: full month).
                   </p>
                 </div>
-                {fuelMtdSold?.isFutureMonth ? (
+                {fuelMtdLoadState !== 'done' ? (
+                  <p className="text-sm text-gray-400 italic">Loading fuel volumes…</p>
+                ) : fuelMtdSold?.isFutureMonth ? (
                   <p className="text-sm text-gray-400 italic">No data for a future month.</p>
                 ) : fuelMtdSold ? (
                   <div className="space-y-4">
@@ -832,7 +855,10 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">Loading fuel volumes…</p>
+                  <p className="text-sm text-amber-800">
+                    Could not load fuel volumes. If this persists, check that you are signed in and have access to
+                    dashboard data.
+                  </p>
                 )}
               </div>
 

@@ -30,6 +30,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
         pathname.startsWith('/api/auth/') ||
         pathname.startsWith('/api/overseer/') ||
         pathname.startsWith('/api/dashboard/month-summary') ||
+        pathname.startsWith('/api/dashboard/fuel-mtd-sold') ||
         pathname.startsWith('/api/dashboard/upcoming') ||
         pathname.startsWith('/api/dashboard/today') ||
         pathname.startsWith('/api/pay-days')
