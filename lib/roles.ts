@@ -51,6 +51,7 @@ export function canManageAppUsers(role: string): boolean {
 /** Dashboard widgets for supervisor / senior_supervisor: ops status + upcoming only. */
 export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
+  'fuel-mtd-deposit-block',
   'phase1-status',
   'upcoming-roster'
 ]
@@ -58,6 +59,7 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
 /** Stakeholder: month summary, ops status (Customer A/R hidden in UI), upcoming + today roster. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
+  'fuel-mtd-deposit-block',
   'phase1-status',
   'upcoming-roster'
 ]

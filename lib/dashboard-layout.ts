@@ -4,7 +4,7 @@
  */
 export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
-  'average-deposit',
+  'fuel-mtd-deposit-block',
   'phase1-status',
   'upcoming-roster',
   'fuel-volume',
@@ -33,9 +33,12 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
     const parsed = JSON.parse(raw) as string[]
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT
     // Migrate: merge 'upcoming' + 'today-roster' -> 'upcoming-roster'
-    const migrated = parsed.map(id =>
-      id === 'upcoming' || id === 'today-roster' ? 'upcoming-roster' : id
-    )
+    // Migrate: 'fuel-mtd-sold' + 'average-deposit' -> single 'fuel-mtd-deposit-block'
+    const migrated = parsed.map((id) => {
+      if (id === 'upcoming' || id === 'today-roster') return 'upcoming-roster'
+      if (id === 'fuel-mtd-sold' || id === 'average-deposit') return 'fuel-mtd-deposit-block'
+      return id
+    })
     const deduped = migrated.filter((id, i) => migrated.indexOf(id) === i)
     const valid = deduped.filter((id): id is DashboardWidgetId =>
       DASHBOARD_WIDGET_IDS.includes(id as DashboardWidgetId)
