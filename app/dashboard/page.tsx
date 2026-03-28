@@ -161,6 +161,7 @@ export default function DashboardPage() {
   const [customEndDate, setCustomEndDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
+  const fuelMtdReqId = useRef(0)
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [reminderForm, setReminderForm] = useState({
     title: '',
@@ -219,15 +220,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading) return
-    if (isStakeholder) {
-      void fetchSummary()
-      void fetchUpcoming()
-      return
-    }
     void fetchSummary()
     void fetchUpcoming()
     void fetchRecentPayment()
-  }, [activeFilter, customStartDate, customEndDate, authLoading, isStakeholder])
+  }, [activeFilter, customStartDate, customEndDate, authLoading])
 
   useEffect(() => {
     if (authLoading) return
@@ -246,23 +242,23 @@ export default function DashboardPage() {
   }, [authLoading])
 
   useEffect(() => {
-    if (authLoading || isStakeholder || isSupervisorLike) return
-    fetch('/api/dashboard/fuel-comparison')
+    if (authLoading || isSupervisorLike) return
+    fetch('/api/dashboard/fuel-comparison', { cache: 'no-store', credentials: 'same-origin' })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setFuelComparison(data) })
       .catch(() => {})
-  }, [authLoading, isStakeholder, isSupervisorLike])
+  }, [authLoading, isSupervisorLike])
 
   useEffect(() => {
-    if (authLoading || isStakeholder || isSupervisorLike) return
-    fetch('/api/dashboard/average-deposit')
+    if (authLoading || isSupervisorLike) return
+    fetch('/api/dashboard/average-deposit', { cache: 'no-store', credentials: 'same-origin' })
       .then((r) => r.json())
       .then((data) => {
         if (data && typeof data.avgDepositMTD === 'number' && !data.error) setAverageDeposit(data)
         else setAverageDeposit(null)
       })
       .catch(() => setAverageDeposit(null))
-  }, [authLoading, isStakeholder, isSupervisorLike])
+  }, [authLoading, isSupervisorLike])
 
   // Fetch A/R summary when summary data changes (respects month filter)
   useEffect(() => {
@@ -319,38 +315,36 @@ export default function DashboardPage() {
       setFuelMtdLoadState('idle')
       return
     }
-    let cancelled = false
+    const rid = ++fuelMtdReqId.current
     setFuelMtdLoadState('loading')
     const params = new URLSearchParams({
       year: String(summary.year),
       month: String(summary.month)
     })
-    fetch(`/api/dashboard/fuel-mtd-sold?${params}`, { cache: 'no-store' })
+    fetch(`/api/dashboard/fuel-mtd-sold?${params}`, { cache: 'no-store', credentials: 'same-origin' })
       .then(async (res) => {
-        if (cancelled) return
+        if (rid !== fuelMtdReqId.current) return
         if (!res.ok) {
           setFuelMtdSold(null)
-          setFuelMtdLoadState('done')
           return
         }
         const data = (await res.json()) as FuelMtdSoldPayload
-        if (cancelled) return
+        if (rid !== fuelMtdReqId.current) return
         if (data && typeof data.avgUnleadedPerDay === 'number') {
           setFuelMtdSold(data)
         } else {
           setFuelMtdSold(null)
         }
-        setFuelMtdLoadState('done')
       })
       .catch(() => {
-        if (!cancelled) {
-          setFuelMtdSold(null)
+        if (rid !== fuelMtdReqId.current) return
+        setFuelMtdSold(null)
+      })
+      .finally(() => {
+        if (rid === fuelMtdReqId.current) {
           setFuelMtdLoadState('done')
         }
       })
-    return () => {
-      cancelled = true
-    }
   }, [summary?.year, summary?.month])
 
   const getMonthRange = (
@@ -453,7 +447,7 @@ export default function DashboardPage() {
 
   const fetchRecentPayment = async () => {
     try {
-      const res = await fetch('/api/fuel-payments/recent')
+      const res = await fetch('/api/fuel-payments/recent', { cache: 'no-store', credentials: 'same-origin' })
       if (!res.ok) {
         throw new Error('Failed to fetch recent fuel payment')
       }
@@ -1471,7 +1465,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            {recentPayment && (
+            {recentPayment && !isStakeholder && (
               <button
                 onClick={() => router.push('/fuel-payments/invoices')}
                 className="mt-3 w-full text-xs text-blue-600 hover:text-blue-800 font-medium"

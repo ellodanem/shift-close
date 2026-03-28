@@ -31,9 +31,12 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
         pathname.startsWith('/api/overseer/') ||
         pathname.startsWith('/api/dashboard/month-summary') ||
         pathname.startsWith('/api/dashboard/fuel-mtd-sold') ||
+        pathname.startsWith('/api/dashboard/average-deposit') ||
+        pathname.startsWith('/api/dashboard/fuel-comparison') ||
         pathname.startsWith('/api/dashboard/upcoming') ||
         pathname.startsWith('/api/dashboard/today') ||
-        pathname.startsWith('/api/pay-days')
+        pathname.startsWith('/api/pay-days') ||
+        pathname.startsWith('/api/fuel-payments/recent')
       )
     }
     return pathname === '/dashboard' || pathname.startsWith('/overseer/')

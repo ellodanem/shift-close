@@ -56,11 +56,12 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'upcoming-roster'
 ]
 
-/** Stakeholder: month summary, ops status (Customer A/R hidden in UI), upcoming + today roster. */
+/** Stakeholder: high-level totals + fuel/deposit + last-5-day volume + recent fuel payment; no ops status row. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
   'fuel-mtd-deposit-block',
-  'phase1-status',
+  'fuel-volume',
+  'recent-fuel-payment',
   'upcoming-roster'
 ]
 
