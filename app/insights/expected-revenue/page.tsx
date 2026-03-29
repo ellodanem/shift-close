@@ -10,6 +10,7 @@ function formatMoney(n: number): string {
 interface DayRow {
   date: string
   grandTotal: number
+  depositsAndCardTotal: number
   shiftCount: number
 }
 
@@ -39,6 +40,8 @@ export default function ExpectedRevenuePage() {
   const [data, setData] = useState<RevenuePayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** When true, grand total and by-day amounts exclude fleet & vouchers (deposits + card only). */
+  const [depositsAndCardOnly, setDepositsAndCardOnly] = useState(false)
 
   const load = useCallback(async () => {
     if (startDate > endDate) {
@@ -88,8 +91,10 @@ export default function ExpectedRevenuePage() {
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
           Choose any <strong>start and end date</strong> (inclusive). Totals come from <strong>shift close</strong> data
           in that range and match the dashboard <strong>Grand Total</strong> formula: deposits + debit &amp; credit +
-          fleet + vouchers. Use this when you need a forecast for a window that doesn&apos;t line up with bank posting
-          (e.g. weekend activity vs Monday settlement), or for any mid-week range you want to compare.
+          fleet + vouchers. Fleet and vouchers are often settled on a different schedule; use <strong>Exclude fleet &amp; vouchers</strong>{' '}
+          on the summary card for <strong>deposits + card only</strong>. Use this page when you need a forecast for a window that
+          doesn&apos;t line up with bank posting (e.g. weekend activity vs Monday settlement), or for any mid-week range you want
+          to compare.
         </p>
 
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -129,12 +134,35 @@ export default function ExpectedRevenuePage() {
 
         {data && !error && (
           <div className="mt-8 space-y-6">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Grand total (range)</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-emerald-950">${formatMoney(data.grandTotal)}</p>
-              <p className="mt-2 text-xs text-emerald-900/90">
-                {data.shiftCount} shift{data.shiftCount === 1 ? '' : 'es'} · {data.startDate} → {data.endDate}
-              </p>
+            <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-sm">
+              <label className="absolute right-4 top-4 flex max-w-[11rem] cursor-pointer select-none items-start gap-2 sm:right-5 sm:top-5">
+                <input
+                  type="checkbox"
+                  checked={depositsAndCardOnly}
+                  onChange={(e) => setDepositsAndCardOnly(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-emerald-400 text-emerald-700 focus:ring-emerald-600"
+                />
+                <span className="text-[11px] leading-snug text-emerald-900/90">Exclude fleet &amp; vouchers</span>
+              </label>
+              <div className="max-w-full pr-[9.5rem] sm:pr-[10.5rem]">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Grand total (range)</p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-emerald-950">
+                  $
+                  {formatMoney(
+                    depositsAndCardOnly
+                      ? data.totalDeposits + data.totalDebitAndCredit
+                      : data.grandTotal
+                  )}
+                </p>
+                <p className="mt-2 text-xs text-emerald-900/90">
+                  {data.shiftCount} shift{data.shiftCount === 1 ? '' : 'es'} · {data.startDate} → {data.endDate}
+                </p>
+                {depositsAndCardOnly && (
+                  <p className="mt-1.5 text-xs text-emerald-800/95">
+                    Deposits + card only (fleet &amp; vouchers excluded).
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -198,14 +226,21 @@ export default function ExpectedRevenuePage() {
             {data.byDay.length > 0 && (
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h2 className="text-sm font-semibold text-gray-900">By day</h2>
-                <p className="text-xs text-gray-500 mb-3">Per calendar day within the range.</p>
+                <p className="text-xs text-gray-500 mb-3">
+                  Per calendar day within the range.
+                  {depositsAndCardOnly && (
+                    <span className="text-gray-600"> Day totals match deposits + card (fleet &amp; vouchers excluded).</span>
+                  )}
+                </p>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 text-left text-gray-600">
                         <th className="py-2 pr-4 font-medium">Date</th>
                         <th className="py-2 pr-4 font-medium">Shifts</th>
-                        <th className="py-2 font-medium text-right">Day total</th>
+                        <th className="py-2 font-medium text-right">
+                          {depositsAndCardOnly ? 'Day total (dep. + card)' : 'Day total'}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -214,7 +249,8 @@ export default function ExpectedRevenuePage() {
                           <td className="py-2 pr-4 font-mono text-gray-900">{row.date}</td>
                           <td className="py-2 pr-4 text-gray-700">{row.shiftCount}</td>
                           <td className="py-2 text-right font-medium tabular-nums text-gray-900">
-                            ${formatMoney(row.grandTotal)}
+                            $
+                            {formatMoney(depositsAndCardOnly ? row.depositsAndCardTotal : row.grandTotal)}
                           </td>
                         </tr>
                       ))}
