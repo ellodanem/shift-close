@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 interface ScanRow {
   date: string
@@ -155,7 +156,7 @@ export default function DepositDebitScansPage() {
     }
     try {
       const params = new URLSearchParams({ startDate, endDate })
-      const res = await fetch(`/api/overseer/scans?${params}`, { cache: 'no-store' })
+      const res = await fetch(`/api/insights/scans?${params}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('Failed to load scans')
       const data = await res.json()
       setRows(Array.isArray(data.rows) ? data.rows : [])
@@ -178,6 +179,17 @@ export default function DepositDebitScansPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100/80 to-gray-50 p-4 sm:p-6">
       <div className="mx-auto max-w-3xl">
+        <div className="mb-4 flex flex-wrap gap-2 text-sm">
+          <Link
+            href="/insights/expected-revenue"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Expected revenue
+          </Link>
+          <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 font-semibold text-blue-900">
+            Deposit & debit scans
+          </span>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Deposit & debit scans</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
           End-of-day deposit and debit scans grouped by <strong>calendar day</strong> (one section per day). Attachments

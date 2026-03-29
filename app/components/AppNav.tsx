@@ -99,7 +99,8 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/attendance') return pathname.startsWith('/attendance')
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
   if (href === '/settings') return pathname.startsWith('/settings')
-  if (href === '/overseer/deposit-debit-scans') return pathname.startsWith('/overseer/')
+  if (href === '/insights/expected-revenue') return pathname.startsWith('/insights/expected-revenue')
+  if (href === '/insights/deposit-debit-scans') return pathname.startsWith('/insights/deposit-debit-scans')
   return pathname === href
 }
 
@@ -107,7 +108,7 @@ function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
-    return href === '/dashboard' || href.startsWith('/overseer/')
+    return href === '/dashboard' || href.startsWith('/insights/')
   }
   if (r === 'supervisor' || r === 'senior_supervisor') {
     const blocked = [
@@ -171,8 +172,11 @@ export default function AppNav() {
 
     if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager') {
       groups.splice(1, 0, {
-        label: 'Overseer',
-        items: [{ label: 'Deposit & debit scans', href: '/overseer/deposit-debit-scans', permission: 'overseer' }]
+        label: 'Insights',
+        items: [
+          { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
+          { label: 'Deposit & debit scans', href: '/insights/deposit-debit-scans', permission: 'insights' }
+        ]
       })
     }
 

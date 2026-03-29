@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      { source: '/overseer', destination: '/insights/deposit-debit-scans', permanent: false },
+      { source: '/overseer/deposit-debit-scans', destination: '/insights/deposit-debit-scans', permanent: false },
+      { source: '/overseer/:path*', destination: '/insights/:path*', permanent: false }
+    ]
+  },
   async rewrites() {
     return [
       // ZKTeco firmware often uses .aspx paths

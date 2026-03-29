@@ -4,7 +4,7 @@ import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
-/** GET ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD — deposit + debit scan URLs grouped by calendar day (deduped across shifts). */
+/** GET ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD — deposit + debit scan URLs grouped by calendar day */
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request)
   if (!session) {
