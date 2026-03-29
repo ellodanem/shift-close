@@ -1352,7 +1352,9 @@ export default function RosterPage() {
                         {!rosterCellsLocked && (
                           <div className="relative ml-1">
                             <button
+                              type="button"
                               title="Fill entire week"
+                              aria-label="Fill entire week"
                               onClick={() =>
                                 setFillWeekPopover(
                                   fillWeekPopover?.staffId === s.id
@@ -1360,9 +1362,22 @@ export default function RosterPage() {
                                     : { staffId: s.id, shiftId: templates[0]?.id ?? '' }
                                 )
                               }
-                              className="text-gray-400 hover:text-blue-600 text-xs px-1 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                              className="inline-flex items-center justify-center text-gray-400 hover:text-blue-600 p-0.5 rounded hover:bg-blue-50 transition-colors"
                             >
-                              ↔
+                              <svg
+                                className="w-3.5 h-3.5 shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                aria-hidden
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                              </svg>
                             </button>
                             {fillWeekPopover?.staffId === s.id && (
                               <>
