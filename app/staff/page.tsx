@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 interface Staff {
   id: string
   name: string
+  /** ZKTeco / attendance device user id */
+  deviceUserId: string | null
   dateOfBirth: string | null
   startDate: string | null
   status: string
@@ -136,6 +138,9 @@ export default function StaffPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Start Date
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Device user ID
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -162,6 +167,9 @@ export default function StaffPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {member.startDate || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-mono tabular-nums" title="ZKTeco attendance device user ID">
+                      {member.deviceUserId?.trim() || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
