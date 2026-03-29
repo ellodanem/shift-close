@@ -1,6 +1,8 @@
 /**
- * Attendance irregularity rules: sequential In/Out pairing per staff per calendar day,
- * plus optional expected punch count per day (default 4 = two in/out pairs for a standard full day).
+ * Attendance punch-day status: valid in/out pairing plus count vs expected.
+ * - full (green): count matches expected punches/day and pairing is valid
+ * - short_ok (blue): exactly 2 punches, valid in→out pair, and expected > 2 (short shift vs full standard)
+ * - irregular (red): bad pairing, unknown types, or count otherwise wrong
  */
 
 const DEFAULT_EXPECTED_PUNCHES = 4
@@ -15,21 +17,41 @@ export type PunchForIrregularity = {
   punchType: string
 }
 
+/** Per punch row — all punches on the same staff calendar day share one status. */
+export type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
+
 export function parseExpectedPunchesPerDay(raw: string | null | undefined): number {
   const n = parseInt(String(raw ?? '').trim(), 10)
   if (!Number.isFinite(n) || n < MIN_EXPECTED) return DEFAULT_EXPECTED_PUNCHES
   return Math.min(MAX_EXPECTED, Math.max(MIN_EXPECTED, n))
 }
 
+/** Returns true if in/out sequence pairs completely (stack of opens empty at end). */
+function pairingIsValid(arr: PunchForIrregularity[]): boolean {
+  const sorted = [...arr].sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
+  const openInIds: string[] = []
+  for (const p of sorted) {
+    const t = String(p.punchType ?? '').toLowerCase().trim()
+    if (t === 'in') {
+      openInIds.push(p.id)
+    } else if (t === 'out') {
+      if (openInIds.length === 0) return false
+      openInIds.pop()
+    } else {
+      return false
+    }
+  }
+  return openInIds.length === 0
+}
+
 /**
- * Returns log IDs that are irregular: unmatched in/out sequence and/or punch count for that day
- * not equal to `expectedPunchesPerDay`.
+ * Maps each log id to its calendar-day status for that staff member.
  */
-export function computeAttendanceIrregularityIds(
+export function computeAttendancePunchDayStatuses(
   logs: PunchForIrregularity[],
   expectedPunchesPerDay: number
-): Set<string> {
-  const irregularityIds = new Set<string>()
+): Map<string, PunchDayStatus> {
+  const result = new Map<string, PunchDayStatus>()
   const byStaffDate = new Map<string, PunchForIrregularity[]>()
 
   for (const log of logs) {
@@ -40,33 +62,23 @@ export function computeAttendanceIrregularityIds(
   }
 
   for (const arr of byStaffDate.values()) {
-    arr.sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
+    const n = arr.length
+    let status: PunchDayStatus
 
-    const openInIds: string[] = []
+    if (!pairingIsValid(arr)) {
+      status = 'irregular'
+    } else if (n === expectedPunchesPerDay) {
+      status = 'full'
+    } else if (n === 2 && expectedPunchesPerDay !== 2) {
+      status = 'short_ok'
+    } else {
+      status = 'irregular'
+    }
+
     for (const p of arr) {
-      const t = String(p.punchType ?? '').toLowerCase().trim()
-      if (t === 'in') {
-        openInIds.push(p.id)
-      } else if (t === 'out') {
-        if (openInIds.length === 0) {
-          irregularityIds.add(p.id)
-        } else {
-          openInIds.pop()
-        }
-      } else {
-        irregularityIds.add(p.id)
-      }
-    }
-    for (const id of openInIds) {
-      irregularityIds.add(id)
-    }
-
-    if (arr.length !== expectedPunchesPerDay) {
-      for (const p of arr) {
-        irregularityIds.add(p.id)
-      }
+      result.set(p.id, status)
     }
   }
 
-  return irregularityIds
+  return result
 }

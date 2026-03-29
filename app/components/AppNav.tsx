@@ -45,6 +45,7 @@ const navConfig = [
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
+      { label: 'Attendance settings', href: '/attendance/settings', permission: 'people.attendance' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
     ],
   },
@@ -96,7 +97,13 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/staff') return pathname === '/staff' || pathname.startsWith('/staff/')
   if (href === '/roster') return pathname === '/roster'
   if (href === '/applications') return pathname.startsWith('/applications')
-  if (href === '/attendance') return pathname.startsWith('/attendance')
+  if (href === '/attendance/settings') {
+    return pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')
+  }
+  if (href === '/attendance') {
+    if (pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')) return false
+    return pathname.startsWith('/attendance')
+  }
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
   if (href === '/settings') return pathname.startsWith('/settings')
   if (href === '/insights/expected-revenue') return pathname.startsWith('/insights/expected-revenue')

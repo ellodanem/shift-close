@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeAttendanceIrregularityIds, parseExpectedPunchesPerDay } from '@/lib/attendance-irregularity'
+import { computeAttendancePunchDayStatuses, parseExpectedPunchesPerDay } from '@/lib/attendance-irregularity'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...
- * Returns attendance logs with staff info, plus irregularity flags (In/Out pairing and expected punches per day).
+ * Returns attendance logs with staff info, plus punchDayStatus: full | short_ok | irregular (and hasIrregularity = irregular).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     ])
 
     const expectedPunchesPerDay = parseExpectedPunchesPerDay(settingRow?.value)
-    const irregularityIds = computeAttendanceIrregularityIds(
+    const statusById = computeAttendancePunchDayStatuses(
       logs.map((log) => ({
         id: log.id,
         staffId: log.staffId,
@@ -143,10 +143,14 @@ export async function GET(request: NextRequest) {
       expectedPunchesPerDay
     )
 
-    const logsWithIrregularity = logs.map((log) => ({
-      ...log,
-      hasIrregularity: irregularityIds.has(log.id)
-    }))
+    const logsWithIrregularity = logs.map((log) => {
+      const punchDayStatus = statusById.get(log.id) ?? 'irregular'
+      return {
+        ...log,
+        punchDayStatus,
+        hasIrregularity: punchDayStatus === 'irregular'
+      }
+    })
 
     return NextResponse.json(logsWithIrregularity)
   } catch (error) {

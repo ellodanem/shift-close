@@ -1,7 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { normalizePublicAppUrl } from '@/lib/public-url'
+
+type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
 
 interface AttendanceLog {
   id: string
@@ -12,6 +15,8 @@ interface AttendanceLog {
   punchType: string
   source: string
   correctedAt?: string | null
+  /** full = green, short_ok = blue (2 valid pairs when expecting more), irregular = red */
+  punchDayStatus?: PunchDayStatus
   hasIrregularity: boolean
   staff: { id: string; name: string } | null
 }
@@ -88,11 +93,6 @@ export default function AttendancePage() {
   const [customStart, setCustomStart] = useState(formatDate(new Date()))
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
-
-  /** Expected punches per calendar day for irregularity checks (saved server-side; default 4). */
-  const [expectedPunchesPerDay, setExpectedPunchesPerDay] = useState(4)
-  const [expectedPunchesSaving, setExpectedPunchesSaving] = useState(false)
-  const [expectedPunchesMessage, setExpectedPunchesMessage] = useState<string | null>(null)
 
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null)
   const [editPunchLocal, setEditPunchLocal] = useState('')
@@ -171,47 +171,6 @@ export default function AttendancePage() {
   }, [fetchLogs])
 
   useEffect(() => {
-    const loadExpectedPunches = async () => {
-      try {
-        const res = await fetch('/api/attendance/settings', { cache: 'no-store' })
-        if (!res.ok) return
-        const data = (await res.json()) as { expectedPunchesPerDay?: number }
-        if (typeof data.expectedPunchesPerDay === 'number' && data.expectedPunchesPerDay >= 1) {
-          setExpectedPunchesPerDay(data.expectedPunchesPerDay)
-        }
-      } catch {
-        // ignore
-      }
-    }
-    void loadExpectedPunches()
-  }, [])
-
-  const saveExpectedPunches = async () => {
-    setExpectedPunchesSaving(true)
-    setExpectedPunchesMessage(null)
-    try {
-      const res = await fetch('/api/attendance/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expectedPunchesPerDay })
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
-      }
-      if (typeof data.expectedPunchesPerDay === 'number') {
-        setExpectedPunchesPerDay(data.expectedPunchesPerDay)
-      }
-      setExpectedPunchesMessage('Saved. Logs refreshed.')
-      await fetchLogs()
-    } catch (e) {
-      setExpectedPunchesMessage(e instanceof Error ? e.message : 'Failed to save')
-    } finally {
-      setExpectedPunchesSaving(false)
-    }
-  }
-
-  useEffect(() => {
     const loadStaff = async () => {
       try {
         const res = await fetch('/api/staff')
@@ -272,7 +231,7 @@ export default function AttendancePage() {
     return logs.filter((log) => logBelongsToStaff(log, s))
   }, [logs, staffFilter, staffWithDevice])
 
-  /** Per-tab health: green = no irregular punches for that person in range; red = at least one. */
+  /** Per-tab health: green = no red (irregular) rows; blue short shifts do not flag the tab. */
   const allTabOk = useMemo(() => !logs.some((l) => l.hasIrregularity), [logs])
   const staffTabHasIssue = useMemo(() => {
     const m = new Map<string, boolean>()
@@ -513,6 +472,12 @@ export default function AttendancePage() {
                 <span className="text-amber-900">{formatDateDisplay(currentPeriodPayDay.date + 'T12:00:00')}</span>
               </div>
             )}
+            <Link
+              href="/attendance/settings"
+              className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded font-semibold hover:bg-gray-50 inline-block text-sm"
+            >
+              Settings
+            </Link>
             <a
               href="/attendance/pay-period"
               className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
@@ -603,50 +568,27 @@ export default function AttendancePage() {
               )}
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <label htmlFor="expected-punches-per-day" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                    Expected punches per day
-                  </label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      id="expected-punches-per-day"
-                      type="number"
-                      min={1}
-                      max={24}
-                      value={expectedPunchesPerDay}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10)
-                        if (!Number.isFinite(v)) return
-                        setExpectedPunchesPerDay(Math.min(24, Math.max(1, v)))
-                      }}
-                      className="w-16 rounded border border-gray-300 px-2 py-1.5 text-sm tabular-nums"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void saveExpectedPunches()}
-                      disabled={expectedPunchesSaving}
-                      className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      {expectedPunchesSaving ? 'Saving…' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 max-w-xl pb-0.5">
-                  Default <span className="font-medium text-gray-800">4</span> matches a standard full day (two in/out pairs). Irregular
-                  highlights rows when in/out pairing is wrong <span className="text-gray-500">or</span> the punch count for that staff on
-                  that calendar day isn&apos;t this number. Part-time and short shifts can be handled later.
-                </p>
-              </div>
-              {expectedPunchesMessage && (
-                <p
-                  className={`mt-2 text-xs ${expectedPunchesMessage.startsWith('Saved') ? 'text-emerald-700' : 'text-red-700'}`}
-                >
-                  {expectedPunchesMessage}
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              Expected punches per day (see{' '}
+              <Link href="/attendance/settings" className="font-medium text-blue-600 hover:text-blue-800">
+                Attendance settings
+              </Link>
+              ) drives &quot;full day&quot; vs short shift.
+            </p>
+            <p className="text-xs text-gray-600 mb-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-emerald-600" aria-hidden />
+                Full day
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-sky-600" aria-hidden />
+                Short shift (2 punches, valid in/out)
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-red-500" aria-hidden />
+                Irregular
+              </span>
+            </p>
 
             <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 mb-4">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
@@ -660,8 +602,8 @@ export default function AttendancePage() {
                     onClick={() => setStaffFilter('')}
                     title={
                       allTabOk
-                        ? 'No irregular punches in this date range'
-                        : 'At least one irregular punch (pairing or punch count vs expected per day) — review rows'
+                        ? 'No irregular (red) punches in this date range'
+                        : 'At least one irregular punch — review rows (green = full day count, blue = short valid pair)'
                     }
                     className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium leading-tight transition-colors ${
                       staffFilter === ''
@@ -679,8 +621,8 @@ export default function AttendancePage() {
                     const hasIssue = staffTabHasIssue.get(s.id) ?? false
                     const selected = staffFilter === s.id
                     const statusHint = hasIssue
-                      ? 'Has irregular punches in this range (pairing or count) — review or correct'
-                      : 'Pairing and punch count look OK for this range'
+                      ? 'Has irregular (red) punches — review or correct'
+                      : 'No irregular punches; blue = short shift with valid in/out pair'
                     return (
                       <button
                         key={s.id}
@@ -719,7 +661,9 @@ export default function AttendancePage() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700 w-10"></th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12" title="Green full / blue short / red irregular">
+                        Status
+                      </th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Time</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
@@ -740,16 +684,32 @@ export default function AttendancePage() {
                         </td>
                       </tr>
                     ) : (
-                      displayedLogs.map((log) => (
-                        <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${log.hasIrregularity ? 'bg-red-50/50' : ''}`}>
+                      displayedLogs.map((log) => {
+                        const st = log.punchDayStatus ?? (log.hasIrregularity ? 'irregular' : 'full')
+                        const rowBg =
+                          st === 'irregular'
+                            ? 'bg-red-50/50'
+                            : st === 'short_ok'
+                              ? 'bg-sky-50/50'
+                              : 'bg-emerald-50/35'
+                        return (
+                        <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${rowBg}`}>
                           <td className="px-3 py-2">
-                            {log.hasIrregularity ? (
+                            {st === 'irregular' ? (
                               <span
                                 className="inline-block w-4 h-4 bg-red-500 rounded-sm shrink-0"
-                                title="Irregular: unmatched in/out sequence and/or punch count for this day differs from expected"
+                                title="Irregular: bad in/out sequence or punch count doesn’t match rules"
+                              />
+                            ) : st === 'short_ok' ? (
+                              <span
+                                className="inline-block w-4 h-4 bg-sky-600 rounded-sm shrink-0"
+                                title="Short shift: two punches with a valid in/out pair (fewer than expected daily total)"
                               />
                             ) : (
-                              <span className="inline-block w-4 h-4 bg-green-500 rounded-sm shrink-0 opacity-60" title="OK" />
+                              <span
+                                className="inline-block w-4 h-4 bg-emerald-600 rounded-sm shrink-0"
+                                title="Full day: punch count matches expected and in/out pairing is valid"
+                              />
                             )}
                           </td>
                           <td className="px-3 py-2 text-gray-700">
@@ -778,7 +738,7 @@ export default function AttendancePage() {
                             </button>
                           </td>
                         </tr>
-                      ))
+                      )})
                     )}
                   </tbody>
                 </table>
