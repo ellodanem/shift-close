@@ -708,6 +708,21 @@ model PayDay {
   @@map("pay_days")
 }
 
+// St. Lucia (and future) public holidays — roster shows labels; stationClosed = fully closed, no shifts
+model PublicHoliday {
+  id            String   @id @default(cuid())
+  date          String // YYYY-MM-DD
+  name          String
+  stationClosed Boolean  @default(false) @map("station_closed")
+  countryCode   String   @default("LC") @map("country_code")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, countryCode], name: "public_holiday_date_country")
+  @@index([date])
+  @@map("public_holidays")
+}
+
 // Saved pay period report (attendance summary)
 model PayPeriod {
   id          String   @id @default(cuid())

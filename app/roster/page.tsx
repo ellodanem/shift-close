@@ -40,6 +40,13 @@ interface RosterEntry {
   notes?: string | null
 }
 
+interface PublicHolidayRow {
+  id: string
+  date: string
+  name: string
+  stationClosed: boolean
+}
+
 function getMonday(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay() || 7 // Sunday=0 → 7
@@ -147,6 +154,7 @@ export default function RosterPage() {
   const [showEditCurrentWeekModal, setShowEditCurrentWeekModal] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
+  const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -260,6 +268,16 @@ export default function RosterPage() {
   }, [weekStart])
 
   useEffect(() => {
+    const weekEnd = addDays(weekStart, 6)
+    void fetch(`/api/public-holidays?from=${weekStart}&to=${weekEnd}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: unknown) =>
+        setPublicHolidays(Array.isArray(data) ? (data as PublicHolidayRow[]) : [])
+      )
+      .catch(() => setPublicHolidays([]))
+  }, [weekStart])
+
+  useEffect(() => {
     if (!copyConfirmOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setCopyConfirmOpen(false)
@@ -346,6 +364,7 @@ export default function RosterPage() {
 
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     if (rosterCellsLocked) return
+    if (publicHolidays.some((h) => h.date === date && h.stationClosed)) return
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
       let next: RosterEntry[]
@@ -386,6 +405,7 @@ export default function RosterPage() {
       let next = [...prev]
       for (const date of weekDates) {
         if (staff && isOnVacation(staff, date)) continue
+        if (publicHolidays.some((h) => h.date === date && h.stationClosed)) continue
         const existing = next.find((e) => e.staffId === staffId && e.date === date)
         if (existing) {
           next = next.map((e) => (e === existing ? { ...e, shiftTemplateId } : e))
@@ -419,10 +439,11 @@ export default function RosterPage() {
       const entriesToSave = displayStaff.flatMap((s) =>
         weekDates.map((date) => {
           const entry = snapshot.find((e) => e.staffId === s.id && e.date === date)
+          const stationClosedDay = publicHolidays.some((h) => h.date === date && h.stationClosed)
           return {
             staffId: s.id,
             date,
-            shiftTemplateId: entry?.shiftTemplateId ?? null,
+            shiftTemplateId: stationClosedDay ? null : entry?.shiftTemplateId ?? null,
             position: entry?.position ?? null,
             notes: entry?.notes ?? ''
           }
@@ -506,13 +527,17 @@ export default function RosterPage() {
           }
         })
         .filter((e): e is NonNullable<typeof e> => e != null)
+      const newEntriesStripped = newEntries.map((e) => {
+        const closed = publicHolidays.some((h) => h.date === e.date && h.stationClosed)
+        return closed ? { ...e, shiftTemplateId: null } : e
+      })
       const saveRes = await fetch('/api/roster/weeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           weekStart,
           status: 'draft',
-          entries: newEntries
+          entries: newEntriesStripped
         })
       })
       if (!saveRes.ok) {
@@ -520,7 +545,7 @@ export default function RosterPage() {
         throw new Error(err.error || 'Failed to save roster')
       }
       setEntries(
-        newEntries.map((e) => ({
+        newEntriesStripped.map((e) => ({
           ...e,
           rosterWeekId: undefined,
           id: undefined
@@ -1270,17 +1295,35 @@ export default function RosterPage() {
                     <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${weekBannerStyle.text}`}>
                       Staff
                     </th>
-                    {weekDates.map((date, idx) => (
-                      <th
-                        key={date}
-                        className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${weekBannerStyle.text}`}
-                      >
-                        <div>{dayLabels[idx]}</div>
-                        <div className="text-[11px] opacity-80">
-                          {formatDisplayDate(date)}
-                        </div>
-                      </th>
-                    ))}
+                    {weekDates.map((date, idx) => {
+                      const ph = publicHolidays.find((h) => h.date === date)
+                      return (
+                        <th
+                          key={date}
+                          className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${
+                            ph?.stationClosed
+                              ? 'bg-amber-100/90 text-amber-950'
+                              : ph
+                                ? 'bg-indigo-50/90 text-indigo-950'
+                                : weekBannerStyle.text
+                          }`}
+                        >
+                          <div>{dayLabels[idx]}</div>
+                          <div className="text-[11px] opacity-80">
+                            {formatDisplayDate(date)}
+                          </div>
+                          {ph && (
+                            <div
+                              className={`text-[10px] mt-0.5 font-semibold normal-case leading-tight ${
+                                ph.stationClosed ? 'text-amber-900' : 'text-indigo-800'
+                              }`}
+                            >
+                              {ph.name}
+                            </div>
+                          )}
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1423,6 +1466,8 @@ export default function RosterPage() {
                       </td>
                       {weekDates.map((date) => {
                         const onVacation = isOnVacation(s, date)
+                        const ph = publicHolidays.find((h) => h.date === date)
+                        const stationClosedHoliday = ph?.stationClosed
                         const entry = getEntryFor(s.id, date)
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
@@ -1430,13 +1475,35 @@ export default function RosterPage() {
                           <td
                             key={date}
                             className="px-1 py-1 text-center align-middle"
-                            style={onVacation ? { backgroundColor: '#f3f4f6' } : bgColor ? { backgroundColor: bgColor } : undefined}
+                            style={
+                              onVacation
+                                ? { backgroundColor: '#f3f4f6' }
+                                : stationClosedHoliday
+                                  ? { backgroundColor: '#fff7ed' }
+                                  : bgColor
+                                    ? { backgroundColor: bgColor }
+                                    : undefined
+                            }
                           >
                             {onVacation ? (
                               <span className="text-xs font-medium text-gray-500">Vacation</span>
+                            ) : stationClosedHoliday ? (
+                              <div className="px-0.5 py-1">
+                                <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
+                                  Closed
+                                </div>
+                                <div className="text-[10px] text-amber-800 leading-tight mt-0.5">{ph?.name}</div>
+                              </div>
                             ) : rosterCellsLocked ? (
                               <span className="text-xs font-medium text-gray-700">
-                                {template?.name || 'Off'}
+                                {ph && !ph.stationClosed ? (
+                                  <>
+                                    <span className="block text-[9px] text-indigo-700 mb-0.5">{ph.name}</span>
+                                    {template?.name || 'Off'}
+                                  </>
+                                ) : (
+                                  template?.name || 'Off'
+                                )}
                               </span>
                             ) : (
                               <select

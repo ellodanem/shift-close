@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { canEditRoster } from '@/lib/roles'
+import { getStationClosedDates } from '@/lib/public-holidays'
 
 // Roster week API: load and save weekly assignments
 export const dynamic = 'force-dynamic'
@@ -69,6 +70,19 @@ export async function POST(request: NextRequest) {
     }
 
     const safeEntries = Array.isArray(entries) ? entries : []
+
+    const distinctDates = [...new Set(safeEntries.map((e) => e.date))]
+    const stationClosedDates = await getStationClosedDates(prisma, distinctDates)
+    for (const entry of safeEntries) {
+      if (entry.shiftTemplateId && stationClosedDates.has(entry.date)) {
+        return NextResponse.json(
+          {
+            error: `Cannot assign shifts on ${entry.date}: station is closed for this public holiday.`
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // Emulate upsert by weekStart (unique) using findFirst + update/create

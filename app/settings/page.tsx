@@ -47,6 +47,14 @@ export default function SettingsPage() {
       icon: '💰',
       route: '/settings/pay-days'
     },
+    {
+      id: 'public-holidays',
+      title: 'Public holidays',
+      description:
+        'St. Lucia public holiday dates for the roster. Mark which days the station is fully closed (no shifts).',
+      icon: '📅',
+      route: '/settings/public-holidays'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',
