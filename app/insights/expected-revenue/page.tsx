@@ -140,7 +140,11 @@ export default function ExpectedRevenuePage() {
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-900">Components</h2>
               <p className="text-xs text-gray-500 mb-3">
-                Same breakdown as the dashboard summary. Card/electronic is split into debit (system) and credit (other); together they match the combined card total.
+                Same breakdown as the dashboard summary.{' '}
+                <span className="text-gray-600">
+                  Debit (system) is the POS system debit total. Credit (other) is the Other Items credit amount, separate from the
+                  main Credits row on the close form.
+                </span>
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[16rem] text-sm">
@@ -157,14 +161,20 @@ export default function ExpectedRevenuePage() {
                       </td>
                     </tr>
                     <tr className="border-b border-gray-100">
-                      <td className="py-2.5 pr-8 pl-3 text-gray-600">Debit (system)</td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                      <td className="py-2.5 pr-8 pl-1 text-gray-900 font-medium">Total</td>
+                      <td className="py-2.5 text-right font-semibold tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalDebitAndCredit)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 pr-8 pl-4 text-xs text-gray-600">Debit (system)</td>
+                      <td className="py-2 text-right text-xs font-medium tabular-nums text-gray-800 whitespace-nowrap">
                         ${formatMoney(data.totalDebit)}
                       </td>
                     </tr>
                     <tr className="border-b border-gray-100">
-                      <td className="py-2.5 pr-8 pl-3 text-gray-600">Credit (other)</td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                      <td className="py-2 pr-8 pl-4 text-xs text-gray-600">Credit (other)</td>
+                      <td className="py-2 text-right text-xs font-medium tabular-nums text-gray-800 whitespace-nowrap">
                         ${formatMoney(data.totalCredit)}
                       </td>
                     </tr>
