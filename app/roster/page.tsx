@@ -442,7 +442,8 @@ export default function RosterPage() {
         throw new Error(err.error || 'Failed to save roster')
       }
       setWeekPersisted(true)
-      setEditUnlocked(false)
+      // Stay in edit mode until "Lock roster" or changing weeks — do not lock after each auto-save.
+      setEditUnlocked(true)
     } catch (err) {
       console.error('Error saving roster', err)
       setError(err instanceof Error ? err.message : 'Failed to save roster')
@@ -526,7 +527,7 @@ export default function RosterPage() {
         }))
       )
       setWeekPersisted(true)
-      setEditUnlocked(false)
+      setEditUnlocked(true)
       alert(`Copied ${newEntries.length} shift(s) from previous week.`)
     } catch (err) {
       console.error('Error copying previous week', err)
@@ -563,7 +564,7 @@ export default function RosterPage() {
         throw new Error(err.error || 'Failed to clear roster')
       }
       setEntries([])
-      setEditUnlocked(false)
+      setEditUnlocked(true)
     } catch (err) {
       console.error('Error clearing week', err)
       setError(err instanceof Error ? err.message : 'Failed to clear week')
