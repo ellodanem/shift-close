@@ -89,6 +89,11 @@ export default function AttendancePage() {
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
 
+  /** Expected punches per calendar day for irregularity checks (saved server-side; default 4). */
+  const [expectedPunchesPerDay, setExpectedPunchesPerDay] = useState(4)
+  const [expectedPunchesSaving, setExpectedPunchesSaving] = useState(false)
+  const [expectedPunchesMessage, setExpectedPunchesMessage] = useState<string | null>(null)
+
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null)
   const [editPunchLocal, setEditPunchLocal] = useState('')
   const [editPunchType, setEditPunchType] = useState<'in' | 'out'>('in')
@@ -164,6 +169,47 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchLogs()
   }, [fetchLogs])
+
+  useEffect(() => {
+    const loadExpectedPunches = async () => {
+      try {
+        const res = await fetch('/api/attendance/settings', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as { expectedPunchesPerDay?: number }
+        if (typeof data.expectedPunchesPerDay === 'number' && data.expectedPunchesPerDay >= 1) {
+          setExpectedPunchesPerDay(data.expectedPunchesPerDay)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void loadExpectedPunches()
+  }, [])
+
+  const saveExpectedPunches = async () => {
+    setExpectedPunchesSaving(true)
+    setExpectedPunchesMessage(null)
+    try {
+      const res = await fetch('/api/attendance/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedPunchesPerDay })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
+      }
+      if (typeof data.expectedPunchesPerDay === 'number') {
+        setExpectedPunchesPerDay(data.expectedPunchesPerDay)
+      }
+      setExpectedPunchesMessage('Saved. Logs refreshed.')
+      await fetchLogs()
+    } catch (e) {
+      setExpectedPunchesMessage(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setExpectedPunchesSaving(false)
+    }
+  }
 
   useEffect(() => {
     const loadStaff = async () => {
@@ -557,6 +603,51 @@ export default function AttendancePage() {
               )}
             </div>
 
+            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label htmlFor="expected-punches-per-day" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                    Expected punches per day
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      id="expected-punches-per-day"
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={expectedPunchesPerDay}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10)
+                        if (!Number.isFinite(v)) return
+                        setExpectedPunchesPerDay(Math.min(24, Math.max(1, v)))
+                      }}
+                      className="w-16 rounded border border-gray-300 px-2 py-1.5 text-sm tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveExpectedPunches()}
+                      disabled={expectedPunchesSaving}
+                      className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {expectedPunchesSaving ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 max-w-xl pb-0.5">
+                  Default <span className="font-medium text-gray-800">4</span> matches a standard full day (two in/out pairs). Irregular
+                  highlights rows when in/out pairing is wrong <span className="text-gray-500">or</span> the punch count for that staff on
+                  that calendar day isn&apos;t this number. Part-time and short shifts can be handled later.
+                </p>
+              </div>
+              {expectedPunchesMessage && (
+                <p
+                  className={`mt-2 text-xs ${expectedPunchesMessage.startsWith('Saved') ? 'text-emerald-700' : 'text-red-700'}`}
+                >
+                  {expectedPunchesMessage}
+                </p>
+              )}
+            </div>
+
             <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 mb-4">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
                 Staff
@@ -570,7 +661,7 @@ export default function AttendancePage() {
                     title={
                       allTabOk
                         ? 'No irregular punches in this date range'
-                        : 'At least one irregular punch in this range — review or correct rows'
+                        : 'At least one irregular punch (pairing or punch count vs expected per day) — review rows'
                     }
                     className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium leading-tight transition-colors ${
                       staffFilter === ''
@@ -588,8 +679,8 @@ export default function AttendancePage() {
                     const hasIssue = staffTabHasIssue.get(s.id) ?? false
                     const selected = staffFilter === s.id
                     const statusHint = hasIssue
-                      ? 'Has irregular punches in this range — review or correct'
-                      : 'In/out pairing looks complete for this range'
+                      ? 'Has irregular punches in this range (pairing or count) — review or correct'
+                      : 'Pairing and punch count look OK for this range'
                     return (
                       <button
                         key={s.id}
@@ -653,7 +744,10 @@ export default function AttendancePage() {
                         <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${log.hasIrregularity ? 'bg-red-50/50' : ''}`}>
                           <td className="px-3 py-2">
                             {log.hasIrregularity ? (
-                              <span className="inline-block w-4 h-4 bg-red-500 rounded-sm shrink-0" title={log.punchType === 'in' ? 'Clock-in without matching clock-out' : 'Clock-out without matching clock-in'} />
+                              <span
+                                className="inline-block w-4 h-4 bg-red-500 rounded-sm shrink-0"
+                                title="Irregular: unmatched in/out sequence and/or punch count for this day differs from expected"
+                              />
                             ) : (
                               <span className="inline-block w-4 h-4 bg-green-500 rounded-sm shrink-0 opacity-60" title="OK" />
                             )}

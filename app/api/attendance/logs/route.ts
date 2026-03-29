@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
+import { computeAttendanceIrregularityIds, parseExpectedPunchesPerDay } from '@/lib/attendance-irregularity'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...
- * Returns attendance logs with staff info, plus irregularity flags (sequential In/Out pairing).
+ * Returns attendance logs with staff info, plus irregularity flags (In/Out pairing and expected punches per day).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -119,43 +120,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const logs = await prisma.attendanceLog.findMany({
-      where,
-      include: { staff: { select: { id: true, name: true } } },
-      orderBy: { punchTime: 'asc' }
-    })
+    const [logs, settingRow] = await Promise.all([
+      prisma.attendanceLog.findMany({
+        where,
+        include: { staff: { select: { id: true, name: true } } },
+        orderBy: { punchTime: 'asc' }
+      }),
+      prisma.appSettings.findUnique({
+        where: { key: 'attendance_expected_punches_per_day' }
+      })
+    ])
 
-    // Irregularities: sequential In/Out pairing per staff per calendar day.
-    // Each Out closes the most recent unmatched In; an Out with none open is irregular.
-    // Any In still unmatched after the last punch is irregular (no closing Out).
-    const byStaffDate = new Map<string, Array<{ id: string; punchTime: Date; punchType: string }>>()
-    for (const log of logs) {
-      const key = `${log.staffId || log.deviceUserId}|${log.punchTime.toISOString().slice(0, 10)}`
-      if (!byStaffDate.has(key)) byStaffDate.set(key, [])
-      byStaffDate.get(key)!.push({
+    const expectedPunchesPerDay = parseExpectedPunchesPerDay(settingRow?.value)
+    const irregularityIds = computeAttendanceIrregularityIds(
+      logs.map((log) => ({
         id: log.id,
+        staffId: log.staffId,
+        deviceUserId: log.deviceUserId,
         punchTime: log.punchTime,
         punchType: log.punchType
-      })
-    }
-
-    const irregularityIds = new Set<string>()
-    for (const arr of byStaffDate.values()) {
-      arr.sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
-      const openInIds: string[] = []
-      for (const p of arr) {
-        if (p.punchType === 'in') {
-          openInIds.push(p.id)
-        } else if (openInIds.length === 0) {
-          irregularityIds.add(p.id)
-        } else {
-          openInIds.pop()
-        }
-      }
-      for (const id of openInIds) {
-        irregularityIds.add(id)
-      }
-    }
+      })),
+      expectedPunchesPerDay
+    )
 
     const logsWithIrregularity = logs.map((log) => ({
       ...log,
