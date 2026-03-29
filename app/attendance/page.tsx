@@ -28,6 +28,18 @@ interface Staff {
   status?: string
 }
 
+function punchStatusForRow(l: AttendanceLog): PunchDayStatus {
+  return l.punchDayStatus ?? (l.hasIrregularity ? 'irregular' : 'full')
+}
+
+/** Staff filter pill: red = any irregular; blue = no irregular but ≥1 short shift; green = all full days. */
+function staffPillIndicator(logsForScope: AttendanceLog[]): 'red' | 'blue' | 'green' {
+  if (logsForScope.length === 0) return 'green'
+  if (logsForScope.some((l) => punchStatusForRow(l) === 'irregular')) return 'red'
+  if (logsForScope.some((l) => punchStatusForRow(l) === 'short_ok')) return 'blue'
+  return 'green'
+}
+
 /** Match API + device-only rows (before staff_id was linked). */
 function logBelongsToStaff(log: AttendanceLog, staff: Pick<Staff, 'id' | 'deviceUserId'>): boolean {
   if (log.staffId === staff.id) return true
@@ -231,13 +243,12 @@ export default function AttendancePage() {
     return logs.filter((log) => logBelongsToStaff(log, s))
   }, [logs, staffFilter, staffWithDevice])
 
-  /** Per-tab health: green = no red (irregular) rows; blue short shifts do not flag the tab. */
-  const allTabOk = useMemo(() => !logs.some((l) => l.hasIrregularity), [logs])
-  const staffTabHasIssue = useMemo(() => {
-    const m = new Map<string, boolean>()
+  const allTabPill = useMemo(() => staffPillIndicator(logs), [logs])
+  const staffTabPill = useMemo(() => {
+    const m = new Map<string, 'red' | 'blue' | 'green'>()
     for (const s of activeStaffWithDevice) {
       const theirs = logs.filter((log) => logBelongsToStaff(log, s))
-      m.set(s.id, theirs.some((l) => l.hasIrregularity))
+      m.set(s.id, staffPillIndicator(theirs))
     }
     return m
   }, [logs, activeStaffWithDevice])
@@ -588,6 +599,10 @@ export default function AttendancePage() {
                 <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-red-500" aria-hidden />
                 Irregular
               </span>
+              <span className="text-gray-500 hidden sm:inline">·</span>
+              <span className="text-gray-500 max-w-[28rem]">
+                Staff pills use the same colors: blue means possible missing punches (short shifts in range), not an error.
+              </span>
             </p>
 
             <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 mb-4">
@@ -601,9 +616,11 @@ export default function AttendancePage() {
                     type="button"
                     onClick={() => setStaffFilter('')}
                     title={
-                      allTabOk
-                        ? 'No irregular (red) punches in this date range'
-                        : 'At least one irregular punch — review rows (green = full day count, blue = short valid pair)'
+                      allTabPill === 'red'
+                        ? 'At least one irregular (red) row in this range'
+                        : allTabPill === 'blue'
+                          ? 'No irregular rows; at least one short shift (blue) — may be missing punches'
+                          : 'All rows are full days (green) in this range'
                     }
                     className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium leading-tight transition-colors ${
                       staffFilter === ''
@@ -613,16 +630,21 @@ export default function AttendancePage() {
                   >
                     All
                     <span
-                      className={`inline-block w-2 h-2 rounded-[2px] shrink-0 ${allTabOk ? 'bg-emerald-500' : 'bg-red-500'}`}
+                      className={`inline-block w-2 h-2 rounded-[2px] shrink-0 ${
+                        allTabPill === 'red' ? 'bg-red-500' : allTabPill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
+                      }`}
                       aria-hidden
                     />
                   </button>
                   {activeStaffWithDevice.map((s) => {
-                    const hasIssue = staffTabHasIssue.get(s.id) ?? false
+                    const pill = staffTabPill.get(s.id) ?? 'green'
                     const selected = staffFilter === s.id
-                    const statusHint = hasIssue
-                      ? 'Has irregular (red) punches — review or correct'
-                      : 'No irregular punches; blue = short shift with valid in/out pair'
+                    const statusHint =
+                      pill === 'red'
+                        ? 'Has irregular (red) rows — review'
+                        : pill === 'blue'
+                          ? 'Short shifts (blue) and/or full days — may be missing punches'
+                          : 'All full days (green) in this range'
                     return (
                       <button
                         key={s.id}
@@ -637,7 +659,9 @@ export default function AttendancePage() {
                       >
                         <span className="min-w-0 flex-1 truncate text-left">{s.name}</span>
                         <span
-                          className={`inline-block w-2 h-2 shrink-0 rounded-[2px] ${hasIssue ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          className={`inline-block w-2 h-2 shrink-0 rounded-[2px] ${
+                            pill === 'red' ? 'bg-red-500' : pill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
+                          }`}
                           aria-hidden
                         />
                       </button>
