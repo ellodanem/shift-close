@@ -139,33 +139,50 @@ export default function ExpectedRevenuePage() {
 
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-900">Components</h2>
-              <p className="text-xs text-gray-500 mb-3">Same breakdown as the dashboard summary.</p>
-              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Total deposits</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalDeposits)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Debit &amp; credit</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalDebitAndCredit)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Debit (system)</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalDebit)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Credit (other)</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalCredit)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Fleet</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalFleet)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 py-2">
-                  <dt className="text-gray-600">Vouchers / coupons</dt>
-                  <dd className="font-medium tabular-nums text-gray-900">${formatMoney(data.totalVouchers)}</dd>
-                </div>
-              </dl>
+              <p className="text-xs text-gray-500 mb-3">
+                Same breakdown as the dashboard summary. Card/electronic is split into debit (system) and credit (other); together they match the combined card total.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[16rem] text-sm">
+                  <tbody>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 text-gray-600">Total deposits</td>
+                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalDeposits)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 pt-3 text-xs font-medium uppercase tracking-wide text-gray-500" colSpan={2}>
+                        Card / electronic
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 pl-3 text-gray-600">Debit (system)</td>
+                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalDebit)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 pl-3 text-gray-600">Credit (other)</td>
+                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalCredit)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 text-gray-600">Fleet</td>
+                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalFleet)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2.5 pr-8 text-gray-600">Vouchers / coupons</td>
+                      <td className="py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap">
+                        ${formatMoney(data.totalVouchers)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {data.byDay.length > 0 && (
