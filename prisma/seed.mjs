@@ -31,13 +31,12 @@ async function main() {
 
   await prisma.appUser.upsert({
     where: { username: 'delcock' },
+    // Do not set role on update — otherwise every `db seed` resets production/staging roles to stakeholder.
     update: {
       email: 'dane.elrus1@gmail.com',
       firstName: 'Dane',
       lastName: 'Elcock',
-      passwordHash: h2,
-      role: 'stakeholder',
-      isSuperAdmin: false
+      passwordHash: h2
     },
     create: {
       username: 'delcock',
@@ -50,7 +49,7 @@ async function main() {
     }
   })
 
-  console.log('Seeded app users: sadmin (super admin), delcock (stakeholder)')
+  console.log('Seeded app users: sadmin (super admin), delcock (create-only role: stakeholder)')
 
   /** 2026 St. Lucia public holidays — stationClosed = fully closed (no shifts). Toggle others in Settings → Public holidays. */
   const holidays2026 = [
