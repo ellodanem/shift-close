@@ -96,6 +96,109 @@ function nowDatetimeLocalValue(): string {
   return toDatetimeLocalValue(new Date().toISOString())
 }
 
+function parseDatetimeLocalParts(value: string): { date: string; hour: number; minute: number } | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(value.trim())
+  if (!m) return null
+  return { date: m[1], hour: parseInt(m[2], 10), minute: parseInt(m[3], 10) }
+}
+
+function buildDatetimeLocal(date: string, hour: number, minute: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const h = ((hour % 24) + 24) % 24
+  const min = ((minute % 60) + 60) % 60
+  return `${date}T${pad(h)}:${pad(min)}`
+}
+
+function TimeColumnStepper({
+  label,
+  value,
+  onIncrement,
+  onDecrement,
+  disabled,
+}: {
+  label: string
+  value: number
+  onIncrement: () => void
+  onDecrement: () => void
+  disabled?: boolean
+}) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const btn =
+    'flex h-7 w-9 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none'
+  return (
+    <div className="flex flex-col items-center gap-0.5" role="group" aria-label={label}>
+      <button type="button" className={btn} onClick={onIncrement} disabled={disabled} aria-label={`${label} increase`}>
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+      <span className="min-w-[2.25rem] text-center font-mono text-lg tabular-nums text-gray-900">{pad(value)}</span>
+      <button type="button" className={btn} onClick={onDecrement} disabled={disabled} aria-label={`${label} decrease`}>
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+/** Date + time with arrow steppers (avoids OS scroll-wheel time pickers on datetime-local). */
+function LocalDateTimePicker({
+  idPrefix,
+  value,
+  onChange,
+  disabled,
+}: {
+  idPrefix: string
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const fallback = nowDatetimeLocalValue()
+  const parsed = parseDatetimeLocalParts(value) ?? parseDatetimeLocalParts(fallback) ?? {
+    date: fallback.slice(0, 10),
+    hour: 12,
+    minute: 0,
+  }
+  const { date, hour, minute } = parsed
+
+  const apply = (next: Partial<{ date: string; hour: number; minute: number }>) => {
+    onChange(buildDatetimeLocal(next.date ?? date, next.hour ?? hour, next.minute ?? minute))
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        id={`${idPrefix}-date`}
+        type="date"
+        value={date}
+        onChange={(e) => apply({ date: e.target.value })}
+        disabled={disabled}
+        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+      />
+      <div className="flex items-center justify-center gap-2 sm:gap-4 pt-1">
+        <TimeColumnStepper
+          label="Hour"
+          value={hour}
+          disabled={disabled}
+          onIncrement={() => apply({ hour: hour + 1 })}
+          onDecrement={() => apply({ hour: hour - 1 })}
+        />
+        <span className="text-2xl font-light text-gray-400 select-none" aria-hidden>
+          :
+        </span>
+        <TimeColumnStepper
+          label="Minute"
+          value={minute}
+          disabled={disabled}
+          onIncrement={() => apply({ minute: minute + 1 })}
+          onDecrement={() => apply({ minute: minute - 1 })}
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<Tab>('logs')
 
@@ -895,12 +998,14 @@ export default function AttendancePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date and time</label>
-                      <input
-                        type="datetime-local"
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="add-punch-date">
+                        Date and time
+                      </label>
+                      <LocalDateTimePicker
+                        idPrefix="add-punch"
                         value={addPunchLocal}
-                        onChange={(e) => setAddPunchLocal(e.target.value)}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        onChange={setAddPunchLocal}
+                        disabled={addSaving}
                       />
                     </div>
                     <div>
@@ -955,12 +1060,14 @@ export default function AttendancePage() {
                   )}
                   <div className="space-y-3 mb-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date and time</label>
-                      <input
-                        type="datetime-local"
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="edit-punch-date">
+                        Date and time
+                      </label>
+                      <LocalDateTimePicker
+                        idPrefix="edit-punch"
                         value={editPunchLocal}
-                        onChange={(e) => setEditPunchLocal(e.target.value)}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        onChange={setEditPunchLocal}
+                        disabled={editSaving}
                       />
                     </div>
                     <div>
