@@ -613,123 +613,14 @@ export default function AttendancePage() {
               </span>
             </p>
 
-            <div className="bg-white rounded-lg border border-gray-200 px-3 py-3 mb-4">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                Staff
-              </div>
-              {activeStaffWithDevice.length === 0 ? (
-                <p className="text-xs text-gray-500">
-                  Map active staff to device users on Device Management to enable quick filters.
-                </p>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStaffFilter('')
-                        setStaffSearch('')
-                      }}
-                      title={
-                        allTabPill === 'red'
-                          ? 'At least one irregular (red) row in this range'
-                          : allTabPill === 'blue'
-                            ? 'No irregular rows; at least one short shift (blue) — may be missing punches'
-                            : 'All rows are full days (green) in this range'
-                      }
-                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                        staffFilter === ''
-                          ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
-                          : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      All
-                      <span
-                        className={`inline-block h-2.5 w-2.5 rounded-[2px] shrink-0 ${
-                          allTabPill === 'red' ? 'bg-red-500' : allTabPill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
-                        }`}
-                        aria-hidden
-                      />
-                    </button>
-                    <label className="sr-only" htmlFor="staff-search">
-                      Search staff by name
-                    </label>
-                    <input
-                      id="staff-search"
-                      type="search"
-                      value={staffSearch}
-                      onChange={(e) => setStaffSearch(e.target.value)}
-                      placeholder="Search staff by name…"
-                      autoComplete="off"
-                      className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:min-w-[14rem]"
-                    />
-                  </div>
-                  {staffFilter && (
-                    <p className="mt-2 text-xs text-gray-600">
-                      Showing logs for{' '}
-                      <span className="font-semibold text-gray-900">
-                        {staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'Staff'}
-                      </span>
-                      .{' '}
-                      <button
-                        type="button"
-                        onClick={() => setStaffFilter('')}
-                        className="font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        Show all
-                      </button>
-                    </p>
-                  )}
-                  <div
-                    className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/80 scrollbar-subtle"
-                    role="listbox"
-                    aria-label="Filter by staff member"
-                  >
-                    {staffListFiltered.length === 0 ? (
-                      <p className="px-3 py-4 text-center text-sm text-gray-500">No staff match your search.</p>
-                    ) : (
-                      staffListFiltered.map((s) => {
-                        const pill = staffTabPill.get(s.id) ?? 'green'
-                        const selected = staffFilter === s.id
-                        const statusHint =
-                          pill === 'red'
-                            ? 'Has irregular (red) rows — review'
-                            : pill === 'blue'
-                              ? 'Short shifts (blue) and/or full days — may be missing punches'
-                              : 'All full days (green) in this range'
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            role="option"
-                            aria-selected={selected}
-                            onClick={() => setStaffFilter(s.id)}
-                            title={`${s.name} — ${statusHint}`}
-                            className={`flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2.5 text-left text-sm last:border-b-0 hover:bg-white ${
-                              selected ? 'bg-blue-50 font-medium text-blue-900' : 'text-gray-900'
-                            }`}
-                          >
-                            <span className="min-w-0 break-words">{s.name}</span>
-                            <span
-                              className={`h-2.5 w-2.5 shrink-0 rounded-[2px] ${
-                                pill === 'red' ? 'bg-red-500' : pill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
-                              }`}
-                              aria-hidden
-                            />
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Main (~80%) + staff rail (~20%) on lg; stacked on small (staff above table via flex-col-reverse). */}
+            <div className="mb-4 flex flex-col-reverse gap-4 lg:flex-row lg:items-start lg:gap-4">
+              <div className="min-w-0 flex-1 space-y-4 lg:flex-[4]">
+                {error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 whitespace-pre-line">{error}</div>
+                )}
 
-            {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 whitespace-pre-line">{error}</div>
-            )}
-
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-100">
@@ -816,6 +707,125 @@ export default function AttendancePage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+              </div>
+
+              <aside
+                className="w-full shrink-0 lg:flex-[1] lg:min-w-[16rem] lg:max-w-sm lg:sticky lg:top-4 lg:self-start"
+                aria-label="Filter logs by staff"
+              >
+                <div className="rounded-lg border border-gray-200 bg-white px-3 py-3 shadow-sm">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                    Staff
+                  </div>
+                  {activeStaffWithDevice.length === 0 ? (
+                    <p className="text-xs text-gray-500">
+                      Map active staff to device users on Device Management to enable quick filters.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffFilter('')
+                            setStaffSearch('')
+                          }}
+                          title={
+                            allTabPill === 'red'
+                              ? 'At least one irregular (red) row in this range'
+                              : allTabPill === 'blue'
+                                ? 'No irregular rows; at least one short shift (blue) — may be missing punches'
+                                : 'All rows are full days (green) in this range'
+                          }
+                          className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                            staffFilter === ''
+                              ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                              : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          All
+                          <span
+                            className={`inline-block h-2.5 w-2.5 rounded-[2px] shrink-0 ${
+                              allTabPill === 'red' ? 'bg-red-500' : allTabPill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
+                            }`}
+                            aria-hidden
+                          />
+                        </button>
+                        <label className="sr-only" htmlFor="staff-search">
+                          Search staff by name
+                        </label>
+                        <input
+                          id="staff-search"
+                          type="search"
+                          value={staffSearch}
+                          onChange={(e) => setStaffSearch(e.target.value)}
+                          placeholder="Search staff by name…"
+                          autoComplete="off"
+                          className="min-w-0 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      </div>
+                      {staffFilter && (
+                        <p className="mt-2 text-xs text-gray-600">
+                          Showing logs for{' '}
+                          <span className="font-semibold text-gray-900">
+                            {staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'Staff'}
+                          </span>
+                          .{' '}
+                          <button
+                            type="button"
+                            onClick={() => setStaffFilter('')}
+                            className="font-medium text-blue-600 hover:text-blue-800"
+                          >
+                            Show all
+                          </button>
+                        </p>
+                      )}
+                      <div
+                        className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/80 scrollbar-subtle lg:max-h-[min(32rem,calc(100vh-11rem))]"
+                        role="listbox"
+                        aria-label="Filter by staff member"
+                      >
+                        {staffListFiltered.length === 0 ? (
+                          <p className="px-3 py-4 text-center text-sm text-gray-500">No staff match your search.</p>
+                        ) : (
+                          staffListFiltered.map((s) => {
+                            const pill = staffTabPill.get(s.id) ?? 'green'
+                            const selected = staffFilter === s.id
+                            const statusHint =
+                              pill === 'red'
+                                ? 'Has irregular (red) rows — review'
+                                : pill === 'blue'
+                                  ? 'Short shifts (blue) and/or full days — may be missing punches'
+                                  : 'All full days (green) in this range'
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                onClick={() => setStaffFilter(s.id)}
+                                title={`${s.name} — ${statusHint}`}
+                                className={`flex w-full items-center justify-between gap-2 border-b border-gray-100 px-2 py-2 text-left text-sm last:border-b-0 hover:bg-white ${
+                                  selected ? 'bg-blue-50 font-medium text-blue-900' : 'text-gray-900'
+                                }`}
+                              >
+                                <span className="min-w-0 break-words">{s.name}</span>
+                                <span
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-[2px] ${
+                                    pill === 'red' ? 'bg-red-500' : pill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
+                                  }`}
+                                  aria-hidden
+                                />
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </aside>
             </div>
 
             {showAddPunch && (
