@@ -85,6 +85,50 @@ function formatDateDisplay(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** Sum of paired in→out segments (chronological stack; same idea as valid pairing). Unpaired punches add no time. */
+function workedMsFromPunchLogs(logs: AttendanceLog[]): number {
+  const sorted = [...logs].sort(
+    (a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime()
+  )
+  const openInTimes: number[] = []
+  let ms = 0
+  for (const p of sorted) {
+    const ty = String(p.punchType ?? '').toLowerCase().trim()
+    const t = new Date(p.punchTime).getTime()
+    if (ty === 'in') {
+      openInTimes.push(t)
+    } else if (ty === 'out') {
+      if (openInTimes.length > 0) {
+        const tIn = openInTimes.pop()!
+        ms += Math.max(0, t - tIn)
+      }
+    }
+  }
+  return ms
+}
+
+/** For “all staff”: sum each device user’s paired hours, then total. */
+function totalWorkedMsAllStaff(logs: AttendanceLog[]): number {
+  const byDevice = new Map<string, AttendanceLog[]>()
+  for (const l of logs) {
+    const id = String(l.deviceUserId ?? '').trim() || 'unknown'
+    if (!byDevice.has(id)) byDevice.set(id, [])
+    byDevice.get(id)!.push(l)
+  }
+  let total = 0
+  for (const arr of byDevice.values()) {
+    total += workedMsFromPunchLogs(arr)
+  }
+  return total
+}
+
+function formatWorkedDuration(ms: number): string {
+  const totalMin = Math.max(0, Math.round(ms / 60000))
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return `${h}h ${m}m`
+}
+
 /** For `<input type="datetime-local" />` (local wall time). */
 function toDatetimeLocalValue(iso: string): string {
   const d = new Date(iso)
@@ -600,6 +644,30 @@ export default function AttendancePage() {
     [logs, punchDayStatusById]
   )
 
+  const hoursInRangeSummary = useMemo(() => {
+    const title =
+      'Sum of in→out durations from paired punches in this view (chronological order). Unpaired ins/outs add no time.'
+    if (loading) {
+      return { display: '—' as const, caption: 'Hours in range', title }
+    }
+    if (displayedLogs.length === 0) {
+      return {
+        display: formatWorkedDuration(0),
+        caption: staffFilter
+          ? `Hours — ${staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'staff'}`
+          : 'Total hours — all staff',
+        title,
+      }
+    }
+    const ms = staffFilter ? workedMsFromPunchLogs(displayedLogs) : totalWorkedMsAllStaff(displayedLogs)
+    const name = staffWithDevice.find((x) => x.id === staffFilter)?.name
+    return {
+      display: formatWorkedDuration(ms),
+      caption: staffFilter ? `Hours — ${name ?? 'staff'}` : 'Total hours — all staff',
+      title,
+    }
+  }, [displayedLogs, staffFilter, staffWithDevice, loading])
+
   /** URL shown for ZKTeco ADMS — saved canonical URL, else current browser origin. */
   const admsBaseUrl = useMemo(() => {
     const saved = deviceSettings.public_app_url?.trim()
@@ -763,6 +831,19 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-100">
+                    <tr className="border-b border-gray-200 bg-slate-50">
+                      <td colSpan={6} className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                        {hoursInRangeSummary.caption}
+                      </td>
+                      <td className="px-3 py-2 text-right align-bottom">
+                        <span
+                          className="inline-block rounded-md border border-gray-200 bg-white px-2.5 py-1 text-sm font-semibold tabular-nums text-gray-900 shadow-sm"
+                          title={hoursInRangeSummary.title}
+                        >
+                          {hoursInRangeSummary.display}
+                        </span>
+                      </td>
+                    </tr>
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12" title="Green full day / blue possible missed / red irregular">
                         Status
