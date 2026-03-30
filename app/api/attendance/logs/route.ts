@@ -1,6 +1,5 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeAttendancePunchDayStatuses, parseExpectedPunchesPerDay } from '@/lib/attendance-irregularity'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -85,7 +84,8 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...
- * Returns attendance logs with staff info, plus punchDayStatus: full | short_ok | irregular (and hasIrregularity = irregular).
+ * Raw logs from DB. The Attendance Logs UI computes green/blue/red from expected punches + local calendar day
+ * (same “day” as the Date column). No timezone setting yet.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -120,39 +120,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const [logs, settingRow] = await Promise.all([
-      prisma.attendanceLog.findMany({
-        where,
-        include: { staff: { select: { id: true, name: true } } },
-        orderBy: { punchTime: 'asc' }
-      }),
-      prisma.appSettings.findUnique({
-        where: { key: 'attendance_expected_punches_per_day' }
-      })
-    ])
-
-    const expectedPunchesPerDay = parseExpectedPunchesPerDay(settingRow?.value)
-    const statusById = computeAttendancePunchDayStatuses(
-      logs.map((log) => ({
-        id: log.id,
-        staffId: log.staffId,
-        deviceUserId: log.deviceUserId,
-        punchTime: log.punchTime,
-        punchType: log.punchType
-      })),
-      expectedPunchesPerDay
-    )
-
-    const logsWithIrregularity = logs.map((log) => {
-      const punchDayStatus = statusById.get(log.id) ?? 'irregular'
-      return {
-        ...log,
-        punchDayStatus,
-        hasIrregularity: punchDayStatus === 'irregular'
-      }
+    const logs = await prisma.attendanceLog.findMany({
+      where,
+      include: { staff: { select: { id: true, name: true } } },
+      orderBy: { punchTime: 'asc' }
     })
 
-    return NextResponse.json(logsWithIrregularity)
+    return NextResponse.json(logs)
   } catch (error) {
     console.error('Error fetching attendance logs:', error)
     return NextResponse.json({ error: 'Failed to fetch attendance logs' }, { status: 500 })

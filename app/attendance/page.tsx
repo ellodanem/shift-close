@@ -3,6 +3,11 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { normalizePublicAppUrl } from '@/lib/public-url'
+import {
+  computeAttendancePunchDayStatuses,
+  localCalendarDayKey,
+  parseExpectedPunchesPerDay
+} from '@/lib/attendance-irregularity'
 
 type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
 
@@ -17,7 +22,8 @@ interface AttendanceLog {
   correctedAt?: string | null
   /** full = green, short_ok = blue (2 valid pairs when expecting more), irregular = red */
   punchDayStatus?: PunchDayStatus
-  hasIrregularity: boolean
+  /** Not sent by API; UI derives status from punches + settings. */
+  hasIrregularity?: boolean
   staff: { id: string; name: string } | null
 }
 
@@ -28,15 +34,15 @@ interface Staff {
   status?: string
 }
 
-function punchStatusForRow(l: AttendanceLog): PunchDayStatus {
-  return l.punchDayStatus ?? (l.hasIrregularity ? 'irregular' : 'full')
-}
-
 /** Staff filter pill: red = any irregular; blue = no irregular but ≥1 short shift; green = all full days. */
-function staffPillIndicator(logsForScope: AttendanceLog[]): 'red' | 'blue' | 'green' {
+function staffPillIndicator(
+  logsForScope: AttendanceLog[],
+  punchDayStatusById: Map<string, PunchDayStatus>
+): 'red' | 'blue' | 'green' {
   if (logsForScope.length === 0) return 'green'
-  if (logsForScope.some((l) => punchStatusForRow(l) === 'irregular')) return 'red'
-  if (logsForScope.some((l) => punchStatusForRow(l) === 'short_ok')) return 'blue'
+  const st = (l: AttendanceLog) => punchDayStatusById.get(l.id) ?? 'irregular'
+  if (logsForScope.some((l) => st(l) === 'irregular')) return 'red'
+  if (logsForScope.some((l) => st(l) === 'short_ok')) return 'blue'
   return 'green'
 }
 
@@ -107,6 +113,7 @@ export default function AttendancePage() {
   const [staffFilter, setStaffFilter] = useState<string>('')
   /** Narrows the staff list below (name substring, case-insensitive). */
   const [staffSearch, setStaffSearch] = useState('')
+  const [expectedPunchesPerDay, setExpectedPunchesPerDay] = useState(4)
 
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null)
   const [editPunchLocal, setEditPunchLocal] = useState('')
@@ -169,10 +176,19 @@ export default function AttendancePage() {
     setError(null)
     try {
       const params = new URLSearchParams({ startDate, endDate })
-      const res = await fetch(`/api/attendance/logs?${params}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('Failed to load logs')
-      const data: AttendanceLog[] = await res.json()
+      const [logsRes, settingsRes] = await Promise.all([
+        fetch(`/api/attendance/logs?${params}`, { cache: 'no-store' }),
+        fetch('/api/attendance/settings', { cache: 'no-store' })
+      ])
+      if (!logsRes.ok) throw new Error('Failed to load logs')
+      const data: AttendanceLog[] = await logsRes.json()
       setLogs(data)
+      if (settingsRes.ok) {
+        const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
+        if (typeof s.expectedPunchesPerDay === 'number') {
+          setExpectedPunchesPerDay(parseExpectedPunchesPerDay(String(s.expectedPunchesPerDay)))
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
@@ -251,15 +267,27 @@ export default function AttendancePage() {
     return activeStaffWithDevice.filter((s) => s.name.toLowerCase().includes(q))
   }, [activeStaffWithDevice, staffSearch])
 
-  const allTabPill = useMemo(() => staffPillIndicator(logs), [logs])
+  /** Same “day” as the Date column: local calendar date; matches expected punches setting. */
+  const punchDayStatusById = useMemo(() => {
+    const punches = logs.map((l) => ({
+      id: l.id,
+      staffId: l.staffId,
+      deviceUserId: l.deviceUserId,
+      punchTime: new Date(l.punchTime),
+      punchType: l.punchType
+    }))
+    return computeAttendancePunchDayStatuses(punches, expectedPunchesPerDay, localCalendarDayKey)
+  }, [logs, expectedPunchesPerDay])
+
+  const allTabPill = useMemo(() => staffPillIndicator(logs, punchDayStatusById), [logs, punchDayStatusById])
   const staffTabPill = useMemo(() => {
     const m = new Map<string, 'red' | 'blue' | 'green'>()
     for (const s of activeStaffWithDevice) {
       const theirs = logs.filter((log) => logBelongsToStaff(log, s))
-      m.set(s.id, staffPillIndicator(theirs))
+      m.set(s.id, staffPillIndicator(theirs, punchDayStatusById))
     }
     return m
-  }, [logs, activeStaffWithDevice])
+  }, [logs, activeStaffWithDevice, punchDayStatusById])
 
   // Load device settings from DB on mount
   useEffect(() => {
@@ -464,7 +492,10 @@ export default function AttendancePage() {
     }
   }
 
-  const irregularityCount = useMemo(() => logs.filter((l) => l.hasIrregularity).length, [logs])
+  const irregularityCount = useMemo(
+    () => logs.filter((l) => (punchDayStatusById.get(l.id) ?? 'irregular') === 'irregular').length,
+    [logs, punchDayStatusById]
+  )
 
   /** URL shown for ZKTeco ADMS — saved canonical URL, else current browser origin. */
   const admsBaseUrl = useMemo(() => {
@@ -649,7 +680,7 @@ export default function AttendancePage() {
                       </tr>
                     ) : (
                       displayedLogs.map((log) => {
-                        const st = log.punchDayStatus ?? (log.hasIrregularity ? 'irregular' : 'full')
+                        const st = punchDayStatusById.get(log.id) ?? 'irregular'
                         const rowBg =
                           st === 'irregular'
                             ? 'bg-red-50/50'
@@ -782,7 +813,7 @@ export default function AttendancePage() {
                         </p>
                       )}
                       <div
-                        className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/80 scrollbar-subtle lg:max-h-[min(32rem,calc(100vh-11rem))]"
+                        className="mt-2 h-72 overflow-y-scroll rounded-lg border border-gray-200 bg-gray-50/80 scrollbar-staff-panel"
                         role="listbox"
                         aria-label="Filter by staff member"
                       >

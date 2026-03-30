@@ -3,6 +3,9 @@
  * - full (green): count matches expected punches/day and pairing is valid
  * - short_ok (blue): exactly 2 punches, valid in→out pair, and expected > 2 (short shift vs full standard)
  * - irregular (red): bad pairing, unknown types, or count otherwise wrong
+ *
+ * Calendar day bucketing uses `getCalendarDayKey` (default: UTC). For UI that must match the
+ * browser’s Date column, pass `localCalendarDayKey` so “same day” matches local wall time.
  */
 
 const DEFAULT_EXPECTED_PUNCHES = 4
@@ -26,6 +29,19 @@ export function parseExpectedPunchesPerDay(raw: string | null | undefined): numb
   return Math.min(MAX_EXPECTED, Math.max(MIN_EXPECTED, n))
 }
 
+/** UTC date YYYY-MM-DD — used by API responses when no client recomputation runs. */
+export function utcCalendarDayKey(punchTime: Date): string {
+  return punchTime.toISOString().slice(0, 10)
+}
+
+/** Local calendar date YYYY-MM-DD (runtime timezone, e.g. browser) — aligns with typical date display. */
+export function localCalendarDayKey(punchTime: Date): string {
+  const y = punchTime.getFullYear()
+  const m = String(punchTime.getMonth() + 1).padStart(2, '0')
+  const day = String(punchTime.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** Returns true if in/out sequence pairs completely (stack of opens empty at end). */
 function pairingIsValid(arr: PunchForIrregularity[]): boolean {
   const sorted = [...arr].sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
@@ -46,17 +62,21 @@ function pairingIsValid(arr: PunchForIrregularity[]): boolean {
 
 /**
  * Maps each log id to its calendar-day status for that staff member.
+ * @param getCalendarDayKey - How to derive “which day” from `punchTime`. Default UTC (server/API).
  */
 export function computeAttendancePunchDayStatuses(
   logs: PunchForIrregularity[],
-  expectedPunchesPerDay: number
+  expectedPunchesPerDay: number,
+  getCalendarDayKey: (punchTime: Date) => string = utcCalendarDayKey
 ): Map<string, PunchDayStatus> {
   const result = new Map<string, PunchDayStatus>()
   const byStaffDate = new Map<string, PunchForIrregularity[]>()
 
   for (const log of logs) {
-    const day = log.punchTime.toISOString().slice(0, 10)
-    const key = `${log.staffId || log.deviceUserId}|${day}`
+    const day = getCalendarDayKey(log.punchTime)
+    // Always bucket by device user so rows with/without staff_id still count as one person per day.
+    const deviceKey = String(log.deviceUserId ?? '').trim() || String(log.staffId ?? '').trim() || 'unknown'
+    const key = `${deviceKey}|${day}`
     if (!byStaffDate.has(key)) byStaffDate.set(key, [])
     byStaffDate.get(key)!.push(log)
   }
