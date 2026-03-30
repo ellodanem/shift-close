@@ -129,6 +129,12 @@ function formatWorkedDuration(ms: number): string {
   return `${h}h ${m}m`
 }
 
+/** Decimal hours to 2 places (common for payroll import). */
+function formatDecimalHours(ms: number): string {
+  const h = Math.max(0, ms) / 3600000
+  return h.toFixed(2)
+}
+
 /** For `<input type="datetime-local" />` (local wall time). */
 function toDatetimeLocalValue(iso: string): string {
   const d = new Date(iso)
@@ -646,13 +652,14 @@ export default function AttendancePage() {
 
   const hoursInRangeSummary = useMemo(() => {
     const title =
-      'Sum of in→out durations from paired punches in this view (chronological order). Unpaired ins/outs add no time.'
+      'Sum of in→out durations from paired punches in this view (chronological order). Unpaired ins/outs add no time. Decimal hours use two places (payroll-style).'
     if (loading) {
-      return { display: '—' as const, caption: 'Hours in range', title }
+      return { displayHm: '—' as const, displayDecimal: '—' as const, caption: 'Hours in range', title }
     }
     if (displayedLogs.length === 0) {
       return {
-        display: formatWorkedDuration(0),
+        displayHm: formatWorkedDuration(0),
+        displayDecimal: formatDecimalHours(0),
         caption: staffFilter
           ? `Hours — ${staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'staff'}`
           : 'Total hours — all staff',
@@ -662,7 +669,8 @@ export default function AttendancePage() {
     const ms = staffFilter ? workedMsFromPunchLogs(displayedLogs) : totalWorkedMsAllStaff(displayedLogs)
     const name = staffWithDevice.find((x) => x.id === staffFilter)?.name
     return {
-      display: formatWorkedDuration(ms),
+      displayHm: formatWorkedDuration(ms),
+      displayDecimal: formatDecimalHours(ms),
       caption: staffFilter ? `Hours — ${name ?? 'staff'}` : 'Total hours — all staff',
       title,
     }
@@ -837,10 +845,15 @@ export default function AttendancePage() {
                       </td>
                       <td className="px-3 py-2 text-right align-bottom">
                         <span
-                          className="inline-block rounded-md border border-gray-200 bg-white px-2.5 py-1 text-sm font-semibold tabular-nums text-gray-900 shadow-sm"
+                          className="inline-block rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-right shadow-sm"
                           title={hoursInRangeSummary.title}
                         >
-                          {hoursInRangeSummary.display}
+                          <span className="block text-sm font-semibold tabular-nums text-gray-900">
+                            {hoursInRangeSummary.displayHm}
+                          </span>
+                          <span className="mt-0.5 block text-xs font-medium tabular-nums text-gray-600">
+                            {hoursInRangeSummary.displayDecimal === '—' ? '—' : `${hoursInRangeSummary.displayDecimal} hr`}
+                          </span>
                         </span>
                       </td>
                     </tr>
