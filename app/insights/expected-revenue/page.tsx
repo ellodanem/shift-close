@@ -31,11 +31,9 @@ interface RevenuePayload {
 export default function ExpectedRevenuePage() {
   const today = new Date()
   const todayIso = today.toISOString().slice(0, 10)
-  const startDefault = new Date(today)
-  startDefault.setDate(startDefault.getDate() - 2)
-  const fromDefault = startDefault.toISOString().slice(0, 10)
 
-  const [startDate, setStartDate] = useState(fromDefault)
+  /** No preset range — user picks From/To, then Calculate. */
+  const [startDate, setStartDate] = useState(todayIso)
   const [endDate, setEndDate] = useState(todayIso)
   const [data, setData] = useState<RevenuePayload | null>(null)
   const [loading, setLoading] = useState(false)
@@ -68,9 +66,11 @@ export default function ExpectedRevenuePage() {
     }
   }, [startDate, endDate])
 
+  /** Clear previous results when the range changes so totals aren’t shown for stale dates. */
   useEffect(() => {
-    void load()
-  }, [load])
+    setData(null)
+    setError(null)
+  }, [startDate, endDate])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100/90 to-gray-50 p-4 sm:p-6">
@@ -89,7 +89,7 @@ export default function ExpectedRevenuePage() {
 
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Expected revenue</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
-          Choose any <strong>start and end date</strong> (inclusive). Totals come from <strong>shift close</strong> data
+          Pick <strong>From</strong> and <strong>To</strong> (inclusive), then <strong>Calculate</strong>. Totals come from <strong>shift close</strong> data
           in that range and match the dashboard <strong>Grand Total</strong> formula: deposits + debit &amp; credit +
           fleet + vouchers. Fleet and vouchers are often settled on a different schedule; use <strong>Exclude fleet &amp; vouchers</strong>{' '}
           on the summary card for <strong>deposits + card only</strong>. Use this page when you need a forecast for a window that
@@ -130,6 +130,10 @@ export default function ExpectedRevenuePage() {
 
         {error && (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+        )}
+
+        {!data && !loading && !error && (
+          <p className="mt-4 text-sm text-gray-500">Select your date range and click Calculate to load totals.</p>
         )}
 
         {data && !error && (
