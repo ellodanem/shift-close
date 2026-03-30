@@ -1,5 +1,11 @@
 import type { NextRequest } from 'next/server'
-import { isFullAccessRole, isSupervisorLike, normalizeAppRole } from '@/lib/roles'
+import {
+  isFullAccessRole,
+  isOperationsManagerRole,
+  isPathBlockedForOperationsManager,
+  isSupervisorLike,
+  normalizeAppRole
+} from '@/lib/roles'
 
 /** Paths that never require auth */
 export function isPublicPath(pathname: string): boolean {
@@ -62,6 +68,10 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (pathname.startsWith('/api/customer-accounts')) return false
     if (pathname.startsWith('/api/account-customers')) return false
     return true
+  }
+
+  if (isOperationsManagerRole(role)) {
+    return !isPathBlockedForOperationsManager(pathname)
   }
 
   return true
