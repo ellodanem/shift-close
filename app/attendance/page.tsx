@@ -159,31 +159,69 @@ function buildDatetimeLocal(date: string, hour: number, minute: number): string 
   return `${date}T${pad(h)}:${pad(min)}`
 }
 
-function TimeColumnStepper({
+function hour24To12(hour24: number): { h12: number; period: 'AM' | 'PM' } {
+  const h = ((hour24 % 24) + 24) % 24
+  if (h === 0) return { h12: 12, period: 'AM' }
+  if (h < 12) return { h12: h, period: 'AM' }
+  if (h === 12) return { h12: 12, period: 'PM' }
+  return { h12: h - 12, period: 'PM' }
+}
+
+function hour12To24(h12: number, period: 'AM' | 'PM'): number {
+  const h = Math.max(1, Math.min(12, Math.floor(h12)))
+  if (period === 'AM') return h === 12 ? 0 : h
+  return h === 12 ? 12 : h + 12
+}
+
+const timeArrowBtn =
+  'flex h-7 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none'
+
+/** Hour (1–12) or minute (0–59) with arrows + typeable number (OS datetime scroll wheels avoided). */
+function TimeSpinInput({
   label,
   value,
+  min,
+  max,
+  pad,
+  onChange,
   onIncrement,
   onDecrement,
   disabled,
 }: {
   label: string
   value: number
+  min: number
+  max: number
+  pad: boolean
+  onChange: (n: number) => void
   onIncrement: () => void
   onDecrement: () => void
   disabled?: boolean
 }) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const btn =
-    'flex h-7 w-9 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none'
+  const shown = pad ? String(value).padStart(2, '0') : String(value)
   return (
     <div className="flex flex-col items-center gap-0.5" role="group" aria-label={label}>
-      <button type="button" className={btn} onClick={onIncrement} disabled={disabled} aria-label={`${label} increase`}>
+      <button type="button" className={timeArrowBtn} onClick={onIncrement} disabled={disabled} aria-label={`${label} increase`}>
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
       </button>
-      <span className="min-w-[2.25rem] text-center font-mono text-lg tabular-nums text-gray-900">{pad(value)}</span>
-      <button type="button" className={btn} onClick={onDecrement} disabled={disabled} aria-label={`${label} decrease`}>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={shown}
+        onChange={(e) => {
+          const raw = e.target.value
+          if (raw === '') return
+          const n = parseInt(raw, 10)
+          if (Number.isNaN(n)) return
+          onChange(Math.min(max, Math.max(min, n)))
+        }}
+        disabled={disabled}
+        className="w-12 border border-gray-300 rounded px-1 py-1 text-center font-mono text-lg tabular-nums text-gray-900 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+      />
+      <button type="button" className={timeArrowBtn} onClick={onDecrement} disabled={disabled} aria-label={`${label} decrease`}>
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -192,7 +230,7 @@ function TimeColumnStepper({
   )
 }
 
-/** Date + time with arrow steppers (avoids OS scroll-wheel time pickers on datetime-local). */
+/** Date + 12-hour time with AM/PM, arrows, and typeable fields (no native datetime-local time UI). */
 function LocalDateTimePicker({
   idPrefix,
   value,
@@ -210,10 +248,11 @@ function LocalDateTimePicker({
     hour: 12,
     minute: 0,
   }
-  const { date, hour, minute } = parsed
+  const { date, hour: hour24, minute } = parsed
+  const { h12, period } = hour24To12(hour24)
 
   const apply = (next: Partial<{ date: string; hour: number; minute: number }>) => {
-    onChange(buildDatetimeLocal(next.date ?? date, next.hour ?? hour, next.minute ?? minute))
+    onChange(buildDatetimeLocal(next.date ?? date, next.hour ?? hour24, next.minute ?? minute))
   }
 
   return (
@@ -226,24 +265,45 @@ function LocalDateTimePicker({
         disabled={disabled}
         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
       />
-      <div className="flex items-center justify-center gap-2 sm:gap-4 pt-1">
-        <TimeColumnStepper
+      <div className="flex flex-wrap items-center justify-center gap-2 pt-1 sm:gap-3">
+        <TimeSpinInput
           label="Hour"
-          value={hour}
+          value={h12}
+          min={1}
+          max={12}
+          pad={false}
           disabled={disabled}
-          onIncrement={() => apply({ hour: hour + 1 })}
-          onDecrement={() => apply({ hour: hour - 1 })}
+          onChange={(n) => apply({ hour: hour12To24(n, period) })}
+          onIncrement={() => apply({ hour: hour24 + 1 })}
+          onDecrement={() => apply({ hour: hour24 - 1 })}
         />
-        <span className="text-2xl font-light text-gray-400 select-none" aria-hidden>
+        <span className="self-center text-2xl font-light text-gray-400 select-none" aria-hidden>
           :
         </span>
-        <TimeColumnStepper
+        <TimeSpinInput
           label="Minute"
           value={minute}
+          min={0}
+          max={59}
+          pad={true}
           disabled={disabled}
+          onChange={(n) => apply({ minute: n })}
           onIncrement={() => apply({ minute: minute + 1 })}
           onDecrement={() => apply({ minute: minute - 1 })}
         />
+        <label className="sr-only" htmlFor={`${idPrefix}-ampm`}>
+          AM or PM
+        </label>
+        <select
+          id={`${idPrefix}-ampm`}
+          value={period}
+          onChange={(e) => apply({ hour: hour12To24(h12, e.target.value as 'AM' | 'PM') })}
+          disabled={disabled}
+          className="self-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
       </div>
     </div>
   )
