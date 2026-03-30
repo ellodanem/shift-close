@@ -137,10 +137,18 @@ export default function AppNav() {
   const pathname = usePathname()
   const { user, logout, canManageUsers } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
-  })
+  /** Must match SSR (false) on first paint — reading localStorage in useState breaks hydration. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true') {
+        setSidebarCollapsed(true)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
   const [todayPayDays, setTodayPayDays] = useState<Array<{ id: string; date: string; notes: string | null }>>([])
   const [showFeaturesModal, setShowFeaturesModal] = useState(false)
 

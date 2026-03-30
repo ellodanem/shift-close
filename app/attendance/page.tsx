@@ -20,7 +20,7 @@ interface AttendanceLog {
   punchType: string
   source: string
   correctedAt?: string | null
-  /** full = green, short_ok = blue (2 valid pairs when expecting more), irregular = red */
+  /** full = green, short_ok = blue “Possible missed”, irregular = red */
   punchDayStatus?: PunchDayStatus
   /** Not sent by API; UI derives status from punches + settings. */
   hasIrregularity?: boolean
@@ -34,7 +34,7 @@ interface Staff {
   status?: string
 }
 
-/** Staff filter pill: red = any irregular; blue = no irregular but ≥1 short shift; green = all full days. */
+/** Staff filter pill: red = any irregular; blue = no irregular but ≥1 possible missed day; green = all full days. */
 function staffPillIndicator(
   logsForScope: AttendanceLog[],
   punchDayStatusById: Map<string, PunchDayStatus>
@@ -623,24 +623,29 @@ export default function AttendancePage() {
               <Link href="/attendance/settings" className="font-medium text-blue-600 hover:text-blue-800">
                 Attendance settings
               </Link>
-              ) drives &quot;full day&quot; vs short shift.
+              ) drives &quot;full day&quot; vs &quot;Possible missed&quot;.
             </p>
             <p className="text-xs text-gray-600 mb-4 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex cursor-help items-center gap-1.5"
+                title="Punch count matches expected punches per day (Attendance settings) and in/out pairing is valid."
+              >
                 <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-emerald-600" aria-hidden />
                 Full day
               </span>
-              <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex cursor-help items-center gap-1.5"
+                title="Two punches with a valid in/out pair (fewer than expected daily total). Blue means possible missed punches in range, not necessarily an error."
+              >
                 <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-sky-600" aria-hidden />
-                Short shift (2 punches, valid in/out)
+                Possible missed
               </span>
-              <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex cursor-help items-center gap-1.5"
+                title="Bad in/out sequence or punch count doesn’t match rules for that day."
+              >
                 <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-red-500" aria-hidden />
                 Irregular
-              </span>
-              <span className="text-gray-500 hidden sm:inline">·</span>
-              <span className="text-gray-500 max-w-[28rem]">
-                Status dots: blue can mean possible missing punches (short shifts in range), not an error.
               </span>
             </p>
 
@@ -656,7 +661,7 @@ export default function AttendancePage() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12" title="Green full / blue short / red irregular">
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12" title="Green full day / blue possible missed / red irregular">
                         Status
                       </th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
@@ -698,7 +703,7 @@ export default function AttendancePage() {
                             ) : st === 'short_ok' ? (
                               <span
                                 className="inline-block w-4 h-4 bg-sky-600 rounded-sm shrink-0"
-                                title="Short shift: two punches with a valid in/out pair (fewer than expected daily total)"
+                                title="Possible missed: two punches with a valid in/out pair (fewer than expected daily total)"
                               />
                             ) : (
                               <span
@@ -766,7 +771,7 @@ export default function AttendancePage() {
                             allTabPill === 'red'
                               ? 'At least one irregular (red) row in this range'
                               : allTabPill === 'blue'
-                                ? 'No irregular rows; at least one short shift (blue) — may be missing punches'
+                                ? 'No irregular rows; at least one possible missed day (blue)'
                                 : 'All rows are full days (green) in this range'
                           }
                           className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -827,7 +832,7 @@ export default function AttendancePage() {
                               pill === 'red'
                                 ? 'Has irregular (red) rows — review'
                                 : pill === 'blue'
-                                  ? 'Short shifts (blue) and/or full days — may be missing punches'
+                                  ? 'Possible missed (blue) and/or full days — may be missing punches'
                                   : 'All full days (green) in this range'
                             return (
                               <button

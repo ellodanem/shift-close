@@ -1,7 +1,7 @@
 /**
  * Attendance punch-day status: valid in/out pairing plus count vs expected.
  * - full (green): count matches expected punches/day and pairing is valid
- * - short_ok (blue): exactly 2 punches, valid in→out pair, and expected > 2 (short shift vs full standard)
+ * - short_ok (blue / “Possible missed” in UI): exactly 2 punches, valid in→out pair, and expected > 2
  * - irregular (red): bad pairing, unknown types, or count otherwise wrong
  *
  * Calendar day bucketing uses `getCalendarDayKey` (default: UTC). For UI that must match the

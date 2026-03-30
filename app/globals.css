@@ -31,3 +31,24 @@ input[type="number"] {
 .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.6);
 }
+
+/* Staff filter list — obvious scrollbar on a fixed-height box */
+.scrollbar-staff-panel {
+  scrollbar-width: auto;
+  scrollbar-color: rgb(156 163 175) rgb(229 231 235);
+}
+.scrollbar-staff-panel::-webkit-scrollbar {
+  width: 10px;
+}
+.scrollbar-staff-panel::-webkit-scrollbar-track {
+  background: rgb(229 231 235);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+.scrollbar-staff-panel::-webkit-scrollbar-thumb {
+  background: rgb(156 163 175);
+  border-radius: 5px;
+  border: 2px solid rgb(229 231 235);
+}
+.scrollbar-staff-panel::-webkit-scrollbar-thumb:hover {
+  background: rgb(107 114 128);
+}

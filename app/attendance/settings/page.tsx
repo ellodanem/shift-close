@@ -100,8 +100,8 @@ export default function AttendanceSettingsPage() {
               Default <span className="font-medium text-gray-800">4</span> is a standard full day (two in/out pairs). Colors use the same
               calendar day as the <span className="font-medium text-gray-800">Date</span> column in your browser (not UTC). Deleted punches
               are not counted. On the logs table: <span className="font-medium text-gray-800">green</span> when that day has this many
-              punches and valid in/out pairing; <span className="font-medium text-sky-800">blue</span> when there are only two punches but
-              they form a valid in/out pair (short shift); <span className="font-medium text-red-800">red</span> for any other issue.
+              punches and valid in/out pairing; <span className="font-medium text-sky-800">blue</span> (Possible missed) when there are only two punches but
+              they form a valid in/out pair; <span className="font-medium text-red-800">red</span> for any other issue.
             </p>
           </div>
           {message && (
