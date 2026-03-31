@@ -23,6 +23,8 @@ export function isPublicPath(pathname: string): boolean {
   }
   if (pathname.startsWith('/api/attendance/adms')) return true
   if (pathname === '/api/attendance/ingest') return true
+  // Cron jobs validate CRON_SECRET inside the route (see route handler).
+  if (pathname === '/api/cron/end-of-day-email') return true
   return false
 }
 

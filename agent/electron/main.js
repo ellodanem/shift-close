@@ -5,7 +5,18 @@
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { fork } = require('child_process')
+
+/** Forked Node agent must run from unpacked files (not inside app.asar). */
+function getAgentScriptPath() {
+  if (app.isPackaged) {
+    const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'index.js')
+    if (fs.existsSync(unpacked)) return unpacked
+    return path.join(app.getAppPath(), 'src', 'index.js')
+  }
+  return path.join(__dirname, '..', 'src', 'index.js')
+}
 
 let tray = null
 let agentProcess = null
@@ -74,10 +85,11 @@ function buildTrayMenu() {
 }
 
 function startAgent() {
-  const agentScript = path.join(__dirname, '..', 'src', 'index.js')
+  const agentScript = getAgentScriptPath()
+  const userData = app.getPath('userData')
   agentProcess = fork(agentScript, [], {
     silent: false,
-    env: { ...process.env }
+    env: { ...process.env, AGENT_CONFIG_DIR: userData }
   })
 
   agentProcess.on('exit', (code) => {

@@ -30,7 +30,14 @@ npm install
 ```
 npm start
 ```
-Opens dashboard at http://localhost:3001
+Opens dashboard at http://localhost:3001  
+Config file: `agent.config.json` in the current working directory (the `agent/` folder when you run from there).
+
+### 3b. Run with Electron (system tray + window)
+```
+npm run electron
+```
+Same dashboard; settings are stored under the app **userData** folder (e.g. `%AppData%\shift-close-agent\agent.config.json` on Windows), not in `agent/`.
 
 ### 4. Configure via Dashboard
 Open http://localhost:3001 and fill in:

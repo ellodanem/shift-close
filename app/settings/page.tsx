@@ -41,6 +41,14 @@ export default function SettingsPage() {
       route: '/settings/email-recipients'
     },
     {
+      id: 'end-of-day-email',
+      title: 'End of day email',
+      description:
+        'Optional daily email with the previous day\'s End of Day summary. Turn off or set recipients here.',
+      icon: '🌅',
+      route: '/settings/end-of-day-email'
+    },
+    {
       id: 'pay-days',
       title: 'Pay Days',
       description: 'Set dates when accounting processes payments. Reminders sent 3 and 1 days before.',

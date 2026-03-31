@@ -7,7 +7,9 @@
 const fs = require('fs')
 const path = require('path')
 
-const CONFIG_FILE = path.join(process.cwd(), 'agent.config.json')
+/** Set by Electron when running the desktop app (config in AppData). */
+const CONFIG_DIR = process.env.AGENT_CONFIG_DIR || process.cwd()
+const CONFIG_FILE = path.join(CONFIG_DIR, 'agent.config.json')
 
 const DEFAULTS = {
   deviceIp: '',
@@ -41,6 +43,9 @@ function loadConfig() {
 }
 
 function saveConfig(updates) {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true })
+  }
   let existing = {}
   if (fs.existsSync(CONFIG_FILE)) {
     try {
