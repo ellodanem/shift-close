@@ -53,6 +53,20 @@ function logBelongsToStaff(log: AttendanceLog, staff: Pick<Staff, 'id' | 'device
   return Boolean(dev && log.deviceUserId === dev)
 }
 
+/** Resolve manual punch staff from typed device user ID, staff id, or exact name match. */
+function resolveStaffForManualPunch(input: string, staffWithDevice: Staff[]): Staff | null {
+  const t = input.trim()
+  if (!t) return null
+  const byDevice = staffWithDevice.find((s) => String(s.deviceUserId ?? '').trim() === t)
+  if (byDevice) return byDevice
+  const byId = staffWithDevice.find((s) => s.id === t)
+  if (byId) return byId
+  const lower = t.toLowerCase()
+  const byName = staffWithDevice.find((s) => s.name.toLowerCase() === lower)
+  if (byName) return byName
+  return null
+}
+
 interface DeviceUser {
   uid: number
   userId: string
@@ -176,7 +190,7 @@ function hour12To24(h12: number, period: 'AM' | 'PM'): number {
 const timeArrowBtn =
   'flex h-7 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none'
 
-/** Hour (1–12) or minute (0–59) with arrows + typeable number (OS datetime scroll wheels avoided). */
+/** Hour (1–12) or minute (0–59) with arrows + freely typeable digits (not a native number spinbox). */
 function TimeSpinInput({
   label,
   value,
@@ -199,29 +213,59 @@ function TimeSpinInput({
   disabled?: boolean
 }) {
   const shown = pad ? String(value).padStart(2, '0') : String(value)
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(shown)
+
+  useEffect(() => {
+    if (!editing) setText(shown)
+  }, [shown, editing])
+
+  const commitText = (raw: string) => {
+    const digits = raw.replace(/\D/g, '')
+    if (digits === '') return
+    const n = parseInt(digits, 10)
+    if (Number.isNaN(n)) return
+    onChange(Math.min(max, Math.max(min, n)))
+  }
+
+  const bump = (fn: () => void) => {
+    setEditing(false)
+    fn()
+  }
+
   return (
     <div className="flex flex-col items-center gap-0.5" role="group" aria-label={label}>
-      <button type="button" className={timeArrowBtn} onClick={onIncrement} disabled={disabled} aria-label={`${label} increase`}>
+      <button type="button" className={timeArrowBtn} onClick={() => bump(onIncrement)} disabled={disabled} aria-label={`${label} increase`}>
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
       </button>
       <input
-        type="number"
-        min={min}
-        max={max}
-        value={shown}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={editing ? text : shown}
+        onFocus={() => {
+          setEditing(true)
+          setText(shown)
+        }}
+        onBlur={() => {
+          setEditing(false)
+          const raw = text.replace(/\D/g, '')
+          if (raw === '') {
+            setText(shown)
+            return
+          }
+          commitText(raw)
+        }}
         onChange={(e) => {
-          const raw = e.target.value
-          if (raw === '') return
-          const n = parseInt(raw, 10)
-          if (Number.isNaN(n)) return
-          onChange(Math.min(max, Math.max(min, n)))
+          const raw = e.target.value.replace(/\D/g, '')
+          setText(raw)
         }}
         disabled={disabled}
         className="w-12 border border-gray-300 rounded px-1 py-1 text-center font-mono text-lg tabular-nums text-gray-900 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       />
-      <button type="button" className={timeArrowBtn} onClick={onDecrement} disabled={disabled} aria-label={`${label} decrease`}>
+      <button type="button" className={timeArrowBtn} onClick={() => bump(onDecrement)} disabled={disabled} aria-label={`${label} decrease`}>
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -335,7 +379,7 @@ export default function AttendancePage() {
   const [editError, setEditError] = useState<string | null>(null)
 
   const [showAddPunch, setShowAddPunch] = useState(false)
-  const [addStaffId, setAddStaffId] = useState('')
+  const [addStaffInput, setAddStaffInput] = useState('')
   const [addPunchLocal, setAddPunchLocal] = useState('')
   const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
   const [addSaving, setAddSaving] = useState(false)
@@ -550,8 +594,11 @@ export default function AttendancePage() {
   const openAddPunch = () => {
     setEditingLog(null)
     setAddError(null)
-    const first = staffWithDevice[0]?.id ?? ''
-    setAddStaffId(staffFilter || first)
+    const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
+    const fallback = staffWithDevice[0]
+    setAddStaffInput(
+      fromFilter?.deviceUserId?.trim() ?? fallback?.deviceUserId?.trim() ?? ''
+    )
     setAddPunchLocal(nowDatetimeLocalValue())
     setAddPunchType('in')
     setShowAddPunch(true)
@@ -564,8 +611,11 @@ export default function AttendancePage() {
   }
 
   const handleSaveAddPunch = async () => {
-    if (!addStaffId.trim()) {
-      setAddError('Select a staff member')
+    const staff = resolveStaffForManualPunch(addStaffInput, staffWithDevice)
+    if (!staff) {
+      setAddError(
+        'Enter the device user ID (number from the ZKTeco device), or pick a staff name from the suggestions.'
+      )
       return
     }
     setAddSaving(true)
@@ -580,7 +630,7 @@ export default function AttendancePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          staffId: addStaffId,
+          staffId: staff.id,
           punchTime: punchTime.toISOString(),
           punchType: addPunchType
         })
@@ -1139,17 +1189,29 @@ export default function AttendancePage() {
                   )}
                   <div className="space-y-3 mb-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Staff</label>
-                      <select
-                        value={addStaffId}
-                        onChange={(e) => setAddStaffId(e.target.value)}
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="add-punch-staff">
+                        Staff
+                      </label>
+                      <input
+                        id="add-punch-staff"
+                        type="text"
+                        list="add-punch-staff-datalist"
+                        value={addStaffInput}
+                        onChange={(e) => setAddStaffInput(e.target.value)}
+                        placeholder="Device user ID (e.g. 12)"
+                        autoComplete="off"
                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      >
-                        <option value="">Select…</option>
+                      />
+                      <datalist id="add-punch-staff-datalist">
                         {staffWithDevice.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
+                          <option key={s.id} value={String(s.deviceUserId ?? '')}>
+                            {s.name}
+                          </option>
                         ))}
-                      </select>
+                      </datalist>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Type the device user number, or start typing a name to pick from the list.
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="add-punch-date">
