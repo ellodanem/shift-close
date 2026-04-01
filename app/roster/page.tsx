@@ -14,6 +14,17 @@ interface Staff {
   vacationStart?: string | null
   vacationEnd?: string | null
   mobileNumber?: string | null
+  /** YYYY-MM-DD — used to show a birthday marker on the roster when the cell date matches month/day */
+  dateOfBirth?: string | null
+}
+
+function isBirthdayOnDate(staff: Staff, isoDate: string): boolean {
+  const dob = staff.dateOfBirth?.trim()
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return false
+  const [, dm, dd] = dob.split('-')
+  const [, tm, td] = isoDate.split('-')
+  if (!dm || !dd || !tm || !td) return false
+  return dm === tm && dd === td
 }
 
 function isOnVacation(staff: Staff, date: string): boolean {
@@ -1471,6 +1482,7 @@ export default function RosterPage() {
                         const entry = getEntryFor(s.id, date)
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
+                        const birthday = isBirthdayOnDate(s, date)
                         return (
                           <td
                             key={date}
@@ -1485,46 +1497,58 @@ export default function RosterPage() {
                                     : undefined
                             }
                           >
-                            {onVacation ? (
-                              <span className="text-xs font-medium text-gray-500">Vacation</span>
-                            ) : stationClosedHoliday ? (
-                              <div className="px-0.5 py-1">
-                                <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
-                                  Closed
+                            <div className="flex flex-col items-center gap-0.5 justify-center min-h-[1.25rem]">
+                              {birthday ? (
+                                <span
+                                  className="text-[13px] leading-none select-none"
+                                  title="Birthday"
+                                  role="img"
+                                  aria-label="Birthday"
+                                >
+                                  🎂
+                                </span>
+                              ) : null}
+                              {onVacation ? (
+                                <span className="text-xs font-medium text-gray-500">Vacation</span>
+                              ) : stationClosedHoliday ? (
+                                <div className="px-0.5 py-1">
+                                  <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
+                                    Closed
+                                  </div>
+                                  <div className="text-[10px] text-amber-800 leading-tight mt-0.5">{ph?.name}</div>
                                 </div>
-                                <div className="text-[10px] text-amber-800 leading-tight mt-0.5">{ph?.name}</div>
-                              </div>
-                            ) : rosterCellsLocked ? (
-                              <span className="text-xs font-medium text-gray-700">
-                                {ph && !ph.stationClosed ? (
-                                  <>
-                                    <span className="block text-[9px] text-indigo-700 mb-0.5">{ph.name}</span>
-                                    {template?.name || 'Off'}
-                                  </>
-                                ) : (
-                                  template?.name || 'Off'
-                                )}
-                              </span>
-                            ) : (
-                              <select
-                                value={entry?.shiftTemplateId || ''}
-                                onChange={(e) =>
-                                  setEntryFor(
-                                    s.id,
-                                    date,
-                                    e.target.value === '' ? null : e.target.value
-                                  )
-                                }
-                                className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="">Off</option>
-                                {templates.map((t) => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
+                              ) : rosterCellsLocked ? (
+                                <span className="text-xs font-medium text-gray-700">
+                                  {ph && !ph.stationClosed ? (
+                                    <>
+                                      <span className="block text-[9px] text-indigo-700 mb-0.5">{ph.name}</span>
+                                      {template?.name || 'Off'}
+                                    </>
+                                  ) : (
+                                    template?.name || 'Off'
+                                  )}
+                                </span>
+                              ) : (
+                                <select
+                                  value={entry?.shiftTemplateId || ''}
+                                  onChange={(e) =>
+                                    setEntryFor(
+                                      s.id,
+                                      date,
+                                      e.target.value === '' ? null : e.target.value
+                                    )
+                                  }
+                                  className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                >
+                                  <option value="">Off</option>
+                                  {templates.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           </td>
                         )
                       })}
@@ -1866,13 +1890,17 @@ export default function RosterPage() {
                       const tmpl = getTemplateForEntry(entry)
                       const label = onVacation ? 'Vacation' : (tmpl?.name || 'Off')
                       const bg = onVacation ? '#f3f4f6' : (tmpl?.color || '#f9fafb')
+                      const birthday = isBirthdayOnDate(s, date)
                       return (
                         <td
                           key={date}
                           className="border px-2 py-1 text-center align-middle"
                           style={{ backgroundColor: bg }}
                         >
-                          {label}
+                          <div className="flex flex-col items-center gap-0.5">
+                            {birthday ? <span className="text-[11px] leading-none">🎂</span> : null}
+                            <span>{label}</span>
+                          </div>
                         </td>
                       )
                     })}
