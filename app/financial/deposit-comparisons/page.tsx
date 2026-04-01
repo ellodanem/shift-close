@@ -68,6 +68,150 @@ function rowKey(r: Row): string {
   return `${r.shiftId}:${r.recordKind}:${r.lineIndex}`
 }
 
+function scanLabelFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname
+    const last = path.split('/').filter(Boolean).pop()
+    if (last) return decodeURIComponent(last)
+  } catch {
+    /* ignore */
+  }
+  const fallback = url.split('/').pop()
+  return fallback ? decodeURIComponent(fallback.split('?')[0]) : 'Document'
+}
+
+type ScanOption = { url: string; label: string }
+
+/** One entry per file; labels include shift so unnamed blob URLs are still distinguishable. */
+function buildDepositScanOptions(deposits: Row[]): ScanOption[] {
+  const seenShift = new Set<string>()
+  const out: ScanOption[] = []
+  for (const r of deposits) {
+    if (seenShift.has(r.shiftId)) continue
+    seenShift.add(r.shiftId)
+    r.scanUrls.forEach((url, i) => {
+      const name = scanLabelFromUrl(url)
+      const short = name.length > 42 ? `${name.slice(0, 40)}…` : name
+      out.push({
+        url,
+        label: `${r.shift} · ${r.scanUrls.length > 1 ? `file ${i + 1} · ` : ''}${short}`
+      })
+    })
+  }
+  return out
+}
+
+function buildDebitScanOptions(debits: Row[]): ScanOption[] {
+  const out: ScanOption[] = []
+  for (const r of debits) {
+    r.scanUrls.forEach((url, i) => {
+      const name = scanLabelFromUrl(url)
+      const short = name.length > 36 ? `${name.slice(0, 34)}…` : name
+      out.push({
+        url,
+        label: `${r.shift} · debit · ${r.scanUrls.length > 1 ? `file ${i + 1} · ` : ''}${short}`
+      })
+    })
+  }
+  return out
+}
+
+function buildSecurityScanOptions(deposits: Row[], debits: Row[]): ScanOption[] {
+  const out: ScanOption[] = []
+  for (const r of deposits) {
+    if (!r.securitySlipUrl) continue
+    out.push({
+      url: r.securitySlipUrl,
+      label: `${r.shift} · deposit line ${r.lineIndex + 1}`
+    })
+  }
+  for (const r of debits) {
+    if (!r.securitySlipUrl) continue
+    out.push({
+      url: r.securitySlipUrl,
+      label: `${r.shift} · debit / credit`
+    })
+  }
+  return out
+}
+
+function DayScanDropdowns({
+  depositOptions,
+  debitOptions,
+  securityOptions
+}: {
+  depositOptions: ScanOption[]
+  debitOptions: ScanOption[]
+  securityOptions: ScanOption[]
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-3 bg-white border-b border-slate-100">
+      <label className="block">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Deposits</span>
+        <select
+          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
+          defaultValue=""
+          onChange={(e) => {
+            const u = e.target.value
+            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            e.target.selectedIndex = 0
+          }}
+        >
+          <option value="">Choose a deposit slip…</option>
+          {depositOptions.map((o, i) => (
+            <option key={`d-${i}-${o.url}`} value={o.url}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {depositOptions.length === 0 ? <p className="text-[11px] text-slate-400 mt-1">No deposit scans this day</p> : null}
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Debits / credit</span>
+        <select
+          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
+          defaultValue=""
+          onChange={(e) => {
+            const u = e.target.value
+            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            e.target.selectedIndex = 0
+          }}
+        >
+          <option value="">Choose a debit scan…</option>
+          {debitOptions.map((o, i) => (
+            <option key={`db-${i}-${o.url}`} value={o.url}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {debitOptions.length === 0 ? <p className="text-[11px] text-slate-400 mt-1">No debit scans this day</p> : null}
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Security</span>
+        <select
+          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
+          defaultValue=""
+          onChange={(e) => {
+            const u = e.target.value
+            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            e.target.selectedIndex = 0
+          }}
+        >
+          <option value="">Choose a security slip…</option>
+          {securityOptions.map((o, i) => (
+            <option key={`s-${i}-${o.url}`} value={o.url}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {securityOptions.length === 0 ? (
+          <p className="text-[11px] text-slate-400 mt-1">None uploaded yet (coming soon)</p>
+        ) : null}
+      </label>
+    </div>
+  )
+}
+
 const STATUS_OPTIONS: { value: BankStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
@@ -170,7 +314,7 @@ export default function DepositComparisonsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-5">
+      <div className="max-w-5xl mx-auto space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
             <Link href="/financial/cashbook" className="font-medium text-blue-600 hover:text-blue-800">
@@ -185,8 +329,9 @@ export default function DepositComparisonsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Recent closed shifts first. Mark deposit lines and per-shift debits against the bank.{' '}
-            <span className="text-slate-500">Security slip upload is coming later.</span>
+            Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Debits / credit</strong>, and{' '}
+            <strong>Security</strong> dropdowns to open scans (labeled by shift). Tables below are for amounts and bank status
+            only.
           </p>
         </div>
 
@@ -322,44 +467,45 @@ export default function DepositComparisonsPage() {
               No items match your filters. Try turning off &quot;Hide cleared&quot;, widen the status filter, or load more shifts.
             </p>
           ) : (
-            byDate.map(({ date, deposits, debits }) => (
-              <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
-                  <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
-                    {debits.length ? ` · ${debits.length} debit${debits.length === 1 ? '' : 's'}` : ''}
-                  </p>
-                </header>
+            byDate.map(({ date, deposits, debits }) => {
+              const depositScanOptions = buildDepositScanOptions(deposits)
+              const debitScanOptions = buildDebitScanOptions(debits)
+              const securityScanOptions = buildSecurityScanOptions(deposits, debits)
+              return (
+                <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
+                    <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
+                      {debits.length ? ` · ${debits.length} debit${debits.length === 1 ? '' : 's'}` : ''}
+                    </p>
+                  </header>
 
-                <div className="divide-y divide-slate-100">
-                  {deposits.length > 0 ? (
-                    <div className="p-3 md:p-4">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
-                      <ItemTable
-                        rows={deposits}
-                        savingKey={savingKey}
-                        onPatch={patchRow}
-                        scanLabel="Deposit scans"
-                      />
-                    </div>
-                  ) : null}
-                  {debits.length > 0 ? (
-                    <div className="p-3 md:p-4 bg-slate-50/50">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                        Debits (system debit + credit)
-                      </h3>
-                      <ItemTable
-                        rows={debits}
-                        savingKey={savingKey}
-                        onPatch={patchRow}
-                        scanLabel="Debit scans"
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-            ))
+                  <DayScanDropdowns
+                    depositOptions={depositScanOptions}
+                    debitOptions={debitScanOptions}
+                    securityOptions={securityScanOptions}
+                  />
+
+                  <div className="divide-y divide-slate-100">
+                    {deposits.length > 0 ? (
+                      <div className="p-3 md:p-4">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
+                        <ItemTable rows={deposits} savingKey={savingKey} onPatch={patchRow} />
+                      </div>
+                    ) : null}
+                    {debits.length > 0 ? (
+                      <div className="p-3 md:p-4 bg-slate-50/50">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                          Debits (system debit + credit)
+                        </h3>
+                        <ItemTable rows={debits} savingKey={savingKey} onPatch={patchRow} />
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              )
+            })
           )}
         </div>
       </div>
@@ -370,13 +516,11 @@ export default function DepositComparisonsPage() {
 function ItemTable({
   rows,
   savingKey,
-  onPatch,
-  scanLabel
+  onPatch
 }: {
   rows: Row[]
   savingKey: string | null
   onPatch: (shiftId: string, recordKind: RecordKind, lineIndex: number, body: Partial<{ bankStatus: BankStatus; notes: string }>) => void
-  scanLabel: string
 }) {
   return (
     <div className="overflow-x-auto -mx-1">
@@ -388,8 +532,6 @@ function ItemTable({
             <th className="px-2 py-2">Detail</th>
             <th className="px-2 py-2 text-right">Amount</th>
             <th className="px-2 py-2">Bank</th>
-            <th className="px-2 py-2 min-w-[7rem]">{scanLabel}</th>
-            <th className="px-2 py-2">Security</th>
             <th className="px-2 py-2 min-w-[8rem]">Notes</th>
             <th className="px-2 py-2 whitespace-nowrap">Record</th>
           </tr>
@@ -439,36 +581,6 @@ function ItemTable({
                     <option value="cleared">Cleared</option>
                     <option value="discrepancy">Discrepancy</option>
                   </select>
-                </td>
-                <td className="px-2 py-2.5">
-                  {r.scanUrls.length === 0 ? (
-                    <span className="text-xs text-slate-400">None</span>
-                  ) : (
-                    <a
-                      href={r.scanUrls[0]}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-blue-600 hover:underline"
-                    >
-                      Open{r.scanUrls.length > 1 ? ` (${r.scanUrls.length} files)` : ''}
-                    </a>
-                  )}
-                </td>
-                <td className="px-2 py-2.5">
-                  {r.securitySlipUrl ? (
-                    <a
-                      href={r.securitySlipUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      View
-                    </a>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 border border-dashed border-slate-200 rounded px-1.5 py-0.5">
-                      Soon
-                    </span>
-                  )}
                 </td>
                 <td className="px-2 py-2.5">
                   <NotesCell
