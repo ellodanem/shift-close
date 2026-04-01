@@ -2,19 +2,20 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useAuth } from '@/app/components/AuthContext'
 import { formatCurrency } from '@/lib/format'
 
 type BankStatus = 'pending' | 'cleared' | 'discrepancy'
+type RecordKind = 'deposit' | 'debit'
 
 interface Row {
   shiftId: string
   date: string
   shift: string
   supervisor: string
+  recordKind: RecordKind
   lineIndex: number
   amount: number
-  depositScanUrls: string[]
+  scanUrls: string[]
   securitySlipUrl: string | null
   bankStatus: BankStatus
   notes: string
@@ -22,10 +23,18 @@ interface Row {
 
 interface Totals {
   count: number
-  sumAmount: number
+  sumDeposits: number
+  sumDebits: number
   pending: number
   cleared: number
   discrepancy: number
+}
+
+interface LoadMeta {
+  shiftCount: number
+  shiftTake: number
+  truncated: boolean
+  dateFiltered: boolean
 }
 
 function ymd(d: Date): string {
@@ -35,24 +44,16 @@ function ymd(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function scanLabelFromUrl(url: string): string {
-  try {
-    const path = new URL(url).pathname
-    const last = path.split('/').filter(Boolean).pop()
-    if (last) return decodeURIComponent(last)
-  } catch {
-    /* ignore */
-  }
-  const fallback = url.split('/').pop()
-  return fallback ? decodeURIComponent(fallback.split('?')[0]) : 'Document'
+function formatDayHeading(isoDate: string): string {
+  const d = new Date(isoDate + 'T12:00:00')
+  if (Number.isNaN(d.getTime())) return isoDate
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(d)
 }
-
-const STATUS_OPTIONS: { value: BankStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'pending', label: 'Pending (bank)' },
-  { value: 'cleared', label: 'Cleared' },
-  { value: 'discrepancy', label: 'Discrepancy' }
-]
 
 function statusBadgeClass(s: BankStatus): string {
   if (s === 'cleared') return 'bg-emerald-100 text-emerald-900 border-emerald-200'
@@ -60,21 +61,35 @@ function statusBadgeClass(s: BankStatus): string {
   return 'bg-slate-100 text-slate-800 border-slate-200'
 }
 
-export default function DepositComparisonsPage() {
-  const { isStakeholder } = useAuth()
-  const defaults = useMemo(() => {
-    const today = new Date()
-    return {
-      from: ymd(new Date(today.getFullYear(), today.getMonth(), 1)),
-      to: ymd(today)
-    }
-  }, [])
+function rowKey(r: Row): string {
+  return `${r.shiftId}:${r.recordKind}:${r.lineIndex}`
+}
 
-  const [from, setFrom] = useState(defaults.from)
-  const [to, setTo] = useState(defaults.to)
+const STATUS_OPTIONS: { value: BankStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'cleared', label: 'Cleared' },
+  { value: 'discrepancy', label: 'Discrepancy' }
+]
+
+const SHIFT_LIMIT_OPTIONS = [400, 600, 1200, 3000] as const
+
+export default function DepositComparisonsPage() {
+  const [hideCleared, setHideCleared] = useState(true)
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]['value']>('all')
+  const [useDateRange, setUseDateRange] = useState(false)
+  const todayStr = useMemo(() => ymd(new Date()), [])
+  const [from, setFrom] = useState(() => {
+    const t = new Date()
+    t.setMonth(t.getMonth() - 3)
+    return ymd(t)
+  })
+  const [to, setTo] = useState(todayStr)
+  const [shiftLimit, setShiftLimit] = useState<(typeof SHIFT_LIMIT_OPTIONS)[number]>(600)
+
   const [rows, setRows] = useState<Row[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
+  const [meta, setMeta] = useState<LoadMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
@@ -84,40 +99,61 @@ export default function DepositComparisonsPage() {
     setLoading(true)
     try {
       const q = new URLSearchParams()
-      if (from) q.set('from', from)
-      if (to) q.set('to', to)
+      if (useDateRange) {
+        if (from) q.set('from', from)
+        if (to) q.set('to', to)
+      }
       if (statusFilter !== 'all') q.set('status', statusFilter)
+      if (hideCleared) q.set('hideCleared', 'true')
+      q.set('shiftLimit', String(shiftLimit))
       const res = await fetch(`/api/financial/deposit-comparisons?${q.toString()}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
       setRows(Array.isArray(data.rows) ? data.rows : [])
       setTotals(data.totals ?? null)
+      setMeta(data.meta ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
       setRows([])
       setTotals(null)
+      setMeta(null)
     } finally {
       setLoading(false)
     }
-  }, [from, to, statusFilter])
+  }, [from, to, statusFilter, hideCleared, shiftLimit, useDateRange])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const byDate = useMemo(() => {
+    const m = new Map<string, Row[]>()
+    for (const r of rows) {
+      if (!m.has(r.date)) m.set(r.date, [])
+      m.get(r.date)!.push(r)
+    }
+    const dates = [...m.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+    return dates.map((date) => ({
+      date,
+      deposits: (m.get(date) ?? []).filter((x) => x.recordKind === 'deposit'),
+      debits: (m.get(date) ?? []).filter((x) => x.recordKind === 'debit')
+    }))
+  }, [rows])
+
   const patchRow = async (
     shiftId: string,
+    recordKind: RecordKind,
     lineIndex: number,
     body: Partial<{ bankStatus: BankStatus; notes: string }>
   ) => {
-    const key = `${shiftId}:${lineIndex}`
+    const key = `${shiftId}:${recordKind}:${lineIndex}`
     setSavingKey(key)
     setError(null)
     try {
       const res = await fetch('/api/financial/deposit-comparisons', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shiftId, lineIndex, ...body })
+        body: JSON.stringify({ shiftId, recordKind, lineIndex, ...body })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Save failed')
@@ -129,67 +165,45 @@ export default function DepositComparisonsPage() {
     }
   }
 
-  const setPreset = (preset: 'month' | '30' | '90') => {
-    const today = new Date()
-    const toStr = ymd(today)
-    if (preset === 'month') {
-      setFrom(ymd(new Date(today.getFullYear(), today.getMonth(), 1)))
-      setTo(toStr)
-      return
-    }
-    const days = preset === '30' ? 30 : 90
-    const start = new Date(today)
-    start.setDate(start.getDate() - days)
-    setFrom(ymd(start))
-    setTo(toStr)
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-[1200px] mx-auto space-y-6">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link href="/financial/cashbook" className="font-medium text-blue-600 hover:text-blue-800">
-            ← Cashbook
-          </Link>
-          <Link href="/insights/deposit-debit-scans" className="font-medium text-blue-600 hover:text-blue-800">
-            Deposit & debit scans (Insights)
-          </Link>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+      <div className="max-w-4xl mx-auto space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+            <Link href="/financial/cashbook" className="font-medium text-blue-600 hover:text-blue-800">
+              ← Cashbook
+            </Link>
+            <Link href="/insights/deposit-debit-scans" className="font-medium text-blue-600 hover:text-blue-800">
+              Scans (Insights)
+            </Link>
+          </div>
         </div>
+
         <div>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">Deposit comparisons</h1>
-          <p className="mt-1 text-sm text-gray-600 max-w-3xl">
-            Review every recorded deposit line from closed shifts, match against the bank, and mark each line as pending,
-            cleared, or discrepancy. Deposit slips link to uploaded scans; security slip upload is planned for a later
-            release.
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
+          <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+            Recent closed shifts first. Mark deposit lines and per-shift debits against the bank.{' '}
+            <span className="text-slate-500">Security slip upload is coming later.</span>
           </p>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm space-y-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-800">
               <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+                type="checkbox"
+                checked={hideCleared}
+                onChange={(e) => setHideCleared(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
+              <span>Hide cleared</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="rounded border border-gray-300 px-2 py-1.5 text-sm min-w-[11rem]"
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
               >
                 {STATUS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -198,175 +212,266 @@ export default function DepositComparisonsPage() {
                 ))}
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Load</label>
+              <select
+                value={shiftLimit}
+                onChange={(e) => setShiftLimit(parseInt(e.target.value, 10) as (typeof SHIFT_LIMIT_OPTIONS)[number])}
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
+              >
+                {SHIFT_LIMIT_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} shifts (max)
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               onClick={() => void load()}
-              className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+              className="ml-auto rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
             >
               Refresh
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-gray-500 self-center mr-1">Quick range:</span>
-            <button
-              type="button"
-              onClick={() => setPreset('month')}
-              className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 hover:bg-gray-100"
-            >
-              This month
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreset('30')}
-              className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 hover:bg-gray-100"
-            >
-              Last 30 days
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreset('90')}
-              className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 hover:bg-gray-100"
-            >
-              Last 90 days
-            </button>
-          </div>
+
+          <details className="group rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium text-slate-700 list-none flex items-center gap-2">
+              <span className="text-slate-400 group-open:rotate-90 transition-transform">›</span>
+              Filter by date (optional)
+            </summary>
+            <div className="mt-3 flex flex-wrap items-end gap-3 pl-5">
+              <label className="flex items-center gap-2 text-sm mb-2 w-full sm:w-auto">
+                <input
+                  type="checkbox"
+                  checked={useDateRange}
+                  onChange={(e) => setUseDateRange(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Use date range
+              </label>
+              {useDateRange ? (
+                <>
+                  <div>
+                    <span className="block text-xs text-slate-500 mb-1">From</span>
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-xs text-slate-500 mb-1">To</span>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => setTo(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-slate-500 mb-2">Showing the most recent shifts up to the limit above (newest days first).</p>
+              )}
+            </div>
+          </details>
         </div>
 
-        {totals && !loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white rounded-lg border p-3 shadow-sm">
-              <div className="text-xs text-gray-500 uppercase">Lines</div>
-              <div className="text-lg font-semibold tabular-nums">{totals.count}</div>
-            </div>
-            <div className="bg-white rounded-lg border p-3 shadow-sm">
-              <div className="text-xs text-gray-500 uppercase">Total amount</div>
-              <div className="text-lg font-semibold tabular-nums">{formatCurrency(totals.sumAmount)}</div>
-            </div>
-            <div className="bg-white rounded-lg border p-3 shadow-sm border-slate-200">
-              <div className="text-xs text-gray-500 uppercase">Pending</div>
-              <div className="text-lg font-semibold tabular-nums text-slate-800">{totals.pending}</div>
-            </div>
-            <div className="bg-white rounded-lg border p-3 shadow-sm border-emerald-200">
-              <div className="text-xs text-gray-500 uppercase">Cleared</div>
-              <div className="text-lg font-semibold tabular-nums text-emerald-800">{totals.cleared}</div>
-            </div>
-            <div className="bg-white rounded-lg border p-3 shadow-sm border-amber-200">
-              <div className="text-xs text-gray-500 uppercase">Discrepancy</div>
-              <div className="text-lg font-semibold tabular-nums text-amber-900">{totals.discrepancy}</div>
-            </div>
+        {meta?.truncated ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Loaded the maximum number of shifts ({meta.shiftTake}). Older history may be hidden — raise &quot;Load&quot; or
+            narrow with a date filter.
+          </p>
+        ) : null}
+
+        {totals && !loading ? (
+          <div className="flex flex-wrap gap-3 text-sm">
+            <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 font-medium tabular-nums">
+              <span className="text-slate-500 mr-2">Items</span>
+              {totals.count}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-800 px-3 py-1.5 tabular-nums">
+              Pending {totals.pending}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-900 border border-emerald-100 px-3 py-1.5 tabular-nums">
+              Cleared {totals.cleared}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-900 border border-amber-100 px-3 py-1.5 tabular-nums">
+              Issue {totals.discrepancy}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 text-slate-700 tabular-nums">
+              Deposits Σ {formatCurrency(totals.sumDeposits)}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 text-slate-700 tabular-nums">
+              Debits Σ {formatCurrency(totals.sumDebits)}
+            </span>
           </div>
-        )}
+        ) : null}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error ? <p className="text-sm text-red-600 rounded-lg border border-red-100 bg-red-50 px-3 py-2">{error}</p> : null}
 
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="space-y-8 pb-8">
           {loading ? (
-            <p className="p-6 text-sm text-gray-500">Loading deposits…</p>
-          ) : rows.length === 0 ? (
-            <p className="p-6 text-sm text-gray-600">No deposit lines in this range. Try widening the dates or clearing the status filter.</p>
+            <p className="text-sm text-slate-500 py-8 text-center">Loading…</p>
+          ) : byDate.length === 0 ? (
+            <p className="text-sm text-slate-600 py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white px-4">
+              No items match your filters. Try turning off &quot;Hide cleared&quot;, widen the status filter, or load more shifts.
+            </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  <tr>
-                    <th className="px-3 py-2 whitespace-nowrap">Date</th>
-                    <th className="px-3 py-2 whitespace-nowrap">Shift</th>
-                    <th className="px-3 py-2 whitespace-nowrap">Supervisor</th>
-                    <th className="px-3 py-2 whitespace-nowrap">Line</th>
-                    <th className="px-3 py-2 text-right whitespace-nowrap">Amount</th>
-                    <th className="px-3 py-2 whitespace-nowrap">Bank status</th>
-                    <th className="px-3 py-2 min-w-[140px]">Deposit slip</th>
-                    <th className="px-3 py-2 min-w-[120px]">Security slip</th>
-                    <th className="px-3 py-2 min-w-[200px]">Notes</th>
-                    <th className="px-3 py-2 whitespace-nowrap">Shift</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {rows.map((r) => {
-                    const key = `${r.shiftId}:${r.lineIndex}`
-                    const busy = savingKey === key
-                    return (
-                      <tr key={key} className="hover:bg-gray-50/80 align-top">
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-900">{r.date}</td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-800">{r.shift}</td>
-                        <td className="px-3 py-2 text-gray-700">{r.supervisor}</td>
-                        <td className="px-3 py-2 tabular-nums text-gray-600">#{r.lineIndex + 1}</td>
-                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatCurrency(r.amount)}</td>
-                        <td className="px-3 py-2">
-                          <select
-                            disabled={busy}
-                            value={r.bankStatus}
-                            onChange={(e) =>
-                              void patchRow(r.shiftId, r.lineIndex, { bankStatus: e.target.value as BankStatus })
-                            }
-                            className={`text-sm rounded border px-2 py-1 max-w-[11rem] ${statusBadgeClass(r.bankStatus)}`}
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="cleared">Cleared</option>
-                            <option value="discrepancy">Discrepancy</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          {r.depositScanUrls.length === 0 ? (
-                            <span className="text-gray-400 text-xs">No scan uploaded</span>
-                          ) : (
-                            <ul className="space-y-1">
-                              {r.depositScanUrls.map((url, i) => (
-                                <li key={`${url}-${i}`}>
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline text-xs break-all"
-                                  >
-                                    {r.depositScanUrls.length > 1 ? `Slip ${i + 1}: ` : ''}
-                                    {scanLabelFromUrl(url)}
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          {r.securitySlipUrl ? (
-                            <a
-                              href={r.securitySlipUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 underline text-xs break-all"
-                            >
-                              View security slip
-                            </a>
-                          ) : (
-                            <span
-                              className="inline-flex items-center rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs text-gray-500"
-                              title="Upload flow not available yet"
-                            >
-                              Not uploaded — coming soon
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <NotesCell
-                            initial={r.notes}
-                            disabled={busy}
-                            onSave={(notes) => void patchRow(r.shiftId, r.lineIndex, { notes })}
-                          />
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <Link href={`/shifts/${r.shiftId}`} className="text-blue-600 hover:text-blue-800 text-xs font-medium">
-                            Open shift
-                          </Link>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            byDate.map(({ date, deposits, debits }) => (
+              <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
+                  <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
+                    {debits.length ? ` · ${debits.length} debit${debits.length === 1 ? '' : 's'}` : ''}
+                  </p>
+                </header>
+
+                <div className="divide-y divide-slate-100">
+                  {deposits.length > 0 ? (
+                    <div className="p-3 md:p-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
+                      <ItemTable
+                        rows={deposits}
+                        savingKey={savingKey}
+                        onPatch={patchRow}
+                        scanLabel="Deposit scans"
+                      />
+                    </div>
+                  ) : null}
+                  {debits.length > 0 ? (
+                    <div className="p-3 md:p-4 bg-slate-50/50">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Debits (system)</h3>
+                      <ItemTable
+                        rows={debits}
+                        savingKey={savingKey}
+                        onPatch={patchRow}
+                        scanLabel="Debit scans"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ))
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function ItemTable({
+  rows,
+  savingKey,
+  onPatch,
+  scanLabel
+}: {
+  rows: Row[]
+  savingKey: string | null
+  onPatch: (shiftId: string, recordKind: RecordKind, lineIndex: number, body: Partial<{ bankStatus: BankStatus; notes: string }>) => void
+  scanLabel: string
+}) {
+  return (
+    <div className="overflow-x-auto -mx-1">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-100">
+            <th className="px-2 py-2 pr-3">Shift</th>
+            <th className="px-2 py-2">Who</th>
+            <th className="px-2 py-2">Detail</th>
+            <th className="px-2 py-2 text-right">Amount</th>
+            <th className="px-2 py-2">Bank</th>
+            <th className="px-2 py-2 min-w-[7rem]">{scanLabel}</th>
+            <th className="px-2 py-2">Security</th>
+            <th className="px-2 py-2 min-w-[8rem]">Notes</th>
+            <th className="px-2 py-2 whitespace-nowrap">Record</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {rows.map((r) => {
+            const key = rowKey(r)
+            const busy = savingKey === key
+            return (
+              <tr key={key} className="align-middle hover:bg-slate-50/80">
+                <td className="px-2 py-2.5 text-slate-900 whitespace-nowrap font-medium">{r.shift}</td>
+                <td className="px-2 py-2.5 text-slate-600 text-xs max-w-[8rem] truncate" title={r.supervisor}>
+                  {r.supervisor}
+                </td>
+                <td className="px-2 py-2.5 text-slate-600 tabular-nums">
+                  {r.recordKind === 'deposit' ? (
+                    <span className="text-xs text-slate-500">Line #{r.lineIndex + 1}</span>
+                  ) : (
+                    <span className="inline-flex rounded bg-violet-100 text-violet-900 text-[10px] font-bold px-1.5 py-0.5">
+                      DEBIT
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+                  {formatCurrency(r.amount)}
+                </td>
+                <td className="px-2 py-2.5">
+                  <select
+                    disabled={busy}
+                    value={r.bankStatus}
+                    onChange={(e) =>
+                      void onPatch(r.shiftId, r.recordKind, r.lineIndex, { bankStatus: e.target.value as BankStatus })
+                    }
+                    className={`text-sm rounded-lg border px-2 py-1 max-w-[9.5rem] ${statusBadgeClass(r.bankStatus)}`}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="cleared">Cleared</option>
+                    <option value="discrepancy">Discrepancy</option>
+                  </select>
+                </td>
+                <td className="px-2 py-2.5">
+                  {r.scanUrls.length === 0 ? (
+                    <span className="text-xs text-slate-400">None</span>
+                  ) : (
+                    <a
+                      href={r.scanUrls[0]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-600 hover:underline"
+                    >
+                      Open{r.scanUrls.length > 1 ? ` (${r.scanUrls.length} files)` : ''}
+                    </a>
+                  )}
+                </td>
+                <td className="px-2 py-2.5">
+                  {r.securitySlipUrl ? (
+                    <a
+                      href={r.securitySlipUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      View
+                    </a>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 border border-dashed border-slate-200 rounded px-1.5 py-0.5">
+                      Soon
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-2.5">
+                  <NotesCell
+                    initial={r.notes}
+                    disabled={busy}
+                    onSave={(notes) => void onPatch(r.shiftId, r.recordKind, r.lineIndex, { notes })}
+                  />
+                </td>
+                <td className="px-2 py-2.5">
+                  <Link href={`/shifts/${r.shiftId}`} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
+                    Open shift
+                  </Link>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -386,23 +491,19 @@ function NotesCell({
   }, [initial])
 
   return (
-    <div className="flex flex-col gap-1">
-      <textarea
-        value={value}
-        disabled={disabled}
-        onChange={(e) => setValue(e.target.value)}
-        rows={2}
-        placeholder="Bank ref, variance, etc."
-        className="w-full min-w-[180px] rounded border border-gray-300 px-2 py-1 text-xs"
-      />
-      <button
-        type="button"
-        disabled={disabled || value === initial}
-        onClick={() => onSave(value)}
-        className="self-start text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-40"
-      >
-        Save note
-      </button>
-    </div>
+    <input
+      type="text"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initial) onSave(value)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+      }}
+      placeholder="Ref, variance…"
+      className="w-full min-w-[7rem] max-w-[14rem] rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400"
+    />
   )
 }

@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 const BANK_STATUSES = ['pending', 'cleared', 'discrepancy'] as const
 export type BankStatus = (typeof BANK_STATUSES)[number]
+
+const RECORD_KINDS = ['deposit', 'debit'] as const
+type RecordKind = (typeof RECORD_KINDS)[number]
+
+const DEFAULT_SHIFT_TAKE = 600
+const MAX_SHIFT_TAKE = 3000
 
 function parseDeposits(raw: string): number[] {
   try {
@@ -25,9 +32,13 @@ function parseUrlList(raw: string): string[] {
   }
 }
 
+function recordKey(shiftId: string, recordKind: string, lineIndex: number): string {
+  return `${shiftId}:${recordKind}:${lineIndex}`
+}
+
 /**
- * GET /api/financial/deposit-comparisons?from=YYYY-MM-DD&to=YYYY-MM-DD&status=pending|cleared|discrepancy
- * Lists each deposit line from shift closes with reconciliation data.
+ * GET ?status= &: optional from,to; hideCleared=true; shiftLimit= (default 600, max 3000)
+ * No from/to = most recent shifts first (by shift close date), capped by shiftLimit.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -35,6 +46,12 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from')
     const to = searchParams.get('to')
     const statusFilter = searchParams.get('status')
+    const hideCleared = searchParams.get('hideCleared') === 'true'
+    const shiftLimitRaw = searchParams.get('shiftLimit')
+    const shiftTake = Math.min(
+      MAX_SHIFT_TAKE,
+      Math.max(1, parseInt(shiftLimitRaw || String(DEFAULT_SHIFT_TAKE), 10) || DEFAULT_SHIFT_TAKE)
+    )
 
     const where: {
       status: { in: string[] }
@@ -51,6 +68,7 @@ export async function GET(request: NextRequest) {
     const shifts = await prisma.shiftClose.findMany({
       where,
       orderBy: [{ date: 'desc' }, { shift: 'asc' }],
+      take: shiftTake,
       include: {
         depositRecords: true
       }
@@ -59,7 +77,8 @@ export async function GET(request: NextRequest) {
     const recordByKey = new Map<string, (typeof shifts)[0]['depositRecords'][0]>()
     for (const s of shifts) {
       for (const r of s.depositRecords) {
-        recordByKey.set(`${s.id}:${r.lineIndex}`, r)
+        const k = r.recordKind || 'deposit'
+        recordByKey.set(recordKey(s.id, k, r.lineIndex), r)
       }
     }
 
@@ -68,9 +87,10 @@ export async function GET(request: NextRequest) {
       date: string
       shift: string
       supervisor: string
+      recordKind: RecordKind
       lineIndex: number
       amount: number
-      depositScanUrls: string[]
+      scanUrls: string[]
       securitySlipUrl: string | null
       bankStatus: BankStatus
       notes: string
@@ -81,57 +101,114 @@ export async function GET(request: NextRequest) {
     for (const s of shifts) {
       const amounts = parseDeposits(s.deposits)
       const depositScanUrls = parseUrlList(s.depositScanUrls)
+      const debitScanUrls = parseUrlList(s.debitScanUrls)
+      const systemDebit = Number(s.systemDebit) || 0
+
       for (let i = 0; i < amounts.length; i++) {
-        const rec = recordByKey.get(`${s.id}:${i}`)
+        const rec = recordByKey.get(recordKey(s.id, 'deposit', i))
         const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
         const notes = rec?.notes ?? ''
         const securitySlipUrl = rec?.securitySlipUrl ?? null
 
-        if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) {
-          continue
-        }
+        if (hideCleared && bankStatus === 'cleared') continue
+        if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) continue
 
         rows.push({
           shiftId: s.id,
           date: s.date,
           shift: s.shift,
           supervisor: s.supervisor,
+          recordKind: 'deposit',
           lineIndex: i,
           amount: amounts[i],
-          depositScanUrls,
+          scanUrls: depositScanUrls,
           securitySlipUrl,
           bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
           notes
         })
       }
+
+      const showDebitRow = systemDebit !== 0 || debitScanUrls.length > 0
+      if (showDebitRow) {
+        const rec = recordByKey.get(recordKey(s.id, 'debit', 0))
+        const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
+        const notes = rec?.notes ?? ''
+        const securitySlipUrl = rec?.securitySlipUrl ?? null
+
+        if (hideCleared && bankStatus === 'cleared') {
+          /* skip */
+        } else if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) {
+          /* skip */
+        } else {
+          rows.push({
+            shiftId: s.id,
+            date: s.date,
+            shift: s.shift,
+            supervisor: s.supervisor,
+            recordKind: 'debit',
+            lineIndex: 0,
+            amount: systemDebit,
+            scanUrls: debitScanUrls,
+            securitySlipUrl,
+            bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
+            notes
+          })
+        }
+      }
     }
 
     const totals = {
       count: rows.length,
-      sumAmount: rows.reduce((a, r) => a + r.amount, 0),
+      sumDeposits: rows.filter((r) => r.recordKind === 'deposit').reduce((a, r) => a + r.amount, 0),
+      sumDebits: rows.filter((r) => r.recordKind === 'debit').reduce((a, r) => a + r.amount, 0),
       pending: rows.filter((r) => r.bankStatus === 'pending').length,
       cleared: rows.filter((r) => r.bankStatus === 'cleared').length,
       discrepancy: rows.filter((r) => r.bankStatus === 'discrepancy').length
     }
 
-    return NextResponse.json({ rows, totals })
+    return NextResponse.json({
+      rows,
+      totals,
+      meta: {
+        shiftCount: shifts.length,
+        shiftTake,
+        truncated: shifts.length >= shiftTake,
+        dateFiltered: Boolean(from || to)
+      }
+    })
   } catch (e) {
     console.error('deposit-comparisons GET', e)
-    return NextResponse.json({ error: 'Failed to load deposit comparisons' }, { status: 500 })
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021') {
+      return NextResponse.json(
+        {
+          error:
+            'Deposit comparisons need the deposit_records table. On the server run: npx prisma migrate deploy (or prisma migrate dev locally), then redeploy if needed.'
+        },
+        { status: 503 }
+      )
+    }
+    const hint =
+      process.env.NODE_ENV === 'development' && e instanceof Error ? ` (${e.message})` : ''
+    return NextResponse.json({ error: `Failed to load deposit comparisons${hint}` }, { status: 500 })
   }
 }
 
 /**
- * PATCH /api/financial/deposit-comparisons
- * Body: { shiftId, lineIndex, bankStatus?, notes?, securitySlipUrl? }
+ * PATCH body: { shiftId, recordKind?: deposit|debit, lineIndex, bankStatus?, notes?, securitySlipUrl? }
  */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
     const shiftId = typeof body.shiftId === 'string' ? body.shiftId : ''
     const lineIndex = typeof body.lineIndex === 'number' ? body.lineIndex : parseInt(String(body.lineIndex), 10)
+    const recordKind: RecordKind = body.recordKind === 'debit' ? 'debit' : 'deposit'
+
     if (!shiftId || !Number.isFinite(lineIndex) || lineIndex < 0) {
       return NextResponse.json({ error: 'shiftId and lineIndex required' }, { status: 400 })
+    }
+
+    if (recordKind === 'debit' && lineIndex !== 0) {
+      return NextResponse.json({ error: 'Debit reconciliation uses lineIndex 0' }, { status: 400 })
     }
 
     const shift = await prisma.shiftClose.findUnique({ where: { id: shiftId } })
@@ -139,9 +216,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
     }
 
-    const amounts = parseDeposits(shift.deposits)
-    if (lineIndex >= amounts.length) {
-      return NextResponse.json({ error: 'Invalid line index for this shift' }, { status: 400 })
+    if (recordKind === 'deposit') {
+      const amounts = parseDeposits(shift.deposits)
+      if (lineIndex >= amounts.length) {
+        return NextResponse.json({ error: 'Invalid line index for this shift' }, { status: 400 })
+      }
+    } else {
+      const debitScanUrls = parseUrlList(shift.debitScanUrls)
+      const systemDebit = Number(shift.systemDebit) || 0
+      if (systemDebit === 0 && debitScanUrls.length === 0) {
+        return NextResponse.json({ error: 'No debit total or debit scans on this shift' }, { status: 400 })
+      }
     }
 
     const data: {
@@ -171,10 +256,11 @@ export async function PATCH(request: NextRequest) {
 
     const updated = await prisma.depositRecord.upsert({
       where: {
-        shiftId_lineIndex: { shiftId, lineIndex }
+        shiftId_recordKind_lineIndex: { shiftId, recordKind, lineIndex }
       },
       create: {
         shiftId,
+        recordKind,
         lineIndex,
         bankStatus: data.bankStatus ?? 'pending',
         notes: data.notes ?? '',
@@ -186,6 +272,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(updated)
   } catch (e) {
     console.error('deposit-comparisons PATCH', e)
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021') {
+      return NextResponse.json(
+        {
+          error:
+            'deposit_records table is missing. Run database migrations (prisma migrate deploy) before saving.'
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
   }
 }
