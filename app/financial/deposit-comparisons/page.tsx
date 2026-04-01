@@ -156,42 +156,45 @@ function DayScanDropdowns({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-3 bg-white border-b border-slate-100">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposits</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Deposits</span>
         <IconMenu
           ariaLabel="Choose a deposit slip to preview"
-          icon={<IconDepositSlip />}
+          icon={<IconDepositSlip className="text-blue-700" />}
+          triggerClassName="border-blue-200 bg-blue-50/90 hover:bg-blue-50 hover:border-blue-300"
           options={depositOptions.map((o) => ({ value: o.url, label: o.label }))}
           emptyHint="No deposit scans this day"
           onPick={(url, label) => onOpenPreview(url, label)}
         />
         {depositOptions.length === 0 ? (
-          <span className="text-[11px] text-slate-400">No deposit scans this day</span>
+          <span className="text-[11px] text-blue-600/75">No deposit scans this day</span>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Debits / credit</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Debits / credit</span>
         <IconMenu
           ariaLabel="Choose a debit or credit scan to preview"
-          icon={<IconDebitCard />}
+          icon={<IconDebitCard className="text-violet-700" />}
+          triggerClassName="border-violet-200 bg-violet-50/90 hover:bg-violet-50 hover:border-violet-300"
           options={debitOptions.map((o) => ({ value: o.url, label: o.label }))}
           emptyHint="No debit scans this day"
           onPick={(url, label) => onOpenPreview(url, label)}
         />
         {debitOptions.length === 0 ? (
-          <span className="text-[11px] text-slate-400">No debit scans this day</span>
+          <span className="text-[11px] text-violet-600/75">No debit scans this day</span>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Security</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Security</span>
         <IconMenu
           ariaLabel="Choose a security slip to preview"
-          icon={<IconShield />}
+          icon={<IconShield className="text-emerald-700" />}
+          triggerClassName="border-emerald-200 bg-emerald-50/90 hover:bg-emerald-50 hover:border-emerald-300"
           options={securityOptions.map((o) => ({ value: o.url, label: o.label }))}
           emptyHint="No security slips this day"
           onPick={(url, label) => onOpenPreview(url, label)}
         />
         {securityOptions.length === 0 ? (
-          <span className="text-[11px] text-slate-400">None uploaded yet (coming soon)</span>
+          <span className="text-[11px] text-emerald-700/70">None uploaded yet (coming soon)</span>
         ) : null}
       </div>
     </div>

@@ -16,7 +16,8 @@ export function IconMenu({
   disabled,
   emptyHint,
   onPick,
-  align = 'left'
+  align = 'left',
+  triggerClassName
 }: {
   ariaLabel: string
   title?: string
@@ -26,6 +27,8 @@ export function IconMenu({
   emptyHint?: string
   onPick: (value: string, label: string) => void
   align?: Align
+  /** Extra classes for the square trigger (e.g. tinted border/background). */
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
@@ -61,7 +64,7 @@ export function IconMenu({
         disabled={disabledFinal}
         title={disabledFinal ? emptyHint ?? 'Nothing to choose' : title ?? ariaLabel}
         onClick={() => !disabledFinal && setOpen((o) => !o)}
-        className={`${triggerClass} ${open ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+        className={`${triggerClass} ${open ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${triggerClassName ?? ''}`}
       >
         {icon}
       </button>
@@ -190,9 +193,9 @@ export function IconCalendar() {
   )
 }
 
-export function IconDepositSlip() {
+export function IconDepositSlip({ className = 'text-slate-700' }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-slate-700" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
       <path
         d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
         stroke="currentColor"
@@ -204,9 +207,9 @@ export function IconDepositSlip() {
   )
 }
 
-export function IconDebitCard() {
+export function IconDebitCard({ className = 'text-slate-700' }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-slate-700" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
       <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.75" />
       <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75" />
       <path d="M6 15h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -214,9 +217,9 @@ export function IconDebitCard() {
   )
 }
 
-export function IconShield() {
+export function IconShield({ className = 'text-violet-700' }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-violet-700" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
       <path
         d="M12 3l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V7l8-4z"
         stroke="currentColor"
