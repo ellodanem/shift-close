@@ -133,13 +133,32 @@ model ShiftClose {
   overShortExplanation   String   @default("") @map("over_short_explanation")
   createdAt              DateTime @default(now()) @map("created_at")
 
-  corrections     Correction[]
-  noteHistory     NoteHistory[]
-  overShortItems  OverShortItem[]
-  supervisorStaff Staff?        @relation(fields: [supervisorId], references: [id])
+  corrections      Correction[]
+  noteHistory      NoteHistory[]
+  overShortItems   OverShortItem[]
+  supervisorStaff  Staff?           @relation(fields: [supervisorId], references: [id])
+  depositRecords   DepositRecord[]
 
   @@unique([date, shift])
   @@map("shift_close")
+}
+
+/// Per–deposit-line reconciliation (bank vs recorded); matches index in ShiftClose.deposits JSON array.
+model DepositRecord {
+  id              String   @id @default(cuid())
+  shiftId         String   @map("shift_id")
+  lineIndex       Int      @map("line_index")
+  bankStatus      String   @default("pending") @map("bank_status") // pending | cleared | discrepancy
+  notes           String   @default("")
+  securitySlipUrl String?  @map("security_slip_url") // reserved for future scanned security slip
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  shift ShiftClose @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, lineIndex])
+  @@index([shiftId])
+  @@map("deposit_records")
 }
 
 model OverShortItem {

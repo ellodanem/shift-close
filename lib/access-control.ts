@@ -44,10 +44,15 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
         pathname.startsWith('/api/dashboard/upcoming') ||
         pathname.startsWith('/api/dashboard/today') ||
         pathname.startsWith('/api/pay-days') ||
-        pathname.startsWith('/api/fuel-payments/recent')
+        pathname.startsWith('/api/fuel-payments/recent') ||
+        pathname.startsWith('/api/financial/deposit-comparisons')
       )
     }
-    return pathname === '/dashboard' || pathname.startsWith('/insights/')
+    return (
+      pathname === '/dashboard' ||
+      pathname.startsWith('/insights/') ||
+      pathname.startsWith('/financial/deposit-comparisons')
+    )
   }
 
   if (isSupervisorLike(role)) {
@@ -90,7 +95,11 @@ export function apiWriteAllowedForRole(
   }
   if (isFullAccessRole(role)) return true
   if (normalizeAppRole(role) === 'stakeholder') {
-    return pathname.startsWith('/api/auth/') || pathname.startsWith('/api/insights/')
+    return (
+      pathname.startsWith('/api/auth/') ||
+      pathname.startsWith('/api/insights/') ||
+      pathname === '/api/financial/deposit-comparisons'
+    )
   }
   if (isSupervisorLike(role)) {
     if (pathname.startsWith('/api/roster/weeks') && method === 'POST') return false

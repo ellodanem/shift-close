@@ -79,6 +79,11 @@ export default function AttendanceSettingsPage() {
     void loadEod().finally(() => setEodLoading(false))
   }, [loadEod])
 
+  useEffect(() => {
+    setAsumLoading(true)
+    void loadAsum().finally(() => setAsumLoading(false))
+  }, [loadAsum])
+
   const saveExpected = async () => {
     setSaving(true)
     setMessage(null)
