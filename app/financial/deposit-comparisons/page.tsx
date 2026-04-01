@@ -14,7 +14,10 @@ interface Row {
   supervisor: string
   recordKind: RecordKind
   lineIndex: number
+  /** For debit rows: systemDebit + systemCredit (one scan often lists both). */
   amount: number
+  systemDebit?: number
+  systemCredit?: number
   scanUrls: string[]
   securitySlipUrl: string | null
   bankStatus: BankStatus
@@ -343,7 +346,9 @@ export default function DepositComparisonsPage() {
                   ) : null}
                   {debits.length > 0 ? (
                     <div className="p-3 md:p-4 bg-slate-50/50">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Debits (system)</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                        Debits (system debit + credit)
+                      </h3>
                       <ItemTable
                         rows={debits}
                         savingKey={savingKey}
@@ -403,13 +408,23 @@ function ItemTable({
                   {r.recordKind === 'deposit' ? (
                     <span className="text-xs text-slate-500">Line #{r.lineIndex + 1}</span>
                   ) : (
-                    <span className="inline-flex rounded bg-violet-100 text-violet-900 text-[10px] font-bold px-1.5 py-0.5">
-                      DEBIT
+                    <span
+                      className="inline-flex rounded bg-violet-100 text-violet-900 text-[10px] font-bold px-1.5 py-0.5"
+                      title="System debit + credit from POS; amount is the combined total (matches one slip)."
+                    >
+                      D + C
                     </span>
                   )}
                 </td>
-                <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-slate-900">
-                  {formatCurrency(r.amount)}
+                <td className="px-2 py-2.5 text-right text-slate-900">
+                  <div className="font-semibold tabular-nums">{formatCurrency(r.amount)}</div>
+                  {r.recordKind === 'debit' ? (
+                    <div className="mt-0.5 text-[10px] leading-tight text-slate-500 tabular-nums">
+                      Debit {formatCurrency(r.systemDebit ?? 0)}
+                      {' · '}
+                      Credit {formatCurrency(r.systemCredit ?? 0)}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-2 py-2.5">
                   <select

@@ -90,6 +90,9 @@ export async function GET(request: NextRequest) {
       recordKind: RecordKind
       lineIndex: number
       amount: number
+      /** Debit rows: POS system debit + system credit (one scan often covers both). */
+      systemDebit?: number
+      systemCredit?: number
       scanUrls: string[]
       securitySlipUrl: string | null
       bankStatus: BankStatus
@@ -103,6 +106,8 @@ export async function GET(request: NextRequest) {
       const depositScanUrls = parseUrlList(s.depositScanUrls)
       const debitScanUrls = parseUrlList(s.debitScanUrls)
       const systemDebit = Number(s.systemDebit) || 0
+      const systemCredit = Number(s.systemCredit) || 0
+      const debitCreditCombined = systemDebit + systemCredit
 
       for (let i = 0; i < amounts.length; i++) {
         const rec = recordByKey.get(recordKey(s.id, 'deposit', i))
@@ -128,7 +133,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const showDebitRow = systemDebit !== 0 || debitScanUrls.length > 0
+      const showDebitRow = debitCreditCombined !== 0 || debitScanUrls.length > 0
       if (showDebitRow) {
         const rec = recordByKey.get(recordKey(s.id, 'debit', 0))
         const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
@@ -147,7 +152,9 @@ export async function GET(request: NextRequest) {
             supervisor: s.supervisor,
             recordKind: 'debit',
             lineIndex: 0,
-            amount: systemDebit,
+            amount: debitCreditCombined,
+            systemDebit,
+            systemCredit,
             scanUrls: debitScanUrls,
             securitySlipUrl,
             bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
@@ -224,8 +231,13 @@ export async function PATCH(request: NextRequest) {
     } else {
       const debitScanUrls = parseUrlList(shift.debitScanUrls)
       const systemDebit = Number(shift.systemDebit) || 0
-      if (systemDebit === 0 && debitScanUrls.length === 0) {
-        return NextResponse.json({ error: 'No debit total or debit scans on this shift' }, { status: 400 })
+      const systemCredit = Number(shift.systemCredit) || 0
+      const combined = systemDebit + systemCredit
+      if (combined === 0 && debitScanUrls.length === 0) {
+        return NextResponse.json(
+          { error: 'No system debit/credit POS total or debit scans on this shift' },
+          { status: 400 }
+        )
       }
     }
 
