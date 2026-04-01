@@ -23,6 +23,11 @@ const navConfig = [
     label: 'Financial',
     items: [
       { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook' },
+      {
+        label: 'Deposit comparisons',
+        href: '/financial/deposit-comparisons',
+        permission: 'financial.depositComparisons'
+      },
       { label: 'Financial Report', href: '/reports/financial', permission: 'financial.report' },
       { label: 'Customer Accounts', href: '/customer-accounts', permission: 'financial.accounts' },
       { label: 'Account Balances', href: '/account-customers', permission: 'financial.accounts' },
@@ -86,6 +91,7 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/shifts') return pathname === '/shifts' || pathname.startsWith('/shifts/')
   if (href === '/days') return pathname === '/days'
   if (href === '/financial/cashbook') return pathname.startsWith('/financial/cashbook')
+  if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
   if (href === '/reports/financial') return pathname === '/reports/financial'
   if (href === '/customer-accounts') return pathname.startsWith('/customer-accounts')
   if (href === '/account-customers') return pathname.startsWith('/account-customers')
@@ -115,7 +121,11 @@ function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
-    return href === '/dashboard' || href.startsWith('/insights/')
+    return (
+      href === '/dashboard' ||
+      href.startsWith('/insights/') ||
+      href === '/financial/deposit-comparisons'
+    )
   }
   if (r === 'supervisor' || r === 'senior_supervisor') {
     const blocked = [

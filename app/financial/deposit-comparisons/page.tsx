@@ -147,10 +147,15 @@ export default function DepositComparisonsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-[1200px] mx-auto space-y-6">
-        <div>
-          <Link href="/financial/cashbook" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <Link href="/financial/cashbook" className="font-medium text-blue-600 hover:text-blue-800">
             ← Cashbook
           </Link>
+          <Link href="/insights/deposit-debit-scans" className="font-medium text-blue-600 hover:text-blue-800">
+            Deposit & debit scans (Insights)
+          </Link>
+        </div>
+        <div>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Deposit comparisons</h1>
           <p className="mt-1 text-sm text-gray-600 max-w-3xl">
             Review every recorded deposit line from closed shifts, match against the bank, and mark each line as pending,

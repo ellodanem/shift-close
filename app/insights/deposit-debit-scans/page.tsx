@@ -189,12 +189,23 @@ export default function DepositDebitScansPage() {
           <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 font-semibold text-blue-900">
             Deposit & debit scans
           </span>
+          <Link
+            href="/financial/deposit-comparisons"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Deposit comparisons
+          </Link>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Deposit & debit scans</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
           End-of-day deposit and debit scans grouped by <strong>calendar day</strong> (one section per day). Attachments
           from all shifts that day are merged; duplicate links appear once. Search a <strong>single day</strong> by
-          default, or switch to a <strong>date range</strong> to browse multiple days.
+          default, or switch to a <strong>date range</strong> to browse multiple days. To mark each deposit line against
+          the bank (pending, cleared, discrepancy), use{' '}
+          <Link href="/financial/deposit-comparisons" className="font-medium text-blue-700 underline hover:text-blue-900">
+            Deposit comparisons
+          </Link>
+          .
         </p>
 
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
