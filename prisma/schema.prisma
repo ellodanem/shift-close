@@ -127,6 +127,7 @@ model ShiftClose {
   notes                  String   @default("")
   depositScanUrls        String   @default("[]") @map("deposit_scan_urls") // JSON array of URLs
   debitScanUrls          String   @default("[]") @map("debit_scan_urls") // JSON array of URLs
+  securityScanUrls       String   @default("[]") @map("security_scan_urls") // JSON array of URLs (EOD security slips)
   hasMissingHardCopyData Boolean  @default(false) @map("has_missing_hard_copy_data")
   missingDataNotes       String   @default("") @map("missing_data_notes")
   overShortExplained     Boolean  @default(false) @map("over_short_explained")

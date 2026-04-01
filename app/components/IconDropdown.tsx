@@ -17,7 +17,11 @@ export function IconMenu({
   emptyHint,
   onPick,
   align = 'left',
-  triggerClassName
+  triggerClassName,
+  /** When true, trigger stays enabled with no files (show empty hint + optional footer). */
+  allowEmptyOpen,
+  onDelete,
+  footer
 }: {
   ariaLabel: string
   title?: string
@@ -29,6 +33,9 @@ export function IconMenu({
   align?: Align
   /** Extra classes for the square trigger (e.g. tinted border/background). */
   triggerClassName?: string
+  allowEmptyOpen?: boolean
+  onDelete?: (value: string) => void
+  footer?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
@@ -52,7 +59,7 @@ export function IconMenu({
   }, [open])
 
   const empty = options.length === 0
-  const disabledFinal = disabled || empty
+  const disabledFinal = Boolean(disabled) || (empty && !allowEmptyOpen)
 
   return (
     <div className="relative inline-block" ref={wrap}>
@@ -71,24 +78,42 @@ export function IconMenu({
       {open && !disabledFinal && (
         <ul
           role="listbox"
-          className={`absolute z-50 mt-1 max-h-60 min-w-[14rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ${
+          className={`absolute z-50 mt-1 max-h-72 min-w-[16rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
         >
-          {options.map((o) => (
-            <li key={o.value} role="option">
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
-                onClick={() => {
-                  onPick(o.value, o.label)
-                  setOpen(false)
-                }}
-              >
-                {o.label}
-              </button>
-            </li>
-          ))}
+          {empty ? (
+            <li className="px-3 py-2 text-sm text-slate-500">{emptyHint ?? 'No items'}</li>
+          ) : (
+            options.map((o) => (
+              <li key={o.value} role="option" className="flex items-stretch border-b border-slate-50 last:border-0">
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                  onClick={() => {
+                    onPick(o.value, o.label)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="break-all">{o.label}</span>
+                </button>
+                {onDelete ? (
+                  <button
+                    type="button"
+                    className="shrink-0 px-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    aria-label="Delete file"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(o.value)
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </li>
+            ))
+          )}
+          {footer ? <li className="border-t border-slate-100 px-2 py-2">{footer}</li> : null}
         </ul>
       )}
     </div>

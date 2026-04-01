@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 
 interface DayFileUploadProps {
   date: string
-  type: 'deposit' | 'debit'
+  type: 'deposit' | 'debit' | 'security'
   currentUrls: string[]
   onUploadComplete: () => void // Refresh the day report data
 }
@@ -178,10 +178,14 @@ export default function DayFileUpload({ date, type, currentUrls, onUploadComplet
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   }
 
-  const label = type === 'deposit' ? '📄 Deposit Scans' : '💳 Debit Scans'
-  const description = type === 'deposit' 
-    ? 'Upload deposit receipt scans or images (will be attached to all shifts for this day)'
-    : 'Upload debit receipt scans or images (will be attached to all shifts for this day)'
+  const label =
+    type === 'deposit' ? '📄 Deposit Scans' : type === 'debit' ? '💳 Debit Scans' : '🛡 Security Scans'
+  const description =
+    type === 'deposit'
+      ? 'Upload deposit receipt scans or images (will be attached to all shifts for this day)'
+      : type === 'debit'
+        ? 'Upload debit receipt scans or images (will be attached to all shifts for this day)'
+        : 'Upload security slip scans (will be attached to all shifts for this day)'
 
   return (
     <>

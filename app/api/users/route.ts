@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
-import { APP_ROLES, canManageAppUsers, normalizeAppRole } from '@/lib/roles'
+import { APP_ROLES, canAssignAppRole, canManageAppUsers, normalizeAppRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
 
     if (!username || !email || !password || !APP_ROLES.includes(role as (typeof APP_ROLES)[number])) {
       return NextResponse.json({ error: 'Invalid username, email, password, or role' }, { status: 400 })
+    }
+
+    if (!canAssignAppRole(session.role, role)) {
+      return NextResponse.json({ error: 'You cannot assign this role' }, { status: 403 })
     }
 
     const passwordHash = await bcrypt.hash(password, 12)

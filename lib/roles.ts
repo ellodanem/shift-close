@@ -56,9 +56,17 @@ export function isPathBlockedForOperationsManager(pathname: string): boolean {
   return false
 }
 
-/** Roles that grant financial power or can only be assigned by true admins (admin/manager). */
+/**
+ * Roles with full financial module access (cashbook, payments, financial reports).
+ * Distinct from user-management rules for operations managers.
+ */
 export function isFinancialPowerRole(role: string): boolean {
   return isFullAccessRole(role)
+}
+
+/** The administrator app role — only this tier cannot be assigned or edited by operations managers. */
+export function isAdministratorRole(role: string): boolean {
+  return normalizeAppRole(role) === 'admin'
 }
 
 export function isSupervisorLike(role: string): boolean {
@@ -100,7 +108,7 @@ export function getAssignableRolesForActor(actorRole: string): AppRole[] {
   const actor = normalizeAppRole(actorRole)
   if (actor === 'admin' || actor === 'manager') return [...APP_ROLES]
   if (actor === 'operations_manager') {
-    return APP_ROLES.filter((r) => !isFinancialPowerRole(r))
+    return APP_ROLES.filter((r) => !isAdministratorRole(r))
   }
   return []
 }
@@ -111,13 +119,13 @@ export function canAssignAppRole(actorRole: string, targetRole: string): boolean
   return assignable.includes(t as AppRole)
 }
 
-/** PATCH/DELETE target user — operations managers cannot change admin/manager accounts. */
+/** PATCH/DELETE target user — operations managers cannot change administrator accounts. */
 export function canManageExistingAppUser(actorRole: string, targetUserRole: string): boolean {
   if (!canManageAppUsers(actorRole)) return false
   const actor = normalizeAppRole(actorRole)
   const target = normalizeAppRole(targetUserRole)
   if (actor === 'admin' || actor === 'manager') return true
-  if (actor === 'operations_manager') return !isFinancialPowerRole(target)
+  if (actor === 'operations_manager') return !isAdministratorRole(target)
   return false
 }
 

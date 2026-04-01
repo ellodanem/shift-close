@@ -74,11 +74,14 @@ export async function buildDayReports(): Promise<DayReport[]> {
 
     const depositSet = new Set<string>()
     const debitSet = new Set<string>()
+    const securitySet = new Set<string>()
 
     dayShifts.forEach((s) => {
       try {
         const depositUrls = s.depositScanUrls ? JSON.parse(s.depositScanUrls) : []
         const debitUrls = s.debitScanUrls ? JSON.parse(s.debitScanUrls) : []
+        const secRaw = s.securityScanUrls
+        const securityUrls = secRaw ? JSON.parse(secRaw) : []
 
         if (Array.isArray(depositUrls)) {
           depositUrls.forEach((url: string) => {
@@ -90,6 +93,11 @@ export async function buildDayReports(): Promise<DayReport[]> {
             if (url) debitSet.add(url)
           })
         }
+        if (Array.isArray(securityUrls)) {
+          securityUrls.forEach((url: string) => {
+            if (url) securitySet.add(url)
+          })
+        }
       } catch {
         // skip
       }
@@ -97,6 +105,7 @@ export async function buildDayReports(): Promise<DayReport[]> {
 
     const depositScans = Array.from(depositSet)
     const debitScans = Array.from(debitSet)
+    const securityScans = Array.from(securitySet)
 
     dayReports.push({
       date,
@@ -140,7 +149,8 @@ export async function buildDayReports(): Promise<DayReport[]> {
       })),
       totals,
       depositScans,
-      debitScans
+      debitScans,
+      securityScans
     })
   }
 

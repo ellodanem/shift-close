@@ -1,8 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { APP_ROLES, normalizeAppRole } from '@/lib/roles'
+import {
+  APP_ROLES,
+  canManageExistingAppUser,
+  getAssignableRolesForActor,
+  normalizeAppRole
+} from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
 import { PasswordField } from '@/app/components/PasswordField'
 
@@ -19,7 +24,7 @@ interface AppUserRow {
 }
 
 export default function SettingsUsersPage() {
-  const { canManageUsers } = useAuth()
+  const { user: authUser, canManageUsers } = useAuth()
   const [users, setUsers] = useState<AppUserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,10 +48,20 @@ export default function SettingsUsersPage() {
     password: ''
   })
 
+  const actorRole = authUser?.role ?? ''
+
+  const assignableRoles = useMemo(
+    () => (actorRole ? getAssignableRolesForActor(actorRole) : APP_ROLES),
+    [actorRole]
+  )
+
   const roleForSelect = (role: string) => {
     const n = normalizeAppRole(role)
     return APP_ROLES.includes(n as (typeof APP_ROLES)[number]) ? n : 'stakeholder'
   }
+
+  const canEditOrDeleteUser = (u: AppUserRow) =>
+    !u.isSuperAdmin && canManageExistingAppUser(actorRole, u.role)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,7 +166,10 @@ export default function SettingsUsersPage() {
             ← Settings
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mt-2">User accounts</h1>
-          <p className="text-sm text-gray-600 mt-1">Create and manage logins. Super admin cannot be edited or deleted.</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Create and manage logins. Super admin cannot be edited or deleted. Operations managers can create any role
+            except administrator; they cannot modify or delete administrator accounts.
+          </p>
         </div>
 
         {error && (
@@ -214,7 +232,7 @@ export default function SettingsUsersPage() {
                 onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
               >
-                {APP_ROLES.map((r) => (
+                {assignableRoles.map((r) => (
                   <option key={r} value={r}>
                     {r.replace(/_/g, ' ')}
                   </option>
@@ -266,6 +284,10 @@ export default function SettingsUsersPage() {
                       <td className="px-4 py-2 text-right">
                         {u.isSuperAdmin ? (
                           <span className="text-gray-400 text-xs">—</span>
+                        ) : !canEditOrDeleteUser(u) ? (
+                          <span className="text-gray-400 text-xs" title="Only administrators can change this account">
+                            —
+                          </span>
                         ) : editingId === u.id ? (
                           <div className="flex flex-col gap-2 items-end">
                             <input
@@ -293,7 +315,7 @@ export default function SettingsUsersPage() {
                               }
                               className="border rounded px-2 py-1 text-xs"
                             >
-                              {APP_ROLES.map((r) => (
+                              {assignableRoles.map((r) => (
                                 <option key={r} value={r}>
                                   {r.replace(/_/g, ' ')}
                                 </option>

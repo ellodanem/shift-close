@@ -77,7 +77,7 @@ function buildDefaultDiscrepancyEmailBody(_date: string, deposits: Row[], debits
   let body = 'Please address discrepancies for the following transactions:\n\n'
   for (const r of lines) {
     if (r.recordKind === 'deposit') {
-      body += `Deposit: ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
+      body += `Deposit: ${formatCurrency(r.amount)}`
     } else {
       body += `Debits/Credits : ${formatCurrency(r.amount)}`
     }

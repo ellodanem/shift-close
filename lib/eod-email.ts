@@ -61,6 +61,11 @@ export function buildEndOfDayEmailHtml(
     report.debitScans.length > 0
       ? `<ul>${report.debitScans.map((u) => `<li><a href="${u}">Debit scan</a></li>`).join('')}</ul>`
       : '<p><em>No debit scans uploaded.</em></p>'
+  const securityScans = report.securityScans ?? []
+  const securityLinks =
+    securityScans.length > 0
+      ? `<ul>${securityScans.map((u) => `<li><a href="${u}">Security scan</a></li>`).join('')}</ul>`
+      : '<p><em>No security scans uploaded.</em></p>'
 
   const daysLink = baseUrl ? `<p><a href="${absUrl(baseUrl, '/days')}">Open End of Day in Shift Close</a></p>` : ''
 
@@ -82,6 +87,8 @@ export function buildEndOfDayEmailHtml(
   ${depositLinks}
   <h3 style="font-size:15px;margin-top:16px">Debit scans</h3>
   ${debitLinks}
+  <h3 style="font-size:15px;margin-top:16px">Security scans</h3>
+  ${securityLinks}
   ${daysLink}
   <p style="color:#666;font-size:12px;margin-top:24px">Automated end-of-day summary from Shift Close.</p>
 </body></html>`.trim()

@@ -5,8 +5,8 @@ import { formatCurrency } from '@/lib/format'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
 import * as XLSX from 'xlsx'
-import DayFileUpload from './DayFileUpload'
 import CustomDatePicker from './CustomDatePicker'
+import DayScanStrip from './DayScanStrip'
 
 type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
 
@@ -15,7 +15,6 @@ export default function DaysPage() {
   const [dayReports, setDayReports] = useState<DayReport[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
-  const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set())
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
@@ -26,7 +25,7 @@ export default function DaysPage() {
   const [emailToId, setEmailToId] = useState('')
   const [emailOther, setEmailOther] = useState('')
   const [emailSending, setEmailSending] = useState(false)
-  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
+  const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
 
   // Close custom picker when clicking outside
   useEffect(() => {
@@ -63,6 +62,20 @@ export default function DaysPage() {
     fetchDayReports()
   }, [])
 
+  useEffect(() => {
+    if (!scanPreview) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setScanPreview(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [scanPreview])
+
   // Refetch when user returns to this tab so new shifts show without full reload
   useEffect(() => {
     const onVisible = () => {
@@ -82,29 +95,21 @@ export default function DaysPage() {
     setExpandedDates(newExpanded)
   }
 
-  const toggleScans = (date: string) => {
-    const newExpanded = new Set(expandedScans)
-    if (newExpanded.has(date)) {
-      newExpanded.delete(date)
-    } else {
-      newExpanded.add(date)
-    }
-    setExpandedScans(newExpanded)
-  }
-
   const refreshDayReports = () => fetchDayReports()
 
   const toAbsoluteUrl = (url: string) =>
     url.startsWith('http') ? url : (typeof window !== 'undefined' ? `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}` : url)
 
-  const openEmailModal = (date: string, scanType: 'deposit' | 'debit', urlOrUrls: string | string[]) => {
+  const openEmailModal = (date: string, scanType: 'deposit' | 'debit' | 'security', urlOrUrls: string | string[]) => {
     const urls = Array.isArray(urlOrUrls) ? urlOrUrls : [urlOrUrls]
     const links = urls.map(toAbsoluteUrl)
-    const singular = scanType === 'deposit' ? 'deposit' : 'debit'
-    const plural = scanType === 'deposit' ? 'deposit' : 'debit'
+    const label =
+      scanType === 'deposit' ? 'Deposit' : scanType === 'debit' ? 'Debit' : 'Security'
+    const singular = scanType === 'deposit' ? 'deposit' : scanType === 'debit' ? 'debit' : 'security'
+    const plural = scanType === 'deposit' ? 'deposit' : scanType === 'debit' ? 'debit' : 'security'
     const subject = links.length > 1
-      ? `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scans - ${date} (${links.length} files)`
-      : `${scanType === 'deposit' ? 'Deposit' : 'Debit'} Scan - ${date}`
+      ? `${label} Scans - ${date} (${links.length} files)`
+      : `${label} Scan - ${date}`
     const body = links.length > 1
       ? `Please find the ${plural} scans from ${date}.\n\n${links.map((link, i) => `Scan ${i + 1}: ${link}`).join('\n')}`
       : `Please find the ${singular} scan from ${date}.\n\nLink: ${links[0]}`
@@ -374,35 +379,48 @@ export default function DaysPage() {
           </div>
         </div>
       )}
-      {/* Built-in PDF viewer modal — centered window, no page load */}
-      {pdfViewerUrl && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 shrink-0">
-              <span className="text-sm font-medium text-gray-700">PDF viewer</span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={pdfViewerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Open in new tab
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setPdfViewerUrl(null)}
-                  className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded text-sm font-medium text-gray-800"
-                >
-                  Close
-                </button>
-              </div>
+      {/* Scan preview (same pattern as bank deposit comparisons) */}
+      {scanPreview && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="eod-scan-preview-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            onClick={() => setScanPreview(null)}
+            aria-label="Close preview"
+          />
+          <div className="relative z-10 flex w-full max-w-4xl max-h-[min(92vh,900px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <h3 id="eod-scan-preview-title" className="text-sm font-semibold text-slate-900 truncate pr-2" title={scanPreview.title}>
+                {scanPreview.title}
+              </h3>
+              <a
+                href={scanPreview.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-blue-600 hover:underline shrink-0"
+              >
+                Open in new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setScanPreview(null)}
+                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Close
+              </button>
             </div>
-            <iframe
-              src={pdfViewerUrl}
-              title="PDF document"
-              className="w-full flex-1 min-h-[60vh] border-0"
-            />
+            <div className="min-h-[50vh] flex-1 bg-slate-100">
+              <iframe
+                src={scanPreview.url}
+                className="h-[min(75vh,720px)] w-full border-0"
+                title={scanPreview.title}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -572,22 +590,88 @@ export default function DaysPage() {
                         {/* Deposit & Debit slip upload indicators — collapsed only */}
                         {!isExpanded && (
                           <div className="flex items-center gap-2">
-                            {/* Deposit slip icon */}
-                            <div className="relative" title={dayReport.depositScans.length > 0 ? `${dayReport.depositScans.length} deposit slip(s) uploaded` : 'No deposit slips uploaded'}>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            <div
+                              className="relative"
+                              title={
+                                dayReport.depositScans.length > 0
+                                  ? `${dayReport.depositScans.length} deposit slip(s) uploaded`
+                                  : 'No deposit slips uploaded'
+                              }
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-7 h-7 text-blue-600"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                />
                               </svg>
-                              <span className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.depositScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}>
+                              <span
+                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.depositScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                              >
                                 {dayReport.depositScans.length > 0 ? '✓' : '✕'}
                               </span>
                             </div>
-                            {/* Debit slip icon */}
-                            <div className="relative" title={dayReport.debitScans.length > 0 ? `${dayReport.debitScans.length} debit slip(s) uploaded` : 'No debit slips uploaded'}>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            <div
+                              className="relative"
+                              title={
+                                dayReport.debitScans.length > 0
+                                  ? `${dayReport.debitScans.length} debit slip(s) uploaded`
+                                  : 'No debit slips uploaded'
+                              }
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-7 h-7 text-violet-600"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                                />
                               </svg>
-                              <span className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.debitScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}>
+                              <span
+                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.debitScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                              >
                                 {dayReport.debitScans.length > 0 ? '✓' : '✕'}
+                              </span>
+                            </div>
+                            <div
+                              className="relative"
+                              title={
+                                (dayReport.securityScans ?? []).length > 0
+                                  ? `${(dayReport.securityScans ?? []).length} security slip(s) uploaded`
+                                  : 'No security slips uploaded'
+                              }
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-7 h-7 text-emerald-700"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                />
+                              </svg>
+                              <span
+                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${(dayReport.securityScans ?? []).length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                              >
+                                {(dayReport.securityScans ?? []).length > 0 ? '✓' : '✕'}
                               </span>
                             </div>
                           </div>
@@ -662,230 +746,53 @@ export default function DaysPage() {
                     </div>
                   </div>
                   
-                  {/* Document Scans */}
-                  <div className="p-4 border-b border-gray-200">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-semibold text-gray-900">
-                        Document Scans
-                        {(dayReport.depositScans.length > 0 || dayReport.debitScans.length > 0) && (
-                          <span className="ml-2 text-sm font-normal text-gray-500">
-                            ({dayReport.depositScans.length + dayReport.debitScans.length} total)
-                          </span>
-                        )}
-                      </h3>
-                      <button
-                        onClick={() => toggleScans(dayReport.date)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        {expandedScans.has(dayReport.date) ? '▼ Collapse' : '▶ Expand'}
-                      </button>
+                  {/* Document scans — bank comparisons–style strip + preview modal */}
+                  <div className="border-b border-gray-200 overflow-hidden bg-white">
+                    <div className="px-4 pt-3">
+                      <h3 className="font-semibold text-gray-900">Document scans</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Deposits, Other Items, and security — click an icon to list, preview, upload, or remove files.
+                      </p>
                     </div>
-                    
-                    {expandedScans.has(dayReport.date) && (
-                      <div className="space-y-4">
-                        {/* Upload Section */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <DayFileUpload
-                            date={dayReport.date}
-                            type="deposit"
-                            currentUrls={dayReport.depositScans}
-                            onUploadComplete={refreshDayReports}
-                          />
-                          <DayFileUpload
-                            date={dayReport.date}
-                            type="debit"
-                            currentUrls={dayReport.debitScans}
-                            onUploadComplete={refreshDayReports}
-                          />
-                        </div>
-                        
-                        {/* Display existing scans */}
-                        {(dayReport.depositScans.length > 0 || dayReport.debitScans.length > 0) && (
-                          <div className="space-y-4 mt-4">
-                            {dayReport.depositScans.length > 0 && (
-                              <div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4 className="text-sm font-medium text-gray-700">
-                                    📄 Deposit Scans ({dayReport.depositScans.length})
-                                  </h4>
-                                  <button
-                                    onClick={() => openEmailModal(dayReport.date, 'deposit', dayReport.depositScans)}
-                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                    title="Email all deposit scans"
-                                  >
-                                    ✉ Email all
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  {dayReport.depositScans.map((url, index) => {
-                                    const isPdf = url.toLowerCase().endsWith('.pdf')
-                                    return (
-                                    <div
-                                      key={index}
-                                      className="relative bg-gray-50 rounded-lg border border-gray-200 p-2"
-                                    >
-                                      {isPdf ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => setPdfViewerUrl(url)}
-                                          className="block w-full text-center py-3 cursor-pointer hover:bg-gray-100 rounded transition-colors"
-                                          title="View PDF"
-                                        >
-                                          <div className="text-3xl mb-1">📄</div>
-                                          <div className="text-xs text-gray-600">PDF — click to view</div>
-                                        </button>
-                                      ) : (
-                                        <a
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="block"
-                                        >
-                                          <img
-                                            src={url}
-                                            alt={`Deposit scan ${index + 1}`}
-                                            className="w-full h-24 object-contain rounded bg-white"
-                                          />
-                                        </a>
-                                      )}
-                                      {/* Delete button */}
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation?.()
-                                          const confirmed = window.confirm('Delete this deposit scan? This cannot be undone.')
-                                          if (!confirmed) return
-                                          try {
-                                            const res = await fetch(`/api/days/${dayReport.date}/upload`, {
-                                              method: 'DELETE',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ url, type: 'deposit' })
-                                            })
-                                            if (res.ok) {
-                                              refreshDayReports()
-                                            } else {
-                                              const err = await res.json().catch(() => ({}))
-                                              alert(err.error || 'Failed to delete scan')
-                                            }
-                                          } catch (err) {
-                                            console.error('Error deleting scan', err)
-                                            alert('Failed to delete scan')
-                                          }
-                                        }}
-                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                        aria-label="Delete"
-                                        title="Delete this file"
-                                      >
-                                        ✕
-                                      </button>
-                                      {/* Email button — sends via API. (Future: add WhatsApp share button with same link.) */}
-                                      <button
-                                        onClick={() => openEmailModal(dayReport.date, 'deposit', url)}
-                                        className="absolute bottom-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-blue-600"
-                                        aria-label="Email"
-                                        title="Email this file"
-                                      >
-                                        ✉
-                                      </button>
-                                    </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            {dayReport.debitScans.length > 0 && (
-                              <div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4 className="text-sm font-medium text-gray-700">
-                                    💳 Debit Scans ({dayReport.debitScans.length})
-                                  </h4>
-                                  <button
-                                    onClick={() => openEmailModal(dayReport.date, 'debit', dayReport.debitScans)}
-                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                    title="Email all debit scans"
-                                  >
-                                    ✉ Email all
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  {dayReport.debitScans.map((url, index) => {
-                                    const isPdf = url.toLowerCase().endsWith('.pdf')
-                                    return (
-                                    <div
-                                      key={index}
-                                      className="relative bg-gray-50 rounded-lg border border-gray-200 p-2"
-                                    >
-                                      {isPdf ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => setPdfViewerUrl(url)}
-                                          className="block w-full text-center py-3 cursor-pointer hover:bg-gray-100 rounded transition-colors"
-                                          title="View PDF"
-                                        >
-                                          <div className="text-3xl mb-1">📄</div>
-                                          <div className="text-xs text-gray-600">PDF — click to view</div>
-                                        </button>
-                                      ) : (
-                                        <a
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="block"
-                                        >
-                                          <img
-                                            src={url}
-                                            alt={`Debit scan ${index + 1}`}
-                                            className="w-full h-24 object-contain rounded bg-white"
-                                          />
-                                        </a>
-                                      )}
-                                      {/* Delete button */}
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation?.()
-                                          const confirmed = window.confirm('Delete this debit scan? This cannot be undone.')
-                                          if (!confirmed) return
-                                          try {
-                                            const res = await fetch(`/api/days/${dayReport.date}/upload`, {
-                                              method: 'DELETE',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ url, type: 'debit' })
-                                            })
-                                            if (res.ok) {
-                                              refreshDayReports()
-                                            } else {
-                                              const err = await res.json().catch(() => ({}))
-                                              alert(err.error || 'Failed to delete scan')
-                                            }
-                                          } catch (err) {
-                                            console.error('Error deleting scan', err)
-                                            alert('Failed to delete scan')
-                                          }
-                                        }}
-                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                        aria-label="Delete"
-                                        title="Delete this file"
-                                      >
-                                        ✕
-                                      </button>
-                                      {/* Email button — sends via API. (Future: add WhatsApp share button with same link.) */}
-                                      <button
-                                        onClick={() => openEmailModal(dayReport.date, 'debit', url)}
-                                        className="absolute bottom-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-blue-600"
-                                        aria-label="Email"
-                                        title="Email this file"
-                                      >
-                                        ✉
-                                      </button>
-                                    </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <DayScanStrip
+                      date={dayReport.date}
+                      depositScans={dayReport.depositScans}
+                      debitScans={dayReport.debitScans}
+                      securityScans={dayReport.securityScans ?? []}
+                      onRefresh={refreshDayReports}
+                      onOpenPreview={(url, title) => setScanPreview({ url, title })}
+                    />
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 px-4 pb-3 text-sm">
+                      {dayReport.depositScans.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => openEmailModal(dayReport.date, 'deposit', dayReport.depositScans)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Email all deposit scans
+                        </button>
+                      )}
+                      {dayReport.debitScans.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => openEmailModal(dayReport.date, 'debit', dayReport.debitScans)}
+                          className="text-violet-700 hover:text-violet-900 font-medium"
+                        >
+                          Email all debit scans
+                        </button>
+                      )}
+                      {(dayReport.securityScans ?? []).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEmailModal(dayReport.date, 'security', dayReport.securityScans ?? [])
+                          }
+                          className="text-emerald-800 hover:text-emerald-950 font-medium"
+                        >
+                          Email all security scans
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Shift Breakdown */}

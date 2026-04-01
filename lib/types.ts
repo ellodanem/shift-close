@@ -64,5 +64,6 @@ export interface DayReport {
   }
   depositScans: string[]
   debitScans: string[]
+  securityScans: string[]
 }
 

@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
-import { APP_ROLES, canManageAppUsers, normalizeAppRole } from '@/lib/roles'
+import {
+  APP_ROLES,
+  canAssignAppRole,
+  canManageAppUsers,
+  canManageExistingAppUser,
+  normalizeAppRole
+} from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +30,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Super admin account cannot be modified' }, { status: 403 })
   }
 
+  if (!canManageExistingAppUser(session.role, existing.role)) {
+    return NextResponse.json({ error: 'You cannot modify this account' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const data: Record<string, unknown> = {}
@@ -36,6 +46,9 @@ export async function PATCH(
       const r = normalizeAppRole(String(body.role))
       if (!APP_ROLES.includes(r as (typeof APP_ROLES)[number])) {
         return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+      }
+      if (!canAssignAppRole(session.role, r)) {
+        return NextResponse.json({ error: 'You cannot assign this role' }, { status: 403 })
       }
       data.role = r
     }
@@ -88,6 +101,10 @@ export async function DELETE(
   }
   if (existing.isSuperAdmin) {
     return NextResponse.json({ error: 'Super admin account cannot be deleted' }, { status: 403 })
+  }
+
+  if (!canManageExistingAppUser(session.role, existing.role)) {
+    return NextResponse.json({ error: 'You cannot delete this account' }, { status: 403 })
   }
 
   await prisma.appUser.delete({ where: { id } })

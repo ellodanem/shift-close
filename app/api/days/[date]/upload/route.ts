@@ -13,14 +13,14 @@ export async function POST(
     const { date } = await params
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const type = formData.get('type') as string // 'deposit' or 'debit'
-    
+    const type = formData.get('type') as string // 'deposit' | 'debit' | 'security'
+
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
-    
-    if (!type || (type !== 'deposit' && type !== 'debit')) {
-      return NextResponse.json({ error: 'Invalid type. Must be "deposit" or "debit"' }, { status: 400 })
+
+    if (!type || (type !== 'deposit' && type !== 'debit' && type !== 'security')) {
+      return NextResponse.json({ error: 'Invalid type. Must be "deposit", "debit", or "security"' }, { status: 400 })
     }
     
     // Vercel serverless: request body limit ~4.5MB; larger files may fail
@@ -65,22 +65,29 @@ export async function POST(
     const updatePromises = shifts.map(async (shift) => {
       let currentUrls: string[] = []
       try {
-        currentUrls = type === 'deposit'
-          ? (shift.depositScanUrls ? JSON.parse(shift.depositScanUrls) : [])
-          : (shift.debitScanUrls ? JSON.parse(shift.debitScanUrls) : [])
+        const raw =
+          type === 'deposit'
+            ? shift.depositScanUrls
+            : type === 'debit'
+              ? shift.debitScanUrls
+              : shift.securityScanUrls
+        currentUrls = raw ? JSON.parse(raw) : []
       } catch {
         // If existing JSON is invalid, start fresh for this shift
         currentUrls = []
       }
-      
+
       // Check if URL already exists (avoid duplicates)
       if (!currentUrls.includes(url)) {
         const updatedUrls = [...currentUrls, url]
-        
-        const updateData = type === 'deposit'
-          ? { depositScanUrls: JSON.stringify(updatedUrls) }
-          : { debitScanUrls: JSON.stringify(updatedUrls) }
-        
+
+        const updateData =
+          type === 'deposit'
+            ? { depositScanUrls: JSON.stringify(updatedUrls) }
+            : type === 'debit'
+              ? { debitScanUrls: JSON.stringify(updatedUrls) }
+              : { securityScanUrls: JSON.stringify(updatedUrls) }
+
         await prisma.shiftClose.update({
           where: { id: shift.id },
           data: updateData
@@ -110,7 +117,7 @@ export async function DELETE(
     const { date } = await params
     const { url, type } = await request.json()
 
-    if (!url || (type !== 'deposit' && type !== 'debit')) {
+    if (!url || (type !== 'deposit' && type !== 'debit' && type !== 'security')) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
@@ -126,9 +133,18 @@ export async function DELETE(
     // Remove URL from all shifts for this date
     await Promise.all(
       shifts.map(async (shift) => {
-        const currentUrls = type === 'deposit'
-          ? (shift.depositScanUrls ? JSON.parse(shift.depositScanUrls) : [])
-          : (shift.debitScanUrls ? JSON.parse(shift.debitScanUrls) : [])
+        let currentUrls: string[] = []
+        try {
+          const raw =
+            type === 'deposit'
+              ? shift.depositScanUrls
+              : type === 'debit'
+                ? shift.debitScanUrls
+                : shift.securityScanUrls
+          currentUrls = raw ? JSON.parse(raw) : []
+        } catch {
+          currentUrls = []
+        }
 
         if (!Array.isArray(currentUrls) || !currentUrls.includes(url)) return
 
@@ -136,7 +152,9 @@ export async function DELETE(
         const updateData =
           type === 'deposit'
             ? { depositScanUrls: JSON.stringify(updatedUrls) }
-            : { debitScanUrls: JSON.stringify(updatedUrls) }
+            : type === 'debit'
+              ? { debitScanUrls: JSON.stringify(updatedUrls) }
+              : { securityScanUrls: JSON.stringify(updatedUrls) }
 
         await prisma.shiftClose.update({
           where: { id: shift.id },
