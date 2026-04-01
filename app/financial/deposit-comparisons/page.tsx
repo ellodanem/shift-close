@@ -76,14 +76,26 @@ function buildDefaultDiscrepancyEmailBody(date: string, deposits: Row[], debits:
   const lines = [...deposits, ...debits].filter((r) => r.bankStatus === 'discrepancy')
   let body = 'Please address discrepancies for the following transactions:\n\n'
   for (const r of lines) {
-    const label =
-      r.recordKind === 'deposit'
-        ? `Deposit · ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
-        : `Other Items (end-of-day sheet) · ${formatCurrency(r.amount)}`
+    let label: string
+    if (r.recordKind === 'deposit') {
+      label = `Deposit · ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
+    } else {
+      const shiftPart =
+        r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1
+          ? ` · Shifts: ${r.contributingShifts.map((s) => s.shift).join(', ')}`
+          : ''
+      label = `Other Items (end-of-day sheet) · Day total${shiftPart} · ${formatCurrency(r.amount)}`
+    }
     const note = (r.notes || '').trim() || '(no notes)'
-    body += `${label}  ${note}\n`
+    body += `${label}\n  Notes: ${note}\n`
+    const hasScans =
+      (r.scanUrls?.length ?? 0) > 0 || Boolean((r.securitySlipUrl ?? '').trim())
+    if (!hasScans) {
+      body += '  No scans on file for this line.\n'
+    }
+    body += '\n'
   }
-  body += '\nPlease find all accompanying documents to review this.'
+  body += 'Please find all accompanying documents to review this.'
   return body
 }
 
@@ -284,6 +296,8 @@ function ScanPreviewModal({
   )
 }
 
+const LS_LAST_DISC_EMAIL_TO = 'depositDiscEmailLastTo'
+
 function DiscrepancyEmailModal({
   payload,
   onClose,
@@ -299,14 +313,63 @@ function DiscrepancyEmailModal({
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planAttachError, setPlanAttachError] = useState<string | null>(null)
+  const [planAttachments, setPlanAttachments] = useState<Array<{ url: string; label: string }>>([])
+  const [excludedUrls, setExcludedUrls] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     if (!payload) return
-    setTo('')
     setCc('')
-    setSubject('')
     setText(buildDefaultDiscrepancyEmailBody(payload.date, payload.deposits, payload.debits))
     setErr(null)
+    setPlanAttachError(null)
+    setExcludedUrls(new Set())
+    setPlanAttachments([])
+    const subj = `Discrepancies — ${formatDayHeading(payload.date)}`
+    setSubject(subj)
+
+    let cancelled = false
+    setPlanLoading(true)
+    void fetch(`/api/financial/deposit-comparisons/discrepancy-email?date=${encodeURIComponent(payload.date)}`, {
+      cache: 'no-store'
+    })
+      .then(async (res) => {
+        const data = (await res.json()) as {
+          attachments?: Array<{ url: string; label: string }>
+          defaultSubject?: string | null
+          defaultTo?: string | null
+          hasDiscrepancy?: boolean
+          error?: string
+        }
+        if (cancelled) return
+        if (!res.ok) {
+          setPlanAttachError(typeof data.error === 'string' ? data.error : 'Failed to load attachment plan')
+          return
+        }
+        if (data.hasDiscrepancy === false) {
+          setErr('No discrepancy rows for this date on the server. Refresh the page and try again.')
+          return
+        }
+        setPlanAttachments(Array.isArray(data.attachments) ? data.attachments : [])
+        if (typeof data.defaultSubject === 'string' && data.defaultSubject.trim()) {
+          setSubject(data.defaultSubject.trim())
+        }
+        const def = typeof data.defaultTo === 'string' && data.defaultTo.trim() ? data.defaultTo.trim() : ''
+        const last =
+          typeof window !== 'undefined' ? (localStorage.getItem(LS_LAST_DISC_EMAIL_TO) ?? '').trim() : ''
+        setTo(def || last || '')
+      })
+      .catch((e) => {
+        if (!cancelled) setPlanAttachError(e instanceof Error ? e.message : 'Failed to load attachment plan')
+      })
+      .finally(() => {
+        if (!cancelled) setPlanLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [payload])
 
   useEffect(() => {
@@ -327,6 +390,18 @@ function DiscrepancyEmailModal({
 
   const heading = formatDayHeading(payload.date)
 
+  const toggleExclude = (url: string) => {
+    setExcludedUrls((prev) => {
+      const next = new Set(prev)
+      if (next.has(url)) next.delete(url)
+      else next.add(url)
+      return next
+    })
+  }
+
+  const activeAttachments = planAttachments.filter((a) => !excludedUrls.has(a.url))
+  const skipped = planAttachments.length - activeAttachments.length
+
   const handleSend = async () => {
     setErr(null)
     const toTrim = to.trim()
@@ -336,6 +411,7 @@ function DiscrepancyEmailModal({
     }
     setSending(true)
     try {
+      const excludeUrls = planAttachments.filter((a) => excludedUrls.has(a.url)).map((a) => a.url)
       const res = await fetch('/api/financial/deposit-comparisons/discrepancy-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -344,15 +420,30 @@ function DiscrepancyEmailModal({
           to: toTrim,
           cc: cc.trim() || undefined,
           subject: subject.trim() || undefined,
-          text: text.trim()
+          text: text.trim(),
+          excludeUrls: excludeUrls.length > 0 ? excludeUrls : undefined
         })
       })
-      const data = await res.json().catch(() => ({}))
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        attachmentCount?: number
+        fetchFailed?: number
+      }
       if (!res.ok) {
         throw new Error(typeof data.error === 'string' ? data.error : 'Send failed')
       }
       const n = typeof data.attachmentCount === 'number' ? data.attachmentCount : 0
-      onSent(n > 0 ? `Email sent with ${n} attachment${n === 1 ? '' : 's'}.` : 'Email sent.')
+      const failed = typeof data.fetchFailed === 'number' ? data.fetchFailed : 0
+      try {
+        localStorage.setItem(LS_LAST_DISC_EMAIL_TO, toTrim)
+      } catch {
+        /* ignore */
+      }
+      let detail =
+        n > 0 ? `Email sent with ${n} attachment${n === 1 ? '' : 's'}` : 'Email sent (no attachments added)'
+      if (failed > 0) detail += ` — ${failed} file${failed === 1 ? '' : 's'} could not be fetched`
+      detail += '.'
+      onSent(detail)
       onClose()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Send failed')
@@ -422,9 +513,52 @@ function DiscrepancyEmailModal({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 font-mono"
             />
           </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+            <p className="text-xs font-semibold text-slate-700">Attachments (from shift records)</p>
+            {planAttachError ? (
+              <p className="text-xs text-amber-800 mt-1">{planAttachError} You can still send the message.</p>
+            ) : null}
+            {planLoading ? (
+              <p className="text-xs text-slate-500 mt-1">Loading list…</p>
+            ) : planAttachError ? null : planAttachments.length === 0 ? (
+              <p className="text-xs text-slate-500 mt-1">
+                No matching scans in shift records for this send (you can still send the message).
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-slate-600 mt-1">
+                  {planAttachments.length} file{planAttachments.length === 1 ? '' : 's'} planned
+                  {skipped > 0 ? ` · ${skipped} skipped for this send` : ''}
+                  {activeAttachments.length > 0
+                    ? ` · ${activeAttachments.length} will attach`
+                    : ' · none will attach (all skipped or fetch may add none)'}
+                </p>
+                <ul className="mt-2 max-h-36 overflow-y-auto space-y-1.5 text-xs">
+                  {planAttachments.map((a) => {
+                    const excluded = excludedUrls.has(a.url)
+                    return (
+                      <li key={a.url} className="flex items-start justify-between gap-2">
+                        <span className={`text-slate-800 break-all ${excluded ? 'line-through opacity-60' : ''}`} title={a.url}>
+                          {a.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleExclude(a.url)}
+                          className="shrink-0 text-blue-600 hover:underline font-medium"
+                        >
+                          {excluded ? 'Include' : 'Skip'}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
           <p className="text-xs text-slate-500">
-            Deposit discrepancies attach all deposit scans for this day plus security slips on file. Other Items discrepancies attach
-            debit/credit scans. Scans are fetched when sending (size limits may apply).
+            Deposit discrepancies attach all deposit scans for this day plus security slips on deposit lines. Other Items discrepancies
+            attach debit scans and security on the day row. The server fetches files when you send (size limits may apply); skipped files
+            are not downloaded.
           </p>
           {err ? <p className="text-sm text-red-600">{err}</p> : null}
         </div>
@@ -492,6 +626,16 @@ export default function DepositComparisonsPage() {
     debits: Row[]
   } | null>(null)
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null)
+  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    void fetch('/api/financial/deposit-comparisons/discrepancy-email', { cache: 'no-store' })
+      .then(async (res) => {
+        const data = (await res.json()) as { smtpConfigured?: boolean }
+        setSmtpConfigured(typeof data.smtpConfigured === 'boolean' ? data.smtpConfigured : false)
+      })
+      .catch(() => setSmtpConfigured(false))
+  }, [])
 
   const load = useCallback(async () => {
     setError(null)
@@ -746,16 +890,27 @@ export default function DepositComparisonsPage() {
                         </p>
                       </div>
                       {hasDiscrepancy ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmailSuccess(null)
-                            setDiscrepancyEmail({ date, deposits, debits })
-                          }}
-                          className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
-                        >
-                          Email about discrepancies
-                        </button>
+                        smtpConfigured === false ? (
+                          <span
+                            className="shrink-0 text-xs text-slate-600 max-w-[14rem] text-right"
+                            title="Email not configured. Set SMTP settings in Settings → Email (SMTP)."
+                          >
+                            Email requires SMTP — Settings → Email (SMTP)
+                          </span>
+                        ) : smtpConfigured === null ? (
+                          <span className="shrink-0 text-xs text-slate-400">Checking email…</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmailSuccess(null)
+                              setDiscrepancyEmail({ date, deposits, debits })
+                            }}
+                            className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
+                          >
+                            Email about discrepancies
+                          </button>
+                        )
                       ) : null}
                     </div>
                   </header>

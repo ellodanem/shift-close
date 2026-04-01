@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendMail } from '@/lib/email'
+import { sendMail, getSmtpConfig } from '@/lib/email'
 import { getSessionFromRequest } from '@/lib/session'
 import {
+  collectDiscrepancyAttachmentUrls,
+  filenameHintFromUrl,
+  labelAttachmentUrls
+} from '@/lib/deposit-comparison-attachments'
+import {
   buildComparisonRowsFromShifts,
-  parseUrlList,
-  type ComparisonRow,
   type ShiftWithDepositRecords
 } from '@/lib/deposit-comparison-rows'
 
@@ -13,32 +16,20 @@ export const dynamic = 'force-dynamic'
 
 const MAX_ATTACHMENT_BYTES = 24 * 1024 * 1024
 const MAX_FILES = 20
+const FETCH_TIMEOUT_MS = 20_000
 
-function filenameFromUrl(url: string, index: number): string {
-  try {
-    const path = new URL(url).pathname
-    const last = path.split('/').filter(Boolean).pop()
-    if (last) {
-      return decodeURIComponent(last)
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-        .slice(0, 120)
-    }
-  } catch {
-    /* ignore */
-  }
-  return `attachment-${index + 1}`
-}
+const DEFAULT_FINANCE_TO_KEY = 'financial_discrepancy_email_default_to'
 
 async function fetchAttachment(
   url: string,
   index: number
 ): Promise<{ filename: string; content: Buffer; contentType?: string } | null> {
   try {
-    const res = await fetch(url, { redirect: 'follow' })
+    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     if (!res.ok) return null
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length === 0) return null
-    let filename = filenameFromUrl(url, index)
+    let filename = filenameHintFromUrl(url, index)
     const cd = res.headers.get('content-disposition')
     if (cd) {
       const m = /filename\*?=(?:UTF-8''|")?([^";\n]+)/i.exec(cd)
@@ -57,44 +48,83 @@ async function fetchAttachment(
   }
 }
 
-/** URLs to attach: deposit discrepancies → all deposit scans for the day + security slips; debit → Other Items scans only; both → union (deduped). */
-function collectAttachmentUrls(
-  shifts: ShiftWithDepositRecords[],
-  rows: ComparisonRow[],
-  hasDepDisc: boolean,
-  hasDebitDisc: boolean
-): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
+function formatHeadingDate(date: string): string {
+  return new Date(date + 'T12:00:00').toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
 
-  const add = (u: string) => {
-    const t = u.trim()
-    if (!t || seen.has(t)) return
-    seen.add(t)
-    out.push(t)
-  }
+async function loadDayPayload(date: string) {
+  const shifts = await prisma.shiftClose.findMany({
+    where: { date, status: { in: ['closed', 'reviewed'] } },
+    include: { depositRecords: true },
+    orderBy: [{ shift: 'asc' }]
+  })
+  const rows = buildComparisonRowsFromShifts(shifts as ShiftWithDepositRecords[])
+  const disc = rows.filter((r) => r.bankStatus === 'discrepancy')
+  const hasDepDisc = disc.some((r) => r.recordKind === 'deposit')
+  const hasDebitDisc = disc.some((r) => r.recordKind === 'debit')
+  const urls =
+    disc.length > 0
+      ? collectDiscrepancyAttachmentUrls(shifts as ShiftWithDepositRecords[], rows, hasDepDisc, hasDebitDisc)
+      : []
+  return { shifts, rows, disc, hasDepDisc, hasDebitDisc, urls }
+}
 
-  if (hasDepDisc) {
-    for (const s of shifts) {
-      for (const u of parseUrlList(s.depositScanUrls)) add(u)
+/** GET — meta only, or ?date=YYYY-MM-DD for attachment plan + defaults (auth). */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSessionFromRequest(request)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    for (const r of rows) {
-      if (r.recordKind === 'deposit' && r.securitySlipUrl) add(r.securitySlipUrl)
-    }
-  }
-  if (hasDebitDisc) {
-    for (const s of shifts) {
-      for (const u of parseUrlList(s.debitScanUrls)) add(u)
-    }
-    // When both deposit and Other Items have discrepancies, include security slip on the day debit row if present.
-    if (hasDepDisc) {
-      for (const r of rows) {
-        if (r.recordKind === 'debit' && r.securitySlipUrl) add(r.securitySlipUrl)
-      }
-    }
-  }
 
-  return out
+    const smtpConfigured = (await getSmtpConfig()) !== null
+    const defaultRow = await prisma.appSettings.findUnique({ where: { key: DEFAULT_FINANCE_TO_KEY } })
+    const defaultTo = (defaultRow?.value ?? '').trim() || null
+
+    const { searchParams } = new URL(request.url)
+    const date = typeof searchParams.get('date') === 'string' ? searchParams.get('date')!.trim() : ''
+
+    if (!date) {
+      return NextResponse.json({ smtpConfigured, defaultTo })
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+    }
+
+    const { shifts, disc, urls } = await loadDayPayload(date)
+    if (shifts.length === 0) {
+      return NextResponse.json({
+        smtpConfigured,
+        defaultTo,
+        hasDiscrepancy: false,
+        attachments: [],
+        defaultSubject: null,
+        message: 'No shifts for this date'
+      })
+    }
+
+    const hasDiscrepancy = disc.length > 0
+    const attachments = hasDiscrepancy ? labelAttachmentUrls(urls) : []
+    const defaultSubject = `Discrepancies — ${formatHeadingDate(date)}`
+
+    return NextResponse.json({
+      smtpConfigured,
+      defaultTo,
+      hasDiscrepancy,
+      attachments,
+      defaultSubject,
+      urlsAttempted: urls.length
+    })
+  } catch (e) {
+    console.error('discrepancy-email GET', e)
+    return NextResponse.json({ error: 'Failed to load' }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -110,6 +140,13 @@ export async function POST(request: NextRequest) {
     const cc = typeof body.cc === 'string' ? body.cc.trim() : ''
     const subjectIn = typeof body.subject === 'string' ? body.subject.trim() : ''
     const text = typeof body.text === 'string' ? body.text : ''
+    const excludeUrlsRaw = body.excludeUrls
+    const excludeSet = new Set<string>()
+    if (Array.isArray(excludeUrlsRaw)) {
+      for (const u of excludeUrlsRaw) {
+        if (typeof u === 'string' && u.trim()) excludeSet.add(u.trim())
+      }
+    }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'date (YYYY-MM-DD) is required' }, { status: 400 })
@@ -121,26 +158,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message body is required' }, { status: 400 })
     }
 
-    const shifts = await prisma.shiftClose.findMany({
-      where: { date, status: { in: ['closed', 'reviewed'] } },
-      include: { depositRecords: true },
-      orderBy: [{ shift: 'asc' }]
-    })
+    const { shifts, disc, urls: allUrls } = await loadDayPayload(date)
 
     if (shifts.length === 0) {
       return NextResponse.json({ error: 'No shifts for this date' }, { status: 404 })
     }
-
-    const rows = buildComparisonRowsFromShifts(shifts as ShiftWithDepositRecords[])
-    const disc = rows.filter((r) => r.bankStatus === 'discrepancy')
     if (disc.length === 0) {
       return NextResponse.json({ error: 'No discrepancy rows for this date' }, { status: 400 })
     }
 
-    const hasDepDisc = disc.some((r) => r.recordKind === 'deposit')
-    const hasDebitDisc = disc.some((r) => r.recordKind === 'debit')
+    const allowed = new Set(allUrls)
+    for (const u of excludeSet) {
+      if (!allowed.has(u)) {
+        return NextResponse.json({ error: 'Invalid attachment exclusion (unknown URL).' }, { status: 400 })
+      }
+    }
 
-    const urls = collectAttachmentUrls(shifts as ShiftWithDepositRecords[], rows, hasDepDisc, hasDebitDisc)
+    const urls = allUrls.filter((u) => !excludeSet.has(u))
+    let fetchFailed = 0
 
     const attachments: Array<{ filename: string; content: Buffer; contentType?: string }> = []
     const usedNames = new Set<string>()
@@ -150,7 +185,10 @@ export async function POST(request: NextRequest) {
       if (attachments.length >= MAX_FILES) break
       const att = await fetchAttachment(url, fetchIndex)
       fetchIndex += 1
-      if (!att) continue
+      if (!att) {
+        fetchFailed += 1
+        continue
+      }
       if (totalBytes + att.content.length > MAX_ATTACHMENT_BYTES) break
       let fname = att.filename
       let n = 1
@@ -166,13 +204,8 @@ export async function POST(request: NextRequest) {
       totalBytes += att.content.length
     }
 
-    const heading = new Date(date + 'T12:00:00').toLocaleDateString(undefined, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-    const defaultSubject = `Bank reconciliation discrepancies — ${heading}`
+    const heading = formatHeadingDate(date)
+    const defaultSubject = `Discrepancies — ${heading}`
     const subject = subjectIn || defaultSubject
 
     const html = `<pre style="font-family: system-ui, sans-serif; white-space: pre-wrap;">${text
@@ -192,7 +225,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       attachmentCount: attachments.length,
-      urlsAttempted: urls.length
+      urlsAttempted: allUrls.length,
+      excludedCount: excludeSet.size,
+      fetchFailed
     })
   } catch (e) {
     console.error('discrepancy-email', e)
