@@ -1,8 +1,42 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 type Align = 'left' | 'right'
+
+/** Fixed placement so lists are not clipped by overflow-x-auto / overflow-hidden ancestors. */
+function useDropdownFixedPosition(
+  open: boolean,
+  align: Align,
+  triggerRef: RefObject<HTMLButtonElement | null>
+) {
+  const [pos, setPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+    const el = triggerRef.current
+    if (!el) return
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      const gap = 4
+      setPos(
+        align === 'right'
+          ? { top: r.bottom + gap, right: window.innerWidth - r.right }
+          : { top: r.bottom + gap, left: r.left }
+      )
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, align])
+  return pos
+}
 
 const triggerClass =
   'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm transition hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40'
@@ -39,6 +73,8 @@ export function IconMenu({
 }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuPos = useDropdownFixedPosition(open, align, triggerRef)
 
   useEffect(() => {
     if (!open) return
@@ -64,6 +100,7 @@ export function IconMenu({
   return (
     <div className="relative inline-block" ref={wrap}>
       <button
+        ref={triggerRef}
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -75,12 +112,17 @@ export function IconMenu({
       >
         {icon}
       </button>
-      {open && !disabledFinal && (
+      {open && !disabledFinal && menuPos && (
         <ul
           role="listbox"
-          className={`absolute z-50 mt-1 max-h-72 min-w-[16rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            left: menuPos.left,
+            right: menuPos.right,
+            zIndex: 100
+          }}
+          className="max-h-72 min-w-[16rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
           {empty ? (
             <li className="px-3 py-2 text-sm text-slate-500">{emptyHint ?? 'No items'}</li>
@@ -140,6 +182,8 @@ export function IconSelect<T extends string>({
 }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuPos = useDropdownFixedPosition(open, align, triggerRef)
   const current = options.find((o) => o.value === value) ?? options[0]
 
   useEffect(() => {
@@ -163,6 +207,7 @@ export function IconSelect<T extends string>({
   return (
     <div className="relative inline-block" ref={wrap}>
       <button
+        ref={triggerRef}
         type="button"
         aria-label={`${ariaLabel}: ${current?.label ?? value}`}
         aria-haspopup="listbox"
@@ -174,12 +219,17 @@ export function IconSelect<T extends string>({
       >
         {renderTrigger({ value: current.value, label: current.label })}
       </button>
-      {open && !disabled && (
+      {open && !disabled && menuPos && (
         <ul
           role="listbox"
-          className={`absolute z-50 mt-1 max-h-60 min-w-[10rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            left: menuPos.left,
+            right: menuPos.right,
+            zIndex: 100
+          }}
+          className="max-h-60 min-w-[10rem] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
           {options.map((o) => (
             <li key={String(o.value)} role="option">

@@ -13,6 +13,7 @@ import {
   IconShield
 } from '@/app/components/IconDropdown'
 import { formatCurrency } from '@/lib/format'
+import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 
 type BankStatus = 'pending' | 'cleared' | 'discrepancy'
 type RecordKind = 'deposit' | 'debit'
@@ -272,7 +273,7 @@ function ScanPreviewModal({
         </div>
         <div className="min-h-[50vh] flex-1 bg-slate-100">
           <iframe
-            src={preview.url}
+            src={pdfIframeSrc(preview.url)}
             className="h-[min(75vh,720px)] w-full border-0"
             title={preview.title}
           />
@@ -869,7 +870,7 @@ export default function DepositComparisonsPage() {
               const securityScanOptions = buildSecurityScanOptions(deposits, debits)
               const hasDiscrepancy = [...deposits, ...debits].some((r) => r.bankStatus === 'discrepancy')
               return (
-                <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm">
                   <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>

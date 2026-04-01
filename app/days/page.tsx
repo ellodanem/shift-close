@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { formatCurrency } from '@/lib/format'
+import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
 import * as XLSX from 'xlsx'
@@ -416,7 +417,7 @@ export default function DaysPage() {
             </div>
             <div className="min-h-[50vh] flex-1 bg-slate-100">
               <iframe
-                src={scanPreview.url}
+                src={pdfIframeSrc(scanPreview.url)}
                 className="h-[min(75vh,720px)] w-full border-0"
                 title={scanPreview.title}
               />
