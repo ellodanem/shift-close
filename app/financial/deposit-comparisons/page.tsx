@@ -138,11 +138,13 @@ function buildSecurityScanOptions(deposits: Row[], debits: Row[]): ScanOption[] 
 function DayScanDropdowns({
   depositOptions,
   debitOptions,
-  securityOptions
+  securityOptions,
+  onOpenPreview
 }: {
   depositOptions: ScanOption[]
   debitOptions: ScanOption[]
   securityOptions: ScanOption[]
+  onOpenPreview: (url: string, label: string) => void
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-3 bg-white border-b border-slate-100">
@@ -153,7 +155,8 @@ function DayScanDropdowns({
           defaultValue=""
           onChange={(e) => {
             const u = e.target.value
-            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Deposit slip'
+            if (u) onOpenPreview(u, label)
             e.target.selectedIndex = 0
           }}
         >
@@ -173,7 +176,8 @@ function DayScanDropdowns({
           defaultValue=""
           onChange={(e) => {
             const u = e.target.value
-            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Debit scan'
+            if (u) onOpenPreview(u, label)
             e.target.selectedIndex = 0
           }}
         >
@@ -193,7 +197,8 @@ function DayScanDropdowns({
           defaultValue=""
           onChange={(e) => {
             const u = e.target.value
-            if (u) window.open(u, '_blank', 'noopener,noreferrer')
+            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Security slip'
+            if (u) onOpenPreview(u, label)
             e.target.selectedIndex = 0
           }}
         >
@@ -208,6 +213,73 @@ function DayScanDropdowns({
           <p className="text-[11px] text-slate-400 mt-1">None uploaded yet (coming soon)</p>
         ) : null}
       </label>
+    </div>
+  )
+}
+
+function ScanPreviewModal({
+  preview,
+  onClose
+}: {
+  preview: { url: string; title: string } | null
+  onClose: () => void
+}) {
+  useEffect(() => {
+    if (!preview) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [preview, onClose])
+
+  if (!preview) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scan-preview-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+        onClick={onClose}
+        aria-label="Close preview"
+      />
+      <div className="relative z-10 flex w-full max-w-4xl max-h-[min(92vh,900px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <h3 id="scan-preview-title" className="text-sm font-semibold text-slate-900 truncate pr-2" title={preview.title}>
+            {preview.title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Close
+          </button>
+        </div>
+        <div className="min-h-[50vh] flex-1 bg-slate-100">
+          <iframe
+            src={preview.url}
+            className="h-[min(75vh,720px)] w-full border-0"
+            title={preview.title}
+          />
+        </div>
+        <div className="shrink-0 border-t border-slate-100 bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
+          Preview may not work for some hosts —{' '}
+          <a href={preview.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
+            Open in new tab
+          </a>
+        </div>
+      </div>
     </div>
   )
 }
@@ -240,6 +312,7 @@ export default function DepositComparisonsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -330,8 +403,8 @@ export default function DepositComparisonsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
             Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Debits / credit</strong>, and{' '}
-            <strong>Security</strong> dropdowns to open scans (labeled by shift). Tables below are for amounts and bank status
-            only.
+            <strong>Security</strong> dropdowns to preview scans in a modal (labeled by shift). Tables below are for amounts
+            and bank status only.
           </p>
         </div>
 
@@ -485,6 +558,7 @@ export default function DepositComparisonsPage() {
                     depositOptions={depositScanOptions}
                     debitOptions={debitScanOptions}
                     securityOptions={securityScanOptions}
+                    onOpenPreview={(url, title) => setScanPreview({ url, title })}
                   />
 
                   <div className="divide-y divide-slate-100">
@@ -509,6 +583,8 @@ export default function DepositComparisonsPage() {
           )}
         </div>
       </div>
+
+      <ScanPreviewModal preview={scanPreview} onClose={() => setScanPreview(null)} />
     </div>
   )
 }
