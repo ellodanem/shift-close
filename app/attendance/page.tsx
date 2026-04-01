@@ -596,9 +596,8 @@ export default function AttendancePage() {
     setAddError(null)
     const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
     const fallback = staffWithDevice[0]
-    setAddStaffInput(
-      fromFilter?.deviceUserId?.trim() ?? fallback?.deviceUserId?.trim() ?? ''
-    )
+    // Show name in the field (device user ID is still accepted when typed — see resolveStaffForManualPunch).
+    setAddStaffInput(fromFilter?.name?.trim() ?? fallback?.name?.trim() ?? '')
     setAddPunchLocal(nowDatetimeLocalValue())
     setAddPunchType('in')
     setShowAddPunch(true)
@@ -1204,8 +1203,8 @@ export default function AttendancePage() {
                       />
                       <datalist id="add-punch-staff-datalist">
                         {staffWithDevice.map((s) => (
-                          <option key={s.id} value={String(s.deviceUserId ?? '')}>
-                            {s.name}
+                          <option key={s.id} value={s.name}>
+                            {`Device user ${s.deviceUserId ?? '—'}`}
                           </option>
                         ))}
                       </datalist>
