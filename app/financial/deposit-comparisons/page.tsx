@@ -72,28 +72,20 @@ function formatDayHeading(isoDate: string): string {
   }).format(d)
 }
 
-function buildDefaultDiscrepancyEmailBody(date: string, deposits: Row[], debits: Row[]): string {
+function buildDefaultDiscrepancyEmailBody(_date: string, deposits: Row[], debits: Row[]): string {
   const lines = [...deposits, ...debits].filter((r) => r.bankStatus === 'discrepancy')
   let body = 'Please address discrepancies for the following transactions:\n\n'
   for (const r of lines) {
-    let label: string
     if (r.recordKind === 'deposit') {
-      label = `Deposit · ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
+      body += `Deposit: ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
     } else {
-      const shiftPart =
-        r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1
-          ? ` · Shifts: ${r.contributingShifts.map((s) => s.shift).join(', ')}`
-          : ''
-      label = `Other Items (end-of-day sheet) · Day total${shiftPart} · ${formatCurrency(r.amount)}`
+      body += `Debits/Credits : ${formatCurrency(r.amount)}`
     }
-    const note = (r.notes || '').trim() || '(no notes)'
-    body += `${label}\n  Notes: ${note}\n`
-    const hasScans =
-      (r.scanUrls?.length ?? 0) > 0 || Boolean((r.securitySlipUrl ?? '').trim())
-    if (!hasScans) {
-      body += '  No scans on file for this line.\n'
+    const note = (r.notes || '').trim()
+    if (note) {
+      body += `\n${note}`
     }
-    body += '\n'
+    body += '\n\n'
   }
   body += 'Please find all accompanying documents to review this.'
   return body
