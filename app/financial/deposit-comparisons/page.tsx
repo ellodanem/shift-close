@@ -72,6 +72,21 @@ function formatDayHeading(isoDate: string): string {
   }).format(d)
 }
 
+function buildDefaultDiscrepancyEmailBody(date: string, deposits: Row[], debits: Row[]): string {
+  const lines = [...deposits, ...debits].filter((r) => r.bankStatus === 'discrepancy')
+  let body = 'Please address discrepancies for the following transactions:\n\n'
+  for (const r of lines) {
+    const label =
+      r.recordKind === 'deposit'
+        ? `Deposit · ${r.shift} · line ${r.lineIndex + 1} · ${formatCurrency(r.amount)}`
+        : `Other Items (end-of-day sheet) · ${formatCurrency(r.amount)}`
+    const note = (r.notes || '').trim() || '(no notes)'
+    body += `${label}  ${note}\n`
+  }
+  body += '\nPlease find all accompanying documents to review this.'
+  return body
+}
+
 function rowKey(r: Row): string {
   return `${r.shiftId}:${r.recordKind}:${r.lineIndex}`
 }
@@ -269,6 +284,173 @@ function ScanPreviewModal({
   )
 }
 
+function DiscrepancyEmailModal({
+  payload,
+  onClose,
+  onSent
+}: {
+  payload: { date: string; deposits: Row[]; debits: Row[] } | null
+  onClose: () => void
+  onSent: (detail: string) => void
+}) {
+  const [to, setTo] = useState('')
+  const [cc, setCc] = useState('')
+  const [subject, setSubject] = useState('')
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!payload) return
+    setTo('')
+    setCc('')
+    setSubject('')
+    setText(buildDefaultDiscrepancyEmailBody(payload.date, payload.deposits, payload.debits))
+    setErr(null)
+  }, [payload])
+
+  useEffect(() => {
+    if (!payload) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [payload, onClose])
+
+  if (!payload) return null
+
+  const heading = formatDayHeading(payload.date)
+
+  const handleSend = async () => {
+    setErr(null)
+    const toTrim = to.trim()
+    if (!toTrim || !text.trim()) {
+      setErr('Recipient and message are required.')
+      return
+    }
+    setSending(true)
+    try {
+      const res = await fetch('/api/financial/deposit-comparisons/discrepancy-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: payload.date,
+          to: toTrim,
+          cc: cc.trim() || undefined,
+          subject: subject.trim() || undefined,
+          text: text.trim()
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Send failed')
+      }
+      const n = typeof data.attachmentCount === 'number' ? data.attachmentCount : 0
+      onSent(n > 0 ? `Email sent with ${n} attachment${n === 1 ? '' : 's'}.` : 'Email sent.')
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Send failed')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="disc-email-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        onClick={onClose}
+        aria-label="Close"
+      />
+      <div className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+        <div className="shrink-0 border-b border-slate-200 bg-amber-50/90 px-4 py-3">
+          <h2 id="disc-email-title" className="text-lg font-semibold text-slate-900">
+            Email about discrepancies
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-600">{heading}</p>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+            <input
+              type="email"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="recipient@example.com"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Cc (optional)</label>
+            <input
+              type="text"
+              value={cc}
+              onChange={(e) => setCc(e.target.value)}
+              placeholder="other@example.com"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Subject (optional)</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Defaults to a dated subject if empty"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Message</label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={14}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 font-mono"
+            />
+          </div>
+          <p className="text-xs text-slate-500">
+            Deposit discrepancies attach all deposit scans for this day plus security slips on file. Other Items discrepancies attach
+            debit/credit scans. Scans are fetched when sending (size limits may apply).
+          </p>
+          {err ? <p className="text-sm text-red-600">{err}</p> : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={sending}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={sending || !to.trim() || !text.trim()}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {sending ? 'Sending…' : 'Send email'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const STATUS_OPTIONS: { value: BankStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
@@ -304,6 +486,12 @@ export default function DepositComparisonsPage() {
   const [error, setError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
+  const [discrepancyEmail, setDiscrepancyEmail] = useState<{
+    date: string
+    deposits: Row[]
+    debits: Row[]
+  } | null>(null)
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -527,6 +715,9 @@ export default function DepositComparisonsPage() {
         ) : null}
 
         {error ? <p className="text-sm text-red-600 rounded-lg border border-red-100 bg-red-50 px-3 py-2">{error}</p> : null}
+        {emailSuccess ? (
+          <p className="text-sm text-emerald-800 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">{emailSuccess}</p>
+        ) : null}
 
         <div className="space-y-8 pb-8">
           {loading ? (
@@ -540,16 +731,33 @@ export default function DepositComparisonsPage() {
               const depositScanOptions = buildDepositScanOptions(deposits)
               const debitScanOptions = buildDebitScanOptions(debits)
               const securityScanOptions = buildSecurityScanOptions(deposits, debits)
+              const hasDiscrepancy = [...deposits, ...debits].some((r) => r.bankStatus === 'discrepancy')
               return (
                 <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                   <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
-                    <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
-                      {debits.length
-                        ? ` · ${debits.length} day-sheet credit & debit row${debits.length === 1 ? '' : 's'}`
-                        : ''}
-                    </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
+                          {debits.length
+                            ? ` · ${debits.length} day-sheet credit & debit row${debits.length === 1 ? '' : 's'}`
+                            : ''}
+                        </p>
+                      </div>
+                      {hasDiscrepancy ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmailSuccess(null)
+                            setDiscrepancyEmail({ date, deposits, debits })
+                          }}
+                          className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
+                        >
+                          Email about discrepancies
+                        </button>
+                      ) : null}
+                    </div>
                   </header>
 
                   <DayScanDropdowns
@@ -583,6 +791,11 @@ export default function DepositComparisonsPage() {
       </div>
 
       <ScanPreviewModal preview={scanPreview} onClose={() => setScanPreview(null)} />
+      <DiscrepancyEmailModal
+        payload={discrepancyEmail}
+        onClose={() => setDiscrepancyEmail(null)}
+        onSent={(detail) => setEmailSuccess(detail)}
+      />
     </div>
   )
 }

@@ -1,40 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import {
+  BANK_STATUSES,
+  buildComparisonRowsFromShifts,
+  parseDeposits,
+  parseUrlList,
+  recordKey,
+  type BankStatus,
+  type RecordKind
+} from '@/lib/deposit-comparison-rows'
 
 export const dynamic = 'force-dynamic'
 
-const BANK_STATUSES = ['pending', 'cleared', 'discrepancy'] as const
-export type BankStatus = (typeof BANK_STATUSES)[number]
-
-const RECORD_KINDS = ['deposit', 'debit'] as const
-type RecordKind = (typeof RECORD_KINDS)[number]
+export type { BankStatus }
 
 const DEFAULT_SHIFT_TAKE = 600
 const MAX_SHIFT_TAKE = 3000
-
-function parseDeposits(raw: string): number[] {
-  try {
-    const arr = JSON.parse(raw || '[]')
-    if (!Array.isArray(arr)) return []
-    return arr.map((n) => (typeof n === 'number' && !Number.isNaN(n) ? n : Number(n))).filter((n) => !Number.isNaN(n))
-  } catch {
-    return []
-  }
-}
-
-function parseUrlList(raw: string): string[] {
-  try {
-    const arr = JSON.parse(raw || '[]')
-    return Array.isArray(arr) ? arr.filter((u): u is string => typeof u === 'string' && u.length > 0) : []
-  } catch {
-    return []
-  }
-}
-
-function recordKey(shiftId: string, recordKind: string, lineIndex: number): string {
-  return `${shiftId}:${recordKind}:${lineIndex}`
-}
 
 /**
  * GET ?status= &: optional from,to; hideCleared=true; shiftLimit= (default 600, max 3000)
@@ -76,138 +58,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    const recordByKey = new Map<string, (typeof shifts)[0]['depositRecords'][0]>()
-    for (const s of shifts) {
-      for (const r of s.depositRecords) {
-        const k = r.recordKind || 'deposit'
-        recordByKey.set(recordKey(s.id, k, r.lineIndex), r)
-      }
-    }
-
-    type Row = {
-      shiftId: string
-      date: string
-      shift: string
-      supervisor: string
-      recordKind: RecordKind
-      lineIndex: number
-      amount: number
-      /** Debit rows: day-sheet Other Items — Debit line (systemDebit) + Credit line (otherCredit). */
-      systemDebit?: number
-      otherCredit?: number
-      /** When recordKind is debit: sums all shifts that day; one reconciliation row per calendar day. */
-      debitDayAggregate?: boolean
-      contributingShifts?: Array<{ shiftId: string; shift: string }>
-      scanUrls: string[]
-      securitySlipUrl: string | null
-      bankStatus: BankStatus
-      notes: string
-    }
-
-    const rows: Row[] = []
-
-    type DayDebitBucket = {
-      date: string
-      shifts: (typeof shifts)[0][]
-      sumDebit: number
-      sumOtherCredit: number
-      scanUrls: string[]
-    }
-    const debitByDate = new Map<string, DayDebitBucket>()
-
-    for (const s of shifts) {
-      const amounts = parseDeposits(s.deposits)
-      const depositScanUrls = parseUrlList(s.depositScanUrls)
-      const debitScanUrls = parseUrlList(s.debitScanUrls)
-      const daySheetDebit = Number(s.systemDebit) || 0
-      const daySheetCredit = Number(s.otherCredit) || 0
-      const debitCreditCombined = daySheetDebit + daySheetCredit
-
-      for (let i = 0; i < amounts.length; i++) {
-        const rec = recordByKey.get(recordKey(s.id, 'deposit', i))
-        const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
-        const notes = rec?.notes ?? ''
-        const securitySlipUrl = rec?.securitySlipUrl ?? null
-
-        rows.push({
-          shiftId: s.id,
-          date: s.date,
-          shift: s.shift,
-          supervisor: s.supervisor,
-          recordKind: 'deposit',
-          lineIndex: i,
-          amount: amounts[i],
-          scanUrls: depositScanUrls,
-          securitySlipUrl,
-          bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
-          notes
-        })
-      }
-
-      const showDebitForShift = debitCreditCombined !== 0 || debitScanUrls.length > 0
-      if (showDebitForShift) {
-        let bucket = debitByDate.get(s.date)
-        if (!bucket) {
-          bucket = { date: s.date, shifts: [], sumDebit: 0, sumOtherCredit: 0, scanUrls: [] }
-          debitByDate.set(s.date, bucket)
-        }
-        bucket.shifts.push(s)
-        bucket.sumDebit += daySheetDebit
-        bucket.sumOtherCredit += daySheetCredit
-        for (const u of debitScanUrls) {
-          if (!bucket.scanUrls.includes(u)) bucket.scanUrls.push(u)
-        }
-      }
-    }
-
-    for (const bucket of debitByDate.values()) {
-      bucket.shifts.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
-      const canonical = bucket.shifts[0]
-      const combined = bucket.sumDebit + bucket.sumOtherCredit
-      if (combined === 0 && bucket.scanUrls.length === 0) continue
-
-      let rec = recordByKey.get(recordKey(canonical.id, 'debit', 0))
-      if (!rec) {
-        for (const s of bucket.shifts) {
-          const r = recordByKey.get(recordKey(s.id, 'debit', 0))
-          if (r) {
-            rec = r
-            break
-          }
-        }
-      }
-
-      const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
-      const notes = rec?.notes ?? ''
-      let securitySlipUrl: string | null = rec?.securitySlipUrl ?? null
-      if (!securitySlipUrl) {
-        for (const s of bucket.shifts) {
-          const r = recordByKey.get(recordKey(s.id, 'debit', 0))
-          if (r?.securitySlipUrl) {
-            securitySlipUrl = r.securitySlipUrl
-            break
-          }
-        }
-      }
-
-      rows.push({
-        shiftId: canonical.id,
-        date: bucket.date,
-        shift: 'Day total',
-        supervisor: bucket.shifts.map((x) => x.supervisor).filter(Boolean).join(' · ') || '—',
-        recordKind: 'debit',
-        lineIndex: 0,
-        amount: combined,
-        systemDebit: bucket.sumDebit,
-        otherCredit: bucket.sumOtherCredit,
-        debitDayAggregate: true,
-        contributingShifts: bucket.shifts.map((x) => ({ shiftId: x.id, shift: x.shift })),
-        scanUrls: bucket.scanUrls,
-        securitySlipUrl,
-        bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
-        notes
-      })
-    }
+    const rows = buildComparisonRowsFromShifts(shifts)
 
     let outRows = rows
     if (hideCleared) {

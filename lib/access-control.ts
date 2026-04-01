@@ -98,7 +98,7 @@ export function apiWriteAllowedForRole(
     return (
       pathname.startsWith('/api/auth/') ||
       pathname.startsWith('/api/insights/') ||
-      pathname === '/api/financial/deposit-comparisons'
+      pathname.startsWith('/api/financial/deposit-comparisons')
     )
   }
   if (isSupervisorLike(role)) {
