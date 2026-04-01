@@ -18,6 +18,15 @@ export default function AttendanceSettingsPage() {
   const [eodTimeZone, setEodTimeZone] = useState('America/St_Lucia')
   const [eodLastSentDate, setEodLastSentDate] = useState('')
 
+  const [asumLoading, setAsumLoading] = useState(true)
+  const [asumSaving, setAsumSaving] = useState(false)
+  const [asumTesting, setAsumTesting] = useState(false)
+  const [asumError, setAsumError] = useState<string | null>(null)
+  const [asumSuccess, setAsumSuccess] = useState<string | null>(null)
+  const [asumEnabled, setAsumEnabled] = useState(false)
+  const [asumRecipients, setAsumRecipients] = useState('')
+  const [asumLastSentDate, setAsumLastSentDate] = useState('')
+
   const loadExpected = useCallback(async () => {
     setMessage(null)
     try {
@@ -29,6 +38,20 @@ export default function AttendanceSettingsPage() {
       }
     } catch {
       // ignore
+    }
+  }, [])
+
+  const loadAsum = useCallback(async () => {
+    setAsumError(null)
+    try {
+      const res = await fetch('/api/attendance/attendance-summary-email', { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
+      setAsumEnabled(!!data.enabled)
+      setAsumRecipients(typeof data.recipients === 'string' ? data.recipients : '')
+      setAsumLastSentDate(typeof data.lastSentDate === 'string' ? data.lastSentDate : '')
+    } catch (e) {
+      setAsumError(e instanceof Error ? e.message : 'Failed to load attendance summary email settings')
     }
   }, [])
 
@@ -105,6 +128,56 @@ export default function AttendanceSettingsPage() {
     }
   }
 
+  const saveAsum = async () => {
+    setAsumSaving(true)
+    setAsumError(null)
+    setAsumSuccess(null)
+    try {
+      const res = await fetch('/api/attendance/attendance-summary-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: asumEnabled,
+          recipients: asumRecipients
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      setAsumSuccess('Saved.')
+      if (typeof data.lastSentDate === 'string') setAsumLastSentDate(data.lastSentDate)
+    } catch (err) {
+      setAsumError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setAsumSaving(false)
+    }
+  }
+
+  const sendAsumTest = async () => {
+    setAsumTesting(true)
+    setAsumError(null)
+    setAsumSuccess(null)
+    try {
+      const res = await fetch('/api/attendance/attendance-summary-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sendTest: true,
+          recipients: asumRecipients,
+          timeZone: eodTimeZone
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send')
+      setAsumSuccess(
+        `Test email sent for ${data.reportDate ?? 'report date'} (${data.sent} recipient(s)).`
+      )
+    } catch (err) {
+      setAsumError(err instanceof Error ? err.message : 'Failed to send test')
+    } finally {
+      setAsumTesting(false)
+    }
+  }
+
   const sendEodTest = async () => {
     setEodTesting(true)
     setEodError(null)
@@ -140,7 +213,7 @@ export default function AttendanceSettingsPage() {
           </Link>
           <h1 className="mt-3 text-2xl font-bold text-gray-900">Attendance settings</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Irregular punch rules for the Attendance Logs tab, and optional daily End of Day summary email.
+            Irregular punch rules, optional daily attendance summary (hours &amp; punches), and optional End of Day (shift close) email.
           </p>
         </div>
 
@@ -188,6 +261,89 @@ export default function AttendanceSettingsPage() {
           </div>
           {message && (
             <p className={`mt-3 text-sm ${message === 'Saved.' ? 'text-emerald-700' : 'text-red-700'}`}>{message}</p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Attendance summary email</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Daily email for the previous calendar day: hours and punch list per staff, plus running hours for the current pay period (from the day after the last saved &amp; emailed pay period, or the first of the month). Uses the <strong>Timezone</strong> from the End of day email section below.
+          </p>
+
+          {asumLoading ? (
+            <p className="text-sm text-gray-500">Loading…</p>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={asumEnabled}
+                    onChange={(e) => setAsumEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="font-medium text-gray-900">Send automated attendance summary</span>
+                </label>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recipients</label>
+                  <textarea
+                    value={asumRecipients}
+                    onChange={(e) => setAsumRecipients(e.target.value)}
+                    rows={4}
+                    placeholder={'one@example.com, other@example.com\nor one address per line'}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Separate multiple addresses with commas, semicolons, or new lines.
+                  </p>
+                </div>
+
+                {asumLastSentDate ? (
+                  <p className="text-sm text-gray-600">
+                    Last automated send for report date: <strong>{asumLastSentDate}</strong>
+                  </p>
+                ) : null}
+
+                <div className="flex flex-wrap gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void saveAsum()}
+                    disabled={asumSaving}
+                    className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {asumSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendAsumTest()}
+                    disabled={asumTesting}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {asumTesting ? 'Sending…' : 'Send test email'}
+                  </button>
+                </div>
+
+                {asumError ? <p className="text-sm text-red-600">{asumError}</p> : null}
+                {asumSuccess ? <p className="text-sm text-emerald-700">{asumSuccess}</p> : null}
+              </div>
+
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-100">
+                <p className="font-medium text-gray-900 mb-2">Cron URL (server-to-server)</p>
+                <code className="block break-all text-xs bg-white border border-gray-200 p-2 rounded">
+                  GET {typeof window !== 'undefined' ? window.location.origin : ''}/api/cron/attendance-summary-email
+                </code>
+                <p className="mt-2">
+                  Header:{' '}
+                  <code className="bg-white px-1 rounded border border-gray-100">
+                    Authorization: Bearer YOUR_CRON_SECRET
+                  </code>
+                </p>
+                <p className="mt-2 text-xs text-gray-600">
+                  At most one send per report date. Schedule alongside or instead of the shift-close end-of-day job.
+                </p>
+              </div>
+            </>
           )}
         </div>
 
