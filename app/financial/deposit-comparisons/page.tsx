@@ -18,6 +18,9 @@ interface Row {
   amount: number
   systemDebit?: number
   systemCredit?: number
+  /** True when this debit row sums all shifts that closed that calendar day (POS debit/credit is day-level). */
+  debitDayAggregate?: boolean
+  contributingShifts?: Array<{ shiftId: string; shift: string }>
   scanUrls: string[]
   securitySlipUrl: string | null
   bankStatus: BankStatus
@@ -666,9 +669,24 @@ function ItemTable({
                   />
                 </td>
                 <td className="px-2 py-2.5">
-                  <Link href={`/shifts/${r.shiftId}`} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
-                    Open shift
-                  </Link>
+                  {r.recordKind === 'debit' && r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1 ? (
+                    <div className="flex flex-wrap gap-x-2 gap-y-1 max-w-[14rem]">
+                      {r.contributingShifts.map((cs) => (
+                        <Link
+                          key={cs.shiftId}
+                          href={`/shifts/${cs.shiftId}`}
+                          className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+                          title="Open shift record"
+                        >
+                          {cs.shift}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <Link href={`/shifts/${r.shiftId}`} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
+                      Open shift
+                    </Link>
+                  )}
                 </td>
               </tr>
             )

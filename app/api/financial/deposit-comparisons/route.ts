@@ -93,6 +93,9 @@ export async function GET(request: NextRequest) {
       /** Debit rows: POS system debit + system credit (one scan often covers both). */
       systemDebit?: number
       systemCredit?: number
+      /** When recordKind is debit: sums all shifts that day; one reconciliation row per calendar day. */
+      debitDayAggregate?: boolean
+      contributingShifts?: Array<{ shiftId: string; shift: string }>
       scanUrls: string[]
       securitySlipUrl: string | null
       bankStatus: BankStatus
@@ -100,6 +103,15 @@ export async function GET(request: NextRequest) {
     }
 
     const rows: Row[] = []
+
+    type DayDebitBucket = {
+      date: string
+      shifts: (typeof shifts)[0][]
+      sumDebit: number
+      sumCredit: number
+      scanUrls: string[]
+    }
+    const debitByDate = new Map<string, DayDebitBucket>()
 
     for (const s of shifts) {
       const amounts = parseDeposits(s.deposits)
@@ -133,35 +145,72 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const showDebitRow = debitCreditCombined !== 0 || debitScanUrls.length > 0
-      if (showDebitRow) {
-        const rec = recordByKey.get(recordKey(s.id, 'debit', 0))
-        const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
-        const notes = rec?.notes ?? ''
-        const securitySlipUrl = rec?.securitySlipUrl ?? null
-
-        if (hideCleared && bankStatus === 'cleared') {
-          /* skip */
-        } else if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) {
-          /* skip */
-        } else {
-          rows.push({
-            shiftId: s.id,
-            date: s.date,
-            shift: s.shift,
-            supervisor: s.supervisor,
-            recordKind: 'debit',
-            lineIndex: 0,
-            amount: debitCreditCombined,
-            systemDebit,
-            systemCredit,
-            scanUrls: debitScanUrls,
-            securitySlipUrl,
-            bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
-            notes
-          })
+      const showDebitForShift = debitCreditCombined !== 0 || debitScanUrls.length > 0
+      if (showDebitForShift) {
+        let bucket = debitByDate.get(s.date)
+        if (!bucket) {
+          bucket = { date: s.date, shifts: [], sumDebit: 0, sumCredit: 0, scanUrls: [] }
+          debitByDate.set(s.date, bucket)
+        }
+        bucket.shifts.push(s)
+        bucket.sumDebit += systemDebit
+        bucket.sumCredit += systemCredit
+        for (const u of debitScanUrls) {
+          if (!bucket.scanUrls.includes(u)) bucket.scanUrls.push(u)
         }
       }
+    }
+
+    for (const bucket of debitByDate.values()) {
+      bucket.shifts.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
+      const canonical = bucket.shifts[0]
+      const combined = bucket.sumDebit + bucket.sumCredit
+      if (combined === 0 && bucket.scanUrls.length === 0) continue
+
+      let rec = recordByKey.get(recordKey(canonical.id, 'debit', 0))
+      if (!rec) {
+        for (const s of bucket.shifts) {
+          const r = recordByKey.get(recordKey(s.id, 'debit', 0))
+          if (r) {
+            rec = r
+            break
+          }
+        }
+      }
+
+      const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
+      const notes = rec?.notes ?? ''
+      let securitySlipUrl: string | null = rec?.securitySlipUrl ?? null
+      if (!securitySlipUrl) {
+        for (const s of bucket.shifts) {
+          const r = recordByKey.get(recordKey(s.id, 'debit', 0))
+          if (r?.securitySlipUrl) {
+            securitySlipUrl = r.securitySlipUrl
+            break
+          }
+        }
+      }
+
+      if (hideCleared && bankStatus === 'cleared') continue
+      if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) continue
+
+      rows.push({
+        shiftId: canonical.id,
+        date: bucket.date,
+        shift: 'Day total',
+        supervisor: bucket.shifts.map((x) => x.supervisor).filter(Boolean).join(' · ') || '—',
+        recordKind: 'debit',
+        lineIndex: 0,
+        amount: combined,
+        systemDebit: bucket.sumDebit,
+        systemCredit: bucket.sumCredit,
+        debitDayAggregate: true,
+        contributingShifts: bucket.shifts.map((x) => ({ shiftId: x.id, shift: x.shift })),
+        scanUrls: bucket.scanUrls,
+        securitySlipUrl,
+        bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
+        notes
+      })
     }
 
     const totals = {
@@ -223,22 +272,39 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
     }
 
+    let upsertShiftId = shiftId
+
     if (recordKind === 'deposit') {
       const amounts = parseDeposits(shift.deposits)
       if (lineIndex >= amounts.length) {
         return NextResponse.json({ error: 'Invalid line index for this shift' }, { status: 400 })
       }
     } else {
-      const debitScanUrls = parseUrlList(shift.debitScanUrls)
-      const systemDebit = Number(shift.systemDebit) || 0
-      const systemCredit = Number(shift.systemCredit) || 0
-      const combined = systemDebit + systemCredit
-      if (combined === 0 && debitScanUrls.length === 0) {
+      /** One debit reconciliation per calendar day; stored on canonical shift (first by shift label, numeric-aware). */
+      const sameDay = await prisma.shiftClose.findMany({
+        where: { date: shift.date, status: { in: ['closed', 'reviewed'] } }
+      })
+      sameDay.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
+      const canonical = sameDay[0]
+      if (!canonical) {
+        return NextResponse.json({ error: 'No shifts for this date' }, { status: 400 })
+      }
+      let sumDebit = 0
+      let sumCredit = 0
+      let anyDebitScan = false
+      for (const s of sameDay) {
+        sumDebit += Number(s.systemDebit) || 0
+        sumCredit += Number(s.systemCredit) || 0
+        if (parseUrlList(s.debitScanUrls).length > 0) anyDebitScan = true
+      }
+      const combined = sumDebit + sumCredit
+      if (combined === 0 && !anyDebitScan) {
         return NextResponse.json(
-          { error: 'No system debit/credit POS total or debit scans on this shift' },
+          { error: 'No system debit/credit totals or debit scans for this calendar day' },
           { status: 400 }
         )
       }
+      upsertShiftId = canonical.id
     }
 
     const data: {
@@ -268,10 +334,10 @@ export async function PATCH(request: NextRequest) {
 
     const updated = await prisma.depositRecord.upsert({
       where: {
-        shiftId_recordKind_lineIndex: { shiftId, recordKind, lineIndex }
+        shiftId_recordKind_lineIndex: { shiftId: upsertShiftId, recordKind, lineIndex }
       },
       create: {
-        shiftId,
+        shiftId: upsertShiftId,
         recordKind,
         lineIndex,
         bankStatus: data.bankStatus ?? 'pending',
