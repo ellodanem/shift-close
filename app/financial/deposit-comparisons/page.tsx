@@ -625,14 +625,20 @@ function ItemTable({
                   )}
                 </td>
                 <td className="px-2 py-2.5 text-right text-slate-900">
-                  <div className="font-semibold tabular-nums">{formatCurrency(r.amount)}</div>
                   {r.recordKind === 'debit' ? (
-                    <div className="mt-0.5 text-[10px] leading-tight text-slate-500 tabular-nums">
-                      Debit {formatCurrency(r.systemDebit ?? 0)}
-                      {' · '}
-                      Credit {formatCurrency(r.systemCredit ?? 0)}
-                    </div>
-                  ) : null}
+                    <>
+                      <div className="text-[15px] font-bold tabular-nums text-[#4169E1]">
+                        {formatCurrency(r.amount)}
+                      </div>
+                      <div className="mt-0.5 text-[11px] font-bold leading-tight tabular-nums text-[#4169E1]">
+                        Debit {formatCurrency(r.systemDebit ?? 0)}
+                        {' · '}
+                        Credit {formatCurrency(r.systemCredit ?? 0)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="font-semibold tabular-nums">{formatCurrency(r.amount)}</div>
+                  )}
                 </td>
                 <td className="px-2 py-2.5">
                   <IconSelect<BankStatus>
