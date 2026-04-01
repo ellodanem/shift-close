@@ -34,7 +34,7 @@ async function readSettings() {
   }
 }
 
-/** GET — current end-of-day email settings (Attendance module; also re-exported at /api/settings/end-of-day-email). */
+/** GET — end-of-day email settings (shift close; UI under /settings/end-of-day-email; re-export at /api/settings/end-of-day-email). */
 export async function GET() {
   try {
     const s = await readSettings()

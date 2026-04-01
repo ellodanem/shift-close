@@ -42,7 +42,7 @@ async function readSettings() {
   }
 }
 
-/** GET — attendance summary email settings (timezone mirrors End of day email). */
+/** GET — attendance summary email settings (timeZone reads shared app key `eod_email_timezone`). */
 export async function GET() {
   try {
     const s = await readSettings()

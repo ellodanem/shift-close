@@ -8,16 +8,6 @@ export default function AttendanceSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const [eodLoading, setEodLoading] = useState(true)
-  const [eodSaving, setEodSaving] = useState(false)
-  const [eodTesting, setEodTesting] = useState(false)
-  const [eodError, setEodError] = useState<string | null>(null)
-  const [eodSuccess, setEodSuccess] = useState<string | null>(null)
-  const [eodEnabled, setEodEnabled] = useState(false)
-  const [eodRecipients, setEodRecipients] = useState('')
-  const [eodTimeZone, setEodTimeZone] = useState('America/St_Lucia')
-  const [eodLastSentDate, setEodLastSentDate] = useState('')
-
   const [asumLoading, setAsumLoading] = useState(true)
   const [asumSaving, setAsumSaving] = useState(false)
   const [asumTesting, setAsumTesting] = useState(false)
@@ -26,6 +16,7 @@ export default function AttendanceSettingsPage() {
   const [asumEnabled, setAsumEnabled] = useState(false)
   const [asumRecipients, setAsumRecipients] = useState('')
   const [asumLastSentDate, setAsumLastSentDate] = useState('')
+  const [asumTimeZone, setAsumTimeZone] = useState('America/St_Lucia')
 
   const loadExpected = useCallback(async () => {
     setMessage(null)
@@ -50,34 +41,17 @@ export default function AttendanceSettingsPage() {
       setAsumEnabled(!!data.enabled)
       setAsumRecipients(typeof data.recipients === 'string' ? data.recipients : '')
       setAsumLastSentDate(typeof data.lastSentDate === 'string' ? data.lastSentDate : '')
+      setAsumTimeZone(
+        typeof data.timeZone === 'string' && data.timeZone.trim() ? data.timeZone.trim() : 'America/St_Lucia'
+      )
     } catch (e) {
       setAsumError(e instanceof Error ? e.message : 'Failed to load attendance summary email settings')
-    }
-  }, [])
-
-  const loadEod = useCallback(async () => {
-    setEodError(null)
-    try {
-      const res = await fetch('/api/attendance/end-of-day-email', { cache: 'no-store' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
-      setEodEnabled(!!data.enabled)
-      setEodRecipients(typeof data.recipients === 'string' ? data.recipients : '')
-      setEodTimeZone(typeof data.timeZone === 'string' && data.timeZone ? data.timeZone : 'America/St_Lucia')
-      setEodLastSentDate(typeof data.lastSentDate === 'string' ? data.lastSentDate : '')
-    } catch (e) {
-      setEodError(e instanceof Error ? e.message : 'Failed to load end-of-day email settings')
     }
   }, [])
 
   useEffect(() => {
     void loadExpected()
   }, [loadExpected])
-
-  useEffect(() => {
-    setEodLoading(true)
-    void loadEod().finally(() => setEodLoading(false))
-  }, [loadEod])
 
   useEffect(() => {
     setAsumLoading(true)
@@ -108,31 +82,6 @@ export default function AttendanceSettingsPage() {
     }
   }
 
-  const saveEod = async () => {
-    setEodSaving(true)
-    setEodError(null)
-    setEodSuccess(null)
-    try {
-      const res = await fetch('/api/attendance/end-of-day-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: eodEnabled,
-          recipients: eodRecipients,
-          timeZone: eodTimeZone
-        })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
-      setEodSuccess('Saved.')
-      if (typeof data.lastSentDate === 'string') setEodLastSentDate(data.lastSentDate)
-    } catch (err) {
-      setEodError(err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setEodSaving(false)
-    }
-  }
-
   const saveAsum = async () => {
     setAsumSaving(true)
     setAsumError(null)
@@ -148,6 +97,17 @@ export default function AttendanceSettingsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to save')
+
+      const tzRes = await fetch('/api/attendance/end-of-day-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeZone: asumTimeZone.trim() || 'America/St_Lucia' })
+      })
+      const tzData = await tzRes.json().catch(() => ({}))
+      if (!tzRes.ok) {
+        throw new Error(typeof tzData.error === 'string' ? tzData.error : 'Failed to save timezone')
+      }
+
       setAsumSuccess('Saved.')
       if (typeof data.lastSentDate === 'string') setAsumLastSentDate(data.lastSentDate)
     } catch (err) {
@@ -168,7 +128,7 @@ export default function AttendanceSettingsPage() {
         body: JSON.stringify({
           sendTest: true,
           recipients: asumRecipients,
-          timeZone: eodTimeZone
+          timeZone: asumTimeZone.trim() || 'America/St_Lucia'
         })
       })
       const data = await res.json()
@@ -183,32 +143,6 @@ export default function AttendanceSettingsPage() {
     }
   }
 
-  const sendEodTest = async () => {
-    setEodTesting(true)
-    setEodError(null)
-    setEodSuccess(null)
-    try {
-      const res = await fetch('/api/attendance/end-of-day-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sendTest: true,
-          recipients: eodRecipients,
-          timeZone: eodTimeZone
-        })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to send')
-      setEodSuccess(
-        `Test email sent for ${data.reportDate ?? 'report date'} (${data.sent} recipient(s)).`
-      )
-    } catch (err) {
-      setEodError(err instanceof Error ? err.message : 'Failed to send test')
-    } finally {
-      setEodTesting(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-2xl mx-auto space-y-8">
@@ -218,7 +152,7 @@ export default function AttendanceSettingsPage() {
           </Link>
           <h1 className="mt-3 text-2xl font-bold text-gray-900">Attendance settings</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Irregular punch rules, optional daily attendance summary (hours &amp; punches), and optional End of Day (shift close) email.
+            Irregular punch rules and optional daily attendance summary email (hours and punches per staff).
           </p>
         </div>
 
@@ -272,7 +206,11 @@ export default function AttendanceSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Attendance summary email</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Daily email for the previous calendar day: hours and punch list per staff, plus running hours for the current pay period (from the day after the last saved &amp; emailed pay period, or the first of the month). Uses the <strong>Timezone</strong> from the End of day email section below.
+            Daily email for the previous calendar day: hours and punch list per staff, plus running hours for the current pay period (from the day after the last saved &amp; emailed pay period, or the first of the month). Set the report timezone below (shared with shift-close email jobs in{' '}
+            <Link href="/settings/end-of-day-email" className="text-blue-600 hover:text-blue-800 font-medium">
+              Settings → End of day email
+            </Link>
+            ).
           </p>
 
           {asumLoading ? (
@@ -301,6 +239,20 @@ export default function AttendanceSettingsPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Separate multiple addresses with commas, semicolons, or new lines.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Timezone (for report day)</label>
+                  <input
+                    type="text"
+                    value={asumTimeZone}
+                    onChange={(e) => setAsumTimeZone(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    IANA name (e.g. America/St_Lucia). Saved with this form; also used by the end-of-day cron. Override with env{' '}
+                    <code className="bg-gray-100 px-1 rounded text-xs">EOD_EMAIL_TIMEZONE</code> when unset in the database.
                   </p>
                 </div>
 
@@ -345,105 +297,7 @@ export default function AttendanceSettingsPage() {
                   </code>
                 </p>
                 <p className="mt-2 text-xs text-gray-600">
-                  At most one send per report date. Schedule alongside or instead of the shift-close end-of-day job.
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">End of day email</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Optional daily email with the previous calendar day&apos;s End of Day summary (totals and scan links). Uses the same SMTP as
-            the rest of the app. Schedule a server cron to call the URL below once per day after shifts are closed.
-          </p>
-
-          {eodLoading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
-          ) : (
-            <>
-              <div className="space-y-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={eodEnabled}
-                    onChange={(e) => setEodEnabled(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <span className="font-medium text-gray-900">Send automated end-of-day email</span>
-                </label>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Recipients</label>
-                  <textarea
-                    value={eodRecipients}
-                    onChange={(e) => setEodRecipients(e.target.value)}
-                    rows={4}
-                    placeholder={'one@example.com, other@example.com\nor one address per line'}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Separate multiple addresses with commas, semicolons, or new lines.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Timezone (for previous day)</label>
-                  <input
-                    type="text"
-                    value={eodTimeZone}
-                    onChange={(e) => setEodTimeZone(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    IANA name, e.g. America/St_Lucia. Override with env EOD_EMAIL_TIMEZONE if empty.
-                  </p>
-                </div>
-
-                {eodLastSentDate ? (
-                  <p className="text-sm text-gray-600">
-                    Last automated send for date: <strong>{eodLastSentDate}</strong>
-                  </p>
-                ) : null}
-
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => void saveEod()}
-                    disabled={eodSaving}
-                    className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {eodSaving ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void sendEodTest()}
-                    disabled={eodTesting}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {eodTesting ? 'Sending…' : 'Send test email'}
-                  </button>
-                </div>
-
-                {eodError ? <p className="text-sm text-red-600">{eodError}</p> : null}
-                {eodSuccess ? <p className="text-sm text-emerald-700">{eodSuccess}</p> : null}
-              </div>
-
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-100">
-                <p className="font-medium text-gray-900 mb-2">Cron URL (server-to-server)</p>
-                <code className="block break-all text-xs bg-white border border-gray-200 p-2 rounded">
-                  GET {typeof window !== 'undefined' ? window.location.origin : ''}/api/cron/end-of-day-email
-                </code>
-                <p className="mt-2">
-                  Header:{' '}
-                  <code className="bg-white px-1 rounded border border-gray-100">
-                    Authorization: Bearer YOUR_CRON_SECRET
-                  </code>
-                </p>
-                <p className="mt-2 text-xs text-gray-600">
-                  Set <code className="bg-white px-1 rounded">CRON_SECRET</code> in the environment (same as pay-day reminders). The job
-                  sends at most once per report date per recipient list.
+                  At most one send per report date. Schedule after shifts close if you use automated sends.
                 </p>
               </div>
             </>
