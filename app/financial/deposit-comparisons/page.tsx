@@ -24,11 +24,12 @@ interface Row {
   supervisor: string
   recordKind: RecordKind
   lineIndex: number
-  /** For debit rows: systemDebit + systemCredit (one scan often lists both). */
+  /** For debit rows: day-sheet Other Items — Credit + Debit lines; amount = sum of both. */
   amount: number
   systemDebit?: number
-  systemCredit?: number
-  /** True when this debit row sums all shifts that closed that calendar day (POS debit/credit is day-level). */
+  /** Other Items “Credit” line (not POS Credits row). */
+  otherCredit?: number
+  /** True when this row aggregates all shifts that calendar day (one credit/debit reconciliation per date). */
   debitDayAggregate?: boolean
   contributingShifts?: Array<{ shiftId: string; shift: string }>
   scanUrls: string[]
@@ -116,7 +117,7 @@ function buildDebitScanOptions(debits: Row[]): ScanOption[] {
       const short = name.length > 36 ? `${name.slice(0, 34)}…` : name
       out.push({
         url,
-        label: `${r.shift} · debit · ${r.scanUrls.length > 1 ? `file ${i + 1} · ` : ''}${short}`
+        label: `${r.shift} · Other Items · ${r.scanUrls.length > 1 ? `file ${i + 1} · ` : ''}${short}`
       })
     })
   }
@@ -136,7 +137,7 @@ function buildSecurityScanOptions(deposits: Row[], debits: Row[]): ScanOption[] 
     if (!r.securitySlipUrl) continue
     out.push({
       url: r.securitySlipUrl,
-      label: `${r.shift} · debit / credit`
+      label: `${r.shift} · Other Items`
     })
   }
   return out
@@ -170,17 +171,17 @@ function DayScanDropdowns({
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Debits / credit</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Credit &amp; debit</span>
         <IconMenu
-          ariaLabel="Choose a debit or credit scan to preview"
+          ariaLabel="Choose an Other Items credit or debit scan to preview"
           icon={<IconDebitCard className="text-violet-700" />}
           triggerClassName="border-violet-200 bg-violet-50/90 hover:bg-violet-50 hover:border-violet-300"
           options={debitOptions.map((o) => ({ value: o.url, label: o.label }))}
-          emptyHint="No debit scans this day"
+          emptyHint="No Other Items scans this day"
           onPick={(url, label) => onOpenPreview(url, label)}
         />
         {debitOptions.length === 0 ? (
-          <span className="text-[11px] text-violet-600/75">No debit scans this day</span>
+          <span className="text-[11px] text-violet-600/75">No Other Items scans this day</span>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -392,7 +393,7 @@ export default function DepositComparisonsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Debits / credit</strong>, and{' '}
+            Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Credit & debit (day sheet, Other Items)</strong>, and{' '}
             <strong>Security</strong> icons to pick a scan and preview it in a modal (labeled by shift). Tables below are for amounts
             and bank status only.
           </p>
@@ -520,7 +521,7 @@ export default function DepositComparisonsPage() {
               Deposits Σ {formatCurrency(totals.sumDeposits)}
             </span>
             <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 text-slate-700 tabular-nums">
-              Debits Σ {formatCurrency(totals.sumDebits)}
+              Day sheet credit &amp; debit Σ {formatCurrency(totals.sumDebits)}
             </span>
           </div>
         ) : null}
@@ -545,7 +546,9 @@ export default function DepositComparisonsPage() {
                     <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
-                      {debits.length ? ` · ${debits.length} debit${debits.length === 1 ? '' : 's'}` : ''}
+                      {debits.length
+                        ? ` · ${debits.length} day-sheet credit & debit row${debits.length === 1 ? '' : 's'}`
+                        : ''}
                     </p>
                   </header>
 
@@ -566,7 +569,7 @@ export default function DepositComparisonsPage() {
                     {debits.length > 0 ? (
                       <div className="p-3 md:p-4 bg-slate-50/50">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                          Debits (system debit + credit)
+                          Other Items — credit &amp; debit (end-of-day sheet)
                         </h3>
                         <ItemTable rows={debits} savingKey={savingKey} onPatch={patchRow} />
                       </div>
@@ -623,9 +626,9 @@ function ItemTable({
                   ) : (
                     <span
                       className="inline-flex rounded bg-violet-100 text-violet-900 text-[10px] font-bold px-1.5 py-0.5"
-                      title="System debit + credit from POS; amount is the combined total (matches one slip)."
+                      title="Other Items on the end-of-day sheet: Credit line + Debit line. Total = both; day row sums each shift that closed that date."
                     >
-                      D + C
+                      O.I.
                     </span>
                   )}
                 </td>
@@ -637,7 +640,7 @@ function ItemTable({
                         <span>Debit </span>
                         <span className="font-bold text-[#4169E1]">{formatCurrency(r.systemDebit ?? 0)}</span>
                         <span> · Credit </span>
-                        <span className="font-bold text-[#4169E1]">{formatCurrency(r.systemCredit ?? 0)}</span>
+                        <span className="font-bold text-[#4169E1]">{formatCurrency(r.otherCredit ?? 0)}</span>
                       </div>
                     </>
                   ) : (

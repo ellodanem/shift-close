@@ -92,9 +92,9 @@ export async function GET(request: NextRequest) {
       recordKind: RecordKind
       lineIndex: number
       amount: number
-      /** Debit rows: POS system debit + system credit (one scan often covers both). */
+      /** Debit rows: day-sheet Other Items — Debit line (systemDebit) + Credit line (otherCredit). */
       systemDebit?: number
-      systemCredit?: number
+      otherCredit?: number
       /** When recordKind is debit: sums all shifts that day; one reconciliation row per calendar day. */
       debitDayAggregate?: boolean
       contributingShifts?: Array<{ shiftId: string; shift: string }>
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       date: string
       shifts: (typeof shifts)[0][]
       sumDebit: number
-      sumCredit: number
+      sumOtherCredit: number
       scanUrls: string[]
     }
     const debitByDate = new Map<string, DayDebitBucket>()
@@ -119,9 +119,9 @@ export async function GET(request: NextRequest) {
       const amounts = parseDeposits(s.deposits)
       const depositScanUrls = parseUrlList(s.depositScanUrls)
       const debitScanUrls = parseUrlList(s.debitScanUrls)
-      const systemDebit = Number(s.systemDebit) || 0
-      const systemCredit = Number(s.systemCredit) || 0
-      const debitCreditCombined = systemDebit + systemCredit
+      const daySheetDebit = Number(s.systemDebit) || 0
+      const daySheetCredit = Number(s.otherCredit) || 0
+      const debitCreditCombined = daySheetDebit + daySheetCredit
 
       for (let i = 0; i < amounts.length; i++) {
         const rec = recordByKey.get(recordKey(s.id, 'deposit', i))
@@ -148,12 +148,12 @@ export async function GET(request: NextRequest) {
       if (showDebitForShift) {
         let bucket = debitByDate.get(s.date)
         if (!bucket) {
-          bucket = { date: s.date, shifts: [], sumDebit: 0, sumCredit: 0, scanUrls: [] }
+          bucket = { date: s.date, shifts: [], sumDebit: 0, sumOtherCredit: 0, scanUrls: [] }
           debitByDate.set(s.date, bucket)
         }
         bucket.shifts.push(s)
-        bucket.sumDebit += systemDebit
-        bucket.sumCredit += systemCredit
+        bucket.sumDebit += daySheetDebit
+        bucket.sumOtherCredit += daySheetCredit
         for (const u of debitScanUrls) {
           if (!bucket.scanUrls.includes(u)) bucket.scanUrls.push(u)
         }
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     for (const bucket of debitByDate.values()) {
       bucket.shifts.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
       const canonical = bucket.shifts[0]
-      const combined = bucket.sumDebit + bucket.sumCredit
+      const combined = bucket.sumDebit + bucket.sumOtherCredit
       if (combined === 0 && bucket.scanUrls.length === 0) continue
 
       let rec = recordByKey.get(recordKey(canonical.id, 'debit', 0))
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
         lineIndex: 0,
         amount: combined,
         systemDebit: bucket.sumDebit,
-        systemCredit: bucket.sumCredit,
+        otherCredit: bucket.sumOtherCredit,
         debitDayAggregate: true,
         contributingShifts: bucket.shifts.map((x) => ({ shiftId: x.id, shift: x.shift })),
         scanUrls: bucket.scanUrls,
@@ -307,17 +307,17 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'No shifts for this date' }, { status: 400 })
       }
       let sumDebit = 0
-      let sumCredit = 0
+      let sumOtherCredit = 0
       let anyDebitScan = false
       for (const s of sameDay) {
         sumDebit += Number(s.systemDebit) || 0
-        sumCredit += Number(s.systemCredit) || 0
+        sumOtherCredit += Number(s.otherCredit) || 0
         if (parseUrlList(s.debitScanUrls).length > 0) anyDebitScan = true
       }
-      const combined = sumDebit + sumCredit
+      const combined = sumDebit + sumOtherCredit
       if (combined === 0 && !anyDebitScan) {
         return NextResponse.json(
-          { error: 'No system debit/credit totals or debit scans for this calendar day' },
+          { error: 'No day-sheet credit/debit totals or debit scans for this calendar day' },
           { status: 400 }
         )
       }
