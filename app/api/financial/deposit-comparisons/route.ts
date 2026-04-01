@@ -39,6 +39,8 @@ function recordKey(shiftId: string, recordKind: string, lineIndex: number): stri
 /**
  * GET ?status= &: optional from,to; hideCleared=true; shiftLimit= (default 600, max 3000)
  * No from/to = most recent shifts first (by shift close date), capped by shiftLimit.
+ * hideCleared: omit entire calendar days where every deposit line and the day debit row are cleared
+ * (pending or discrepancy on any line keeps the day visible). Applied before status filter.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -127,9 +129,6 @@ export async function GET(request: NextRequest) {
         const notes = rec?.notes ?? ''
         const securitySlipUrl = rec?.securitySlipUrl ?? null
 
-        if (hideCleared && bankStatus === 'cleared') continue
-        if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) continue
-
         rows.push({
           shiftId: s.id,
           date: s.date,
@@ -191,9 +190,6 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (hideCleared && bankStatus === 'cleared') continue
-      if (statusFilter && statusFilter !== 'all' && bankStatus !== statusFilter) continue
-
       rows.push({
         shiftId: canonical.id,
         date: bucket.date,
@@ -213,17 +209,38 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    let outRows = rows
+    if (hideCleared) {
+      const byDate = new Map<string, typeof rows>()
+      for (const r of outRows) {
+        if (!byDate.has(r.date)) byDate.set(r.date, [])
+        byDate.get(r.date)!.push(r)
+      }
+      const dropDates = new Set<string>()
+      for (const [date, list] of byDate) {
+        if (list.length > 0 && list.every((x) => x.bankStatus === 'cleared')) {
+          dropDates.add(date)
+        }
+      }
+      if (dropDates.size > 0) {
+        outRows = outRows.filter((r) => !dropDates.has(r.date))
+      }
+    }
+    if (statusFilter && statusFilter !== 'all') {
+      outRows = outRows.filter((r) => r.bankStatus === statusFilter)
+    }
+
     const totals = {
-      count: rows.length,
-      sumDeposits: rows.filter((r) => r.recordKind === 'deposit').reduce((a, r) => a + r.amount, 0),
-      sumDebits: rows.filter((r) => r.recordKind === 'debit').reduce((a, r) => a + r.amount, 0),
-      pending: rows.filter((r) => r.bankStatus === 'pending').length,
-      cleared: rows.filter((r) => r.bankStatus === 'cleared').length,
-      discrepancy: rows.filter((r) => r.bankStatus === 'discrepancy').length
+      count: outRows.length,
+      sumDeposits: outRows.filter((r) => r.recordKind === 'deposit').reduce((a, r) => a + r.amount, 0),
+      sumDebits: outRows.filter((r) => r.recordKind === 'debit').reduce((a, r) => a + r.amount, 0),
+      pending: outRows.filter((r) => r.bankStatus === 'pending').length,
+      cleared: outRows.filter((r) => r.bankStatus === 'cleared').length,
+      discrepancy: outRows.filter((r) => r.bankStatus === 'discrepancy').length
     }
 
     return NextResponse.json({
-      rows,
+      rows: outRows,
       totals,
       meta: {
         shiftCount: shifts.length,

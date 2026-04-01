@@ -407,7 +407,9 @@ export default function DepositComparisonsPage() {
                 onChange={(e) => setHideCleared(e.target.checked)}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span>Hide cleared</span>
+              <span title="Hides a day only when every line for that date is cleared (pending or discrepancy keeps the day visible)">
+                Hide fully cleared days
+              </span>
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
@@ -530,7 +532,7 @@ export default function DepositComparisonsPage() {
             <p className="text-sm text-slate-500 py-8 text-center">Loading…</p>
           ) : byDate.length === 0 ? (
             <p className="text-sm text-slate-600 py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white px-4">
-              No items match your filters. Try turning off &quot;Hide cleared&quot;, widen the status filter, or load more shifts.
+              No items match your filters. Try turning off &quot;Hide fully cleared days&quot;, widen the status filter, or load more shifts.
             </p>
           ) : (
             byDate.map(({ date, deposits, debits }) => {
