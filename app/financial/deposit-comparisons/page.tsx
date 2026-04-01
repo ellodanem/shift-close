@@ -2,6 +2,16 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  BankStatusGlyph,
+  IconDebitCard,
+  IconDepositSlip,
+  IconFilter,
+  IconLayers,
+  IconMenu,
+  IconSelect,
+  IconShield
+} from '@/app/components/IconDropdown'
 import { formatCurrency } from '@/lib/format'
 
 type BankStatus = 'pending' | 'cleared' | 'discrepancy'
@@ -59,12 +69,6 @@ function formatDayHeading(isoDate: string): string {
     month: 'long',
     day: 'numeric'
   }).format(d)
-}
-
-function statusBadgeClass(s: BankStatus): string {
-  if (s === 'cleared') return 'bg-emerald-100 text-emerald-900 border-emerald-200'
-  if (s === 'discrepancy') return 'bg-amber-100 text-amber-900 border-amber-200'
-  return 'bg-slate-100 text-slate-800 border-slate-200'
 }
 
 function rowKey(r: Row): string {
@@ -151,71 +155,45 @@ function DayScanDropdowns({
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-3 bg-white border-b border-slate-100">
-      <label className="block">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Deposits</span>
-        <select
-          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
-          defaultValue=""
-          onChange={(e) => {
-            const u = e.target.value
-            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Deposit slip'
-            if (u) onOpenPreview(u, label)
-            e.target.selectedIndex = 0
-          }}
-        >
-          <option value="">Choose a deposit slip…</option>
-          {depositOptions.map((o, i) => (
-            <option key={`d-${i}-${o.url}`} value={o.url}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {depositOptions.length === 0 ? <p className="text-[11px] text-slate-400 mt-1">No deposit scans this day</p> : null}
-      </label>
-      <label className="block">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Debits / credit</span>
-        <select
-          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
-          defaultValue=""
-          onChange={(e) => {
-            const u = e.target.value
-            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Debit scan'
-            if (u) onOpenPreview(u, label)
-            e.target.selectedIndex = 0
-          }}
-        >
-          <option value="">Choose a debit scan…</option>
-          {debitOptions.map((o, i) => (
-            <option key={`db-${i}-${o.url}`} value={o.url}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {debitOptions.length === 0 ? <p className="text-[11px] text-slate-400 mt-1">No debit scans this day</p> : null}
-      </label>
-      <label className="block">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Security</span>
-        <select
-          className="w-full rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 text-sm text-slate-800"
-          defaultValue=""
-          onChange={(e) => {
-            const u = e.target.value
-            const label = e.target.options[e.target.selectedIndex]?.text ?? 'Security slip'
-            if (u) onOpenPreview(u, label)
-            e.target.selectedIndex = 0
-          }}
-        >
-          <option value="">Choose a security slip…</option>
-          {securityOptions.map((o, i) => (
-            <option key={`s-${i}-${o.url}`} value={o.url}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {securityOptions.length === 0 ? (
-          <p className="text-[11px] text-slate-400 mt-1">None uploaded yet (coming soon)</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposits</span>
+        <IconMenu
+          ariaLabel="Choose a deposit slip to preview"
+          icon={<IconDepositSlip />}
+          options={depositOptions.map((o) => ({ value: o.url, label: o.label }))}
+          emptyHint="No deposit scans this day"
+          onPick={(url, label) => onOpenPreview(url, label)}
+        />
+        {depositOptions.length === 0 ? (
+          <span className="text-[11px] text-slate-400">No deposit scans this day</span>
         ) : null}
-      </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Debits / credit</span>
+        <IconMenu
+          ariaLabel="Choose a debit or credit scan to preview"
+          icon={<IconDebitCard />}
+          options={debitOptions.map((o) => ({ value: o.url, label: o.label }))}
+          emptyHint="No debit scans this day"
+          onPick={(url, label) => onOpenPreview(url, label)}
+        />
+        {debitOptions.length === 0 ? (
+          <span className="text-[11px] text-slate-400">No debit scans this day</span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Security</span>
+        <IconMenu
+          ariaLabel="Choose a security slip to preview"
+          icon={<IconShield />}
+          options={securityOptions.map((o) => ({ value: o.url, label: o.label }))}
+          emptyHint="No security slips this day"
+          onPick={(url, label) => onOpenPreview(url, label)}
+        />
+        {securityOptions.length === 0 ? (
+          <span className="text-[11px] text-slate-400">None uploaded yet (coming soon)</span>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -289,6 +267,12 @@ function ScanPreviewModal({
 
 const STATUS_OPTIONS: { value: BankStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'cleared', label: 'Cleared' },
+  { value: 'discrepancy', label: 'Discrepancy' }
+]
+
+const BANK_ROW_STATUS_OPTIONS: { value: BankStatus; label: string }[] = [
   { value: 'pending', label: 'Pending' },
   { value: 'cleared', label: 'Cleared' },
   { value: 'discrepancy', label: 'Discrepancy' }
@@ -406,7 +390,7 @@ export default function DepositComparisonsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
             Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Debits / credit</strong>, and{' '}
-            <strong>Security</strong> dropdowns to preview scans in a modal (labeled by shift). Tables below are for amounts
+            <strong>Security</strong> icons to pick a scan and preview it in a modal (labeled by shift). Tables below are for amounts
             and bank status only.
           </p>
         </div>
@@ -422,33 +406,36 @@ export default function DepositComparisonsPage() {
               />
               <span>Hide cleared</span>
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
-              <select
+              <IconSelect
+                ariaLabel="Filter by bank status"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
-              >
-                {STATUS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setStatusFilter(v as (typeof STATUS_OPTIONS)[number]['value'])}
+                options={STATUS_OPTIONS}
+                renderTrigger={() => <IconFilter />}
+              />
+              <span className="text-sm text-slate-600" title="Current filter">
+                {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All'}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Load</label>
-              <select
-                value={shiftLimit}
-                onChange={(e) => setShiftLimit(parseInt(e.target.value, 10) as (typeof SHIFT_LIMIT_OPTIONS)[number])}
-                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
-              >
-                {SHIFT_LIMIT_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n} shifts (max)
-                  </option>
-                ))}
-              </select>
+              <IconSelect
+                ariaLabel="Maximum shifts to load"
+                value={String(shiftLimit)}
+                onChange={(v) =>
+                  setShiftLimit(parseInt(v, 10) as (typeof SHIFT_LIMIT_OPTIONS)[number])
+                }
+                options={SHIFT_LIMIT_OPTIONS.map((n) => ({
+                  value: String(n),
+                  label: `${n} shifts (max)`
+                }))}
+                renderTrigger={() => <IconLayers />}
+              />
+              <span className="text-sm text-slate-600" title="Shift load limit">
+                {shiftLimit} shifts (max)
+              </span>
             </div>
             <button
               type="button"
@@ -648,18 +635,16 @@ function ItemTable({
                   ) : null}
                 </td>
                 <td className="px-2 py-2.5">
-                  <select
+                  <IconSelect<BankStatus>
+                    ariaLabel="Bank reconciliation status"
                     disabled={busy}
                     value={r.bankStatus}
-                    onChange={(e) =>
-                      void onPatch(r.shiftId, r.recordKind, r.lineIndex, { bankStatus: e.target.value as BankStatus })
+                    onChange={(v) =>
+                      void onPatch(r.shiftId, r.recordKind, r.lineIndex, { bankStatus: v })
                     }
-                    className={`text-sm rounded-lg border px-2 py-1 max-w-[9.5rem] ${statusBadgeClass(r.bankStatus)}`}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="cleared">Cleared</option>
-                    <option value="discrepancy">Discrepancy</option>
-                  </select>
+                    options={BANK_ROW_STATUS_OPTIONS}
+                    renderTrigger={({ value }) => <BankStatusGlyph status={value} />}
+                  />
                 </td>
                 <td className="px-2 py-2.5">
                   <NotesCell

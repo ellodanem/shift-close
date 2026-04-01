@@ -12,6 +12,16 @@ import {
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
+import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
+
+type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
+
+const REMINDER_RECURRENCE_OPTIONS: { value: ReminderRecurrence; label: string }[] = [
+  { value: '', label: 'One-time' },
+  { value: 'weekly', label: 'Every week' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Every month' }
+]
 
 interface MonthSummary {
   year: number
@@ -170,7 +180,7 @@ export default function DashboardPage() {
     notifyEmail: true,
     notifyWhatsApp: false,
     notifyDaysBefore: '7,3,1,0',
-    recurrenceType: '' as '' | 'weekly' | 'biweekly' | 'monthly',
+    recurrenceType: '' as ReminderRecurrence,
     recurrenceEndDate: ''
   })
   const [payDayModalOpen, setPayDayModalOpen] = useState(false)
@@ -1592,16 +1602,19 @@ export default function DashboardPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Repeat</label>
-                <select
-                  value={reminderForm.recurrenceType}
-                  onChange={(e) => setReminderForm((f) => ({ ...f, recurrenceType: e.target.value as '' | 'weekly' | 'biweekly' | 'monthly' }))}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                >
-                  <option value="">One-time</option>
-                  <option value="weekly">Every week</option>
-                  <option value="biweekly">Every 2 weeks</option>
-                  <option value="monthly">Every month</option>
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <IconSelect<ReminderRecurrence>
+                    ariaLabel="Reminder repeat frequency"
+                    value={reminderForm.recurrenceType}
+                    onChange={(v) => setReminderForm((f) => ({ ...f, recurrenceType: v }))}
+                    options={REMINDER_RECURRENCE_OPTIONS}
+                    renderTrigger={() => <IconRepeat />}
+                  />
+                  <span className="text-sm text-gray-600" title="Current choice">
+                    {REMINDER_RECURRENCE_OPTIONS.find((o) => o.value === reminderForm.recurrenceType)?.label ??
+                      'One-time'}
+                  </span>
+                </div>
                 {reminderForm.recurrenceType && (
                   <div className="mt-2">
                     <label className="block text-xs text-gray-500 mb-1">End date (optional)</label>
