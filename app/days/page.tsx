@@ -747,7 +747,7 @@ export default function DaysPage() {
                   </div>
                   
                   {/* Document scans — bank comparisons–style strip + preview modal */}
-                  <div className="border-b border-gray-200 overflow-hidden bg-white">
+                  <div className="border-b border-gray-200 bg-white">
                     <div className="px-4 pt-3">
                       <h3 className="font-semibold text-gray-900">Document scans</h3>
                       <p className="text-xs text-gray-500 mt-0.5">
