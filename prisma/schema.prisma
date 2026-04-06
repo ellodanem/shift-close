@@ -36,6 +36,7 @@ model Staff {
   staffRole      StaffRole?    @relation(fields: [roleId], references: [id])
   dayOffs        StaffDayOff[]
   sickLeaves     StaffSickLeave[]
+  attendanceDayOverrides AttendanceDayOverride[]
 
   @@map("staff")
 }
@@ -558,6 +559,21 @@ model AttendanceLog {
   @@index([punchTime])
   @@index([deviceUserId])
   @@map("attendance_logs")
+}
+
+/// Manual present / late reason for present–absence tracking (station calendar day)
+model AttendanceDayOverride {
+  id            String   @id @default(cuid())
+  staffId       String   @map("staff_id")
+  date          String   // YYYY-MM-DD (station TZ calendar day)
+  manualPresent Boolean  @default(false) @map("manual_present")
+  lateReason    String   @default("") @map("late_reason")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date], name: "attendance_day_override_staff_date")
+  @@map("attendance_day_overrides")
 }
 
 // Roles for staff (e.g. Cashier, Pump Attendant, Supervisor)

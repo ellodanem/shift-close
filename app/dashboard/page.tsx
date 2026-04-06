@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   type DashboardWidgetId,
@@ -88,12 +88,22 @@ interface CustomerArSummary {
 
 type MonthFilterType = 'currentMonth' | 'previousMonth' | 'custom'
 
+interface TodayPresence {
+  status: string
+  lateReason: string
+  graceEndsAt: string | null
+  isExpected: boolean
+  manualPresent?: boolean
+}
+
 interface TodayScheduled {
   staffId: string
   staffName: string
   staffFirstName?: string
   shiftName: string
   shiftColor: string | null
+  shiftStartTime?: string
+  presence?: TodayPresence
 }
 
 interface TodayOnVacation {
@@ -105,9 +115,12 @@ interface TodayOnVacation {
 interface TodayRoster {
   date: string
   weekStart: string
+  stationTimeZone?: string
   scheduled: TodayScheduled[]
   onVacation: TodayOnVacation[]
   off: TodayOnVacation[]
+  presentAbsenceEnabled?: boolean
+  presentAbsenceGraceMinutes?: number
 }
 
 interface CashbookSummary {
@@ -186,6 +199,14 @@ export default function DashboardPage() {
   const [payDayModalOpen, setPayDayModalOpen] = useState(false)
   const [payDayForm, setPayDayForm] = useState({ date: '', notes: '' })
   const [payDaySaving, setPayDaySaving] = useState(false)
+  const [presenceModal, setPresenceModal] = useState<{
+    staffId: string
+    staffName: string
+    date: string
+    manualPresent: boolean
+    lateReason: string
+  } | null>(null)
+  const [presenceSaving, setPresenceSaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
 
@@ -200,16 +221,17 @@ export default function DashboardPage() {
   }, [authLoading, appRole])
 
   useEffect(() => {
-    if (!reminderModalOpen && !payDayModalOpen) return
+    if (!reminderModalOpen && !payDayModalOpen && !presenceModal) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setReminderModalOpen(false)
         setPayDayModalOpen(false)
+        setPresenceModal(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [reminderModalOpen, payDayModalOpen])
+  }, [reminderModalOpen, payDayModalOpen, presenceModal])
 
   // Close custom picker when clicking outside
   useEffect(() => {
@@ -235,21 +257,22 @@ export default function DashboardPage() {
     void fetchRecentPayment()
   }, [activeFilter, customStartDate, customEndDate, authLoading])
 
+  const refreshTodayRoster = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/today')
+      if (res.ok) {
+        const data = await res.json()
+        setTodayRoster(data)
+      }
+    } catch (err) {
+      console.error('Error fetching today roster:', err)
+    }
+  }, [])
+
   useEffect(() => {
     if (authLoading) return
-    const fetchToday = async () => {
-      try {
-        const res = await fetch('/api/dashboard/today')
-        if (res.ok) {
-          const data = await res.json()
-          setTodayRoster(data)
-        }
-      } catch (err) {
-        console.error('Error fetching today roster:', err)
-      }
-    }
-    void fetchToday()
-  }, [authLoading])
+    void refreshTodayRoster()
+  }, [authLoading, refreshTodayRoster])
 
   useEffect(() => {
     if (authLoading || isSupervisorLike) return
@@ -473,22 +496,52 @@ export default function DashboardPage() {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
-  const groupScheduledByShift = (items: TodayScheduled[]) => {
-    const map = new Map<string, { shiftName: string; color: string | null; names: string[] }>()
+  const groupScheduledByShift = (
+    items: TodayScheduled[]
+  ): {
+    shiftName: string
+    color: string | null
+    entries: { displayName: string; staffId: string; presence?: TodayPresence }[]
+  }[] => {
+    const map = new Map<
+      string,
+      { shiftName: string; color: string | null; entries: { displayName: string; staffId: string; presence?: TodayPresence }[] }
+    >()
     items.forEach((item) => {
       const displayName = item.staffFirstName ?? item.staffName
       const existing = map.get(item.shiftName)
+      const entry = {
+        displayName,
+        staffId: item.staffId,
+        presence: item.presence
+      }
       if (existing) {
-        existing.names.push(displayName)
+        existing.entries.push(entry)
       } else {
         map.set(item.shiftName, {
           shiftName: item.shiftName,
           color: item.shiftColor,
-          names: [displayName]
+          entries: [entry]
         })
       }
     })
     return Array.from(map.values())
+  }
+
+  const presenceStatusGlyph = (status: string) => {
+    switch (status) {
+      case 'present':
+        return { char: '✓', title: 'Present', className: 'text-emerald-600' }
+      case 'late':
+        return { char: '!', title: 'Late / no punch yet', className: 'text-amber-600' }
+      case 'absent':
+        return { char: '✗', title: 'Absent', className: 'text-red-600' }
+      case 'off':
+        return { char: '—', title: 'Not expected today', className: 'text-slate-400' }
+      case 'pending':
+      default:
+        return { char: '…', title: 'Before grace or waiting', className: 'text-slate-400' }
+    }
   }
 
   const fetchArSummary = async (year: number, month: number) => {
@@ -1268,15 +1321,26 @@ export default function DashboardPage() {
               <h3 className="text-sm font-semibold text-gray-700">
                 {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
               </h3>
-              {!isStakeholder && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/roster')}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Roster →
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {todayRoster?.presentAbsenceEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/dashboard/present-absence')}
+                    className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                  >
+                    Present / Absent
+                  </button>
+                ) : null}
+                {!isStakeholder && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/roster')}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Roster →
+                  </button>
+                )}
+              </div>
             </div>
             <div className="space-y-3">
               <div>
@@ -1294,9 +1358,43 @@ export default function DashboardPage() {
                           {group.shiftName}
                         </div>
                         <div className="mt-0.5 text-gray-700 space-y-0.5">
-                          {group.names.map((name, idx) => (
-                            <div key={`${group.shiftName}-${name}-${idx}`}>{name}</div>
-                          ))}
+                          {group.entries.map((e) => {
+                            const g = e.presence
+                              ? presenceStatusGlyph(e.presence.status)
+                              : null
+                            const canEditPresence =
+                              todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
+                            return (
+                              <div
+                                key={`${group.shiftName}-${e.staffId}`}
+                                className="flex items-center gap-1.5 min-h-[1.25rem]"
+                              >
+                                {g && (
+                                  <button
+                                    type="button"
+                                    title={g.title}
+                                    disabled={!canEditPresence}
+                                    onClick={() => {
+                                      if (!canEditPresence || !todayRoster.date) return
+                                      setPresenceModal({
+                                        staffId: e.staffId,
+                                        staffName: e.displayName,
+                                        date: todayRoster.date,
+                                        manualPresent: e.presence?.manualPresent === true,
+                                        lateReason: e.presence?.lateReason ?? ''
+                                      })
+                                    }}
+                                    className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
+                                      g.className
+                                    } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                                  >
+                                    {g.char}
+                                  </button>
+                                )}
+                                <span>{e.displayName}</span>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -1563,6 +1661,92 @@ export default function DashboardPage() {
                 className="px-4 py-2 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700 disabled:opacity-50"
               >
                 {payDaySaving ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {presenceModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setPresenceModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Attendance</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {presenceModal.staffName} · {formatTodayDisplay(presenceModal.date)}
+            </p>
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={presenceModal.manualPresent}
+                  onChange={(e) =>
+                    setPresenceModal((m) => (m ? { ...m, manualPresent: e.target.checked } : m))
+                  }
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm font-medium text-gray-800">Mark present manually</span>
+              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Late / absence note (optional)
+                </label>
+                <textarea
+                  value={presenceModal.lateReason}
+                  onChange={(e) =>
+                    setPresenceModal((m) => (m ? { ...m, lateReason: e.target.value } : m))
+                  }
+                  rows={3}
+                  placeholder="Reason or context"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setPresenceModal(null)}
+                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={presenceSaving}
+                onClick={async () => {
+                  setPresenceSaving(true)
+                  try {
+                    const res = await fetch('/api/attendance/present-absence/override', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        staffId: presenceModal.staffId,
+                        date: presenceModal.date,
+                        manualPresent: presenceModal.manualPresent,
+                        lateReason: presenceModal.lateReason
+                      })
+                    })
+                    const data = await res.json().catch(() => ({}))
+                    if (!res.ok) {
+                      throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
+                    }
+                    setPresenceModal(null)
+                    await refreshTodayRoster()
+                  } catch (err) {
+                    console.error(err)
+                    alert(err instanceof Error ? err.message : 'Failed to save')
+                  } finally {
+                    setPresenceSaving(false)
+                  }
+                }}
+                className="px-4 py-2 bg-slate-700 text-white rounded font-semibold hover:bg-slate-800 disabled:opacity-50"
+              >
+                {presenceSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

@@ -25,6 +25,7 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname === '/api/attendance/ingest') return true
   // Cron jobs validate CRON_SECRET inside the route (see route handler).
   if (pathname === '/api/cron/end-of-day-email') return true
+  if (pathname === '/api/cron/present-absence-notify') return true
   return false
 }
 
@@ -43,6 +44,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
         pathname.startsWith('/api/dashboard/fuel-comparison') ||
         pathname.startsWith('/api/dashboard/upcoming') ||
         pathname.startsWith('/api/dashboard/today') ||
+        pathname.startsWith('/api/attendance/present-absence') ||
         pathname.startsWith('/api/pay-days') ||
         pathname.startsWith('/api/fuel-payments/recent') ||
         pathname.startsWith('/api/financial/deposit-comparisons')
@@ -50,6 +52,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     }
     return (
       pathname === '/dashboard' ||
+      pathname.startsWith('/dashboard/present-absence') ||
       pathname.startsWith('/insights/') ||
       pathname.startsWith('/financial/deposit-comparisons')
     )

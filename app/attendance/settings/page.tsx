@@ -18,14 +18,43 @@ export default function AttendanceSettingsPage() {
   const [asumLastSentDate, setAsumLastSentDate] = useState('')
   const [asumTimeZone, setAsumTimeZone] = useState('America/St_Lucia')
 
+  const [paEnabled, setPaEnabled] = useState(false)
+  const [paGraceMinutes, setPaGraceMinutes] = useState(60)
+  const [paNotifyEmail, setPaNotifyEmail] = useState(false)
+  const [paNotifyWhatsApp, setPaNotifyWhatsApp] = useState(false)
+  const [paNotifyEmailRecipients, setPaNotifyEmailRecipients] = useState('')
+  const [paNotifyWhatsAppNumbers, setPaNotifyWhatsAppNumbers] = useState('')
+  const [paSaving, setPaSaving] = useState(false)
+  const [paMessage, setPaMessage] = useState<string | null>(null)
+
   const loadExpected = useCallback(async () => {
     setMessage(null)
     try {
       const res = await fetch('/api/attendance/settings', { cache: 'no-store' })
       if (!res.ok) return
-      const data = (await res.json()) as { expectedPunchesPerDay?: number }
+      const data = (await res.json()) as {
+        expectedPunchesPerDay?: number
+        presentAbsenceEnabled?: boolean
+        graceMinutes?: number
+        absenceNotifyEmail?: boolean
+        absenceNotifyWhatsApp?: boolean
+        absenceNotifyEmailRecipients?: string
+        absenceNotifyWhatsAppNumbers?: string
+      }
       if (typeof data.expectedPunchesPerDay === 'number' && data.expectedPunchesPerDay >= 1) {
         setExpectedPunchesPerDay(data.expectedPunchesPerDay)
+      }
+      if (typeof data.presentAbsenceEnabled === 'boolean') setPaEnabled(data.presentAbsenceEnabled)
+      if (typeof data.graceMinutes === 'number' && data.graceMinutes >= 1) {
+        setPaGraceMinutes(data.graceMinutes)
+      }
+      if (typeof data.absenceNotifyEmail === 'boolean') setPaNotifyEmail(data.absenceNotifyEmail)
+      if (typeof data.absenceNotifyWhatsApp === 'boolean') setPaNotifyWhatsApp(data.absenceNotifyWhatsApp)
+      if (typeof data.absenceNotifyEmailRecipients === 'string') {
+        setPaNotifyEmailRecipients(data.absenceNotifyEmailRecipients)
+      }
+      if (typeof data.absenceNotifyWhatsAppNumbers === 'string') {
+        setPaNotifyWhatsAppNumbers(data.absenceNotifyWhatsAppNumbers)
       }
     } catch {
       // ignore
@@ -57,6 +86,34 @@ export default function AttendanceSettingsPage() {
     setAsumLoading(true)
     void loadAsum().finally(() => setAsumLoading(false))
   }, [loadAsum])
+
+  const savePresentAbsence = async () => {
+    setPaSaving(true)
+    setPaMessage(null)
+    try {
+      const res = await fetch('/api/attendance/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          presentAbsenceEnabled: paEnabled,
+          graceMinutes: paGraceMinutes,
+          absenceNotifyEmail: paNotifyEmail,
+          absenceNotifyWhatsApp: paNotifyWhatsApp,
+          absenceNotifyEmailRecipients: paNotifyEmailRecipients,
+          absenceNotifyWhatsAppNumbers: paNotifyWhatsAppNumbers
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
+      }
+      setPaMessage('Saved.')
+    } catch (e) {
+      setPaMessage(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setPaSaving(false)
+    }
+  }
 
   const saveExpected = async () => {
     setSaving(true)
@@ -201,6 +258,109 @@ export default function AttendanceSettingsPage() {
           {message && (
             <p className={`mt-3 text-sm ${message === 'Saved.' ? 'text-emerald-700' : 'text-red-700'}`}>{message}</p>
           )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Present / absent (roster day)</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Track scheduled staff vs punches for each calendar day (same timezone as end-of-day email). After the grace
+            period from shift start, staff with no punch show as late until they clock in; past days without a punch are
+            absent. Optional email and WhatsApp alerts when someone is late (no punch after grace).
+          </p>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={paEnabled}
+                onChange={(e) => setPaEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span className="font-medium text-gray-900">Enable present / absent on dashboard</span>
+            </label>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                  Grace after shift start (minutes)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={paGraceMinutes}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10)
+                    if (!Number.isFinite(v)) return
+                    setPaGraceMinutes(Math.min(1440, Math.max(1, v)))
+                  }}
+                  className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm tabular-nums"
+                />
+              </div>
+              <p className="text-xs text-gray-600 max-w-lg pb-0.5">
+                No late/absent until at least this long after the roster shift start. Any punch that day (station time)
+                counts as present.
+              </p>
+            </div>
+            <div className="border-t border-gray-100 pt-4 space-y-3">
+              <p className="text-sm font-medium text-gray-800">Late alerts (optional)</p>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={paNotifyEmail}
+                  onChange={(e) => setPaNotifyEmail(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span className="text-gray-900">Email when someone is past grace with no punch</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={paNotifyWhatsApp}
+                  onChange={(e) => setPaNotifyWhatsApp(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span className="text-gray-900">WhatsApp (Twilio) for the same</span>
+              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email recipients</label>
+                <textarea
+                  value={paNotifyEmailRecipients}
+                  onChange={(e) => setPaNotifyEmailRecipients(e.target.value)}
+                  rows={2}
+                  placeholder="comma or line separated"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp numbers (E.164)</label>
+                <textarea
+                  value={paNotifyWhatsAppNumbers}
+                  onChange={(e) => setPaNotifyWhatsAppNumbers(e.target.value)}
+                  rows={2}
+                  placeholder="+17581234567, one per line or comma separated"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Schedule cron:{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">
+                  GET /api/cron/present-absence-notify
+                </code>{' '}
+                with <code className="bg-gray-100 px-1 rounded text-xs">Authorization: Bearer CRON_SECRET</code> (e.g.
+                every 15–30 minutes during the day).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void savePresentAbsence()}
+              disabled={paSaving}
+              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {paSaving ? 'Saving…' : 'Save present / absent settings'}
+            </button>
+            {paMessage ? (
+              <p className={`text-sm ${paMessage === 'Saved.' ? 'text-emerald-700' : 'text-red-700'}`}>{paMessage}</p>
+            ) : null}
+          </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
