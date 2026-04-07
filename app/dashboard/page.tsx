@@ -94,6 +94,8 @@ interface TodayPresence {
   graceEndsAt: string | null
   isExpected: boolean
   manualPresent?: boolean
+  manualAbsent?: boolean
+  punchExempt?: boolean
 }
 
 interface TodayScheduled {
@@ -204,6 +206,8 @@ export default function DashboardPage() {
     staffName: string
     date: string
     manualPresent: boolean
+    manualAbsent: boolean
+    punchExempt: boolean
     lateReason: string
   } | null>(null)
   const [presenceSaving, setPresenceSaving] = useState(false)
@@ -1381,6 +1385,8 @@ export default function DashboardPage() {
                                         staffName: e.displayName,
                                         date: todayRoster.date,
                                         manualPresent: e.presence?.manualPresent === true,
+                                        manualAbsent: e.presence?.manualAbsent === true,
+                                        punchExempt: e.presence?.punchExempt === true,
                                         lateReason: e.presence?.lateReason ?? ''
                                       })
                                     }}
@@ -1681,17 +1687,38 @@ export default function DashboardPage() {
               {presenceModal.staffName} · {formatTodayDisplay(presenceModal.date)}
             </p>
             <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={presenceModal.manualPresent}
-                  onChange={(e) =>
-                    setPresenceModal((m) => (m ? { ...m, manualPresent: e.target.checked } : m))
-                  }
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm font-medium text-gray-800">Mark present manually</span>
-              </label>
+              {presenceModal.punchExempt ? (
+                <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  Punch exempt: counted as present without a clock-in. Use absent below if they did not work this day.
+                </p>
+              ) : (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={presenceModal.manualPresent}
+                    onChange={(e) =>
+                      setPresenceModal((m) => (m ? { ...m, manualPresent: e.target.checked } : m))
+                    }
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-800">Mark present manually</span>
+                </label>
+              )}
+              {presenceModal.punchExempt ? (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={presenceModal.manualAbsent}
+                    onChange={(e) =>
+                      setPresenceModal((m) =>
+                        m ? { ...m, manualAbsent: e.target.checked, manualPresent: false } : m
+                      )
+                    }
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-800">Absent for this day</span>
+                </label>
+              ) : null}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Late / absence note (optional)
@@ -1727,7 +1754,8 @@ export default function DashboardPage() {
                       body: JSON.stringify({
                         staffId: presenceModal.staffId,
                         date: presenceModal.date,
-                        manualPresent: presenceModal.manualPresent,
+                        manualPresent: presenceModal.punchExempt ? false : presenceModal.manualPresent,
+                        manualAbsent: presenceModal.punchExempt ? presenceModal.manualAbsent : false,
                         lateReason: presenceModal.lateReason
                       })
                     })

@@ -16,6 +16,8 @@ interface Row {
   graceEndsAt: string | null
   isExpected: boolean
   manualPresent: boolean
+  manualAbsent?: boolean
+  punchExempt?: boolean
 }
 
 export default function PresentAbsencePage() {
@@ -183,7 +185,14 @@ export default function PresentAbsencePage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 max-w-xs truncate" title={r.lateReason}>
-                      {r.lateReason || (r.manualPresent ? 'Manual present' : '—')}
+                      {r.lateReason ||
+                        (r.punchExempt
+                          ? r.manualAbsent
+                            ? 'Absent (punch exempt)'
+                            : 'Auto present (no punch)'
+                          : r.manualPresent
+                            ? 'Manual present'
+                            : '—')}
                     </td>
                   </tr>
                 ))}
@@ -191,7 +200,7 @@ export default function PresentAbsencePage() {
             </table>
             {!isStakeholder ? (
               <p className="px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
-                Click a row to set manual present or add a note.
+                Click a row to edit overrides (manual present, absent for exempt staff, or notes).
               </p>
             ) : null}
           </div>
@@ -212,15 +221,36 @@ export default function PresentAbsencePage() {
               {modal.staffFirstName ?? modal.staffName} · {date}
             </p>
             <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={modal.manualPresent}
-                  onChange={(e) => setModal((m) => (m ? { ...m, manualPresent: e.target.checked } : m))}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm font-medium text-gray-800">Mark present manually</span>
-              </label>
+              {modal.punchExempt ? (
+                <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  Punch exempt: counted as present without a clock-in. Use absent below if they did not work this day.
+                </p>
+              ) : (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modal.manualPresent}
+                    onChange={(e) => setModal((m) => (m ? { ...m, manualPresent: e.target.checked } : m))}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-800">Mark present manually</span>
+                </label>
+              )}
+              {modal.punchExempt ? (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modal.manualAbsent === true}
+                    onChange={(e) =>
+                      setModal((m) =>
+                        m ? { ...m, manualAbsent: e.target.checked, manualPresent: false } : m
+                      )
+                    }
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-800">Absent for this day</span>
+                </label>
+              ) : null}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Late / absence note (optional)
@@ -253,7 +283,8 @@ export default function PresentAbsencePage() {
                       body: JSON.stringify({
                         staffId: modal.staffId,
                         date,
-                        manualPresent: modal.manualPresent,
+                        manualPresent: modal.punchExempt ? false : modal.manualPresent,
+                        manualAbsent: modal.punchExempt ? modal.manualAbsent === true : false,
                         lateReason: modal.lateReason
                       })
                     })

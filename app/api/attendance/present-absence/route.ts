@@ -51,7 +51,9 @@ export async function GET(request: NextRequest) {
         lateReason: p?.lateReason ?? '',
         graceEndsAt: p?.graceEndsAtIso ?? null,
         isExpected: p?.isExpected ?? true,
-        manualPresent: p?.manualPresent ?? false
+        manualPresent: p?.manualPresent ?? false,
+        manualAbsent: p?.manualAbsent ?? false,
+        punchExempt: p?.punchExempt ?? false
       }
     })
 

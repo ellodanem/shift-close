@@ -5,13 +5,14 @@ export const dynamic = 'force-dynamic'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-/** POST { staffId, date, manualPresent?, lateReason? } — manual present or late reason for a calendar day. */
+/** POST { staffId, date, manualPresent?, manualAbsent? (punch-exempt only), lateReason? } */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const staffId = typeof body.staffId === 'string' ? body.staffId.trim() : ''
     const date = typeof body.date === 'string' ? body.date.trim() : ''
-    const manualPresent = body.manualPresent === true
+    let manualPresent = body.manualPresent === true
+    let manualAbsent = body.manualAbsent === true
     const lateReason = typeof body.lateReason === 'string' ? body.lateReason : ''
 
     if (!staffId || !DATE_RE.test(date)) {
@@ -23,7 +24,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     }
 
-    if (!manualPresent && !lateReason.trim()) {
+    const punchExempt = staff.punchExempt === true
+    if (!punchExempt) {
+      manualAbsent = false
+    }
+    if (manualAbsent) {
+      manualPresent = false
+    }
+
+    const shouldPersist = manualPresent || manualAbsent || lateReason.trim().length > 0
+
+    if (!shouldPersist) {
       await prisma.attendanceDayOverride.deleteMany({ where: { staffId, date } })
       return NextResponse.json({ ok: true, cleared: true })
     }
@@ -32,13 +43,18 @@ export async function POST(request: NextRequest) {
     const row = existing
       ? await prisma.attendanceDayOverride.update({
           where: { id: existing.id },
-          data: { manualPresent, lateReason: lateReason.trim() }
+          data: {
+            manualPresent,
+            manualAbsent,
+            lateReason: lateReason.trim()
+          }
         })
       : await prisma.attendanceDayOverride.create({
           data: {
             staffId,
             date,
             manualPresent,
+            manualAbsent,
             lateReason: lateReason.trim()
           }
         })
@@ -49,6 +65,7 @@ export async function POST(request: NextRequest) {
         staffId: row.staffId,
         date: row.date,
         manualPresent: row.manualPresent,
+        manualAbsent: row.manualAbsent,
         lateReason: row.lateReason
       }
     })

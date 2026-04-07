@@ -23,7 +23,8 @@ export default function NewStaffPage() {
     bankName: '',
     accountNumber: '',
     mobileNumber: '',
-    notes: ''
+    notes: '',
+    punchExempt: false
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -254,6 +255,24 @@ export default function NewStaffPage() {
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Bank account number"
               />
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.punchExempt}
+                  onChange={(e) => setFormData({ ...formData, punchExempt: e.target.checked })}
+                  className="mt-1 rounded border-gray-300"
+                />
+                <span>
+                  <span className="text-sm font-medium text-gray-900">Punch exemption (no clock)</span>
+                  <span className="block text-xs text-gray-600 mt-0.5">
+                    Exclude from pay period hours report. Present/absent treats them as present unless marked absent for
+                    the day.
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* Notes */}

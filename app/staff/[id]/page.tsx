@@ -74,7 +74,8 @@ export default function EditStaffPage() {
     mobileNumber: '',
     notes: '',
     vacationStart: '' as string,
-    vacationEnd: '' as string
+    vacationEnd: '' as string,
+    punchExempt: false
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -259,7 +260,8 @@ export default function EditStaffPage() {
         mobileNumber: (data as any).mobileNumber || '',
         notes: data.notes,
         vacationStart: (data as any).vacationStart || '',
-        vacationEnd: (data as any).vacationEnd || ''
+        vacationEnd: (data as any).vacationEnd || '',
+        punchExempt: (data as any).punchExempt === true
       })
       setShiftCount(data._count?.shifts || 0)
     } catch (error) {
@@ -542,6 +544,24 @@ export default function EditStaffPage() {
                 placeholder="e.g. 108 (matches ZKTeco device user ID)"
               />
               <p className="text-xs text-gray-500 mt-0.5">Links this staff to ZKTeco attendance device for clock in/out.</p>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.punchExempt}
+                  onChange={(e) => setFormData({ ...formData, punchExempt: e.target.checked })}
+                  className="mt-1 rounded border-gray-300"
+                />
+                <span>
+                  <span className="text-sm font-medium text-gray-900">Punch exemption (no clock)</span>
+                  <span className="block text-xs text-gray-600 mt-0.5">
+                    Exclude from pay period hours report. Present/absent treats them as present unless marked absent for
+                    the day.
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* Notes */}

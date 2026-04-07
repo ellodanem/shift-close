@@ -39,7 +39,25 @@ export async function PATCH(
     const session = await getSessionFromRequest(request)
     const appRole = session?.role ?? ''
     const body = await request.json()
-    const { name, firstName, lastName, dateOfBirth, startDate, status, role, roleId, nicNumber, deviceUserId, bankName, accountNumber, mobileNumber, notes, vacationStart, vacationEnd } = body
+    const {
+      name,
+      firstName,
+      lastName,
+      dateOfBirth,
+      startDate,
+      status,
+      role,
+      roleId,
+      nicNumber,
+      deviceUserId,
+      bankName,
+      accountNumber,
+      mobileNumber,
+      notes,
+      vacationStart,
+      vacationEnd,
+      punchExempt
+    } = body
 
     const data: Record<string, unknown> = {
       ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
@@ -54,7 +72,8 @@ export async function PATCH(
       ...(mobileNumber !== undefined && { mobileNumber: mobileNumber || null }),
       ...(notes !== undefined && { notes: notes || '' }),
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
-      ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null })
+      ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null }),
+      ...(punchExempt !== undefined && { punchExempt: punchExempt === true })
     }
 
     if (firstName !== undefined || lastName !== undefined) {

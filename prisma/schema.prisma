@@ -25,6 +25,8 @@ model Staff {
   notes         String   @default("")
   vacationStart String?  @map("vacation_start") // YYYY-MM-DD
   vacationEnd   String?  @map("vacation_end")   // YYYY-MM-DD
+  /// Salaried / no clock: excluded from pay period hours report; present/absent auto-present unless marked absent.
+  punchExempt   Boolean  @default(false) @map("punch_exempt")
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -567,6 +569,8 @@ model AttendanceDayOverride {
   staffId       String   @map("staff_id")
   date          String   // YYYY-MM-DD (station TZ calendar day)
   manualPresent Boolean  @default(false) @map("manual_present")
+  /// Punch-exempt staff only: mark absent for this day (overrides auto-present).
+  manualAbsent  Boolean  @default(false) @map("manual_absent")
   lateReason    String   @default("") @map("late_reason")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

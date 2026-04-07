@@ -105,6 +105,9 @@ export function computePresenceStatus(params: {
   hasPunch: boolean
   manualPresent: boolean
   isExpected: boolean
+  /** No punch clock: auto-present when expected unless manualAbsent */
+  punchExempt?: boolean
+  manualAbsent?: boolean
 }): PresenceStatus {
   const {
     dateYmd,
@@ -115,11 +118,15 @@ export function computePresenceStatus(params: {
     tz,
     hasPunch,
     manualPresent,
-    isExpected
+    isExpected,
+    punchExempt = false,
+    manualAbsent = false
   } = params
 
   if (!isExpected) return 'off'
+  if (punchExempt && manualAbsent) return 'absent'
   if (manualPresent) return 'present'
+  if (punchExempt && !manualAbsent) return 'present'
   if (hasPunch) return 'present'
 
   const shiftStart = shiftStartInstantOnDate(dateYmd, shiftStartHHmm, tz)
@@ -301,14 +308,18 @@ export async function loadPunchFlagsForStaffOnDate(
 export async function loadOverridesForDate(
   staffIds: string[],
   ymd: string
-): Promise<Map<string, { manualPresent: boolean; lateReason: string }>> {
-  const map = new Map<string, { manualPresent: boolean; lateReason: string }>()
+): Promise<Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>> {
+  const map = new Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>()
   if (staffIds.length === 0) return map
   const rows = await prisma.attendanceDayOverride.findMany({
     where: { date: ymd, staffId: { in: staffIds } }
   })
   for (const r of rows) {
-    map.set(r.staffId, { manualPresent: r.manualPresent, lateReason: r.lateReason ?? '' })
+    map.set(r.staffId, {
+      manualPresent: r.manualPresent,
+      lateReason: r.lateReason ?? '',
+      manualAbsent: r.manualAbsent
+    })
   }
   return map
 }
@@ -349,6 +360,10 @@ export interface PresenceDetail {
   isExpected: boolean
   /** True when marked present via manual override (not only punch-in). */
   manualPresent: boolean
+  /** Staff profile: exempt from punch clock. */
+  punchExempt: boolean
+  /** Punch-exempt only: explicitly absent this day. */
+  manualAbsent: boolean
 }
 
 export async function buildPresenceForDate(params: {
@@ -371,10 +386,15 @@ export async function buildPresenceForDate(params: {
   const excluded = buildExcludedStaffIds(off, onVacation)
 
   const uniqueStaffIds = [...new Set(scheduled.map((s) => s.staffId))]
-  const [punchMap, overrideMap] = await Promise.all([
+  const [punchMap, overrideMap, punchExemptRows] = await Promise.all([
     loadPunchFlagsForStaffOnDate(uniqueStaffIds, dateYmd, tz),
-    loadOverridesForDate(uniqueStaffIds, dateYmd)
+    loadOverridesForDate(uniqueStaffIds, dateYmd),
+    prisma.staff.findMany({
+      where: { id: { in: uniqueStaffIds } },
+      select: { id: true, punchExempt: true }
+    })
   ])
+  const punchExemptById = new Map(punchExemptRows.map((r) => [r.id, r.punchExempt]))
 
   const presenceByStaffId: Record<string, PresenceDetail> = {}
 
@@ -384,7 +404,9 @@ export async function buildPresenceForDate(params: {
     const hasPunch = punchMap.get(staffId) === true
     const ov = overrideMap.get(staffId)
     const manualPresent = ov?.manualPresent === true
+    const manualAbsent = ov?.manualAbsent === true
     const lateReason = ov?.lateReason ?? ''
+    const punchExempt = punchExemptById.get(staffId) === true
 
     const shiftStart = shiftStartInstantOnDate(dateYmd, shiftStartHHmm, tz)
     const graceEnd = addMinutes(shiftStart, graceMinutes)
@@ -398,7 +420,9 @@ export async function buildPresenceForDate(params: {
       tz,
       hasPunch,
       manualPresent,
-      isExpected
+      isExpected,
+      punchExempt,
+      manualAbsent
     })
 
     presenceByStaffId[staffId] = {
@@ -406,6 +430,8 @@ export async function buildPresenceForDate(params: {
       lateReason,
       isExpected,
       manualPresent,
+      punchExempt,
+      manualAbsent,
       graceEndsAtIso: status === 'pending' && isExpected ? graceEnd.toISOString() : undefined
     }
   }

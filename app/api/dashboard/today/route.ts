@@ -58,7 +58,9 @@ export async function GET() {
               lateReason: p.lateReason,
               graceEndsAt: p.graceEndsAtIso ?? null,
               isExpected: p.isExpected,
-              manualPresent: p.manualPresent
+              manualPresent: p.manualPresent,
+              manualAbsent: p.manualAbsent,
+              punchExempt: p.punchExempt
             }
           : undefined
       }

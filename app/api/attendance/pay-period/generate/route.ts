@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
 
-    // Fetch active staff (non-manager for report)
+    // Active hourly staff on report (excludes managers and punch-exempt / salaried)
     const staff = await prisma.staff.findMany({
-      where: { status: 'active', role: { not: 'manager' } },
+      where: { status: 'active', role: { not: 'manager' }, punchExempt: false },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, name: true, firstName: true, deviceUserId: true, vacationStart: true, vacationEnd: true }
     })
