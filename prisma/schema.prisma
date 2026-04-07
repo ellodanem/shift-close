@@ -769,7 +769,9 @@ model PayPeriod {
   reportDate  String   @map("report_date")  // YYYY-MM-DD (when report was generated)
   entityName  String   @default("Total Auto Service Station") @map("entity_name")
   rows        String   // JSON: [{ staffId, staffName, transTtl, vacation, shortage }]
+  notes       String   @default("") // Free-form notes on the saved report
   createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   /// Set when the report is emailed successfully — drives default Attendance log range
   emailSentAt DateTime? @map("email_sent_at")
 

@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/app/components/AuthContext'
 import { normalizePublicAppUrl } from '@/lib/public-url'
+import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import {
   computeAttendancePunchDayStatuses,
   localCalendarDayKey,
@@ -363,8 +365,15 @@ export default function AttendancePage() {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom' | 'sinceLastReport'>('week')
-  /** Inclusive start when a pay period report was saved & emailed (day after that period’s end). */
+  /** Inclusive start when a pay period was saved (day after that period’s end). */
   const [payPeriodCutoff, setPayPeriodCutoff] = useState<string | null>(null)
+  const { user } = useAuth()
+  const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
+  const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
+  const [archiveMeta, setArchiveMeta] = useState<{
+    archiveCutoffAt: string | null
+    archivedHidden: boolean
+  }>({ archiveCutoffAt: null, archivedHidden: false })
   const [customStart, setCustomStart] = useState(formatDate(new Date()))
   const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
@@ -433,13 +442,25 @@ export default function AttendancePage() {
     setError(null)
     try {
       const params = new URLSearchParams({ startDate, endDate })
+      if (canToggleArchivedLogs && includeArchivedPunches) {
+        params.set('includeArchived', '1')
+      }
       const [logsRes, settingsRes] = await Promise.all([
         fetch(`/api/attendance/logs?${params}`, { cache: 'no-store' }),
         fetch('/api/attendance/settings', { cache: 'no-store' })
       ])
       if (!logsRes.ok) throw new Error('Failed to load logs')
-      const data: AttendanceLog[] = await logsRes.json()
-      setLogs(data)
+      const raw = await logsRes.json()
+      const list: AttendanceLog[] = Array.isArray(raw) ? raw : raw.logs
+      setLogs(Array.isArray(list) ? list : [])
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        setArchiveMeta({
+          archiveCutoffAt: typeof raw.archiveCutoffAt === 'string' ? raw.archiveCutoffAt : null,
+          archivedHidden: Boolean(raw.archivedHidden)
+        })
+      } else {
+        setArchiveMeta({ archiveCutoffAt: null, archivedHidden: false })
+      }
       if (settingsRes.ok) {
         const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
         if (typeof s.expectedPunchesPerDay === 'number') {
@@ -451,7 +472,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, includeArchivedPunches, canToggleArchivedLogs])
 
   useEffect(() => {
     fetchLogs()
@@ -487,7 +508,7 @@ export default function AttendancePage() {
     void loadCurrentPeriodPayDay()
   }, [])
 
-  /** Default log range: from day after last pay period that was saved & emailed, through today. */
+  /** Default log range: from day after last saved pay period, through today. */
   useEffect(() => {
     const loadCutoff = async () => {
       try {
@@ -877,7 +898,7 @@ export default function AttendancePage() {
                   className="border border-gray-300 rounded px-2 py-1 text-sm"
                 >
                   {payPeriodCutoff && (
-                    <option value="sinceLastReport">Since last pay report (emailed)</option>
+                    <option value="sinceLastReport">Since last saved pay period</option>
                   )}
                   <option value="week">This week</option>
                   <option value="month">This month</option>
@@ -887,8 +908,20 @@ export default function AttendancePage() {
 
               {dateRange === 'sinceLastReport' && payPeriodCutoff && (
                 <span className="text-xs text-gray-500 max-w-md">
-                  Showing {payPeriodCutoff} through today — based on the latest pay period report that was saved and emailed.
+                  Showing {payPeriodCutoff} through today — based on the latest saved pay period (day after its end date).
                 </span>
+              )}
+
+              {canToggleArchivedLogs && (
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeArchivedPunches}
+                    onChange={(e) => setIncludeArchivedPunches(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  Include archived punches (before last pay period close)
+                </label>
               )}
 
               {dateRange === 'custom' && (
@@ -905,6 +938,14 @@ export default function AttendancePage() {
                 </div>
               )}
             </div>
+
+            {archiveMeta.archivedHidden && archiveMeta.archiveCutoffAt && (
+              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
+                Hiding punches on or before{' '}
+                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong> (last saved pay period). Punches
+                after that time stay visible. Use &quot;Include archived punches&quot; to load older rows in this range.
+              </p>
+            )}
 
             <p className="text-xs text-gray-500 mb-2">
               Expected punches per day (see{' '}

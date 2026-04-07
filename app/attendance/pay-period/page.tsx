@@ -21,6 +21,7 @@ interface PayPeriodData {
   reportDate: string
   entityName: string
   rows: PayPeriodRow[]
+  notes?: string
 }
 
 interface SavedPayPeriod {
@@ -30,8 +31,18 @@ interface SavedPayPeriod {
   reportDate: string
   entityName: string
   rows: string
+  notes: string
   createdAt: string
+  updatedAt: string
   emailSentAt: string | null
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 function formatDateDisplay(d: string): string {
@@ -64,6 +75,8 @@ export default function PayPeriodPage() {
   const [savedPeriods, setSavedPeriods] = useState<SavedPayPeriod[]>([])
   const [viewingPeriod, setViewingPeriod] = useState<SavedPayPeriod | null>(null)
   const [emailing, setEmailing] = useState(false)
+  /** When set, Save updates this record via PATCH instead of creating a new one. */
+  const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
 
   const loadSavedPeriods = async () => {
     try {
@@ -92,7 +105,8 @@ export default function PayPeriodPage() {
         throw new Error(err.error || 'Failed to generate')
       }
       const data: PayPeriodData = await res.json()
-      setReportData(data)
+      setReportData({ ...data, notes: data.notes ?? '' })
+      setEditingSavedId(null)
       setShowModal(true)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to generate')
@@ -110,30 +124,56 @@ export default function PayPeriodPage() {
 
   const handleSave = async () => {
     if (!reportData) return
+    const wasEditing = !!editingSavedId
     setSaving(true)
     try {
-      const res = await fetch('/api/attendance/pay-period', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startDate: reportData.startDate,
-          endDate: reportData.endDate,
-          reportDate: reportData.reportDate,
-          entityName: reportData.entityName,
-          rows: reportData.rows
-        })
-      })
+      const payload = {
+        startDate: reportData.startDate,
+        endDate: reportData.endDate,
+        reportDate: reportData.reportDate,
+        entityName: reportData.entityName,
+        rows: reportData.rows,
+        notes: reportData.notes ?? ''
+      }
+      const res = editingSavedId
+        ? await fetch(`/api/attendance/pay-period/${editingSavedId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: payload.rows, notes: payload.notes })
+          })
+        : await fetch('/api/attendance/pay-period', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
       if (!res.ok) throw new Error('Failed to save')
       setShowConfirm(false)
       setShowModal(false)
       setReportData(null)
+      setEditingSavedId(null)
       await loadSavedPeriods()
-      alert('Pay period saved successfully.')
+      alert(wasEditing ? 'Pay period updated successfully.' : 'Pay period saved successfully.')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
+  }
+
+  const startEditFromSaved = (p: SavedPayPeriod) => {
+    const rows = JSON.parse(p.rows) as PayPeriodRow[]
+    setReportData({
+      id: p.id,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      reportDate: p.reportDate,
+      entityName: p.entityName,
+      rows,
+      notes: p.notes ?? ''
+    })
+    setEditingSavedId(p.id)
+    setShowConfirm(false)
+    setShowModal(true)
   }
 
   const handlePrint = (data: PayPeriodData) => {
@@ -153,6 +193,7 @@ export default function PayPeriodPage() {
             <span>Date Range: ${formatDateRange(data.startDate, data.endDate)}</span>
           </div>
           <div style="font-weight: bold; margin-bottom: 16px;">${data.entityName}</div>
+          ${(data.notes ?? '').trim() ? `<div style="margin-bottom: 16px; white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</div>` : ''}
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="border-bottom: 2px solid #000;">
@@ -203,6 +244,7 @@ export default function PayPeriodPage() {
       ['Report Date:', formatDateDisplay(data.reportDate)],
       ['Date Range:', formatDateRange(data.startDate, data.endDate)],
       [data.entityName],
+      ...(data.notes?.trim() ? [['Notes:', data.notes]] as (string | number)[][] : []),
       [],
       ['Staff', 'Trans Ttl', 'Vacation', 'Sick Days', 'Sick Leave', 'Shortage'],
       ...rows.map(r => [r.staffName, r.transTtl, r.vacation, r.sickLeaveDays ?? 0, r.sickLeaveRanges ?? '', r.shortage > 0 ? r.shortage : '']),
@@ -237,6 +279,7 @@ export default function PayPeriodPage() {
         <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
         <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
         <p><strong>${data.entityName}</strong></p>
+        ${(data.notes ?? '').trim() ? `<p style="white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</p>` : ''}
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
           <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
           ${rows.map(r => `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.sickLeaveDays ?? 0}</td><td>${r.sickLeaveRanges ?? ''}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`).join('')}
@@ -263,7 +306,7 @@ export default function PayPeriodPage() {
         console.error('Failed to mark pay period as emailed')
       }
       await loadSavedPeriods()
-      alert(`Report emailed to ${to}. Attendance logs will default to transactions after this period.`)
+      alert(`Report emailed to ${to}. The default attendance log still follows the last saved pay period (not email).`)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send email')
     } finally {
@@ -271,8 +314,12 @@ export default function PayPeriodPage() {
     }
   }
 
-  const displayData = viewingPeriod
-    ? { ...viewingPeriod, rows: JSON.parse(viewingPeriod.rows) as PayPeriodRow[] }
+  const displayData: PayPeriodData | null = viewingPeriod
+    ? {
+        ...viewingPeriod,
+        rows: JSON.parse(viewingPeriod.rows) as PayPeriodRow[],
+        notes: viewingPeriod.notes ?? ''
+      }
     : reportData
 
   return (
@@ -332,7 +379,7 @@ export default function PayPeriodPage() {
             <div className="space-y-2">
               {savedPeriods.map((p) => {
                 const rows = JSON.parse(p.rows) as PayPeriodRow[]
-                const data: PayPeriodData = { ...p, rows }
+                const data: PayPeriodData = { ...p, id: p.id, rows, notes: p.notes ?? '' }
                 return (
                   <div
                     key={p.id}
@@ -346,12 +393,18 @@ export default function PayPeriodPage() {
                         </span>
                       )}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap justify-end">
                       <button
                         onClick={() => setViewingPeriod(viewingPeriod?.id === p.id ? null : p)}
                         className="px-3 py-1 text-sm bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
                       >
                         {viewingPeriod?.id === p.id ? 'Hide' : 'View'}
+                      </button>
+                      <button
+                        onClick={() => startEditFromSaved(p)}
+                        className="px-3 py-1 text-sm bg-amber-100 text-amber-900 rounded hover:bg-amber-200"
+                      >
+                        Edit
                       </button>
                       <button
                         onClick={() => handlePrint(data)}
@@ -392,7 +445,16 @@ export default function PayPeriodPage() {
               <p className="text-sm text-gray-600 mb-2">
                 Report Date: {formatDateDisplay(displayData.reportDate)} | Date Range: {formatDateRange(displayData.startDate, displayData.endDate)}
               </p>
-              <p className="font-medium mb-3">{displayData.entityName}</p>
+              <p className="font-medium mb-2">{displayData.entityName}</p>
+              <p className="text-xs text-gray-500 mb-2">
+                Saved {new Date(viewingPeriod.createdAt).toLocaleString()}
+                {viewingPeriod.updatedAt && new Date(viewingPeriod.updatedAt).getTime() !== new Date(viewingPeriod.createdAt).getTime() && (
+                  <> · Last edited {new Date(viewingPeriod.updatedAt).toLocaleString()}</>
+                )}
+              </p>
+              {(displayData.notes ?? '').trim() ? (
+                <p className="text-sm text-gray-800 mb-3 whitespace-pre-wrap border-l-2 border-gray-300 pl-3">{displayData.notes}</p>
+              ) : null}
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-300">
@@ -440,6 +502,9 @@ export default function PayPeriodPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-center mb-2">Summary Report</h2>
+              {editingSavedId && (
+                <p className="text-center text-sm text-amber-800 mb-2">Editing saved pay period — Save will update this record.</p>
+              )}
               <div className="flex justify-between text-sm text-gray-600 mb-2">
                 <span>Report Date: {formatDateDisplay(reportData.reportDate)}</span>
                 <span>Date Range: {formatDateRange(reportData.startDate, reportData.endDate)}</span>
@@ -525,9 +590,20 @@ export default function PayPeriodPage() {
                 </tbody>
               </table>
 
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <textarea
+                  value={reportData.notes ?? ''}
+                  onChange={(e) => setReportData({ ...reportData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  placeholder="Internal notes for this pay period…"
+                />
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => { setShowModal(false); setReportData(null) }}
+                  onClick={() => { setShowModal(false); setReportData(null); setEditingSavedId(null) }}
                   className="px-4 py-2 border border-gray-300 rounded font-medium hover:bg-gray-50"
                 >
                   Close
@@ -550,7 +626,10 @@ export default function PayPeriodPage() {
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Save</h3>
             <p className="text-gray-600 mb-4">
-              Please verify the information is correct before saving. Once saved, this pay period can be reviewed and shared (print, email, download).
+              Please verify the information is correct before saving.
+              {editingSavedId
+                ? ' Saving will update this record and refresh the last-edited time.'
+                : ' Once saved, this pay period can be reviewed and shared (print, email, download).'}
             </p>
             <div className="flex gap-3 justify-end">
               <button

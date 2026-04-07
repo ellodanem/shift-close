@@ -5,7 +5,12 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
-import { formatAppUserDisplayName, normalizeAppRole } from '@/lib/roles'
+import {
+  formatAppUserDisplayName,
+  isOperationsManagerRole,
+  isPathBlockedForOperationsManager,
+  normalizeAppRole
+} from '@/lib/roles'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -139,6 +144,9 @@ function navItemVisibleForRole(href: string, role: string): boolean {
       '/roster/templates'
     ]
     return !blocked.some((b) => href.startsWith(b))
+  }
+  if (isOperationsManagerRole(role)) {
+    return !isPathBlockedForOperationsManager(href)
   }
   return true
 }

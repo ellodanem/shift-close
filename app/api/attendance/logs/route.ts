@@ -1,6 +1,9 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getLatestSavedPayPeriodCutoffInstant } from '@/lib/pay-period-archive'
+import { canViewArchivedAttendanceLogs } from '@/lib/roles'
+import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,9 +86,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...
- * Raw logs from DB. The Attendance Logs UI computes green/blue/red from expected punches + local calendar day
- * (same “day” as the Date column). No timezone setting yet.
+/** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...&includeArchived=1
+ * Raw logs from DB. By default hides punches at or before the latest saved pay period close (saved-at instant).
+ * Admin/manager/operations_manager may pass includeArchived=1 to load full history in range.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -93,18 +96,36 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const staffId = searchParams.get('staffId')
+    const includeArchivedParam = searchParams.get('includeArchived') === '1'
 
-    const where: Prisma.AttendanceLogWhereInput = {}
+    const session = await getSessionFromRequest(request)
+    const includeArchived =
+      includeArchivedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
+
+    const cutoff = await getLatestSavedPayPeriodCutoffInstant()
+    const applyArchive = Boolean(cutoff && !includeArchived)
+
+    const andParts: Prisma.AttendanceLogWhereInput[] = []
 
     if (startDate && endDate) {
-      where.punchTime = {
-        gte: new Date(startDate + 'T00:00:00'),
-        lte: new Date(endDate + 'T23:59:59.999')
-      }
+      andParts.push({
+        punchTime: {
+          gte: new Date(startDate + 'T00:00:00'),
+          lte: new Date(endDate + 'T23:59:59.999')
+        }
+      })
     } else if (startDate) {
-      where.punchTime = { gte: new Date(startDate + 'T00:00:00') }
+      andParts.push({
+        punchTime: { gte: new Date(startDate + 'T00:00:00') }
+      })
     } else if (endDate) {
-      where.punchTime = { lte: new Date(endDate + 'T23:59:59.999') }
+      andParts.push({
+        punchTime: { lte: new Date(endDate + 'T23:59:59.999') }
+      })
+    }
+
+    if (applyArchive && cutoff) {
+      andParts.push({ punchTime: { gt: cutoff } })
     }
 
     if (staffId) {
@@ -113,12 +134,22 @@ export async function GET(request: NextRequest) {
         select: { deviceUserId: true }
       })
       if (!staff) {
-        where.id = { in: [] }
-      } else {
-        const dev = staff.deviceUserId?.trim()
-        where.OR = dev ? [{ staffId }, { deviceUserId: dev }] : [{ staffId }]
+        return NextResponse.json({
+          logs: [],
+          archiveCutoffAt: cutoff?.toISOString() ?? null,
+          archivedHidden: false
+        })
       }
+      const dev = staff.deviceUserId?.trim()
+      andParts.push(dev ? { OR: [{ staffId }, { deviceUserId: dev }] } : { staffId })
     }
+
+    const where: Prisma.AttendanceLogWhereInput =
+      andParts.length === 0
+        ? {}
+        : andParts.length === 1
+          ? (andParts[0] as Prisma.AttendanceLogWhereInput)
+          : { AND: andParts }
 
     const logs = await prisma.attendanceLog.findMany({
       where,
@@ -126,7 +157,11 @@ export async function GET(request: NextRequest) {
       orderBy: { punchTime: 'asc' }
     })
 
-    return NextResponse.json(logs)
+    return NextResponse.json({
+      logs,
+      archiveCutoffAt: cutoff?.toISOString() ?? null,
+      archivedHidden: applyArchive && cutoff !== null
+    })
   } catch (error) {
     console.error('Error fetching attendance logs:', error)
     return NextResponse.json({ error: 'Failed to fetch attendance logs' }, { status: 500 })

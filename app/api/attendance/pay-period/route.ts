@@ -20,11 +20,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { startDate, endDate, reportDate, entityName, rows } = body as {
+    const { startDate, endDate, reportDate, entityName, rows, notes } = body as {
       startDate?: string
       endDate?: string
       reportDate?: string
       entityName?: string
+      notes?: string
       rows?: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number; sickLeaveDays?: number; sickLeaveRanges?: string }>
     }
 
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
         endDate,
         reportDate: reportDate || new Date().toISOString().slice(0, 10),
         entityName: entityName || 'Total Auto Service Station',
-        rows: JSON.stringify(rows)
+        rows: JSON.stringify(rows),
+        notes: typeof notes === 'string' ? notes : ''
       }
     })
 

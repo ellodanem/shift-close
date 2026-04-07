@@ -23,7 +23,7 @@ export async function GET(
   }
 }
 
-/** PATCH /api/attendance/pay-period/[id] — e.g. mark report as emailed (sets emailSentAt) */
+/** PATCH /api/attendance/pay-period/[id] — mark emailed, or update rows/notes (audit via updatedAt) */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,19 +32,42 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     const markEmailSent = Boolean((body as { markEmailSent?: boolean }).markEmailSent)
-
-    if (!markEmailSent) {
-      return NextResponse.json({ error: 'markEmailSent: true required' }, { status: 400 })
-    }
+    const rows = (body as { rows?: unknown }).rows
+    const notes = (body as { notes?: unknown }).notes
 
     const existing = await prisma.payPeriod.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Pay period not found' }, { status: 404 })
     }
 
+    const data: {
+      emailSentAt?: Date
+      rows?: string
+      notes?: string
+    } = {}
+
+    if (markEmailSent) {
+      data.emailSentAt = new Date()
+    }
+
+    if (rows !== undefined) {
+      if (!Array.isArray(rows)) {
+        return NextResponse.json({ error: 'rows must be an array when provided' }, { status: 400 })
+      }
+      data.rows = JSON.stringify(rows)
+    }
+
+    if (notes !== undefined) {
+      data.notes = typeof notes === 'string' ? notes : ''
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'Provide markEmailSent, rows, and/or notes' }, { status: 400 })
+    }
+
     const period = await prisma.payPeriod.update({
       where: { id },
-      data: { emailSentAt: new Date() }
+      data
     })
     return NextResponse.json(period)
   } catch (error) {
