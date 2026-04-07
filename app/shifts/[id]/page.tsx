@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { getMissingFields, isShiftFullyReviewed, computeNetOverShort, computeOverShortTally, OS_REVIEW_THRESHOLD, calculateShiftClose } from '@/lib/calculations'
+import {
+  getMissingFields,
+  isShiftFullyReviewed,
+  computeNetOverShort,
+  computeOverShortTally,
+  getOverShortSignedContribution,
+  OS_REVIEW_THRESHOLD,
+  calculateShiftClose
+} from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
@@ -1438,20 +1446,34 @@ export default function ShiftDetailPage() {
             </p>
           </div>
 
-          {/* Account Activity — tally-style over/short explanation */}
+          {/* Account Activity — additive signed ledger (starting balance + signed lines = unexplained) */}
           {(() => {
             const rawOS = shift?.overShortTotal ?? 0
             const items = [...(shift?.overShortItems ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
             const tally = computeOverShortTally(rawOS, items)
-            let tallyIdx = 0
-            const unexplained = items.length > 0 ? (tally.length > 0 ? tally[tally.length - 1].balanceAfter : rawOS) : rawOS
+            const unexplained = netOverShort
             const isFullyExplained = Math.abs(unexplained) < 0.005
 
             const formatBal = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(n).toFixed(2)}`
+            const formatSignedDelta = (n: number) => `${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}`
+
+            type Row = { item: (typeof items)[0]; contrib: number | null; running: number }
+            const rows: Row[] = []
+            let ti = 0
+            for (const item of items) {
+              const contrib = getOverShortSignedContribution(item)
+              if (contrib === null) {
+                const running = ti === 0 ? rawOS : tally[ti - 1]!.balanceAfter
+                rows.push({ item, contrib: null, running })
+                continue
+              }
+              const running = tally[ti]!.balanceAfter
+              ti += 1
+              rows.push({ item, contrib, running })
+            }
 
             return (
               <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                {/* Header */}
                 <div className="bg-gray-800 text-white px-5 py-3 flex items-center justify-between">
                   <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
                   <button
@@ -1462,30 +1484,46 @@ export default function ShiftDetailPage() {
                     + Add Item
                   </button>
                 </div>
+                <p className="text-xs text-gray-600 px-5 py-2 bg-gray-50 border-b border-gray-200">
+                  <span className="font-medium text-gray-700">Additive ledger:</span> starting balance is count vs system.
+                  Each row is a signed change (positive explains a shortfall; negative explains extra cash). They add to the
+                  running balance until unexplained is $0.00.
+                </p>
 
-                {/* Starting balance */}
                 <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Starting balance <span className="text-xs text-gray-400">(count vs system)</span></span>
-                  <span className={`font-bold text-base ${rawOS > 0 ? 'text-green-700' : rawOS < 0 ? 'text-red-700' : 'text-gray-500'}`}>
+                  <span className="text-sm text-gray-700 font-medium">
+                    Starting balance <span className="text-xs font-normal text-gray-500">(count vs system)</span>
+                  </span>
+                  <span className={`font-bold text-base tabular-nums ${rawOS > 0 ? 'text-green-700' : rawOS < 0 ? 'text-red-700' : 'text-gray-500'}`}>
                     {formatBal(rawOS)}
                   </span>
                 </div>
 
-                {/* Tally items */}
                 {items.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
-                    {items.map((item) => {
-                      const isNoteOnly = item.noteOnly ?? false
-                      const balanceAfter = !isNoteOnly && tallyIdx < tally.length ? tally[tallyIdx]?.balanceAfter : null
-                      if (!isNoteOnly) tallyIdx++
-
-                      return (
-                        <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <span className={`shrink-0 w-16 text-right font-semibold tabular-nums ${item.type === 'overage' ? 'text-green-700' : 'text-red-700'}`}>
-                              {item.type === 'overage' ? '+' : '−'}${item.amount.toFixed(2)}
-                            </span>
-                            <div className="min-w-0 flex-1">
+                  <>
+                    <div className="hidden sm:grid sm:grid-cols-[minmax(0,7rem)_1fr_minmax(0,6.5rem)_auto] gap-2 px-5 py-2 bg-gray-100 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <span className="text-right">Change</span>
+                      <span>Description</span>
+                      <span className="text-right">Running</span>
+                      <span className="w-6" />
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {rows.map(({ item, contrib, running }) => {
+                        const isNoteOnly = item.noteOnly ?? false
+                        return (
+                          <div
+                            key={item.id}
+                            className="px-5 py-3 grid grid-cols-1 sm:grid-cols-[minmax(0,7rem)_1fr_minmax(0,6.5rem)_auto] gap-x-2 gap-y-1 items-center hover:bg-gray-50"
+                          >
+                            <div className="text-right font-semibold tabular-nums text-sm sm:order-none order-2 sm:col-auto">
+                              {contrib !== null ? (
+                                <span className={contrib >= 0 ? 'text-emerald-700' : 'text-rose-700'}>{formatSignedDelta(contrib)}</span>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                              <span className="sm:hidden text-gray-500 font-normal ml-2">change</span>
+                            </div>
+                            <div className="min-w-0 sm:order-none order-1 col-span-1 sm:col-span-1">
                               {item.itemKind === 'cheque_balance' ? (
                                 <div className="text-sm">
                                   <span className="font-medium text-gray-900">{item.customerName}</span>
@@ -1493,7 +1531,7 @@ export default function ShiftDetailPage() {
                                     {item.type === 'overage' ? 'Cheque received' : 'Fuel / cash taken'}
                                   </span>
                                   {isNoteOnly && <span className="ml-2 text-xs text-gray-400">(note only)</span>}
-                                  <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
+                                  <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-3">
                                     {item.previousBalance != null && item.type === 'shortage' && (
                                       <span>prev bal ${item.previousBalance.toFixed(2)}</span>
                                     )}
@@ -1511,51 +1549,52 @@ export default function ShiftDetailPage() {
                                 </>
                               )}
                             </div>
-                            {balanceAfter != null && (
-                              <span className={`shrink-0 w-24 text-right font-semibold tabular-nums ${balanceAfter > 0 ? 'text-green-700' : balanceAfter < 0 ? 'text-red-700' : 'text-gray-600'}`}>
-                                → {formatBal(balanceAfter)}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!confirm('Delete this item?')) return
-                              try {
-                                const res = await fetch(`/api/shifts/${shift!.id}/over-short-items/${item.id}`, { method: 'DELETE' })
-                                if (res.ok) {
-                                  const updated = await fetch(`/api/shifts/${shift!.id}`).then(r => r.json())
-                                  setShift(updated)
+                            <div
+                              className={`text-right font-semibold tabular-nums text-sm sm:order-none order-3 ${running > 0 ? 'text-green-700' : running < 0 ? 'text-red-700' : 'text-gray-600'}`}
+                            >
+                              {formatBal(running)}
+                              <span className="sm:hidden text-gray-500 font-normal ml-2">running</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm('Delete this item?')) return
+                                try {
+                                  const res = await fetch(`/api/shifts/${shift!.id}/over-short-items/${item.id}`, { method: 'DELETE' })
+                                  if (res.ok) {
+                                    const updated = await fetch(`/api/shifts/${shift!.id}`).then(r => r.json())
+                                    setShift(updated)
+                                  }
+                                } catch (err) {
+                                  console.error('Failed to delete:', err)
                                 }
-                              } catch (err) {
-                                console.error('Failed to delete:', err)
-                              }
-                            }}
-                            className="shrink-0 text-gray-300 hover:text-red-500 text-base leading-none px-1"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
+                              }}
+                              className="justify-self-end text-gray-300 hover:text-red-500 text-base leading-none px-1 sm:order-none order-4"
+                              aria-label="Delete line"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <div className="px-5 py-6 text-center text-sm text-gray-400 italic">
-                    No items recorded. Use &ldquo;+ Add Item&rdquo; to explain any shortage or overage.
+                    No lines yet. Use &ldquo;+ Add Item&rdquo; to record signed changes (money in or out) or a note.
                   </div>
                 )}
 
-                {/* Final balance footer */}
-                <div className={`px-5 py-4 border-t-2 flex items-center justify-between ${isFullyExplained ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                <div className={`px-5 py-4 border-t-2 flex items-center justify-between ${isFullyExplained ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-200'}`}>
                   <div>
-                    <div className={`font-bold text-base ${isFullyExplained ? 'text-green-800' : 'text-red-800'}`}>
-                      {isFullyExplained ? '✓ Fully Explained' : 'Unexplained'}
+                    <div className={`font-bold text-base ${isFullyExplained ? 'text-green-800' : 'text-amber-900'}`}>
+                      {isFullyExplained ? '✓ Fully explained' : 'Unexplained variance'}
                     </div>
                     {!isFullyExplained && (
-                      <div className="text-xs text-red-600 mt-0.5">This amount still needs to be accounted for</div>
+                      <div className="text-xs text-amber-800 mt-0.5">Still to account for (should match $0.00 when complete)</div>
                     )}
                   </div>
-                  <div className={`font-bold text-2xl tabular-nums ${isFullyExplained ? 'text-green-700' : 'text-red-700'}`}>
+                  <div className={`font-bold text-2xl tabular-nums ${isFullyExplained ? 'text-green-700' : 'text-amber-900'}`}>
                     {isFullyExplained ? '$0.00' : formatBal(unexplained)}
                   </div>
                 </div>

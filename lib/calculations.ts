@@ -55,10 +55,22 @@ export function computeNetOverShort(
 }
 
 /**
- * Tally-style: running balance after each item (for display).
- * Each item "accounts for" part of the over/short:
- * - Shortage item (money out): adds to balance (reduces the short)
- * - Overage item (money in): subtracts from balance (reduces the over)
+ * Signed dollar change in the running tally (additive model):
+ * - Shortage row: +amount (explains missing cash / money out — moves balance toward zero when raw is short)
+ * - Overage row: −amount (explains extra cash — moves balance toward zero when raw is over)
+ * Note-only rows do not contribute.
+ */
+export function getOverShortSignedContribution(item: {
+  type: string
+  amount: number
+  noteOnly?: boolean
+}): number | null {
+  if (item.noteOnly) return null
+  return item.type === 'shortage' ? item.amount : -item.amount
+}
+
+/**
+ * Running balance after each item (for display). Same math as: raw + sum(signed contributions) = net unexplained.
  */
 export function computeOverShortTally<T extends { type: string; amount: number; noteOnly?: boolean }>(
   rawOS: number,
@@ -67,8 +79,8 @@ export function computeOverShortTally<T extends { type: string; amount: number; 
   const result: Array<{ item: T; balanceAfter: number }> = []
   let balance = rawOS
   for (const i of items) {
-    if (i.noteOnly) continue
-    const contribution = i.type === 'shortage' ? i.amount : -i.amount
+    const contribution = getOverShortSignedContribution(i)
+    if (contribution === null) continue
     balance += contribution
     result.push({ item: i, balanceAfter: balance })
   }
