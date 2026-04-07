@@ -29,7 +29,7 @@ export function buildAttendanceSummaryEmailHtml(params: {
   timeZone: string
   rows: AttendanceSummaryRow[]
 }): string {
-  const { reportDateYmd, periodLabel, timeZone, rows } = params
+  const { reportDateYmd, periodLabel, rows } = params
   const baseUrl = getPublicAppUrlFromEnv()
 
   const openAttendance = baseUrl
@@ -68,7 +68,7 @@ export function buildAttendanceSummaryEmailHtml(params: {
 <html><head><meta charset="utf-8"/></head>
 <body style="font-family:sans-serif;max-width:720px;margin:0 auto;padding:16px;color:#111">
   <h2 style="color:#111;margin-top:0">Attendance summary — ${esc(reportDateYmd)}</h2>
-  <p style="color:#444;font-size:14px">Report day uses timezone <strong>${esc(timeZone)}</strong> (same “previous day” idea as other daily jobs). Hours use paired in/out punches in order, matching the pay period generator.</p>
+  <p style="color:#444;font-size:14px">Attendance summary is a one-day snapshot of who had clock activity and how long they were on the clock.</p>
 
   <h3 style="font-size:16px;margin:24px 0 8px">Hours &amp; punches — ${esc(reportDateYmd)}</h3>
   <table style="width:100%;border-collapse:collapse;font-size:14px">
