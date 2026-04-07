@@ -1,4 +1,3 @@
-import { getPublicAppUrlFromEnv } from '@/lib/public-url'
 import { parseRecipientEmails } from '@/lib/eod-email'
 import type { AttendanceSummaryRow } from '@/lib/attendance-summary-data'
 
@@ -16,12 +15,6 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function absUrl(base: string, path: string): string {
-  const b = base.replace(/\/$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
-  return `${b}${p}`
-}
-
 export function buildAttendanceSummaryEmailHtml(params: {
   reportDateYmd: string
   periodStartYmd: string
@@ -30,11 +23,6 @@ export function buildAttendanceSummaryEmailHtml(params: {
   rows: AttendanceSummaryRow[]
 }): string {
   const { reportDateYmd, periodLabel, rows } = params
-  const baseUrl = getPublicAppUrlFromEnv()
-
-  const openAttendance = baseUrl
-    ? `<p><a href="${absUrl(baseUrl, '/attendance')}">Open Attendance</a></p>`
-    : ''
 
   const dayRows = rows
     .map((r) => {
@@ -94,7 +82,6 @@ export function buildAttendanceSummaryEmailHtml(params: {
     <tbody>${periodRows}</tbody>
   </table>
 
-  ${openAttendance}
   <p style="color:#666;font-size:12px;margin-top:24px">Automated attendance summary from Shift Close.</p>
 </body></html>`.trim()
 }
