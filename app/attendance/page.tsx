@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/app/components/AuthContext'
 import { normalizePublicAppUrl } from '@/lib/public-url'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
@@ -364,9 +364,12 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Presets: week = rolling last 7 days; sinceLastReport = from pay-period cutoff or same 7-day window if no cutoff. */
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom' | 'sinceLastReport'>('week')
   /** Inclusive start when a pay period was saved (day after that period’s end). */
   const [payPeriodCutoff, setPayPeriodCutoff] = useState<string | null>(null)
+  const [payPeriodCutoffLoaded, setPayPeriodCutoffLoaded] = useState(false)
+  const defaultRangeFromCutoffApplied = useRef(false)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
@@ -430,9 +433,13 @@ export default function AttendancePage() {
       return { startDate: formatDate(start), endDate: todayStr }
     }
     if (dateRange === 'month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return { startDate: formatDate(start), endDate: formatDate(end) }
+      const y = now.getFullYear()
+      const m = now.getMonth()
+      const start = new Date(y, m, 1)
+      const lastDayOfMonth = formatDate(new Date(y, m + 1, 0))
+      const todayStrLex = formatDate(now)
+      const endStr = lastDayOfMonth < todayStrLex ? lastDayOfMonth : todayStrLex
+      return { startDate: formatDate(start), endDate: endStr }
     }
     return { startDate: customStart, endDate: customEnd }
   }, [dateRange, payPeriodCutoff, customStart, customEnd])
@@ -508,7 +515,7 @@ export default function AttendancePage() {
     void loadCurrentPeriodPayDay()
   }, [])
 
-  /** Default log range: from day after last saved pay period, through today. */
+  /** Fetch pay-period start; once loaded, default preset to “Since last saved pay period” when a cutoff exists. */
   useEffect(() => {
     const loadCutoff = async () => {
       try {
@@ -519,10 +526,20 @@ export default function AttendancePage() {
         setPayPeriodCutoff(c)
       } catch {
         // ignore
+      } finally {
+        setPayPeriodCutoffLoaded(true)
       }
     }
     void loadCutoff()
   }, [])
+
+  useEffect(() => {
+    if (!payPeriodCutoffLoaded || defaultRangeFromCutoffApplied.current) return
+    defaultRangeFromCutoffApplied.current = true
+    if (payPeriodCutoff) {
+      setDateRange('sinceLastReport')
+    }
+  }, [payPeriodCutoffLoaded, payPeriodCutoff])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
 
@@ -900,15 +917,25 @@ export default function AttendancePage() {
                   {payPeriodCutoff && (
                     <option value="sinceLastReport">Since last saved pay period</option>
                   )}
-                  <option value="week">This week</option>
-                  <option value="month">This month</option>
-                  <option value="custom">Custom</option>
+                  <option value="week">Last 7 days</option>
+                  <option value="month">This calendar month</option>
+                  <option value="custom">Custom range</option>
                 </select>
               </div>
 
               {dateRange === 'sinceLastReport' && payPeriodCutoff && (
                 <span className="text-xs text-gray-500 max-w-md">
-                  Showing {payPeriodCutoff} through today — based on the latest saved pay period (day after its end date).
+                  From {payPeriodCutoff} through today (day after the latest saved pay period&apos;s end).
+                </span>
+              )}
+              {dateRange === 'week' && (
+                <span className="text-xs text-gray-500 max-w-md">
+                  Rolling 7 days through today (not Mon–Sun week).
+                </span>
+              )}
+              {dateRange === 'month' && (
+                <span className="text-xs text-gray-500 max-w-md">
+                  From the 1st of this calendar month through today.
                 </span>
               )}
 
