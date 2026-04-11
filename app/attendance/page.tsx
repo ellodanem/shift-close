@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/app/components/AuthContext'
 import { normalizePublicAppUrl } from '@/lib/public-url'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
@@ -373,12 +373,8 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** Presets: week = rolling last 7 days; sinceLastReport = from pay-period cutoff or same 7-day window if no cutoff. */
-  const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom' | 'sinceLastReport'>('week')
-  /** Inclusive start when a pay period was saved (day after that period’s end). */
-  const [payPeriodCutoff, setPayPeriodCutoff] = useState<string | null>(null)
-  const [payPeriodCutoffLoaded, setPayPeriodCutoffLoaded] = useState(false)
-  const defaultRangeFromCutoffApplied = useRef(false)
+  /** Bi-weekly pay period bounds (1–15 and 16–end of month), from GET /api/pay-days?period=current */
+  const [payPeriodBounds, setPayPeriodBounds] = useState<{ start: string; end: string } | null>(null)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
@@ -386,8 +382,6 @@ export default function AttendancePage() {
     archiveCutoffAt: string | null
     archivedHidden: boolean
   }>({ archiveCutoffAt: null, archivedHidden: false })
-  const [customStart, setCustomStart] = useState(formatDate(new Date()))
-  const [customEnd, setCustomEnd] = useState(formatDate(new Date()))
   const [staffFilter, setStaffFilter] = useState<string>('')
   /** Narrows the staff list below (name substring, case-insensitive). */
   const [staffSearch, setStaffSearch] = useState('')
@@ -431,39 +425,15 @@ export default function AttendancePage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
-  const { startDate, endDate } = useMemo(() => {
-    const now = new Date()
-    const todayStr = formatDate(now)
-    if (dateRange === 'sinceLastReport' && payPeriodCutoff) {
-      return { startDate: payPeriodCutoff, endDate: todayStr }
-    }
-    if (dateRange === 'sinceLastReport' && !payPeriodCutoff) {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 7)
-      return { startDate: formatDate(start), endDate: todayStr }
-    }
-    if (dateRange === 'week') {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 7)
-      return { startDate: formatDate(start), endDate: todayStr }
-    }
-    if (dateRange === 'month') {
-      const y = now.getFullYear()
-      const m = now.getMonth()
-      const start = new Date(y, m, 1)
-      const lastDayOfMonth = formatDate(new Date(y, m + 1, 0))
-      const todayStrLex = formatDate(now)
-      const endStr = lastDayOfMonth < todayStrLex ? lastDayOfMonth : todayStrLex
-      return { startDate: formatDate(start), endDate: endStr }
-    }
-    return { startDate: customStart, endDate: customEnd }
-  }, [dateRange, payPeriodCutoff, customStart, customEnd])
-
   const fetchLogs = useCallback(async () => {
+    if (!payPeriodBounds) return
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ startDate, endDate })
+      const params = new URLSearchParams({
+        startDate: payPeriodBounds.start,
+        endDate: payPeriodBounds.end
+      })
       if (canToggleArchivedLogs && includeArchivedPunches) {
         params.set('includeArchived', '1')
       }
@@ -494,7 +464,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate, includeArchivedPunches, canToggleArchivedLogs])
+  }, [payPeriodBounds, includeArchivedPunches, canToggleArchivedLogs])
 
   useEffect(() => {
     fetchLogs()
@@ -513,48 +483,38 @@ export default function AttendancePage() {
     void loadStaff()
   }, [])
 
+  /** Current bi-weekly pay period (for log range + header pay day). */
   useEffect(() => {
-    const loadCurrentPeriodPayDay = async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        const res = await fetch('/api/pay-days?period=current')
-        if (res.ok) {
-          const data = await res.json()
-          setCurrentPeriodPayDay(data?.date ? { date: data.date, notes: data.notes ?? null } : null)
+        const res = await fetch('/api/pay-days?period=current', { cache: 'no-store' })
+        const data = await res.json().catch(() => null)
+        if (cancelled) return
+        if (data && typeof data.periodStart === 'string' && typeof data.periodEnd === 'string') {
+          setError(null)
+          setPayPeriodBounds({ start: data.periodStart, end: data.periodEnd })
+          const pd = data.payDay as { date?: string; notes?: string | null } | null
+          setCurrentPeriodPayDay(pd?.date ? { date: pd.date, notes: pd.notes ?? null } : null)
         } else {
+          setPayPeriodBounds(null)
           setCurrentPeriodPayDay(null)
+          setError('Could not determine the current pay period. Check Pay days in Settings.')
+          setLoading(false)
         }
       } catch {
-        setCurrentPeriodPayDay(null)
+        if (!cancelled) {
+          setPayPeriodBounds(null)
+          setCurrentPeriodPayDay(null)
+          setError('Could not determine the current pay period.')
+          setLoading(false)
+        }
       }
+    })()
+    return () => {
+      cancelled = true
     }
-    void loadCurrentPeriodPayDay()
   }, [])
-
-  /** Fetch pay-period start; once loaded, default preset to “Since last saved pay period” when a cutoff exists. */
-  useEffect(() => {
-    const loadCutoff = async () => {
-      try {
-        const res = await fetch('/api/attendance/pay-period/last-sent-cutoff')
-        if (!res.ok) return
-        const data = (await res.json()) as { cutoffDate?: string | null }
-        const c = data.cutoffDate ?? null
-        setPayPeriodCutoff(c)
-      } catch {
-        // ignore
-      } finally {
-        setPayPeriodCutoffLoaded(true)
-      }
-    }
-    void loadCutoff()
-  }, [])
-
-  useEffect(() => {
-    if (!payPeriodCutoffLoaded || defaultRangeFromCutoffApplied.current) return
-    defaultRangeFromCutoffApplied.current = true
-    if (payPeriodCutoff) {
-      setDateRange('sinceLastReport')
-    }
-  }, [payPeriodCutoffLoaded, payPeriodCutoff])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
 
@@ -856,7 +816,7 @@ export default function AttendancePage() {
     const title =
       'Sum of in→out durations from paired punches in this view (chronological order). Unpaired ins/outs add no time. Decimal hours use two places (payroll-style).'
     if (loading) {
-      return { displayHm: '—' as const, displayDecimal: '—' as const, caption: 'Hours in range', title }
+      return { displayHm: '—' as const, displayDecimal: '—' as const, caption: 'Hours this pay period', title }
     }
     if (displayedLogs.length === 0) {
       return {
@@ -960,37 +920,14 @@ export default function AttendancePage() {
                 Add punch
               </button>
 
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Range:</span>
-                <select
-                  value={dateRange}
-                  onChange={(e) =>
-                    setDateRange(e.target.value as 'week' | 'month' | 'custom' | 'sinceLastReport')
-                  }
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
-                >
-                  {payPeriodCutoff && (
-                    <option value="sinceLastReport">Since last saved pay period</option>
-                  )}
-                  <option value="week">Last 7 days</option>
-                  <option value="month">This calendar month</option>
-                  <option value="custom">Custom range</option>
-                </select>
-              </div>
-
-              {dateRange === 'sinceLastReport' && payPeriodCutoff && (
-                <span className="text-xs text-gray-500 max-w-md">
-                  From {payPeriodCutoff} through today (day after the latest saved pay period&apos;s end).
-                </span>
-              )}
-              {dateRange === 'week' && (
-                <span className="text-xs text-gray-500 max-w-md">
-                  Rolling 7 days through today (not Mon–Sun week).
-                </span>
-              )}
-              {dateRange === 'month' && (
-                <span className="text-xs text-gray-500 max-w-md">
-                  From the 1st of this calendar month through today.
+              {payPeriodBounds && (
+                <span className="text-sm text-gray-600 max-w-md">
+                  Showing punches for current pay period:{' '}
+                  <span className="font-medium text-gray-800">
+                    {formatDateDisplay(payPeriodBounds.start + 'T12:00:00')} —{' '}
+                    {formatDateDisplay(payPeriodBounds.end + 'T12:00:00')}
+                  </span>{' '}
+                  <span className="text-gray-500">(bi-weekly: 1st–15th or 16th–end of month)</span>
                 </span>
               )}
 
@@ -1006,14 +943,6 @@ export default function AttendancePage() {
                 </label>
               )}
 
-              {dateRange === 'custom' && (
-                <div className="flex items-center gap-2">
-                  <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
-                  <span className="text-gray-500">to</span>
-                  <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
-                </div>
-              )}
-
               {irregularityCount > 0 && (
                 <div className="ml-auto px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
                   {irregularityCount} irregularit{irregularityCount === 1 ? 'y' : 'ies'} need attention
@@ -1025,7 +954,7 @@ export default function AttendancePage() {
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
                 Hiding punches on or before{' '}
                 <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong> (last saved pay period). Punches
-                after that time stay visible. Use &quot;Include archived punches&quot; to load older rows in this range.
+                after that time stay visible. Use &quot;Include archived punches&quot; to load older rows in this pay period.
               </p>
             )}
 
