@@ -1344,7 +1344,6 @@ export default function AttendancePage() {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="edit-punch-title"
-                onClick={(e) => e.target === e.currentTarget && !editSaving && closeEditLog()}
               >
                 <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-md w-full p-5">
                   <h2 id="edit-punch-title" className="text-lg font-semibold text-gray-900 mb-1">Correct punch</h2>
