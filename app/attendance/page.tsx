@@ -558,6 +558,22 @@ export default function AttendancePage() {
     }
   }, [showAddPunch, addPunchResolvedStaff?.id])
 
+  /** Default punch type: opposite of last recorded punch (expected next); In if no history. */
+  useEffect(() => {
+    if (!showAddPunch) return
+    if (!addPunchResolvedStaff) {
+      setAddPunchType('in')
+      return
+    }
+    if (addLastPunchLoading) return
+    if (addLastPunch) {
+      const t = String(addLastPunch.punchType).toLowerCase().trim()
+      setAddPunchType(t === 'out' ? 'in' : 'out')
+    } else {
+      setAddPunchType('in')
+    }
+  }, [showAddPunch, addPunchResolvedStaff?.id, addLastPunchLoading, addLastPunch])
+
   /** Active staff with device mapping — used for quick-filter tabs. */
   const activeStaffWithDevice = useMemo(
     () => allStaff.filter((s) => s.deviceUserId && s.status !== 'inactive'),
