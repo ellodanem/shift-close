@@ -1244,7 +1244,6 @@ export default function AttendancePage() {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="add-punch-title"
-                onClick={(e) => e.target === e.currentTarget && !addSaving && closeAddPunch()}
               >
                 <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-md w-full p-5">
                   <h2 id="add-punch-title" className="text-lg font-semibold text-gray-900 mb-1">Add punch</h2>
