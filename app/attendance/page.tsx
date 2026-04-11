@@ -565,10 +565,16 @@ export default function AttendancePage() {
   )
 
   const displayedLogs = useMemo(() => {
-    if (!staffFilter) return logs
-    const s = staffWithDevice.find((x) => x.id === staffFilter)
-    if (!s) return []
-    return logs.filter((log) => logBelongsToStaff(log, s))
+    const filtered = !staffFilter
+      ? logs
+      : (() => {
+          const s = staffWithDevice.find((x) => x.id === staffFilter)
+          if (!s) return []
+          return logs.filter((log) => logBelongsToStaff(log, s))
+        })()
+    return [...filtered].sort(
+      (a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime()
+    )
   }, [logs, staffFilter, staffWithDevice])
 
   const staffListFiltered = useMemo(() => {
