@@ -101,6 +101,15 @@ function formatDateDisplay(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatAttendanceSource(source: string): string {
+  const s = String(source ?? '')
+    .toLowerCase()
+    .trim()
+  if (s === 'zkteco') return 'ZKTeco'
+  if (s === 'manual') return 'Manual'
+  return s || '—'
+}
+
 /** Sum of paired in→out segments (chronological stack; same idea as valid pairing). Unpaired punches add no time. */
 function workedMsFromPunchLogs(logs: AttendanceLog[]): number {
   const sorted = [...logs].sort(
@@ -396,6 +405,12 @@ export default function AttendancePage() {
   const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
   const [addSaving, setAddSaving] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [addLastPunch, setAddLastPunch] = useState<{
+    punchTime: string
+    source: string
+    punchType: string
+  } | null>(null)
+  const [addLastPunchLoading, setAddLastPunchLoading] = useState(false)
 
   // --- Current period pay day ---
   const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
@@ -542,6 +557,46 @@ export default function AttendancePage() {
   }, [payPeriodCutoffLoaded, payPeriodCutoff])
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
+
+  const addPunchResolvedStaff = useMemo(
+    () => (showAddPunch ? resolveStaffForManualPunch(addStaffInput, staffWithDevice) : null),
+    [showAddPunch, addStaffInput, staffWithDevice]
+  )
+
+  useEffect(() => {
+    if (!showAddPunch) {
+      setAddLastPunch(null)
+      setAddLastPunchLoading(false)
+      return
+    }
+    const staff = addPunchResolvedStaff
+    if (!staff) {
+      setAddLastPunch(null)
+      setAddLastPunchLoading(false)
+      return
+    }
+    let cancelled = false
+    setAddLastPunchLoading(true)
+    fetch(`/api/attendance/logs/last-punch?staffId=${encodeURIComponent(staff.id)}`, { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('bad')
+        return res.json() as Promise<{
+          last: { punchTime: string; source: string; punchType: string } | null
+        }>
+      })
+      .then((data) => {
+        if (!cancelled) setAddLastPunch(data.last ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setAddLastPunch(null)
+      })
+      .finally(() => {
+        if (!cancelled) setAddLastPunchLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showAddPunch, addPunchResolvedStaff?.id])
 
   /** Active staff with device mapping — used for quick-filter tabs. */
   const activeStaffWithDevice = useMemo(
@@ -1302,23 +1357,53 @@ export default function AttendancePage() {
                       </select>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={closeAddPunch}
-                      disabled={addSaving}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveAddPunch}
-                      disabled={addSaving}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      {addSaving ? 'Saving…' : 'Add punch'}
-                    </button>
+                  <div className="mt-4 pt-3 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3">
+                    <div className="text-xs text-gray-600 min-w-0 sm:max-w-[58%]">
+                      {!addPunchResolvedStaff && (
+                        <span className="text-gray-500">Select staff to see their last recorded punch.</span>
+                      )}
+                      {addPunchResolvedStaff && addLastPunchLoading && (
+                        <span className="text-gray-500">Loading last punch…</span>
+                      )}
+                      {addPunchResolvedStaff && !addLastPunchLoading && !addLastPunch && (
+                        <span className="text-gray-500">No punches on file for this staff yet.</span>
+                      )}
+                      {addPunchResolvedStaff && !addLastPunchLoading && addLastPunch && (
+                        <div>
+                          <div className="font-medium text-gray-800">Last recorded punch</div>
+                          <div className="mt-0.5 text-gray-600 leading-snug">
+                            {new Date(addLastPunch.punchTime).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })}
+                            {' · '}
+                            {String(addLastPunch.punchType).toLowerCase() === 'out' ? 'Out' : 'In'}
+                            {' · '}
+                            <span className="text-gray-500">
+                              Source: {formatAttendanceSource(addLastPunch.source)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={closeAddPunch}
+                        disabled={addSaving}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveAddPunch}
+                        disabled={addSaving}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {addSaving ? 'Saving…' : 'Add punch'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
