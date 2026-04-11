@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getLatestSavedPayPeriodCutoffInstant } from '@/lib/pay-period-archive'
+import { getLatestClosedPayPeriodCreatedAt } from '@/lib/pay-period-archive'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...&includeArchived=1
- * Raw logs from DB. By default hides punches at or before the latest saved pay period close (saved-at instant).
- * Admin/manager/operations_manager may pass includeArchived=1 to load full history in range.
+ * By default hides punches at or before the last filed pay period report’s createdAt
+ * (see pay-period-archive). includeArchived=1 drops that filter for allowed roles.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -102,8 +102,8 @@ export async function GET(request: NextRequest) {
     const includeArchived =
       includeArchivedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
 
-    const cutoff = await getLatestSavedPayPeriodCutoffInstant()
-    const applyArchive = Boolean(cutoff && !includeArchived)
+    const archiveCutoff = await getLatestClosedPayPeriodCreatedAt()
+    const applyArchive = Boolean(archiveCutoff && !includeArchived)
 
     const andParts: Prisma.AttendanceLogWhereInput[] = []
 
@@ -124,8 +124,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    if (applyArchive && cutoff) {
-      andParts.push({ punchTime: { gt: cutoff } })
+    if (applyArchive && archiveCutoff) {
+      andParts.push({ punchTime: { gt: archiveCutoff } })
     }
 
     if (staffId) {
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
       if (!staff) {
         return NextResponse.json({
           logs: [],
-          archiveCutoffAt: cutoff?.toISOString() ?? null,
+          archiveCutoffAt: archiveCutoff?.toISOString() ?? null,
           archivedHidden: false
         })
       }
@@ -159,8 +159,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       logs,
-      archiveCutoffAt: cutoff?.toISOString() ?? null,
-      archivedHidden: applyArchive && cutoff !== null
+      archiveCutoffAt: archiveCutoff?.toISOString() ?? null,
+      archivedHidden: applyArchive && archiveCutoff !== null
     })
   } catch (error) {
     console.error('Error fetching attendance logs:', error)

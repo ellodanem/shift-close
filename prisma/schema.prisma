@@ -795,7 +795,7 @@ model PayPeriod {
   notes       String   @default("") // Free-form notes on the saved report
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  /// Set when the report is emailed successfully — drives default Attendance log range
+  /// Set when the report is emailed successfully
   emailSentAt DateTime? @map("email_sent_at")
 
   @@index([startDate, endDate])

@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { effectiveAttendanceLogEnd, effectiveAttendanceLogStart } from '@/lib/attendance-log-range'
+import { openAttendanceWindowAfterLastClosed } from '@/lib/attendance-open-period'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
 
-/** GET /api/attendance/pay-period — list saved pay periods (default), or latest by save time for attendance logs */
+/** GET /api/attendance/pay-period — list saved pay periods (default), or open window after last filed report for Attendance */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     if (searchParams.get('latestSaved') === '1') {
       const p = await prisma.payPeriod.findFirst({
-        orderBy: { updatedAt: 'desc' },
-        select: { startDate: true, endDate: true, updatedAt: true }
+        orderBy: { createdAt: 'desc' },
+        select: {
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+          updatedAt: true
+        }
       })
       if (!p) {
         return NextResponse.json(null)
@@ -21,12 +26,17 @@ export async function GET(request: NextRequest) {
       if (!YMD.test(p.startDate) || !YMD.test(p.endDate)) {
         return NextResponse.json({ error: 'Invalid stored pay period dates' }, { status: 500 })
       }
-      const startDate = effectiveAttendanceLogStart(p.startDate)
-      const endDate = effectiveAttendanceLogEnd(p.endDate)
+      const { startDate, endDate } = openAttendanceWindowAfterLastClosed({
+        endDate: p.endDate,
+        createdAt: p.createdAt
+      })
       return NextResponse.json({
         startDate,
         endDate,
-        savedAt: p.updatedAt.toISOString()
+        savedAt: p.updatedAt.toISOString(),
+        closedPeriodStart: p.startDate,
+        closedPeriodEnd: p.endDate,
+        closedAt: p.createdAt.toISOString()
       })
     }
 

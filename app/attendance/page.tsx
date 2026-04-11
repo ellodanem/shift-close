@@ -373,9 +373,15 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** Start/end from the pay period report most recently saved (DB updatedAt), not the calendar bi-weekly window */
+  /** Inclusive date range for the current *open* pay period (day after last filed report end → today). */
   const [payPeriodBounds, setPayPeriodBounds] = useState<{ start: string; end: string } | null>(null)
   const [payPeriodSavedAt, setPayPeriodSavedAt] = useState<string | null>(null)
+  /** Last *filed* report window + first-save instant (drives archive messaging). */
+  const [closedPayPeriod, setClosedPayPeriod] = useState<{
+    start: string
+    end: string
+    filedAt: string
+  } | null>(null)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
@@ -484,7 +490,7 @@ export default function AttendancePage() {
     void loadStaff()
   }, [])
 
-  /** Log date range + pay-day chip from the last saved pay period report; pay day is any Pay day in that range. */
+  /** Open pay-period window + pay-day chip; closed-period metadata from last filed report. */
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -501,23 +507,40 @@ export default function AttendancePage() {
         ) {
           setPayPeriodBounds(null)
           setPayPeriodSavedAt(null)
+          setClosedPayPeriod(null)
           setCurrentPeriodPayDay(null)
           setError(
-            'No saved pay period report yet. Open Pay Period Report, set your dates, save the report—attendance logs use that period until you save again.'
+            'No saved pay period report yet. Open Pay Period Report, set your dates, and save a report—then Attendance shows the open period after that filing.'
           )
           setLoading(false)
           return
         }
-        const { startDate, endDate, savedAt } = data as {
+        const row = data as {
           startDate: string
           endDate: string
           savedAt?: string
+          closedPeriodStart?: string
+          closedPeriodEnd?: string
+          closedAt?: string
         }
         setError(null)
-        setPayPeriodSavedAt(typeof savedAt === 'string' ? savedAt : null)
-        setPayPeriodBounds({ start: startDate, end: endDate })
+        setPayPeriodSavedAt(typeof row.savedAt === 'string' ? row.savedAt : null)
+        setPayPeriodBounds({ start: row.startDate, end: row.endDate })
+        if (
+          typeof row.closedPeriodStart === 'string' &&
+          typeof row.closedPeriodEnd === 'string' &&
+          typeof row.closedAt === 'string'
+        ) {
+          setClosedPayPeriod({
+            start: row.closedPeriodStart,
+            end: row.closedPeriodEnd,
+            filedAt: row.closedAt
+          })
+        } else {
+          setClosedPayPeriod(null)
+        }
 
-        const qs = new URLSearchParams({ periodStart: startDate, periodEnd: endDate })
+        const qs = new URLSearchParams({ periodStart: row.startDate, periodEnd: row.endDate })
         const pdRes = await fetch(`/api/pay-days?${qs}`, { cache: 'no-store' })
         const pdData = await pdRes.json().catch(() => null)
         if (cancelled) return
@@ -531,6 +554,7 @@ export default function AttendancePage() {
         if (!cancelled) {
           setPayPeriodBounds(null)
           setPayPeriodSavedAt(null)
+          setClosedPayPeriod(null)
           setCurrentPeriodPayDay(null)
           setError('Could not load the last saved pay period report.')
           setLoading(false)
@@ -970,18 +994,20 @@ export default function AttendancePage() {
 
               {payPeriodBounds && (
                 <span className="text-sm text-gray-600 max-w-md">
-                  Showing punches for the pay period in your last saved report
-                  {payPeriodSavedAt ? (
-                    <span className="text-gray-500">
-                      {' '}
-                      (saved {new Date(payPeriodSavedAt).toLocaleString()})
-                    </span>
-                  ) : null}
-                  :{' '}
+                  <span className="font-medium text-gray-800">Current open pay period:</span>{' '}
                   <span className="font-medium text-gray-800">
                     {formatDateDisplay(payPeriodBounds.start + 'T12:00:00')} —{' '}
                     {formatDateDisplay(payPeriodBounds.end + 'T12:00:00')}
                   </span>
+                  {closedPayPeriod ? (
+                    <span className="text-gray-500">
+                      {' '}
+                      (last filed report {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')}—
+                      {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}, filed{' '}
+                      {new Date(closedPayPeriod.filedAt).toLocaleString()}
+                      {payPeriodSavedAt ? `; updated ${new Date(payPeriodSavedAt).toLocaleString()}` : ''})
+                    </span>
+                  ) : null}
                 </span>
               )}
 
@@ -993,7 +1019,7 @@ export default function AttendancePage() {
                     onChange={(e) => setIncludeArchivedPunches(e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  Include archived punches (before last pay period close)
+                  Include archived punches (on or before last filed report time)
                 </label>
               )}
 
@@ -1006,9 +1032,10 @@ export default function AttendancePage() {
 
             {archiveMeta.archivedHidden && archiveMeta.archiveCutoffAt && (
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
-                Hiding punches on or before{' '}
-                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong> (last saved pay period). Punches
-                after that time stay visible. Use &quot;Include archived punches&quot; to load older rows in this pay period.
+                Default view shows only punches <strong>after</strong> the last filed report’s save time (
+                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong>). Punches at or before
+                that time are archived unless you turn on &quot;Include archived punches&quot; (still within the
+                date range above).
               </p>
             )}
 
