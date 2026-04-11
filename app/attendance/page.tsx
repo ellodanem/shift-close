@@ -962,21 +962,13 @@ export default function AttendancePage() {
                 Add punch
               </button>
 
-              {payPeriodBounds && (
+              {closedPayPeriod && (
                 <span className="text-sm text-gray-600 max-w-md">
+                  <span className="text-gray-600">Last pay period: </span>
                   <span className="font-medium text-gray-800">
-                    {formatDateDisplay(payPeriodBounds.start + 'T12:00:00')} —{' '}
-                    {formatDateDisplay(payPeriodBounds.end + 'T12:00:00')}
+                    {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')} —{' '}
+                    {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}
                   </span>
-                  {closedPayPeriod ? (
-                    <span className="text-gray-600">
-                      . Last generated pay period:{' '}
-                      <span className="font-medium text-gray-800">
-                        {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')} —{' '}
-                        {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}
-                      </span>
-                    </span>
-                  ) : null}
                 </span>
               )}
 
