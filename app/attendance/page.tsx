@@ -397,11 +397,17 @@ export default function AttendancePage() {
   const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
   const [addSaving, setAddSaving] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
-  const [addLastPunch, setAddLastPunch] = useState<{
+  type AddPunchHint = {
+    id: string
     punchTime: string
-    source: string
     punchType: string
-  } | null>(null)
+    source: string
+    createdAt: string
+  }
+  const [addPunchHints, setAddPunchHints] = useState<{
+    byTime: AddPunchHint | null
+    lastSavedManual: AddPunchHint | null
+  }>({ byTime: null, lastSavedManual: null })
   const [addLastPunchLoading, setAddLastPunchLoading] = useState(false)
 
   // --- Current period pay day ---
@@ -545,13 +551,13 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!showAddPunch) {
-      setAddLastPunch(null)
+      setAddPunchHints({ byTime: null, lastSavedManual: null })
       setAddLastPunchLoading(false)
       return
     }
     const staff = addPunchResolvedStaff
     if (!staff) {
-      setAddLastPunch(null)
+      setAddPunchHints({ byTime: null, lastSavedManual: null })
       setAddLastPunchLoading(false)
       return
     }
@@ -561,14 +567,20 @@ export default function AttendancePage() {
       .then(async (res) => {
         if (!res.ok) throw new Error('bad')
         return res.json() as Promise<{
-          last: { punchTime: string; source: string; punchType: string } | null
+          lastByTime: AddPunchHint | null
+          lastSavedManual: AddPunchHint | null
         }>
       })
       .then((data) => {
-        if (!cancelled) setAddLastPunch(data.last ?? null)
+        if (!cancelled) {
+          setAddPunchHints({
+            byTime: data.lastByTime ?? null,
+            lastSavedManual: data.lastSavedManual ?? null
+          })
+        }
       })
       .catch(() => {
-        if (!cancelled) setAddLastPunch(null)
+        if (!cancelled) setAddPunchHints({ byTime: null, lastSavedManual: null })
       })
       .finally(() => {
         if (!cancelled) setAddLastPunchLoading(false)
@@ -578,7 +590,7 @@ export default function AttendancePage() {
     }
   }, [showAddPunch, addPunchResolvedStaff?.id])
 
-  /** Default punch type: opposite of last recorded punch (expected next); In if no history. */
+  /** Default punch type: opposite of most recent punch by time (expected next); In if no history. */
   useEffect(() => {
     if (!showAddPunch) return
     if (!addPunchResolvedStaff) {
@@ -586,13 +598,14 @@ export default function AttendancePage() {
       return
     }
     if (addLastPunchLoading) return
-    if (addLastPunch) {
-      const t = String(addLastPunch.punchType).toLowerCase().trim()
+    const byTime = addPunchHints.byTime
+    if (byTime) {
+      const t = String(byTime.punchType).toLowerCase().trim()
       setAddPunchType(t === 'out' ? 'in' : 'out')
     } else {
       setAddPunchType('in')
     }
-  }, [showAddPunch, addPunchResolvedStaff?.id, addLastPunchLoading, addLastPunch])
+  }, [showAddPunch, addPunchResolvedStaff?.id, addLastPunchLoading, addPunchHints.byTime])
 
   /** Active staff with device mapping — used for quick-filter tabs. */
   const activeStaffWithDevice = useMemo(
@@ -1322,37 +1335,77 @@ export default function AttendancePage() {
                   <div className="mt-4 pt-3 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="text-xs text-gray-600 min-w-0 sm:max-w-[58%]">
                       {!addPunchResolvedStaff && (
-                        <span className="text-gray-500">Select staff to see their last recorded punch.</span>
+                        <span className="text-gray-500">
+                          Select staff to see their most recent punch time and last saved manual entry.
+                        </span>
                       )}
                       {addPunchResolvedStaff && addLastPunchLoading && (
-                        <span className="text-gray-500">Loading last punch…</span>
+                        <span className="text-gray-500">Loading punch hints…</span>
                       )}
-                      {addPunchResolvedStaff && !addLastPunchLoading && !addLastPunch && (
-                        <span className="text-gray-500">No punches on file for this staff yet.</span>
-                      )}
-                      {addPunchResolvedStaff && !addLastPunchLoading && addLastPunch && (
-                        <div>
-                          <div className="font-medium text-gray-800">Last recorded punch</div>
-                          <div className="mt-0.5 text-gray-600 leading-snug">
-                            {new Date(addLastPunch.punchTime).toLocaleString(undefined, {
-                              dateStyle: 'medium',
-                              timeStyle: 'short'
-                            })}
-                            {' · '}
-                            <span
-                              className={
-                                String(addLastPunch.punchType).toLowerCase() === 'out'
-                                  ? 'font-medium text-emerald-600'
-                                  : 'font-medium text-red-600'
-                              }
-                            >
-                              {String(addLastPunch.punchType).toLowerCase() === 'out' ? 'Out' : 'In'}
-                            </span>
-                            {' · '}
-                            <span className="text-gray-500">
-                              Source: {formatAttendanceSource(addLastPunch.source)}
-                            </span>
+                      {addPunchResolvedStaff &&
+                        !addLastPunchLoading &&
+                        !addPunchHints.byTime &&
+                        !addPunchHints.lastSavedManual && (
+                          <span className="text-gray-500">No punches on file for this staff yet.</span>
+                        )}
+                      {addPunchResolvedStaff && !addLastPunchLoading && addPunchHints.byTime && (
+                        <div className="space-y-2">
+                          <div>
+                            <div className="font-medium text-gray-800">Most recent punch time</div>
+                            <div className="mt-0.5 text-gray-600 leading-snug">
+                              {new Date(addPunchHints.byTime.punchTime).toLocaleString(undefined, {
+                                dateStyle: 'medium',
+                                timeStyle: 'short'
+                              })}
+                              {' · '}
+                              <span
+                                className={
+                                  String(addPunchHints.byTime.punchType).toLowerCase() === 'out'
+                                    ? 'font-medium text-emerald-600'
+                                    : 'font-medium text-red-600'
+                                }
+                              >
+                                {String(addPunchHints.byTime.punchType).toLowerCase() === 'out' ? 'Out' : 'In'}
+                              </span>
+                              {' · '}
+                              <span className="text-gray-500">
+                                Source: {formatAttendanceSource(addPunchHints.byTime.source)}
+                              </span>
+                            </div>
                           </div>
+                          {addPunchHints.lastSavedManual &&
+                            addPunchHints.lastSavedManual.id !== addPunchHints.byTime.id && (
+                              <div>
+                                <div className="font-medium text-gray-800">Last manual entry saved</div>
+                                <div className="mt-0.5 text-gray-600 leading-snug">
+                                  Clock:{' '}
+                                  {new Date(addPunchHints.lastSavedManual.punchTime).toLocaleString(undefined, {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short'
+                                  })}
+                                  {' · '}
+                                  <span
+                                    className={
+                                      String(addPunchHints.lastSavedManual.punchType).toLowerCase() === 'out'
+                                        ? 'font-medium text-emerald-600'
+                                        : 'font-medium text-red-600'
+                                    }
+                                  >
+                                    {String(addPunchHints.lastSavedManual.punchType).toLowerCase() === 'out'
+                                      ? 'Out'
+                                      : 'In'}
+                                  </span>
+                                  {' · '}
+                                  <span className="text-gray-500">
+                                    Saved:{' '}
+                                    {new Date(addPunchHints.lastSavedManual.createdAt).toLocaleString(undefined, {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short'
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>

@@ -3,7 +3,32 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-/** GET ?staffId= — most recent attendance punch for that staff (by staff_id or device_user_id). */
+const punchSelect = {
+  id: true,
+  punchTime: true,
+  punchType: true,
+  source: true,
+  createdAt: true
+} as const
+
+function serialize(
+  p: { id: string; punchTime: Date; punchType: string; source: string; createdAt: Date } | null
+) {
+  if (!p) return null
+  return {
+    id: p.id,
+    punchTime: p.punchTime.toISOString(),
+    punchType: p.punchType,
+    source: p.source,
+    createdAt: p.createdAt.toISOString()
+  }
+}
+
+/**
+ * GET ?staffId=
+ * - lastByTime: latest punch by clock time (for next In/Out default).
+ * - lastSavedManual: latest manual punch by row createdAt (for data-entry “where was I”).
+ */
 export async function GET(request: NextRequest) {
   try {
     const staffId = request.nextUrl.searchParams.get('staffId')?.trim()
@@ -20,24 +45,31 @@ export async function GET(request: NextRequest) {
     }
 
     const dev = staff.deviceUserId?.trim()
-    const last = await prisma.attendanceLog.findFirst({
-      where: dev
-        ? { OR: [{ staffId: staff.id }, { deviceUserId: dev }] }
-        : { staffId: staff.id },
-      orderBy: { punchTime: 'desc' },
-      select: { punchTime: true, source: true, punchType: true }
-    })
+    const whereBase = dev
+      ? { OR: [{ staffId: staff.id }, { deviceUserId: dev }] }
+      : { staffId: staff.id }
 
-    if (!last) {
-      return NextResponse.json({ last: null })
-    }
+    const [lastByTime, lastSavedManual] = await Promise.all([
+      prisma.attendanceLog.findFirst({
+        where: whereBase,
+        orderBy: { punchTime: 'desc' },
+        select: punchSelect
+      }),
+      prisma.attendanceLog.findFirst({
+        where: { ...whereBase, source: 'manual' },
+        orderBy: { createdAt: 'desc' },
+        select: punchSelect
+      })
+    ])
+
+    const byTime = serialize(lastByTime)
+    const saved = serialize(lastSavedManual)
 
     return NextResponse.json({
-      last: {
-        punchTime: last.punchTime.toISOString(),
-        source: last.source,
-        punchType: last.punchType
-      }
+      lastByTime: byTime,
+      lastSavedManual: saved,
+      /** @deprecated use lastByTime */
+      last: byTime
     })
   } catch (e) {
     console.error('last-punch GET', e)
