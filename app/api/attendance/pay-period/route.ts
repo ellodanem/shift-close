@@ -3,9 +3,30 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/attendance/pay-period - List saved pay periods */
-export async function GET() {
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+
+/** GET /api/attendance/pay-period — list saved pay periods (default), or latest by save time for attendance logs */
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    if (searchParams.get('latestSaved') === '1') {
+      const p = await prisma.payPeriod.findFirst({
+        orderBy: { updatedAt: 'desc' },
+        select: { startDate: true, endDate: true, updatedAt: true }
+      })
+      if (!p) {
+        return NextResponse.json(null)
+      }
+      if (!YMD.test(p.startDate) || !YMD.test(p.endDate)) {
+        return NextResponse.json({ error: 'Invalid stored pay period dates' }, { status: 500 })
+      }
+      return NextResponse.json({
+        startDate: p.startDate,
+        endDate: p.endDate,
+        savedAt: p.updatedAt.toISOString()
+      })
+    }
+
     const periods = await prisma.payPeriod.findMany({
       orderBy: { createdAt: 'desc' }
     })

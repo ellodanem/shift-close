@@ -373,8 +373,9 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** Bi-weekly pay period bounds (1–15 and 16–end of month), from GET /api/pay-days?period=current */
+  /** Start/end from the pay period report most recently saved (DB updatedAt), not the calendar bi-weekly window */
   const [payPeriodBounds, setPayPeriodBounds] = useState<{ start: string; end: string } | null>(null)
+  const [payPeriodSavedAt, setPayPeriodSavedAt] = useState<string | null>(null)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
@@ -483,30 +484,55 @@ export default function AttendancePage() {
     void loadStaff()
   }, [])
 
-  /** Current bi-weekly pay period (for log range + header pay day). */
+  /** Log date range + pay-day chip from the last saved pay period report; pay day is any Pay day in that range. */
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch('/api/pay-days?period=current', { cache: 'no-store' })
+        const res = await fetch('/api/attendance/pay-period?latestSaved=1', { cache: 'no-store' })
+        if (!res.ok) throw new Error('bad')
         const data = await res.json().catch(() => null)
         if (cancelled) return
-        if (data && typeof data.periodStart === 'string' && typeof data.periodEnd === 'string') {
-          setError(null)
-          setPayPeriodBounds({ start: data.periodStart, end: data.periodEnd })
-          const pd = data.payDay as { date?: string; notes?: string | null } | null
+        if (
+          data === null ||
+          typeof data !== 'object' ||
+          typeof (data as { startDate?: string }).startDate !== 'string' ||
+          typeof (data as { endDate?: string }).endDate !== 'string'
+        ) {
+          setPayPeriodBounds(null)
+          setPayPeriodSavedAt(null)
+          setCurrentPeriodPayDay(null)
+          setError(
+            'No saved pay period report yet. Open Pay Period Report, set your dates, save the report—attendance logs use that period until you save again.'
+          )
+          setLoading(false)
+          return
+        }
+        const { startDate, endDate, savedAt } = data as {
+          startDate: string
+          endDate: string
+          savedAt?: string
+        }
+        setError(null)
+        setPayPeriodSavedAt(typeof savedAt === 'string' ? savedAt : null)
+        setPayPeriodBounds({ start: startDate, end: endDate })
+
+        const qs = new URLSearchParams({ periodStart: startDate, periodEnd: endDate })
+        const pdRes = await fetch(`/api/pay-days?${qs}`, { cache: 'no-store' })
+        const pdData = await pdRes.json().catch(() => null)
+        if (cancelled) return
+        if (pdRes.ok && pdData && typeof pdData === 'object' && 'payDay' in pdData) {
+          const pd = (pdData as { payDay?: { date?: string; notes?: string | null } | null }).payDay
           setCurrentPeriodPayDay(pd?.date ? { date: pd.date, notes: pd.notes ?? null } : null)
         } else {
-          setPayPeriodBounds(null)
           setCurrentPeriodPayDay(null)
-          setError('Could not determine the current pay period. Check Pay days in Settings.')
-          setLoading(false)
         }
       } catch {
         if (!cancelled) {
           setPayPeriodBounds(null)
+          setPayPeriodSavedAt(null)
           setCurrentPeriodPayDay(null)
-          setError('Could not determine the current pay period.')
+          setError('Could not load the last saved pay period report.')
           setLoading(false)
         }
       }
@@ -944,12 +970,18 @@ export default function AttendancePage() {
 
               {payPeriodBounds && (
                 <span className="text-sm text-gray-600 max-w-md">
-                  Showing punches for current pay period:{' '}
+                  Showing punches for the pay period in your last saved report
+                  {payPeriodSavedAt ? (
+                    <span className="text-gray-500">
+                      {' '}
+                      (saved {new Date(payPeriodSavedAt).toLocaleString()})
+                    </span>
+                  ) : null}
+                  :{' '}
                   <span className="font-medium text-gray-800">
                     {formatDateDisplay(payPeriodBounds.start + 'T12:00:00')} —{' '}
                     {formatDateDisplay(payPeriodBounds.end + 'T12:00:00')}
-                  </span>{' '}
-                  <span className="text-gray-500">(bi-weekly: 1st–15th or 16th–end of month)</span>
+                  </span>
                 </span>
               )}
 
@@ -1328,7 +1360,15 @@ export default function AttendancePage() {
                               timeStyle: 'short'
                             })}
                             {' · '}
-                            {String(addLastPunch.punchType).toLowerCase() === 'out' ? 'Out' : 'In'}
+                            <span
+                              className={
+                                String(addLastPunch.punchType).toLowerCase() === 'out'
+                                  ? 'font-medium text-emerald-600'
+                                  : 'font-medium text-red-600'
+                              }
+                            >
+                              {String(addLastPunch.punchType).toLowerCase() === 'out' ? 'Out' : 'In'}
+                            </span>
                             {' · '}
                             <span className="text-gray-500">
                               Source: {formatAttendanceSource(addLastPunch.source)}
