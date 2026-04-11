@@ -698,7 +698,7 @@ export default function ShiftDetailPage() {
         {hasRedFlag && (
           <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded">
             <p className="text-yellow-900 font-bold text-lg">
-              ⚠️ Needs Review: Unexplained over/short (${netOverShort.toFixed(2)}) exceeds ±${OS_REVIEW_THRESHOLD} threshold.
+              ⚠️ Needs Review: Net over/short after Account Activity (${netOverShort.toFixed(2)}) is outside the ±${OS_REVIEW_THRESHOLD} review band.
             </p>
           </div>
         )}
@@ -1442,7 +1442,7 @@ export default function ShiftDetailPage() {
               </p>
             )}
             <p className="text-xs text-gray-500">
-              When a non-zero Over/Short is explained and all conditions are met, this shift will be marked as <span className="font-semibold">Reviewed</span>.
+              When over/short is handled per your procedures (including notes or ledger lines where appropriate) and other review conditions are met, this shift can be marked <span className="font-semibold">Reviewed</span>—not because any number had to equal $0.00.
             </p>
           </div>
 
@@ -1486,8 +1486,10 @@ export default function ShiftDetailPage() {
                 </div>
                 <p className="text-xs text-gray-600 px-5 py-2 bg-gray-50 border-b border-gray-200">
                   <span className="font-medium text-gray-700">Additive ledger:</span> starting balance is count vs system.
-                  Each row is a signed change (positive explains a shortfall; negative explains extra cash). They add to the
-                  running balance until unexplained is $0.00.
+                  Each row is a signed change (positive explains a shortfall; negative explains extra cash). Rows add to the
+                  running balance. <span className="font-medium text-gray-700">You are not required to drive this to $0.00</span>
+                  —record what is true. $0.00 here only means this ledger has no cent left over after your lines, not that every
+                  real-world variance disappeared.
                 </p>
 
                 <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
@@ -1588,10 +1590,18 @@ export default function ShiftDetailPage() {
                 <div className={`px-5 py-4 border-t-2 flex items-center justify-between ${isFullyExplained ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-200'}`}>
                   <div>
                     <div className={`font-bold text-base ${isFullyExplained ? 'text-green-800' : 'text-amber-900'}`}>
-                      {isFullyExplained ? '✓ Fully explained' : 'Unexplained variance'}
+                      {isFullyExplained ? '✓ Running total ~$0 (within 1¢)' : 'Running total after lines'}
                     </div>
-                    {!isFullyExplained && (
-                      <div className="text-xs text-amber-800 mt-0.5">Still to account for (should match $0.00 when complete)</div>
+                    {isFullyExplained ? (
+                      <div className="text-xs text-green-800 mt-0.5 max-w-xl">
+                        Signed lines net out on this ledger—an optional cross-check, not proof you were required to hit zero.
+                      </div>
+                    ) : (
+                      <div className="text-xs text-amber-800 mt-0.5 max-w-xl">
+                        After your signed rows. <span className="font-semibold">You do not have to force this to $0.00.</span>{' '}
+                        A non-zero amount can be correct if the true story lives in honest lines, notes, or follow-up outside
+                        this table.
+                      </div>
                     )}
                   </div>
                   <div className={`font-bold text-2xl tabular-nums ${isFullyExplained ? 'text-green-700' : 'text-amber-900'}`}>
