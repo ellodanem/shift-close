@@ -375,21 +375,11 @@ export default function AttendancePage() {
   const [error, setError] = useState<string | null>(null)
   /** Inclusive date range for the current *open* pay period (day after last filed report end → today). */
   const [payPeriodBounds, setPayPeriodBounds] = useState<{ start: string; end: string } | null>(null)
-  const [payPeriodSavedAt, setPayPeriodSavedAt] = useState<string | null>(null)
-  /** Last *filed* report window + first-save instant (drives archive messaging). */
-  const [closedPayPeriod, setClosedPayPeriod] = useState<{
-    start: string
-    end: string
-    filedAt: string
-  } | null>(null)
+  /** Last generated (filed) pay period date range shown for context. */
+  const [closedPayPeriod, setClosedPayPeriod] = useState<{ start: string; end: string } | null>(null)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
-  const [archiveMeta, setArchiveMeta] = useState<{
-    archivedClosedStart: string | null
-    archivedClosedEnd: string | null
-    archivedHidden: boolean
-  }>({ archivedClosedStart: null, archivedClosedEnd: null, archivedHidden: false })
   const [staffFilter, setStaffFilter] = useState<string>('')
   /** Narrows the staff list below (name substring, case-insensitive). */
   const [staffSearch, setStaffSearch] = useState('')
@@ -453,20 +443,6 @@ export default function AttendancePage() {
       const raw = await logsRes.json()
       const list: AttendanceLog[] = Array.isArray(raw) ? raw : raw.logs
       setLogs(Array.isArray(list) ? list : [])
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        setArchiveMeta({
-          archivedClosedStart:
-            typeof raw.archivedClosedStart === 'string' ? raw.archivedClosedStart : null,
-          archivedClosedEnd: typeof raw.archivedClosedEnd === 'string' ? raw.archivedClosedEnd : null,
-          archivedHidden: Boolean(raw.archivedHidden)
-        })
-      } else {
-        setArchiveMeta({
-          archivedClosedStart: null,
-          archivedClosedEnd: null,
-          archivedHidden: false
-        })
-      }
       if (settingsRes.ok) {
         const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
         if (typeof s.expectedPunchesPerDay === 'number') {
@@ -513,7 +489,6 @@ export default function AttendancePage() {
           typeof (data as { endDate?: string }).endDate !== 'string'
         ) {
           setPayPeriodBounds(null)
-          setPayPeriodSavedAt(null)
           setClosedPayPeriod(null)
           setCurrentPeriodPayDay(null)
           setError(
@@ -525,24 +500,13 @@ export default function AttendancePage() {
         const row = data as {
           startDate: string
           endDate: string
-          savedAt?: string
           closedPeriodStart?: string
           closedPeriodEnd?: string
-          closedAt?: string
         }
         setError(null)
-        setPayPeriodSavedAt(typeof row.savedAt === 'string' ? row.savedAt : null)
         setPayPeriodBounds({ start: row.startDate, end: row.endDate })
-        if (
-          typeof row.closedPeriodStart === 'string' &&
-          typeof row.closedPeriodEnd === 'string' &&
-          typeof row.closedAt === 'string'
-        ) {
-          setClosedPayPeriod({
-            start: row.closedPeriodStart,
-            end: row.closedPeriodEnd,
-            filedAt: row.closedAt
-          })
+        if (typeof row.closedPeriodStart === 'string' && typeof row.closedPeriodEnd === 'string') {
+          setClosedPayPeriod({ start: row.closedPeriodStart, end: row.closedPeriodEnd })
         } else {
           setClosedPayPeriod(null)
         }
@@ -560,7 +524,6 @@ export default function AttendancePage() {
       } catch {
         if (!cancelled) {
           setPayPeriodBounds(null)
-          setPayPeriodSavedAt(null)
           setClosedPayPeriod(null)
           setCurrentPeriodPayDay(null)
           setError('Could not load the last saved pay period report.')
@@ -1001,18 +964,17 @@ export default function AttendancePage() {
 
               {payPeriodBounds && (
                 <span className="text-sm text-gray-600 max-w-md">
-                  <span className="font-medium text-gray-800">Current open pay period:</span>{' '}
                   <span className="font-medium text-gray-800">
                     {formatDateDisplay(payPeriodBounds.start + 'T12:00:00')} —{' '}
                     {formatDateDisplay(payPeriodBounds.end + 'T12:00:00')}
                   </span>
                   {closedPayPeriod ? (
-                    <span className="text-gray-500">
-                      {' '}
-                      (last filed report {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')}—
-                      {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}, filed{' '}
-                      {new Date(closedPayPeriod.filedAt).toLocaleString()}
-                      {payPeriodSavedAt ? `; updated ${new Date(payPeriodSavedAt).toLocaleString()}` : ''})
+                    <span className="text-gray-600">
+                      . Last generated pay period:{' '}
+                      <span className="font-medium text-gray-800">
+                        {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')} —{' '}
+                        {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}
+                      </span>
                     </span>
                   ) : null}
                 </span>
@@ -1026,7 +988,7 @@ export default function AttendancePage() {
                     onChange={(e) => setIncludeArchivedPunches(e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  Include archived punches (inside last filed pay period dates)
+                  Include archived punches
                 </label>
               )}
 
@@ -1036,20 +998,6 @@ export default function AttendancePage() {
                 </div>
               )}
             </div>
-
-            {archiveMeta.archivedHidden &&
-              archiveMeta.archivedClosedStart &&
-              archiveMeta.archivedClosedEnd && (
-              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
-                Default view hides punches whose time falls in the last filed pay period:{' '}
-                <strong>
-                  {formatDateDisplay(archiveMeta.archivedClosedStart + 'T12:00:00')} —{' '}
-                  {formatDateDisplay(archiveMeta.archivedClosedEnd + 'T12:00:00')}
-                </strong>{' '}
-                (the dates on that report, UTC day bounds). Turn on &quot;Include archived punches&quot; to load
-                those rows when they still fall in the date range above.
-              </p>
-            )}
 
             <p className="text-xs text-gray-500 mb-2">
               Expected punches per day (see{' '}
