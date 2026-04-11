@@ -1,17 +1,26 @@
 import { prisma } from '@/lib/prisma'
 
+export type LatestFiledPayPeriodSlice = {
+  createdAt: Date
+  endDate: string
+}
+
 /**
- * When the most recently **filed** pay period report was first saved (`createdAt`).
- * Default attendance shows only punches **strictly after** this instant; everything at or
- * before it is treated as archived unless the client passes includeArchived=1.
+ * Last filed pay period (greatest `createdAt`): used to decide which punches are
+ * “archived” in the default Attendance view.
  *
- * PATCH updates to the same report do not move `createdAt`, so editing notes does not
- * re-close the period.
+ * A punch is shown by default if **either**:
+ * - its time is after the **closed period’s last calendar day** (UTC end of `endDate`), or
+ * - its time is **strictly after** the report’s first-save instant (`createdAt`).
+ *
+ * So open-period punches (after the closed window) are not hidden just because they
+ * occurred before `createdAt` when the report was filed late or back-dated.
  */
-export async function getLatestClosedPayPeriodCreatedAt(): Promise<Date | null> {
+export async function getLatestFiledPayPeriodForAttendance(): Promise<LatestFiledPayPeriodSlice | null> {
   const p = await prisma.payPeriod.findFirst({
     orderBy: { createdAt: 'desc' },
-    select: { createdAt: true }
+    select: { createdAt: true, endDate: true }
   })
-  return p?.createdAt ?? null
+  if (!p) return null
+  return { createdAt: p.createdAt, endDate: p.endDate }
 }

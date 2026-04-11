@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getLatestClosedPayPeriodCreatedAt } from '@/lib/pay-period-archive'
+import { getLatestFiledPayPeriodForAttendance } from '@/lib/pay-period-archive'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...&includeArchived=1
- * By default hides punches at or before the last filed pay period report’s createdAt
- * (see pay-period-archive). includeArchived=1 drops that filter for allowed roles.
+ * By default hides “archived” punches for the last filed report: still in the closed
+ * window on or before first-save time, unless includeArchived=1 (allowed roles).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -102,8 +102,8 @@ export async function GET(request: NextRequest) {
     const includeArchived =
       includeArchivedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
 
-    const archiveCutoff = await getLatestClosedPayPeriodCreatedAt()
-    const applyArchive = Boolean(archiveCutoff && !includeArchived)
+    const filed = await getLatestFiledPayPeriodForAttendance()
+    const applyArchive = Boolean(filed && !includeArchived)
 
     const andParts: Prisma.AttendanceLogWhereInput[] = []
 
@@ -124,8 +124,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    if (applyArchive && archiveCutoff) {
-      andParts.push({ punchTime: { gt: archiveCutoff } })
+    if (applyArchive && filed && /^\d{4}-\d{2}-\d{2}$/.test(filed.endDate)) {
+      const closedEndEod = new Date(filed.endDate + 'T23:59:59.999Z')
+      if (!Number.isNaN(closedEndEod.getTime())) {
+        andParts.push({
+          OR: [{ punchTime: { gt: closedEndEod } }, { punchTime: { gt: filed.createdAt } }]
+        })
+      }
     }
 
     if (staffId) {
@@ -136,7 +141,7 @@ export async function GET(request: NextRequest) {
       if (!staff) {
         return NextResponse.json({
           logs: [],
-          archiveCutoffAt: archiveCutoff?.toISOString() ?? null,
+          archiveCutoffAt: filed?.createdAt.toISOString() ?? null,
           archivedHidden: false
         })
       }
@@ -159,8 +164,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       logs,
-      archiveCutoffAt: archiveCutoff?.toISOString() ?? null,
-      archivedHidden: applyArchive && archiveCutoff !== null
+      archiveCutoffAt: filed?.createdAt.toISOString() ?? null,
+      archivedHidden: applyArchive && filed !== null
     })
   } catch (error) {
     console.error('Error fetching attendance logs:', error)

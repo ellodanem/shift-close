@@ -1032,10 +1032,11 @@ export default function AttendancePage() {
 
             {archiveMeta.archivedHidden && archiveMeta.archiveCutoffAt && (
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
-                Default view shows only punches <strong>after</strong> the last filed report’s save time (
-                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong>). Punches at or before
-                that time are archived unless you turn on &quot;Include archived punches&quot; (still within the
-                date range above).
+                Default view hides punches that fall <strong>inside the last filed period</strong> and on or
+                before its save time (
+                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong>), except punches after
+                the closed period’s last day always show. Turn on &quot;Include archived punches&quot; to load the
+                rest in the date range above.
               </p>
             )}
 
