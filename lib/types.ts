@@ -65,5 +65,7 @@ export interface DayReport {
   depositScans: string[]
   debitScans: string[]
   securityScans: string[]
+  /** True when a Missing deposit slip alert exists and is open for this calendar day */
+  missingDepositSlipAlertOpen?: boolean
 }
 

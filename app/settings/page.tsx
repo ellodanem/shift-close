@@ -49,6 +49,14 @@ export default function SettingsPage() {
       route: '/settings/end-of-day-email'
     },
     {
+      id: 'missing-deposit-slip-alerts',
+      title: 'Missing deposit slip alerts',
+      description:
+        'Email a short list when a day is flagged for missing deposit scans (End of Day deposit breakdown). Optional daily digest while open.',
+      icon: '⚑',
+      route: '/settings/missing-deposit-slip-alerts'
+    },
+    {
       id: 'pay-days',
       title: 'Pay Days',
       description: 'Set dates when accounting processes payments. Reminders sent 3 and 1 days before.',

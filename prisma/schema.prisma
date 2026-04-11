@@ -147,6 +147,25 @@ model ShiftClose {
   @@map("shift_close")
 }
 
+/// Calendar-day flag: selected deposit line(s) are missing scanned slip(s); optional email + daily digest while open.
+model MissingDepositSlipAlert {
+  id                    String    @id @default(cuid())
+  date                  String    @unique // YYYY-MM-DD
+  open                  Boolean   @default(true)
+  selectionsJson        String    @default("[]") @map("selections_json") // [{ shiftId, lineIndex, amount }]
+  note                  String    @default("")
+  firstNotifySentAt     DateTime? @map("first_notify_sent_at")
+  lastNotifyFingerprint String?   @map("last_notify_fingerprint")
+  lastNotifySentAt      DateTime? @map("last_notify_sent_at")
+  lastDigestSentYmd     String?   @map("last_digest_sent_ymd") // YYYY-MM-DD (station TZ) last digest included this alert
+  lastEmailError        String?   @map("last_email_error")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([open])
+  @@map("missing_deposit_slip_alerts")
+}
+
 /// Reconciliation rows: deposit lines (recordKind deposit, lineIndex = index in ShiftClose.deposits JSON)
 /// or one debit row per shift (recordKind debit, lineIndex = 0).
 model DepositRecord {

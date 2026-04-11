@@ -22,6 +22,17 @@ export async function buildDayReports(): Promise<DayReport[]> {
   })
 
   const dayReports: DayReport[] = []
+  const allDates = [...byDate.keys()]
+  const openMissingSlipDates = new Set(
+    allDates.length === 0
+      ? []
+      : (
+          await prisma.missingDepositSlipAlert.findMany({
+            where: { date: { in: allDates }, open: true },
+            select: { date: true }
+          })
+        ).map((r) => r.date)
+  )
 
   for (const [date, dayShifts] of byDate.entries()) {
     const shiftTypes = dayShifts.map((s) => s.shift)
@@ -150,7 +161,8 @@ export async function buildDayReports(): Promise<DayReport[]> {
       totals,
       depositScans,
       debitScans,
-      securityScans
+      securityScans,
+      missingDepositSlipAlertOpen: openMissingSlipDates.has(date)
     })
   }
 

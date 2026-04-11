@@ -8,6 +8,7 @@ import { DayReport } from '@/lib/types'
 import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
+import DepositBreakdownModal from './DepositBreakdownModal'
 
 type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
 
@@ -591,6 +592,15 @@ export default function DaysPage() {
                         {/* Deposit & Debit slip upload indicators — collapsed only */}
                         {!isExpanded && (
                           <div className="flex items-center gap-2">
+                            {dayReport.missingDepositSlipAlertOpen && (
+                              <span
+                                className="text-amber-600 text-lg leading-none"
+                                title="Open missing deposit slip scan alert for this day"
+                                aria-label="Missing deposit slip alert open"
+                              >
+                                ⚑
+                              </span>
+                            )}
                             <div
                               className="relative"
                               title={
@@ -701,8 +711,16 @@ export default function DaysPage() {
                         </p>
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm text-gray-600">Total Deposits</p>
+                          {dayReport.missingDepositSlipAlertOpen && (
+                            <span
+                              className="text-amber-600 text-sm"
+                              title="Open missing deposit slip scan alert"
+                            >
+                              ⚑
+                            </span>
+                          )}
                           <button
                             onClick={() => setShowDepositBreakdown(dayReport.date)}
                             className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
@@ -859,83 +877,15 @@ export default function DaysPage() {
       
       {/* Deposit Breakdown Modal */}
       {showDepositBreakdown && (() => {
-        const dayReport = dayReports.find(r => r.date === showDepositBreakdown)
+        const dayReport = dayReports.find((r) => r.date === showDepositBreakdown)
         if (!dayReport) return null
-        
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-50 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border-2 border-gray-300">
-              <div className="sticky top-0 bg-gray-50 border-b-2 border-gray-300 px-6 py-4 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Deposit Breakdown - {dayReport.date}
-                </h3>
-                <button
-                  onClick={() => setShowDepositBreakdown(null)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="p-6">
-                <div className="space-y-6">
-                  {dayReport.shifts.map((shift) => {
-                    const deposits = Array.isArray(shift.deposits) ? shift.deposits : []
-                    const hasDeposits = deposits.length > 0 && deposits.some((d: number) => d > 0)
-                    
-                    if (!hasDeposits) {
-                      return (
-                        <div key={shift.id} className="border-b-2 border-gray-300 pb-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <div>
-                              <span className="font-semibold text-gray-900">{shift.shift} Shift</span>
-                              <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
-                            </div>
-                            <span className="text-sm text-gray-400">No deposits</span>
-                          </div>
-                        </div>
-                      )
-                    }
-                    
-                    return (
-                      <div key={shift.id} className="border-b-2 border-gray-300 pb-4 last:border-b-0">
-                        <div className="flex justify-between items-center mb-3">
-                          <div>
-                            <span className="font-semibold text-gray-900">{shift.shift} Shift</span>
-                            <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
-                          </div>
-                          <span className="text-sm font-semibold text-gray-700">
-                            Subtotal: {formatCurrency(shift.totalDeposits || 0)}
-                          </span>
-                        </div>
-                        <div className="ml-4 space-y-1">
-                          {deposits.map((deposit: number, index: number) => {
-                            if (deposit <= 0) return null
-                            return (
-                              <div key={index} className="flex justify-between items-center text-sm">
-                                <span className="text-gray-600">Deposit {index + 1}:</span>
-                                <span className="font-medium text-gray-900">{formatCurrency(deposit)}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                
-                <div className="mt-6 pt-4 border-t-2 border-gray-400">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900">Grand Total:</span>
-                    <span className="text-lg font-bold text-gray-900">
-                      {formatCurrency(dayReport.totals.totalDeposits)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DepositBreakdownModal
+            date={dayReport.date}
+            dayReport={dayReport}
+            onClose={() => setShowDepositBreakdown(null)}
+            onSaved={refreshDayReports}
+          />
         )
       })()}
     </div>
