@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { effectiveAttendanceLogEnd, effectiveAttendanceLogStart } from '@/lib/attendance-log-range'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -20,9 +21,11 @@ export async function GET(request: NextRequest) {
       if (!YMD.test(p.startDate) || !YMD.test(p.endDate)) {
         return NextResponse.json({ error: 'Invalid stored pay period dates' }, { status: 500 })
       }
+      const startDate = effectiveAttendanceLogStart(p.startDate)
+      const endDate = effectiveAttendanceLogEnd(p.endDate)
       return NextResponse.json({
-        startDate: p.startDate,
-        endDate: p.endDate,
+        startDate,
+        endDate,
         savedAt: p.updatedAt.toISOString()
       })
     }
