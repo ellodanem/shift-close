@@ -66,6 +66,8 @@ export default function DepositBreakdownModal({
   const [notifyError, setNotifyError] = useState<string | null>(null)
   const [notifyQueuedUntil, setNotifyQueuedUntil] = useState<number | null>(null)
   const [notifySending, setNotifySending] = useState(false)
+  /** Collapsible “missing slip” panel — collapsed by default for a cleaner modal. */
+  const [missingSlipPanelExpanded, setMissingSlipPanelExpanded] = useState(false)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [, setTick] = useState(0)
@@ -304,80 +306,129 @@ export default function DepositBreakdownModal({
                 })}
               </div>
 
-              <div className="mt-6 pt-4 border-t-2 border-amber-200 bg-amber-50/60 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-amber-950 text-sm">Missing deposit slip scan (this calendar day)</h4>
-                <p className="text-xs text-amber-900/90">
-                  Select the deposit line(s) above that are missing a scanned slip. Saving sends a notification email to
-                  your configured list after a {DEBOUNCE_MS / 1000}-second quiet period (unless you change the alert
-                  again). Use Send now to skip the wait, or Retry after a failed send.
-                </p>
-                <label className="flex items-center gap-2 text-sm text-amber-950">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300"
-                    checked={flagOpen}
-                    onChange={(e) => setFlagOpen(e.target.checked)}
-                  />
-                  Flag open — missing scan(s) for selected deposit amount(s)
-                </label>
-                <div>
-                  <label className="block text-xs font-medium text-amber-950 mb-1">Optional note</label>
-                  <textarea
-                    className="w-full border border-amber-200 rounded px-2 py-1.5 text-sm"
-                    rows={2}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="e.g. will upload after bank confirms"
-                  />
-                </div>
-                {saveError && <p className="text-sm text-red-700">{saveError}</p>}
-                {(notifyError || alert?.lastEmailError) && (
-                  <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                    <p className="font-semibold">Last notification failed</p>
-                    <p className="mt-1">{notifyError || alert?.lastEmailError}</p>
-                    <button
-                      type="button"
-                      className="mt-2 text-sm font-semibold text-red-900 underline"
-                      disabled={notifySending}
-                      onClick={() => void sendNotify(true)}
-                    >
-                      Retry send
-                    </button>
+              <div className="mt-6 pt-4 border-t-2 border-amber-200 bg-amber-50/60 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  id="missing-slip-panel-trigger"
+                  aria-expanded={missingSlipPanelExpanded}
+                  aria-controls="missing-slip-panel-body"
+                  onClick={() => setMissingSlipPanelExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-amber-100/50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-amber-950 text-sm">
+                      Missing deposit slip scan (this calendar day)
+                    </h4>
+                    {!missingSlipPanelExpanded && (
+                      <p className="text-[11px] text-amber-900/80 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {flagOpen && <span className="font-medium">Flag open</span>}
+                        {selectedKeys.size > 0 && (
+                          <span>
+                            {selectedKeys.size} line{selectedKeys.size === 1 ? '' : 's'} selected
+                          </span>
+                        )}
+                        {notifyQueuedUntil !== null && flagOpen && selectedKeys.size > 0 && (
+                          <span>Email queued (~{Math.ceil(secondsLeft / 60)}m)</span>
+                        )}
+                        {(notifyError || alert?.lastEmailError) && (
+                          <span className="text-red-700 font-medium">Send failed — expand to retry</span>
+                        )}
+                        {saveError && <span className="text-red-700 font-medium">Save error — expand</span>}
+                        {!flagOpen &&
+                          selectedKeys.size === 0 &&
+                          !(notifyError || alert?.lastEmailError) &&
+                          !saveError && (
+                            <span className="text-amber-800/70">Optional — expand to configure</span>
+                          )}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className="text-amber-800/80 text-sm flex-shrink-0 tabular-nums w-6 text-center"
+                    aria-hidden
+                  >
+                    {missingSlipPanelExpanded ? '▼' : '▶'}
+                  </span>
+                </button>
+
+                {missingSlipPanelExpanded && (
+                  <div id="missing-slip-panel-body" className="px-4 pb-4 pt-0 space-y-3 border-t border-amber-200/80">
+                    <p className="text-xs text-amber-900/90 pt-3">
+                      Select the deposit line(s) above that are missing a scanned slip. Saving sends a notification email
+                      to your configured list after a {DEBOUNCE_MS / 1000}-second quiet period (unless you change the
+                      alert again). Use Send now to skip the wait, or Retry after a failed send.
+                    </p>
+                    <label className="flex items-center gap-2 text-sm text-amber-950">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300"
+                        checked={flagOpen}
+                        onChange={(e) => setFlagOpen(e.target.checked)}
+                      />
+                      Flag open — missing scan(s) for selected deposit amount(s)
+                    </label>
+                    <div>
+                      <label className="block text-xs font-medium text-amber-950 mb-1">Optional note</label>
+                      <textarea
+                        className="w-full border border-amber-200 rounded px-2 py-1.5 text-sm"
+                        rows={2}
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="e.g. will upload after bank confirms"
+                      />
+                    </div>
+                    {saveError && <p className="text-sm text-red-700">{saveError}</p>}
+                    {(notifyError || alert?.lastEmailError) && (
+                      <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                        <p className="font-semibold">Last notification failed</p>
+                        <p className="mt-1">{notifyError || alert?.lastEmailError}</p>
+                        <button
+                          type="button"
+                          className="mt-2 text-sm font-semibold text-red-900 underline"
+                          disabled={notifySending}
+                          onClick={() => void sendNotify(true)}
+                        >
+                          Retry send
+                        </button>
+                      </div>
+                    )}
+                    {notifyQueuedUntil !== null && flagOpen && selectedKeys.size > 0 && (
+                      <p className="text-xs text-amber-900">
+                        Email queued: sends in ~{Math.floor(secondsLeft / 60)}:
+                        {String(secondsLeft % 60).padStart(2, '0')} unless you save again.
+                      </p>
+                    )}
+                    {alert?.firstNotifySentAt && (
+                      <p className="text-[11px] text-amber-800/90">
+                        First notified: {new Date(alert.firstNotifySentAt).toLocaleString()}
+                        {alert.lastNotifySentAt
+                          ? ` · Last sent: ${new Date(alert.lastNotifySentAt).toLocaleString()}`
+                          : ''}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void saveAlert()}
+                        className="px-4 py-2 bg-amber-700 text-white rounded text-sm font-semibold hover:bg-amber-800 disabled:opacity-50"
+                      >
+                        {saving ? 'Saving…' : 'Save alert'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={notifySending || !flagOpen || selectedKeys.size === 0}
+                        onClick={() => {
+                          clearDebounce()
+                          void sendNotify(false)
+                        }}
+                        className="px-4 py-2 bg-white border border-amber-700 text-amber-900 rounded text-sm font-semibold hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {notifySending ? 'Sending…' : 'Send notification now'}
+                      </button>
+                    </div>
                   </div>
                 )}
-                {notifyQueuedUntil !== null && flagOpen && selectedKeys.size > 0 && (
-                  <p className="text-xs text-amber-900">
-                    Email queued: sends in ~{Math.floor(secondsLeft / 60)}:
-                    {String(secondsLeft % 60).padStart(2, '0')} unless you save again.
-                  </p>
-                )}
-                {alert?.firstNotifySentAt && (
-                  <p className="text-[11px] text-amber-800/90">
-                    First notified: {new Date(alert.firstNotifySentAt).toLocaleString()}
-                    {alert.lastNotifySentAt ? ` · Last sent: ${new Date(alert.lastNotifySentAt).toLocaleString()}` : ''}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void saveAlert()}
-                    className="px-4 py-2 bg-amber-700 text-white rounded text-sm font-semibold hover:bg-amber-800 disabled:opacity-50"
-                  >
-                    {saving ? 'Saving…' : 'Save alert'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={notifySending || !flagOpen || selectedKeys.size === 0}
-                    onClick={() => {
-                      clearDebounce()
-                      void sendNotify(false)
-                    }}
-                    className="px-4 py-2 bg-white border border-amber-700 text-amber-900 rounded text-sm font-semibold hover:bg-amber-100 disabled:opacity-50"
-                  >
-                    {notifySending ? 'Sending…' : 'Send notification now'}
-                  </button>
-                </div>
               </div>
 
               <div className="mt-6 pt-4 border-t-2 border-gray-400">
