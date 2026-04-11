@@ -386,9 +386,10 @@ export default function AttendancePage() {
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
   const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
   const [archiveMeta, setArchiveMeta] = useState<{
-    archiveCutoffAt: string | null
+    archivedClosedStart: string | null
+    archivedClosedEnd: string | null
     archivedHidden: boolean
-  }>({ archiveCutoffAt: null, archivedHidden: false })
+  }>({ archivedClosedStart: null, archivedClosedEnd: null, archivedHidden: false })
   const [staffFilter, setStaffFilter] = useState<string>('')
   /** Narrows the staff list below (name substring, case-insensitive). */
   const [staffSearch, setStaffSearch] = useState('')
@@ -454,11 +455,17 @@ export default function AttendancePage() {
       setLogs(Array.isArray(list) ? list : [])
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
         setArchiveMeta({
-          archiveCutoffAt: typeof raw.archiveCutoffAt === 'string' ? raw.archiveCutoffAt : null,
+          archivedClosedStart:
+            typeof raw.archivedClosedStart === 'string' ? raw.archivedClosedStart : null,
+          archivedClosedEnd: typeof raw.archivedClosedEnd === 'string' ? raw.archivedClosedEnd : null,
           archivedHidden: Boolean(raw.archivedHidden)
         })
       } else {
-        setArchiveMeta({ archiveCutoffAt: null, archivedHidden: false })
+        setArchiveMeta({
+          archivedClosedStart: null,
+          archivedClosedEnd: null,
+          archivedHidden: false
+        })
       }
       if (settingsRes.ok) {
         const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
@@ -1019,7 +1026,7 @@ export default function AttendancePage() {
                     onChange={(e) => setIncludeArchivedPunches(e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  Include archived punches (on or before last filed report time)
+                  Include archived punches (inside last filed pay period dates)
                 </label>
               )}
 
@@ -1030,13 +1037,17 @@ export default function AttendancePage() {
               )}
             </div>
 
-            {archiveMeta.archivedHidden && archiveMeta.archiveCutoffAt && (
+            {archiveMeta.archivedHidden &&
+              archiveMeta.archivedClosedStart &&
+              archiveMeta.archivedClosedEnd && (
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
-                Default view hides punches that fall <strong>inside the last filed period</strong> and on or
-                before its save time (
-                <strong>{new Date(archiveMeta.archiveCutoffAt).toLocaleString()}</strong>), except punches after
-                the closed period’s last day always show. Turn on &quot;Include archived punches&quot; to load the
-                rest in the date range above.
+                Default view hides punches whose time falls in the last filed pay period:{' '}
+                <strong>
+                  {formatDateDisplay(archiveMeta.archivedClosedStart + 'T12:00:00')} —{' '}
+                  {formatDateDisplay(archiveMeta.archivedClosedEnd + 'T12:00:00')}
+                </strong>{' '}
+                (the dates on that report, UTC day bounds). Turn on &quot;Include archived punches&quot; to load
+                those rows when they still fall in the date range above.
               </p>
             )}
 

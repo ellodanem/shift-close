@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 }
 
 /** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...&includeArchived=1
- * By default hides “archived” punches for the last filed report: still in the closed
- * window on or before first-save time, unless includeArchived=1 (allowed roles).
+ * By default hides punches whose punchTime falls inside the last filed pay period’s
+ * startDate–endDate (inclusive, UTC day bounds), unless includeArchived=1 (allowed roles).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -124,11 +124,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    if (applyArchive && filed && /^\d{4}-\d{2}-\d{2}$/.test(filed.endDate)) {
+    const ymd = /^\d{4}-\d{2}-\d{2}$/
+    if (applyArchive && filed && ymd.test(filed.startDate) && ymd.test(filed.endDate)) {
+      const closedStart = new Date(filed.startDate + 'T00:00:00.000Z')
       const closedEndEod = new Date(filed.endDate + 'T23:59:59.999Z')
-      if (!Number.isNaN(closedEndEod.getTime())) {
+      if (!Number.isNaN(closedStart.getTime()) && !Number.isNaN(closedEndEod.getTime())) {
         andParts.push({
-          OR: [{ punchTime: { gt: closedEndEod } }, { punchTime: { gt: filed.createdAt } }]
+          OR: [{ punchTime: { lt: closedStart } }, { punchTime: { gt: closedEndEod } }]
         })
       }
     }
@@ -141,7 +143,8 @@ export async function GET(request: NextRequest) {
       if (!staff) {
         return NextResponse.json({
           logs: [],
-          archiveCutoffAt: filed?.createdAt.toISOString() ?? null,
+          archivedClosedStart: filed?.startDate ?? null,
+          archivedClosedEnd: filed?.endDate ?? null,
           archivedHidden: false
         })
       }
@@ -164,7 +167,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       logs,
-      archiveCutoffAt: filed?.createdAt.toISOString() ?? null,
+      archivedClosedStart: filed?.startDate ?? null,
+      archivedClosedEnd: filed?.endDate ?? null,
       archivedHidden: applyArchive && filed !== null
     })
   } catch (error) {
