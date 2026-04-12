@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/app/components/AuthContext'
 import { normalizePublicAppUrl } from '@/lib/public-url'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
@@ -84,6 +84,28 @@ interface DeviceSettings {
 }
 
 type Tab = 'logs' | 'device'
+
+/** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
+const ATTENDANCE_LOGS_POLL_MS = 45_000
+
+async function fetchAttendanceSyncFingerprint(): Promise<string | null> {
+  const r = await fetch('/api/attendance/logs/sync-hint', { cache: 'no-store' })
+  if (!r.ok) return null
+  const j = (await r.json()) as {
+    newestCreatedAt: string | null
+    newestCorrectedAt: string | null
+    stationTodayYmd: string
+    payPeriodTick: string
+    rawLogsMode: boolean
+  }
+  return [
+    j.newestCreatedAt ?? '',
+    j.newestCorrectedAt ?? '',
+    j.stationTodayYmd,
+    j.payPeriodTick,
+    j.rawLogsMode ? '1' : '0'
+  ].join('|')
+}
 
 function formatDate(d: Date): string {
   const y = d.getFullYear()
@@ -373,6 +395,9 @@ export default function AttendancePage() {
   const [allStaff, setAllStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const loadingRef = useRef(true)
+  const syncingRef = useRef(false)
+  const syncFingerprintRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Normal window after a filed report, or `all` when env raw mode / no reports yet. */
   const [payPeriodBounds, setPayPeriodBounds] = useState<
@@ -459,10 +484,19 @@ export default function AttendancePage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  useEffect(() => {
+    syncingRef.current = syncing
+  }, [syncing])
+
   /** Refetch pay-period bounds before logs; supports full-database “all punches” when no report or ATTENDANCE_RAW_LOGS. */
   const refreshAttendanceLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
+    let shouldUpdateSyncHint = false
     try {
       const periodRes = await fetch('/api/attendance/pay-period?latestSaved=1', { cache: 'no-store' })
       if (!periodRes.ok) throw new Error('Could not load pay period metadata.')
@@ -515,6 +549,7 @@ export default function AttendancePage() {
         } else {
           setCurrentPeriodPayDay(null)
         }
+        shouldUpdateSyncHint = true
         return
       }
 
@@ -577,11 +612,17 @@ export default function AttendancePage() {
       } else {
         setCurrentPeriodPayDay(null)
       }
+      shouldUpdateSyncHint = true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
       setLogs([])
     } finally {
       setLoading(false)
+      if (shouldUpdateSyncHint) {
+        void fetchAttendanceSyncFingerprint().then((fp) => {
+          if (fp !== null) syncFingerprintRef.current = fp
+        })
+      }
     }
   }, [includeArchivedPunches, canToggleArchivedLogs])
 
@@ -597,6 +638,26 @@ export default function AttendancePage() {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [activeTab, refreshAttendanceLogs])
+
+  /** Lightweight poll: only runs full reload when sync-hint fingerprint changes. */
+  useEffect(() => {
+    if (activeTab !== 'logs') return
+    const tick = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (loadingRef.current || syncingRef.current) return
+      const next = await fetchAttendanceSyncFingerprint()
+      if (next === null) return
+      if (syncFingerprintRef.current === null) {
+        syncFingerprintRef.current = next
+        return
+      }
+      if (next !== syncFingerprintRef.current) {
+        void refreshAttendanceLogs()
+      }
+    }
+    const id = window.setInterval(() => void tick(), ATTENDANCE_LOGS_POLL_MS)
+    return () => window.clearInterval(id)
   }, [activeTab, refreshAttendanceLogs])
 
   useEffect(() => {
@@ -1053,15 +1114,6 @@ export default function AttendancePage() {
               </button>
               <button
                 type="button"
-                onClick={() => void refreshAttendanceLogs()}
-                disabled={loading || syncing}
-                title="Reload pay-period window and log list from the server (fixes stale date after midnight)"
-                className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded-lg font-semibold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Loading…' : 'Refresh list'}
-              </button>
-              <button
-                type="button"
                 onClick={openAddPunch}
                 disabled={staffWithDevice.length === 0}
                 title={
@@ -1138,8 +1190,8 @@ export default function AttendancePage() {
                   )}
                 </span>
                 . The period end is fixed when you save a Pay Period Report; until then the list grows through each
-                station day. Punches outside this range are hidden — use <strong>Refresh list</strong> after midnight or{' '}
-                <strong>Include archived punches</strong> if your role allows.
+                station day. Punches outside this range are hidden — the list reloads when you return to this tab, after
+                midnight, or use <strong>Include archived punches</strong> if your role allows.
               </p>
             )}
 
