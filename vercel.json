@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/end-of-day-email",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/attendance-summary-email",
+      "schedule": "5 13 * * *"
+    },
+    {
+      "path": "/api/cron/missing-deposit-slip-digest",
+      "schedule": "15 13 * * *"
+    }
+  ]
+}
