@@ -1190,22 +1190,20 @@ export default function DashboardPage() {
           </div>
             )}
             {id === 'customer-ar-glance' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 w-full">
-            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-slate-800 tracking-tight">
-                  Customer accounts
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Totals for {summary.monthName} {summary.year}. Hover Charges or Payments to see change
-                  since the last import or save.
-                </p>
-              </div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full">
+            <div className="min-w-0 mb-3">
+              <h2 className="text-lg font-semibold text-blue-950 tracking-tight">
+                Customer accounts
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 leading-snug">
+                Totals for {summary.monthName} {summary.year}. Hover Charges or Payments to see change
+                since the last import or save.
+              </p>
               {!isStakeholder && !isSupervisorLike && (
                 <button
                   type="button"
                   onClick={() => router.push('/customer-accounts')}
-                  className="text-xs text-teal-600 hover:text-teal-700 font-semibold shrink-0"
+                  className="mt-2 text-sm text-teal-600 hover:text-teal-700 font-semibold"
                 >
                   Customer Accounts →
                 </button>
@@ -1221,57 +1219,57 @@ export default function DashboardPage() {
                   const posDiffers =
                     posClosing != null && Math.abs(posClosing - computedClosing) >= 0.01
                   return (
-                    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-3 sm:px-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-4">
                       <div
-                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                         style={{ fontVariantNumeric: 'tabular-nums' }}
                       >
                         <div
-                          className="rounded-md bg-white/80 border border-slate-200/80 px-3 py-3 cursor-help shadow-sm"
+                          className="rounded-lg bg-white border border-slate-200 px-4 py-3 cursor-help shadow-sm"
                           title={customerArDeltaTitle(
                             'Charges',
                             arSummary.charges,
                             arSummary.chargesPrevious
                           )}
                         >
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             Charges
                           </div>
-                          <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums break-all sm:break-normal">
+                          <div className="mt-1 text-2xl font-bold text-blue-950 tabular-nums break-all sm:break-normal">
                             ${formatCurrency(arSummary.charges)}
                           </div>
                         </div>
                         <div
-                          className="rounded-md bg-white/80 border border-slate-200/80 px-3 py-3 cursor-help shadow-sm"
+                          className="rounded-lg bg-white border border-slate-200 px-4 py-3 cursor-help shadow-sm"
                           title={customerArDeltaTitle(
                             'Payments',
                             arSummary.payments,
                             arSummary.paymentsPrevious
                           )}
                         >
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             Payments
                           </div>
-                          <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums break-all sm:break-normal">
+                          <div className="mt-1 text-2xl font-bold text-blue-950 tabular-nums break-all sm:break-normal">
                             ${formatCurrency(arSummary.payments)}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500 border-t border-slate-200/80 pt-3">
+                      <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-600">
                         <div>
-                          <span className="text-slate-400">Opening</span>{' '}
-                          <span className="tabular-nums text-slate-600">
+                          <span className="text-slate-500">Opening</span>{' '}
+                          <span className="tabular-nums font-medium text-blue-950">
                             ${formatCurrency(arSummary.opening)}
                           </span>
                         </div>
                         <div>
-                          <span className="text-slate-400">Closing (computed)</span>{' '}
-                          <span className="tabular-nums text-slate-600">
+                          <span className="text-slate-500">Closing (computed)</span>{' '}
+                          <span className="tabular-nums font-medium text-blue-950">
                             ${formatCurrency(computedClosing)}
                           </span>
                           {posDiffers && (
-                            <span className="ml-1 text-amber-700">
+                            <span className="ml-1 text-amber-700 text-xs font-medium">
                               (POS {formatCurrency(posClosing!)})
                             </span>
                           )}
@@ -1279,7 +1277,7 @@ export default function DashboardPage() {
                       </div>
 
                       {arSummary.updatedAt && (
-                        <div className="mt-3 pt-2 border-t border-slate-200/80 text-[11px] text-slate-400">
+                        <div className="mt-4 pt-3 border-t border-slate-200 text-xs text-slate-400">
                           Last updated{' '}
                           <span className="text-slate-500">{formatDateTime(arSummary.updatedAt)}</span>
                         </div>
@@ -1307,113 +1305,108 @@ export default function DashboardPage() {
           </div>
             )}
             {id === 'fuel-mtd-deposit-block' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="grid grid-cols-1 gap-8 xl:grid-cols-2 xl:gap-10">
-              {/* Fuel sold — left */}
-              <div className="min-w-0">
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-700">Fuel sold — daily average (MTD)</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Litres from shift close entries for {summary.monthName} {summary.year}. Averages divide total volume
-                    by calendar days in the period (current month: 1st through today; past months: full month).
-                  </p>
-                </div>
-                {fuelMtdLoadState !== 'done' ? (
-                  <p className="text-sm text-gray-400 italic">Loading fuel volumes…</p>
-                ) : fuelMtdSold?.isFutureMonth ? (
-                  <p className="text-sm text-gray-400 italic">No data for a future month.</p>
-                ) : fuelMtdSold ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-gray-500">{fuelMtdSold.periodLabel}</p>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="mb-1 text-xs font-medium text-emerald-800">Gas (unleaded)</div>
-                        <div className="text-2xl font-bold text-emerald-900">
-                          {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L
-                        </div>
-                        <div className="mt-0.5 text-xs text-emerald-700">per day average</div>
-                        <div className="mt-2 border-t border-emerald-200/80 pt-2 text-xs text-emerald-800">
-                          MTD total: {formatLitres(fuelMtdSold.totalUnleaded)} L
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-slate-300 bg-slate-50 p-4">
-                        <div className="mb-1 text-xs font-medium text-slate-800">Diesel</div>
-                        <div className="text-2xl font-bold text-slate-900">
-                          {formatLitres(fuelMtdSold.avgDieselPerDay)} L
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-600">per day average</div>
-                        <div className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-700">
-                          MTD total: {formatLitres(fuelMtdSold.totalDiesel)} L
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-amber-800">
-                    Could not load fuel volumes. If this persists, check that you are signed in and have access to
-                    dashboard data.
-                  </p>
-                )}
-              </div>
-
-              {/* Average deposit — right */}
-              <div className="min-w-0 border-t border-gray-200 pt-8 xl:border-t-0 xl:border-l xl:border-gray-200 xl:pt-0 xl:pl-8">
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-700">Average Deposit</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    From shift close deposits, month-to-date through the <strong>last shift close</strong> (not
-                    necessarily today). Compared to the same calendar day last month and last year.
-                  </p>
-                  {averageDeposit?.lastShiftDate && averageDeposit.periodLabel && (
-                    <p className="mt-2 text-xs text-gray-500">{averageDeposit.periodLabel}</p>
-                  )}
-                </div>
-                {averageDeposit ? (
-                  averageDeposit.lastShiftDate ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-2">
-                      <span className="text-sm font-medium text-gray-700">This month (MTD)</span>
-                      <span className="text-lg font-bold text-blue-900">
-                        ${formatCurrency(averageDeposit.avgDepositMTD)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Same day last month
-                        {averageDeposit.sameDayLastMonth && (
-                          <span className="text-gray-500 font-normal ml-1">
-                            ({new Date(averageDeposit.sameDayLastMonth.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {averageDeposit.sameDayLastMonth != null ? `$${formatCurrency(averageDeposit.sameDayLastMonth.total)}` : '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 py-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Same day last year
-                        {averageDeposit.sameDayLastYear && (
-                          <span className="text-gray-500 font-normal ml-1">
-                            ({new Date(averageDeposit.sameDayLastYear.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {averageDeposit.sameDayLastYear != null ? `$${formatCurrency(averageDeposit.sameDayLastYear.total)}` : '—'}
-                      </span>
-                    </div>
-                  </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 mt-1">
-                      {averageDeposit.periodLabel ?? 'No shift closes recorded this month yet.'}
-                    </p>
-                  )
-                ) : (
-                  <p className="text-sm text-gray-400 italic">No deposit data available</p>
-                )}
-              </div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-blue-950">Fuel sold — daily average (MTD)</h2>
+              <p className="text-sm text-slate-500 mt-1 leading-snug">
+                Litres from shift close entries for {summary.monthName} {summary.year}. Averages divide total volume
+                by calendar days in the period (current month: 1st through today; past months: full month).
+              </p>
             </div>
+            {fuelMtdLoadState !== 'done' ? (
+              <p className="text-sm text-slate-400 italic">Loading fuel volumes…</p>
+            ) : fuelMtdSold?.isFutureMonth ? (
+              <p className="text-sm text-slate-400 italic">No data for a future month.</p>
+            ) : fuelMtdSold ? (
+              <div className="space-y-4">
+                <p className="text-xs font-medium text-slate-500">{fuelMtdSold.periodLabel}</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                    <div className="mb-1 text-xs font-semibold text-emerald-800">Gas (unleaded)</div>
+                    <div className="text-2xl font-bold text-blue-950 tabular-nums">
+                      {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L
+                    </div>
+                    <div className="mt-0.5 text-xs font-medium text-emerald-700">per day average</div>
+                    <div className="mt-3 border-t border-emerald-200/90 pt-2 text-xs font-medium text-blue-950">
+                      MTD total: {formatLitres(fuelMtdSold.totalUnleaded)} L
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-1 text-xs font-semibold text-slate-600">Diesel</div>
+                    <div className="text-2xl font-bold text-blue-950 tabular-nums">
+                      {formatLitres(fuelMtdSold.avgDieselPerDay)} L
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-500">per day average</div>
+                    <div className="mt-3 border-t border-slate-200 pt-2 text-xs font-medium text-blue-950">
+                      MTD total: {formatLitres(fuelMtdSold.totalDiesel)} L
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-amber-800">
+                Could not load fuel volumes. If this persists, check that you are signed in and have access to
+                dashboard data.
+              </p>
+            )}
+          </div>
+            )}
+            {id === 'average-deposit' && summary && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-blue-950">Average deposit</h2>
+              <p className="text-sm text-slate-500 mt-1 leading-snug">
+                From shift close deposits, month-to-date through the <strong>last shift close</strong> (not
+                necessarily today). Compared to the same calendar day last month and last year.
+              </p>
+              {averageDeposit?.lastShiftDate && averageDeposit.periodLabel && (
+                <p className="mt-2 text-xs font-medium text-slate-500">{averageDeposit.periodLabel}</p>
+              )}
+            </div>
+            {averageDeposit ? (
+              averageDeposit.lastShiftDate ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2">
+                    <span className="text-sm font-medium text-slate-700">This month (MTD)</span>
+                    <span className="text-lg font-bold text-blue-950 tabular-nums">
+                      ${formatCurrency(averageDeposit.avgDepositMTD)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Same day last month
+                      {averageDeposit.sameDayLastMonth && (
+                        <span className="text-slate-500 font-normal ml-1">
+                          ({new Date(averageDeposit.sameDayLastMonth.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold text-blue-950 tabular-nums">
+                      {averageDeposit.sameDayLastMonth != null ? `$${formatCurrency(averageDeposit.sameDayLastMonth.total)}` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Same day last year
+                      {averageDeposit.sameDayLastYear && (
+                        <span className="text-slate-500 font-normal ml-1">
+                          ({new Date(averageDeposit.sameDayLastYear.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold text-blue-950 tabular-nums">
+                      {averageDeposit.sameDayLastYear != null ? `$${formatCurrency(averageDeposit.sameDayLastYear.total)}` : '—'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500 mt-1">
+                  {averageDeposit.periodLabel ?? 'No shift closes recorded this month yet.'}
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-slate-400 italic">No deposit data available</p>
+            )}
           </div>
             )}
             {id === 'phase1-status' && summary && (

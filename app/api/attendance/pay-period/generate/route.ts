@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { computeNetOverShort } from '@/lib/calculations'
+import {
+  inactiveStaffIdsWithVacationOverlap,
+  mergePayPeriodStaffLists,
+  payPeriodStaffSelect,
+  staffIdsFromAttendanceLogs
+} from '@/lib/pay-period-staff-union'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,10 +46,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Active hourly staff on report (excludes managers and punch-exempt / salaried)
-    const staff = await prisma.staff.findMany({
+    const activeBaseline = await prisma.staff.findMany({
       where: { status: 'active', role: { not: 'manager' }, punchExempt: false },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, name: true, firstName: true, deviceUserId: true, vacationStart: true, vacationEnd: true }
+      select: payPeriodStaffSelect
     })
 
     // Fetch attendance logs in range
@@ -127,6 +133,31 @@ export async function POST(request: NextRequest) {
         sickLeaveByStaff.set(sl.staffId, { days: overlap.days, ranges: rangeStr })
       }
     }
+
+    const signalStaffIds = await staffIdsFromAttendanceLogs(logs)
+    for (const sl of sickLeaves) signalStaffIds.add(sl.staffId)
+    for (const sid of shortageByStaff.keys()) signalStaffIds.add(sid)
+    for (const id of await inactiveStaffIdsWithVacationOverlap(startDate, endDate)) {
+      signalStaffIds.add(id)
+    }
+
+    const activeIds = new Set(activeBaseline.map((s) => s.id))
+    const supplementalIds = [...signalStaffIds].filter((id) => !activeIds.has(id))
+
+    const inactiveSupplemental =
+      supplementalIds.length === 0
+        ? []
+        : await prisma.staff.findMany({
+            where: {
+              id: { in: supplementalIds },
+              status: 'inactive',
+              role: { not: 'manager' }
+            },
+            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+            select: payPeriodStaffSelect
+          })
+
+    const staff = mergePayPeriodStaffLists(activeBaseline, inactiveSupplemental)
 
     // Build rows
     const rows: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number; sickLeaveDays: number; sickLeaveRanges: string }> = []

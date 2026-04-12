@@ -147,6 +147,7 @@ export function canManageExistingAppUser(actorRole: string, targetUserRole: stri
 export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
   'fuel-mtd-deposit-block',
+  'average-deposit',
   'phase1-status'
 ]
 
@@ -154,6 +155,7 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
   'fuel-mtd-deposit-block',
+  'average-deposit',
   'fuel-volume',
   'recent-fuel-payment'
 ]

@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import {
+  inactiveStaffIdsWithVacationOverlap,
+  mergePayPeriodStaffLists,
+  payPeriodStaffSelect,
+  staffIdsFromAttendanceLogs
+} from '@/lib/pay-period-staff-union'
 
 /** YYYY-MM-DD for an instant in the given IANA timezone (en-CA for ISO-like order). */
 export function ymdInZone(d: Date, timeZone: string): string {
@@ -136,10 +142,10 @@ export async function buildAttendanceSummaryData(
   periodLabel: string
   rows: AttendanceSummaryRow[]
 }> {
-  const staff = await prisma.staff.findMany({
+  const activeBaseline = await prisma.staff.findMany({
     where: { status: 'active', role: { not: 'manager' } },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    select: { id: true, name: true, firstName: true, deviceUserId: true }
+    select: payPeriodStaffSelect
   })
 
   const cutoff = await getPayPeriodCutoffStartYmd()
@@ -153,6 +159,39 @@ export async function buildAttendanceSummaryData(
     where: { punchTime: { gte: periodStart, lte: periodEnd } },
     orderBy: { punchTime: 'asc' }
   })
+
+  const sickLeavesOverlap = await prisma.staffSickLeave.findMany({
+    where: {
+      status: 'approved',
+      startDate: { lte: reportDateYmd },
+      endDate: { gte: periodStartYmd }
+    },
+    select: { staffId: true }
+  })
+
+  const signalStaffIds = await staffIdsFromAttendanceLogs(periodLogs)
+  for (const sl of sickLeavesOverlap) signalStaffIds.add(sl.staffId)
+  for (const id of await inactiveStaffIdsWithVacationOverlap(periodStartYmd, reportDateYmd)) {
+    signalStaffIds.add(id)
+  }
+
+  const activeIds = new Set(activeBaseline.map((s) => s.id))
+  const supplementalIds = [...signalStaffIds].filter((id) => !activeIds.has(id))
+
+  const inactiveSupplemental =
+    supplementalIds.length === 0
+      ? []
+      : await prisma.staff.findMany({
+          where: {
+            id: { in: supplementalIds },
+            status: 'inactive',
+            role: { not: 'manager' }
+          },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          select: payPeriodStaffSelect
+        })
+
+  const staff = mergePayPeriodStaffLists(activeBaseline, inactiveSupplemental)
 
   const dailyLogs = periodLogs.filter((l) => l.punchTime >= dayStart && l.punchTime <= dayEnd)
 

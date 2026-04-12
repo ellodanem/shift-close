@@ -4,8 +4,9 @@
  */
 export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
-  'customer-ar-glance',
   'fuel-mtd-deposit-block',
+  'customer-ar-glance',
+  'average-deposit',
   'phase1-status',
   'fuel-volume',
   'recent-fuel-payment'
@@ -38,11 +39,8 @@ export function buildDashboardSegments(layout: DashboardWidgetId[]): DashboardWi
   for (const id of layout) {
     if (used.has(id)) continue
     if (pairActive && (id === 'customer-ar-glance' || id === 'fuel-mtd-deposit-block')) {
-      const iAr = layout.indexOf('customer-ar-glance')
-      const iFu = layout.indexOf('fuel-mtd-deposit-block')
-      const ordered: [DashboardWidgetId, DashboardWidgetId] =
-        iAr < iFu ? ['customer-ar-glance', 'fuel-mtd-deposit-block'] : ['fuel-mtd-deposit-block', 'customer-ar-glance']
-      out.push([ordered[0], ordered[1]])
+      // Fuel sold left, Customer accounts right (matches dashboard layout)
+      out.push(['fuel-mtd-deposit-block', 'customer-ar-glance'])
       used.add('customer-ar-glance')
       used.add('fuel-mtd-deposit-block')
       continue
@@ -61,11 +59,11 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
     const parsed = JSON.parse(raw) as string[]
     if (!Array.isArray(parsed)) return getDefaultLayout()
     // Migrate: 'upcoming' / 'today-roster' / 'upcoming-roster' → dropped (roster is fixed in dashboard header)
-    // Migrate: 'fuel-mtd-sold' + 'average-deposit' -> single 'fuel-mtd-deposit-block'
+    // Migrate: 'fuel-mtd-sold' -> 'fuel-mtd-deposit-block' (average-deposit is its own widget)
     const migrated = parsed
       .map((id) => {
         if (id === 'upcoming' || id === 'today-roster') return 'upcoming-roster'
-        if (id === 'fuel-mtd-sold' || id === 'average-deposit') return 'fuel-mtd-deposit-block'
+        if (id === 'fuel-mtd-sold') return 'fuel-mtd-deposit-block'
         return id
       })
       .filter((id) => id !== 'upcoming-roster')
@@ -75,12 +73,22 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
     )
     const missing = DEFAULT_LAYOUT.filter(id => !valid.includes(id))
     let merged = [...valid, ...missing]
-    // Place new customer-ar-glance after month-summary when it was missing from saved layout
+    // Place customer-ar-glance after fuel-mtd-deposit-block when missing (paired row)
     if (missing.includes('customer-ar-glance')) {
       merged = merged.filter((id) => id !== 'customer-ar-glance')
-      const mi = merged.indexOf('month-summary')
-      if (mi >= 0) merged.splice(mi + 1, 0, 'customer-ar-glance')
-      else merged.unshift('customer-ar-glance')
+      const fi = merged.indexOf('fuel-mtd-deposit-block')
+      if (fi >= 0) merged.splice(fi + 1, 0, 'customer-ar-glance')
+      else merged.splice(Math.min(1, merged.length), 0, 'customer-ar-glance')
+    }
+    if (missing.includes('average-deposit')) {
+      merged = merged.filter((id) => id !== 'average-deposit')
+      const ci = merged.indexOf('customer-ar-glance')
+      if (ci >= 0) merged.splice(ci + 1, 0, 'average-deposit')
+      else {
+        const fi = merged.indexOf('fuel-mtd-deposit-block')
+        if (fi >= 0) merged.splice(fi + 1, 0, 'average-deposit')
+        else merged.push('average-deposit')
+      }
     }
     return merged
   } catch {
