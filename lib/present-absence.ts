@@ -1,5 +1,6 @@
 import { addMinutes } from 'date-fns'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { deviceUserIdLookupKeys, expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_EOD_TIMEZONE } from '@/lib/eod-email'
 
@@ -66,7 +67,7 @@ export function calendarYmdInTz(instant: Date, tz: string): string {
   return formatInTimeZone(instant, tz, 'yyyy-MM-dd')
 }
 
-function addCalendarYmd(ymd: string, delta: number, tz: string): string {
+export function addCalendarYmd(ymd: string, delta: number, tz: string): string {
   const anchor = fromZonedTime(`${ymd}T12:00:00`, tz)
   const next = new Date(anchor.getTime() + delta * 24 * 60 * 60 * 1000)
   return formatInTimeZone(next, tz, 'yyyy-MM-dd')
@@ -267,7 +268,8 @@ export async function loadPunchFlagsForStaffOnDate(
     where: { id: { in: staffIds } },
     select: { id: true, deviceUserId: true }
   })
-  const deviceIds = staffRows.map((s) => s.deviceUserId).filter((d): d is string => Boolean(d && d.trim()))
+  const deviceIdsRaw = staffRows.map((s) => s.deviceUserId).filter((d): d is string => Boolean(d && d.trim()))
+  const deviceIds = expandDeviceUserIdsForDbMatch(deviceIdsRaw)
 
   const windowStart = fromZonedTime(`${ymd}T00:00:00`, tz)
   const nextYmd = addCalendarYmd(ymd, 1, tz)
@@ -288,7 +290,11 @@ export async function loadPunchFlagsForStaffOnDate(
 
   const deviceToStaff = new Map<string, string>()
   for (const s of staffRows) {
-    if (s.deviceUserId?.trim()) deviceToStaff.set(s.deviceUserId.trim(), s.id)
+    if (!s.deviceUserId?.trim()) continue
+    const canon = s.deviceUserId.trim()
+    for (const k of deviceUserIdLookupKeys(canon)) {
+      deviceToStaff.set(k, s.id)
+    }
   }
 
   for (const log of logs) {
@@ -297,7 +303,11 @@ export async function loadPunchFlagsForStaffOnDate(
     if (log.staffId && staffIds.includes(log.staffId)) {
       result.set(log.staffId, true)
     } else {
-      const sid = deviceToStaff.get(log.deviceUserId.trim())
+      let sid: string | undefined
+      for (const k of deviceUserIdLookupKeys(log.deviceUserId)) {
+        sid = deviceToStaff.get(k)
+        if (sid) break
+      }
       if (sid) result.set(sid, true)
     }
   }

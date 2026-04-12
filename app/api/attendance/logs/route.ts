@@ -1,6 +1,9 @@
 import type { Prisma } from '@prisma/client'
+import { fromZonedTime } from 'date-fns-tz'
 import { NextRequest, NextResponse } from 'next/server'
+import { expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
+import { addCalendarYmd, readStationTimeZone } from '@/lib/present-absence'
 import { getLatestFiledPayPeriodForAttendance } from '@/lib/pay-period-archive'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
@@ -107,24 +110,40 @@ export async function GET(request: NextRequest) {
 
     const andParts: Prisma.AttendanceLogWhereInput[] = []
 
-    if (startDate && endDate) {
-      andParts.push({
-        punchTime: {
-          gte: new Date(startDate + 'T00:00:00'),
-          lte: new Date(endDate + 'T23:59:59.999')
-        }
-      })
-    } else if (startDate) {
-      andParts.push({
-        punchTime: { gte: new Date(startDate + 'T00:00:00') }
-      })
-    } else if (endDate) {
-      andParts.push({
-        punchTime: { lte: new Date(endDate + 'T23:59:59.999') }
-      })
-    }
-
     const ymd = /^\d{4}-\d{2}-\d{2}$/
+    const tz = await readStationTimeZone()
+
+    if (startDate && endDate) {
+      if (ymd.test(startDate) && ymd.test(endDate)) {
+        const gte = fromZonedTime(`${startDate}T00:00:00`, tz)
+        const endExclusive = fromZonedTime(`${addCalendarYmd(endDate, 1, tz)}T00:00:00`, tz)
+        andParts.push({ punchTime: { gte, lt: endExclusive } })
+      } else {
+        andParts.push({
+          punchTime: {
+            gte: new Date(startDate + 'T00:00:00'),
+            lte: new Date(endDate + 'T23:59:59.999')
+          }
+        })
+      }
+    } else if (startDate) {
+      if (ymd.test(startDate)) {
+        andParts.push({ punchTime: { gte: fromZonedTime(`${startDate}T00:00:00`, tz) } })
+      } else {
+        andParts.push({
+          punchTime: { gte: new Date(startDate + 'T00:00:00') }
+        })
+      }
+    } else if (endDate) {
+      if (ymd.test(endDate)) {
+        const endExclusive = fromZonedTime(`${addCalendarYmd(endDate, 1, tz)}T00:00:00`, tz)
+        andParts.push({ punchTime: { lt: endExclusive } })
+      } else {
+        andParts.push({
+          punchTime: { lte: new Date(endDate + 'T23:59:59.999') }
+        })
+      }
+    }
     if (applyArchive && filed && ymd.test(filed.startDate) && ymd.test(filed.endDate)) {
       const closedStart = new Date(filed.startDate + 'T00:00:00.000Z')
       const closedEndEod = new Date(filed.endDate + 'T23:59:59.999Z')
@@ -149,7 +168,12 @@ export async function GET(request: NextRequest) {
         })
       }
       const dev = staff.deviceUserId?.trim()
-      andParts.push(dev ? { OR: [{ staffId }, { deviceUserId: dev }] } : { staffId })
+      if (dev) {
+        const devKeys = expandDeviceUserIdsForDbMatch([dev])
+        andParts.push({ OR: [{ staffId }, { deviceUserId: { in: devKeys } }] })
+      } else {
+        andParts.push({ staffId })
+      }
     }
 
     const where: Prisma.AttendanceLogWhereInput =

@@ -30,12 +30,17 @@ export function attendanceBootstrapEarliestYmd(): string | null {
  * Inclusive YYYY-MM-DD bounds for the **current open** attendance window after the last
  * **filed** pay period (greatest `createdAt`). Starts the earlier of (day after closed end,
  * calendar day of first save) so punches on the last closed day **after** the save stay in range.
+ *
+ * Pass `todayYmd` as **station** calendar today (same TZ as attendance logs) so the window
+ * end matches local “today”; otherwise UTC date is used (legacy).
  */
 export function openAttendanceWindowAfterLastClosed(p: {
   endDate: string
   createdAt: Date
+  todayYmd?: string
 }): { startDate: string; endDate: string } {
-  const today = todayYmdUtc()
+  const today =
+    p.todayYmd && YMD.test(p.todayYmd) ? p.todayYmd : todayYmdUtc()
   if (!YMD.test(p.endDate)) {
     return { startDate: today, endDate: today }
   }

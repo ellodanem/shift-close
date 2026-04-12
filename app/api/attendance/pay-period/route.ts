@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { openAttendanceWindowAfterLastClosed } from '@/lib/attendance-open-period'
 import { prisma } from '@/lib/prisma'
+import { calendarYmdInTz, readStationTimeZone } from '@/lib/present-absence'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,9 +27,12 @@ export async function GET(request: NextRequest) {
       if (!YMD.test(p.startDate) || !YMD.test(p.endDate)) {
         return NextResponse.json({ error: 'Invalid stored pay period dates' }, { status: 500 })
       }
+      const tz = await readStationTimeZone()
+      const todayYmd = calendarYmdInTz(new Date(), tz)
       const { startDate, endDate } = openAttendanceWindowAfterLastClosed({
         endDate: p.endDate,
-        createdAt: p.createdAt
+        createdAt: p.createdAt,
+        todayYmd
       })
       return NextResponse.json({
         startDate,
