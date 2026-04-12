@@ -9,8 +9,7 @@ import {
   saveDashboardLayout,
   moveWidgetUp,
   moveWidgetDown,
-  buildDashboardSegments,
-  pinUpcomingFirst
+  buildDashboardSegments
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
@@ -223,9 +222,9 @@ export default function DashboardPage() {
     if (authLoading) return
     const restricted = getDashboardWidgetIdsForRole(appRole)
     if (restricted === 'all') {
-      setLayout(pinUpcomingFirst(loadDashboardLayout()))
+      setLayout(loadDashboardLayout())
     } else {
-      setLayout(pinUpcomingFirst(restricted))
+      setLayout(restricted)
     }
   }, [authLoading, appRole])
 
@@ -613,13 +612,13 @@ export default function DashboardPage() {
   )
 
   const handleMoveUp = (id: DashboardWidgetId) => {
-    const next = pinUpcomingFirst(moveWidgetUp(layout, id))
+    const next = moveWidgetUp(layout, id)
     setLayout(next)
     saveDashboardLayout(next)
   }
 
   const handleMoveDown = (id: DashboardWidgetId) => {
-    const next = pinUpcomingFirst(moveWidgetDown(layout, id))
+    const next = moveWidgetDown(layout, id)
     setLayout(next)
     saveDashboardLayout(next)
   }
@@ -667,7 +666,7 @@ export default function DashboardPage() {
   }
 
   const renderUpcomingCard = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full min-h-[7.5rem] flex flex-col lg:max-w-md xl:max-w-lg lg:flex-shrink-0 w-full">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full min-h-[7.5rem] flex flex-col w-full min-w-0">
       <div className="flex items-center justify-between mb-3 shrink-0">
         <h3 className="text-sm font-semibold text-gray-900">Upcoming</h3>
         <div className="flex items-center gap-1">
@@ -831,6 +830,114 @@ export default function DashboardPage() {
     </div>
   )
 
+  const renderTodayRosterCard = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 w-full min-w-0">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">
+          {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
+        </h3>
+        <div className="flex items-center gap-2">
+          {todayRoster?.presentAbsenceEnabled ? (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/present-absence')}
+              className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+            >
+              Present / Absent
+            </button>
+          ) : null}
+          {!isStakeholder && (
+            <button
+              type="button"
+              onClick={() => router.push('/roster')}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Roster →
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
+          {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
+              {groupScheduledByShift(todayRoster.scheduled).map((group) => (
+                <div key={group.shiftName} className="text-xs">
+                  <div className="inline-flex items-center gap-1 font-semibold text-gray-900">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: group.color || '#94a3b8' }}
+                      title={group.shiftName}
+                    />
+                    {group.shiftName}
+                  </div>
+                  <div className="mt-0.5 text-gray-700 space-y-0.5">
+                    {group.entries.map((e) => {
+                      const g = e.presence
+                        ? presenceStatusGlyph(e.presence.status)
+                        : null
+                      const canEditPresence =
+                        todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
+                      return (
+                        <div
+                          key={`${group.shiftName}-${e.staffId}`}
+                          className="flex items-center gap-1.5 min-h-[1.25rem]"
+                        >
+                          {g && (
+                            <button
+                              type="button"
+                              title={g.title}
+                              disabled={!canEditPresence}
+                              onClick={() => {
+                                if (!canEditPresence || !todayRoster.date) return
+                                setPresenceModal({
+                                  staffId: e.staffId,
+                                  staffName: e.displayName,
+                                  date: todayRoster.date,
+                                  manualPresent: e.presence?.manualPresent === true,
+                                  manualAbsent: e.presence?.manualAbsent === true,
+                                  punchExempt: e.presence?.punchExempt === true,
+                                  lateReason: e.presence?.lateReason ?? ''
+                                })
+                              }}
+                              className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
+                                g.className
+                              } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                            >
+                              {g.char}
+                            </button>
+                          )}
+                          <span>{e.displayName}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 italic">No one scheduled.</p>
+          )}
+        </div>
+        <div>
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Who&apos;s off</div>
+          {todayRoster?.off && todayRoster.off.length > 0 ? (
+            <ul className="space-y-1">
+              {todayRoster.off.map((s) => (
+                <li key={s.staffId} className="text-xs text-gray-700">
+                  {s.staffFirstName ?? s.staffName}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-500 italic">No one off today.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -847,9 +954,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         </div>
 
-        {/* Month filter + Upcoming (top row) */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex-1 min-w-0">
+        {/* Upper dashboard: month (top-left), Upcoming + today roster stacked (right); row-2 left reserved for future cards */}
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:grid-rows-2 lg:items-start">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0 lg:col-start-1 lg:row-start-1">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
@@ -926,7 +1033,11 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        {renderUpcomingCard()}
+          <div className="flex flex-col gap-4 w-full min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+            {renderUpcomingCard()}
+            {renderTodayRosterCard()}
+          </div>
+          <div className="hidden min-h-0 lg:block lg:col-start-1 lg:row-start-2" aria-hidden />
         </div>
 
         {/* Moveable widgets */}
@@ -1487,113 +1598,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-            {id === 'upcoming-roster' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">
-                {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
-              </h3>
-              <div className="flex items-center gap-2">
-                {todayRoster?.presentAbsenceEnabled ? (
-                  <button
-                    type="button"
-                    onClick={() => router.push('/dashboard/present-absence')}
-                    className="text-xs text-slate-600 hover:text-slate-900 font-medium"
-                  >
-                    Present / Absent
-                  </button>
-                ) : null}
-                {!isStakeholder && (
-                  <button
-                    type="button"
-                    onClick={() => router.push('/roster')}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Roster →
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
-                {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
-                    {groupScheduledByShift(todayRoster.scheduled).map((group) => (
-                      <div key={group.shiftName} className="text-xs">
-                        <div className="inline-flex items-center gap-1 font-semibold text-gray-900">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full shrink-0"
-                            style={{ backgroundColor: group.color || '#94a3b8' }}
-                            title={group.shiftName}
-                          />
-                          {group.shiftName}
-                        </div>
-                        <div className="mt-0.5 text-gray-700 space-y-0.5">
-                          {group.entries.map((e) => {
-                            const g = e.presence
-                              ? presenceStatusGlyph(e.presence.status)
-                              : null
-                            const canEditPresence =
-                              todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
-                            return (
-                              <div
-                                key={`${group.shiftName}-${e.staffId}`}
-                                className="flex items-center gap-1.5 min-h-[1.25rem]"
-                              >
-                                {g && (
-                                  <button
-                                    type="button"
-                                    title={g.title}
-                                    disabled={!canEditPresence}
-                                    onClick={() => {
-                                      if (!canEditPresence || !todayRoster.date) return
-                                      setPresenceModal({
-                                        staffId: e.staffId,
-                                        staffName: e.displayName,
-                                        date: todayRoster.date,
-                                        manualPresent: e.presence?.manualPresent === true,
-                                        manualAbsent: e.presence?.manualAbsent === true,
-                                        punchExempt: e.presence?.punchExempt === true,
-                                        lateReason: e.presence?.lateReason ?? ''
-                                      })
-                                    }}
-                                    className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
-                                      g.className
-                                    } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                                  >
-                                    {g.char}
-                                  </button>
-                                )}
-                                <span>{e.displayName}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 italic">No one scheduled.</p>
-                )}
-              </div>
-              <div>
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Who&apos;s off</div>
-                {todayRoster?.off && todayRoster.off.length > 0 ? (
-                  <ul className="space-y-1">
-                    {todayRoster.off.map((s) => (
-                      <li key={s.staffId} className="text-xs text-gray-700">
-                        {s.staffFirstName ?? s.staffName}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-gray-500 italic">No one off today.</p>
-                )}
-              </div>
-            </div>
-          </div>
-            )}
             {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
           const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
           const maxVal = Math.max(...allVals, 1)

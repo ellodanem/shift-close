@@ -3,7 +3,6 @@
  * For now uses localStorage. When users exist, switch to userId-scoped key or DB.
  */
 export const DASHBOARD_WIDGET_IDS = [
-  'upcoming-roster',
   'month-summary',
   'customer-ar-glance',
   'fuel-mtd-deposit-block',
@@ -24,16 +23,6 @@ function getStorageKey(userId?: string): string {
 
 export function getDefaultLayout(): DashboardWidgetId[] {
   return [...DEFAULT_LAYOUT]
-}
-
-/** Keep Upcoming first so it stays visible without scrolling. */
-export function pinUpcomingFirst(layout: DashboardWidgetId[]): DashboardWidgetId[] {
-  const i = layout.indexOf('upcoming-roster')
-  if (i <= 0) return layout
-  const next = [...layout]
-  next.splice(i, 1)
-  next.unshift('upcoming-roster')
-  return next
 }
 
 /**
@@ -68,16 +57,18 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
   if (typeof window === 'undefined') return getDefaultLayout()
   try {
     const raw = localStorage.getItem(getStorageKey(userId))
-    if (!raw) return pinUpcomingFirst(getDefaultLayout())
+    if (!raw) return getDefaultLayout()
     const parsed = JSON.parse(raw) as string[]
-    if (!Array.isArray(parsed)) return pinUpcomingFirst(getDefaultLayout())
-    // Migrate: merge 'upcoming' + 'today-roster' -> 'upcoming-roster'
+    if (!Array.isArray(parsed)) return getDefaultLayout()
+    // Migrate: 'upcoming' / 'today-roster' / 'upcoming-roster' → dropped (roster is fixed in dashboard header)
     // Migrate: 'fuel-mtd-sold' + 'average-deposit' -> single 'fuel-mtd-deposit-block'
-    const migrated = parsed.map((id) => {
-      if (id === 'upcoming' || id === 'today-roster') return 'upcoming-roster'
-      if (id === 'fuel-mtd-sold' || id === 'average-deposit') return 'fuel-mtd-deposit-block'
-      return id
-    })
+    const migrated = parsed
+      .map((id) => {
+        if (id === 'upcoming' || id === 'today-roster') return 'upcoming-roster'
+        if (id === 'fuel-mtd-sold' || id === 'average-deposit') return 'fuel-mtd-deposit-block'
+        return id
+      })
+      .filter((id) => id !== 'upcoming-roster')
     const deduped = migrated.filter((id, i) => migrated.indexOf(id) === i)
     const valid = deduped.filter((id): id is DashboardWidgetId =>
       DASHBOARD_WIDGET_IDS.includes(id as DashboardWidgetId)
@@ -91,9 +82,9 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       if (mi >= 0) merged.splice(mi + 1, 0, 'customer-ar-glance')
       else merged.unshift('customer-ar-glance')
     }
-    return pinUpcomingFirst(merged)
+    return merged
   } catch {
-    return pinUpcomingFirst(getDefaultLayout())
+    return getDefaultLayout()
   }
 }
 

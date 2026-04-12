@@ -145,7 +145,6 @@ export function canManageExistingAppUser(actorRole: string, targetUserRole: stri
 
 /** Dashboard widgets for supervisor / senior_supervisor: ops status + upcoming only. */
 export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
-  'upcoming-roster',
   'month-summary',
   'fuel-mtd-deposit-block',
   'phase1-status'
@@ -153,7 +152,6 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
 
 /** Stakeholder: high-level totals + fuel/deposit + last-5-day volume + recent fuel payment; no ops status row. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
-  'upcoming-roster',
   'month-summary',
   'fuel-mtd-deposit-block',
   'fuel-volume',
