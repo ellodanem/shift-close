@@ -14,12 +14,21 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 const KEY = 'attendance_expected_punches_per_day'
+const SHOW_EXTRACTED_KEY = 'attendance_show_extracted_punches'
+
+function parseShowExtracted(v: string | undefined): boolean {
+  return v === 'true' || v === '1'
+}
 
 async function readAll() {
-  const row = await prisma.appSettings.findUnique({ where: { key: KEY } })
+  const rows = await prisma.appSettings.findMany({
+    where: { key: { in: [KEY, SHOW_EXTRACTED_KEY] } }
+  })
+  const map = new Map(rows.map((r) => [r.key, r.value]))
   const pa = await getPresentAbsenceSettings()
   return {
-    expectedPunchesPerDay: parseExpectedPunchesPerDay(row?.value),
+    expectedPunchesPerDay: parseExpectedPunchesPerDay(map.get(KEY)),
+    showExtractedPunches: parseShowExtracted(map.get(SHOW_EXTRACTED_KEY)),
     presentAbsenceEnabled: pa.enabled,
     graceMinutes: pa.graceMinutes,
     absenceNotifyEmail: pa.notifyEmail,
@@ -59,6 +68,15 @@ export async function POST(request: NextRequest) {
     }
 
     const bool = (v: unknown) => v === true || v === 'true'
+
+    if (body.showExtractedPunches !== undefined) {
+      await prisma.appSettings.upsert({
+        where: { key: SHOW_EXTRACTED_KEY },
+        update: { value: bool(body.showExtractedPunches) ? 'true' : 'false' },
+        create: { key: SHOW_EXTRACTED_KEY, value: bool(body.showExtractedPunches) ? 'true' : 'false' }
+      })
+    }
+
     const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
     if (body.presentAbsenceEnabled !== undefined) {

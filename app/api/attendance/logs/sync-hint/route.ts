@@ -11,22 +11,28 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
-    const [newestCreated, newestCorrected, payPeriod, tz] = await Promise.all([
-      prisma.attendanceLog.findFirst({
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true }
-      }),
-      prisma.attendanceLog.findFirst({
-        where: { correctedAt: { not: null } },
-        orderBy: { correctedAt: 'desc' },
-        select: { correctedAt: true }
-      }),
-      prisma.payPeriod.findFirst({
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, updatedAt: true }
-      }),
-      readStationTimeZone()
-    ])
+    const [newestCreated, newestNonExtractedCreated, newestCorrected, payPeriod, tz] =
+      await Promise.all([
+        prisma.attendanceLog.findFirst({
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true }
+        }),
+        prisma.attendanceLog.findFirst({
+          where: { extractedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true }
+        }),
+        prisma.attendanceLog.findFirst({
+          where: { correctedAt: { not: null } },
+          orderBy: { correctedAt: 'desc' },
+          select: { correctedAt: true }
+        }),
+        prisma.payPeriod.findFirst({
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, updatedAt: true }
+        }),
+        readStationTimeZone()
+      ])
 
     const stationTodayYmd = calendarYmdInTz(new Date(), tz)
     const payPeriodTick = payPeriod
@@ -35,6 +41,7 @@ export async function GET() {
 
     return NextResponse.json({
       newestCreatedAt: newestCreated?.createdAt.toISOString() ?? null,
+      newestNonExtractedCreatedAt: newestNonExtractedCreated?.createdAt.toISOString() ?? null,
       newestCorrectedAt: newestCorrected?.correctedAt?.toISOString() ?? null,
       stationTodayYmd,
       payPeriodTick,

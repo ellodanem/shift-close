@@ -23,6 +23,8 @@ interface AttendanceLog {
   punchType: string
   source: string
   correctedAt?: string | null
+  extractedAt?: string | null
+  extractedPayPeriodId?: string | null
   /** full = green, short_ok = blue “Possible missed”, irregular = red */
   punchDayStatus?: PunchDayStatus
   /** Not sent by API; UI derives status from punches + settings. */
@@ -93,6 +95,7 @@ async function fetchAttendanceSyncFingerprint(): Promise<string | null> {
   if (!r.ok) return null
   const j = (await r.json()) as {
     newestCreatedAt: string | null
+    newestNonExtractedCreatedAt: string | null
     newestCorrectedAt: string | null
     stationTodayYmd: string
     payPeriodTick: string
@@ -100,6 +103,7 @@ async function fetchAttendanceSyncFingerprint(): Promise<string | null> {
   }
   return [
     j.newestCreatedAt ?? '',
+    j.newestNonExtractedCreatedAt ?? '',
     j.newestCorrectedAt ?? '',
     j.stationTodayYmd,
     j.payPeriodTick,
@@ -399,22 +403,18 @@ export default function AttendancePage() {
   const syncingRef = useRef(false)
   const syncFingerprintRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /** Normal window after a filed report, or `all` when env raw mode / no reports yet. */
-  const [payPeriodBounds, setPayPeriodBounds] = useState<
-    | {
-        kind: 'window'
-        start: string
-        queryEnd: string
-        openEnded: boolean
-      }
-    | { kind: 'all'; reason: 'raw_env' | 'no_pay_period' }
-    | null
-  >(null)
-  /** Last generated (filed) pay period date range shown for context. */
-  const [closedPayPeriod, setClosedPayPeriod] = useState<{ start: string; end: string } | null>(null)
+  /** Server `ATTENDANCE_RAW_LOGS`: show every punch regardless of extraction. */
+  const [rawLogsEnvActive, setRawLogsEnvActive] = useState(false)
+  /** Latest saved pay period (banner context only; logs are filtered by extraction, not dates). */
+  const [lastFiledPayPeriod, setLastFiledPayPeriod] = useState<{
+    start: string
+    end: string
+    filedAt: string
+  } | null>(null)
   const { user } = useAuth()
   const canToggleArchivedLogs = canViewArchivedAttendanceLogs(user?.role ?? '')
-  const [includeArchivedPunches, setIncludeArchivedPunches] = useState(false)
+  /** Persisted in Attendance settings; only roles in canViewArchivedAttendanceLogs may turn this on. */
+  const [showExtractedPunches, setShowExtractedPunches] = useState(false)
   const [staffFilter, setStaffFilter] = useState<string>('')
   /** Narrows the staff list below (name substring, case-insensitive). */
   const [staffSearch, setStaffSearch] = useState('')
@@ -492,7 +492,7 @@ export default function AttendancePage() {
     syncingRef.current = syncing
   }, [syncing])
 
-  /** Refetch pay-period bounds before logs; supports full-database “all punches” when no report or ATTENDANCE_RAW_LOGS. */
+  /** Loads logs (non-extracted by default), pay-period banner metadata, and attendance settings. */
   const refreshAttendanceLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -500,108 +500,56 @@ export default function AttendancePage() {
     try {
       const periodRes = await fetch('/api/attendance/pay-period?latestSaved=1', { cache: 'no-store' })
       if (!periodRes.ok) throw new Error('Could not load pay period metadata.')
-      const data: unknown = await periodRes.json().catch(() => null)
+      const meta: unknown = await periodRes.json().catch(() => null)
 
       const isRecord = (v: unknown): v is Record<string, unknown> =>
         v !== null && typeof v === 'object' && !Array.isArray(v)
 
-      const row = isRecord(data) ? data : null
+      const row = isRecord(meta) ? meta : null
       const rawFromEnv = row?.rawMode === true
-      const noPayPeriodYet = data === null
+      setRawLogsEnvActive(Boolean(rawFromEnv))
 
-      if (rawFromEnv || noPayPeriodYet) {
-        setError(null)
-        setPayPeriodBounds({
-          kind: 'all',
-          reason: rawFromEnv ? 'raw_env' : 'no_pay_period'
-        })
-        setClosedPayPeriod(null)
-
-        const logParams = new URLSearchParams()
-        if (canToggleArchivedLogs && includeArchivedPunches) {
-          logParams.set('includeArchived', '1')
+      let lastFiled: { start: string; end: string; filedAt: string } | null = null
+      if (!rawFromEnv && row && row.lastFiledPeriod && isRecord(row.lastFiledPeriod)) {
+        const lp = row.lastFiledPeriod as Record<string, unknown>
+        if (
+          typeof lp.startDate === 'string' &&
+          typeof lp.endDate === 'string' &&
+          typeof lp.filedAt === 'string'
+        ) {
+          lastFiled = { start: lp.startDate, end: lp.endDate, filedAt: lp.filedAt }
         }
-        const logsUrl =
-          logParams.toString().length > 0 ? `/api/attendance/logs?${logParams}` : '/api/attendance/logs'
-
-        const [logsRes, settingsRes, pdRes] = await Promise.all([
-          fetch(logsUrl, { cache: 'no-store' }),
-          fetch('/api/attendance/settings', { cache: 'no-store' }),
-          fetch('/api/pay-days?period=current', { cache: 'no-store' })
-        ])
-
-        if (!logsRes.ok) throw new Error('Failed to load logs')
-        const rawLogs = await logsRes.json()
-        const list: AttendanceLog[] = Array.isArray(rawLogs) ? rawLogs : rawLogs.logs
-        setLogs(Array.isArray(list) ? list : [])
-
-        if (settingsRes.ok) {
-          const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
-          if (typeof s.expectedPunchesPerDay === 'number') {
-            setExpectedPunchesPerDay(parseExpectedPunchesPerDay(String(s.expectedPunchesPerDay)))
-          }
-        }
-
-        const pdData = await pdRes.json().catch(() => null)
-        if (pdRes.ok && pdData && typeof pdData === 'object' && 'payDay' in pdData) {
-          const pd = (pdData as { payDay?: { date?: string; notes?: string | null } | null }).payDay
-          setCurrentPeriodPayDay(pd?.date ? { date: pd.date, notes: pd.notes ?? null } : null)
-        } else {
-          setCurrentPeriodPayDay(null)
-        }
-        shouldUpdateSyncHint = true
-        return
       }
+      setLastFiledPayPeriod(rawFromEnv ? null : lastFiled)
 
-      if (!row || typeof row.startDate !== 'string' || typeof row.endDate !== 'string') {
-        setPayPeriodBounds(null)
-        setClosedPayPeriod(null)
-        setCurrentPeriodPayDay(null)
-        setLogs([])
-        setError('Unexpected pay period response from the server. Try again or check server logs.')
-        return
+      const logParams = new URLSearchParams()
+      if (!rawFromEnv && canToggleArchivedLogs && showExtractedPunches) {
+        logParams.set('includeExtracted', '1')
       }
-
-      const pr = row as {
-        startDate: string
-        endDate: string
-        openPeriodEndDate?: string | null
-        closedPeriodStart?: string
-        closedPeriodEnd?: string
-      }
-      setError(null)
-      const openEnded = pr.openPeriodEndDate == null
-      setPayPeriodBounds({ kind: 'window', start: pr.startDate, queryEnd: pr.endDate, openEnded })
-      if (typeof pr.closedPeriodStart === 'string' && typeof pr.closedPeriodEnd === 'string') {
-        setClosedPayPeriod({ start: pr.closedPeriodStart, end: pr.closedPeriodEnd })
-      } else {
-        setClosedPayPeriod(null)
-      }
-
-      const logParams = new URLSearchParams({
-        startDate: pr.startDate,
-        endDate: pr.endDate
-      })
-      if (canToggleArchivedLogs && includeArchivedPunches) {
-        logParams.set('includeArchived', '1')
-      }
-      const payDaysQs = new URLSearchParams({ periodStart: pr.startDate, periodEnd: pr.endDate })
+      const logsUrl =
+        logParams.toString().length > 0 ? `/api/attendance/logs?${logParams}` : '/api/attendance/logs'
 
       const [logsRes, settingsRes, pdRes] = await Promise.all([
-        fetch(`/api/attendance/logs?${logParams}`, { cache: 'no-store' }),
+        fetch(logsUrl, { cache: 'no-store' }),
         fetch('/api/attendance/settings', { cache: 'no-store' }),
-        fetch(`/api/pay-days?${payDaysQs}`, { cache: 'no-store' })
+        fetch('/api/pay-days?period=current', { cache: 'no-store' })
       ])
 
       if (!logsRes.ok) throw new Error('Failed to load logs')
-      const raw = await logsRes.json()
-      const list: AttendanceLog[] = Array.isArray(raw) ? raw : raw.logs
+      const rawLogs = await logsRes.json()
+      const list: AttendanceLog[] = Array.isArray(rawLogs) ? rawLogs : rawLogs.logs
       setLogs(Array.isArray(list) ? list : [])
 
       if (settingsRes.ok) {
-        const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
+        const s = (await settingsRes.json()) as {
+          expectedPunchesPerDay?: number
+          showExtractedPunches?: boolean
+        }
         if (typeof s.expectedPunchesPerDay === 'number') {
           setExpectedPunchesPerDay(parseExpectedPunchesPerDay(String(s.expectedPunchesPerDay)))
+        }
+        if (typeof s.showExtractedPunches === 'boolean') {
+          setShowExtractedPunches(s.showExtractedPunches)
         }
       }
 
@@ -612,6 +560,8 @@ export default function AttendancePage() {
       } else {
         setCurrentPeriodPayDay(null)
       }
+
+      setError(null)
       shouldUpdateSyncHint = true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
@@ -624,7 +574,7 @@ export default function AttendancePage() {
         })
       }
     }
-  }, [includeArchivedPunches, canToggleArchivedLogs])
+  }, [showExtractedPunches, canToggleArchivedLogs])
 
   useEffect(() => {
     if (activeTab !== 'logs') return
@@ -838,6 +788,7 @@ export default function AttendancePage() {
   }
 
   const openEditLog = (log: AttendanceLog) => {
+    if (log.extractedAt) return
     setShowAddPunch(false)
     setEditingLog(log)
     setEditPunchLocal(toDatetimeLocalValue(log.punchTime))
@@ -1126,12 +1077,12 @@ export default function AttendancePage() {
                 Add punch
               </button>
 
-              {closedPayPeriod && (
+              {lastFiledPayPeriod && (
                 <span className="text-sm text-gray-600 max-w-md">
-                  <span className="text-gray-600">Last pay period: </span>
+                  <span className="text-gray-600">Last filed pay period: </span>
                   <span className="font-medium text-gray-800">
-                    {formatDateDisplay(closedPayPeriod.start + 'T12:00:00')} —{' '}
-                    {formatDateDisplay(closedPayPeriod.end + 'T12:00:00')}
+                    {formatDateDisplay(lastFiledPayPeriod.start + 'T12:00:00')} —{' '}
+                    {formatDateDisplay(lastFiledPayPeriod.end + 'T12:00:00')}
                   </span>
                 </span>
               )}
@@ -1140,11 +1091,27 @@ export default function AttendancePage() {
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={includeArchivedPunches}
-                    onChange={(e) => setIncludeArchivedPunches(e.target.checked)}
+                    checked={showExtractedPunches}
+                    onChange={(e) => {
+                      const v = e.target.checked
+                      void (async () => {
+                        try {
+                          const res = await fetch('/api/attendance/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ showExtractedPunches: v })
+                          })
+                          if (!res.ok) throw new Error('Failed to save')
+                          setShowExtractedPunches(v)
+                          void refreshAttendanceLogs()
+                        } catch {
+                          setShowExtractedPunches(!v)
+                        }
+                      })()
+                    }}
                     className="rounded border-gray-300"
                   />
-                  Include archived punches
+                  Show extracted (filed) punches
                 </label>
               )}
 
@@ -1155,43 +1122,24 @@ export default function AttendancePage() {
               )}
             </div>
 
-            {payPeriodBounds?.kind === 'all' && !error && (
+            {rawLogsEnvActive && !error && (
               <p className="text-xs text-amber-900 mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-2">
-                <span className="font-semibold">All punches (no pay-period window).</span>{' '}
-                {payPeriodBounds.reason === 'raw_env' ? (
-                  <>
-                    <code className="rounded bg-amber-100/80 px-1">ATTENDANCE_RAW_LOGS</code> is enabled on the server —
-                    archive and date slicing are bypassed. Remove it from env when you want normal behavior again.
-                  </>
-                ) : (
-                  <>
-                    No Pay Period Report has been filed yet, so every row in the database is listed. Save a report when
-                    you want the usual open-period window and archived punch rules.
-                  </>
-                )}
+                <span className="font-semibold">Raw logs mode.</span>{' '}
+                <code className="rounded bg-amber-100/80 px-1">ATTENDANCE_RAW_LOGS</code> is enabled on the server — extraction
+                filtering is bypassed and every punch is listed. Remove it from env for normal filing behavior.
               </p>
             )}
 
-            {payPeriodBounds?.kind === 'window' && !error && (
+            {!rawLogsEnvActive && !error && (
               <p className="text-xs text-gray-600 mb-2">
-                <span className="font-medium text-gray-800">Current open pay period (logs filter):</span>{' '}
-                <span className="font-mono">
-                  {payPeriodBounds.start} →{' '}
-                  {payPeriodBounds.openEnded ? (
-                    <>
-                      <span className="text-gray-800">ongoing</span>
-                      <span className="text-gray-600">
-                        {' '}
-                        (punches through {payPeriodBounds.queryEnd}, station date)
-                      </span>
-                    </>
-                  ) : (
-                    payPeriodBounds.queryEnd
-                  )}
-                </span>
-                . The period end is fixed when you save a Pay Period Report; until then the list grows through each
-                station day. Punches outside this range are hidden — the list reloads when you return to this tab, after
-                midnight, or use <strong>Include archived punches</strong> if your role allows.
+                <span className="font-medium text-gray-800">Attendance list:</span> punches that are{' '}
+                <span className="font-medium text-gray-800">not yet extracted</span> (not included in a saved Pay Period Report).
+                Saving a report marks matching punches as extracted; they stay in the database but are hidden here unless you
+                turn on <strong>Show extracted (filed) punches</strong> (admin/manager/operations manager) or enable them under{' '}
+                <Link href="/attendance/settings" className="font-medium text-blue-600 hover:text-blue-800">
+                  Attendance settings
+                </Link>
+                . Extracted rows are view-only.
               </p>
             )}
 
@@ -1274,15 +1222,17 @@ export default function AttendancePage() {
                       <tr>
                         <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
                           {staffFilter
-                            ? 'No attendance logs for this staff in this date range.'
-                            : 'No attendance logs in this range. Sync from the device, or use Add punch for a missed clock-in/out.'}
+                            ? 'No attendance logs for this staff in the current view.'
+                            : 'No attendance logs in the current view. Sync from the device, or use Add punch for a missed clock-in/out.'}
                         </td>
                       </tr>
                     ) : (
                       displayedLogs.map((log) => {
                         const st = punchDayStatusById.get(log.id) ?? 'irregular'
-                        const rowBg =
-                          st === 'irregular'
+                        const isExtracted = Boolean(log.extractedAt)
+                        const rowBg = isExtracted
+                          ? 'bg-violet-50/95 ring-1 ring-violet-100/80'
+                          : st === 'irregular'
                             ? 'bg-red-50/50'
                             : st === 'short_ok'
                               ? 'bg-sky-50/50'
@@ -1309,6 +1259,14 @@ export default function AttendancePage() {
                           </td>
                           <td className="px-3 py-2 text-gray-700">
                             {formatDateDisplay(log.punchTime)}
+                            {isExtracted && (
+                              <span
+                                className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-violet-200 text-violet-900"
+                                title="Included in a saved Pay Period Report — view only"
+                              >
+                                Filed
+                              </span>
+                            )}
                             {log.correctedAt && (
                               <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-indigo-100 text-indigo-800" title={`Adjusted in app at ${new Date(log.correctedAt).toLocaleString()}`}>
                                 Corrected
@@ -1324,13 +1282,17 @@ export default function AttendancePage() {
                           <td className="px-3 py-2">{log.staff?.name ?? log.deviceUserName ?? `Device ${log.deviceUserId}`}</td>
                           <td className="px-3 py-2 text-xs text-gray-400">{log.source}</td>
                           <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openEditLog(log)}
-                              className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                            >
-                              Edit
-                            </button>
+                            {isExtracted ? (
+                              <span className="text-xs font-medium text-violet-800">View only</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openEditLog(log)}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                              >
+                                Edit
+                              </button>
+                            )}
                           </td>
                         </tr>
                       )})

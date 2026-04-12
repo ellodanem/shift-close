@@ -5,7 +5,6 @@ import { expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
 import { addCalendarYmd, readStationTimeZone } from '@/lib/present-absence'
 import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
-import { getLatestFiledPayPeriodForAttendance } from '@/lib/pay-period-archive'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -90,9 +89,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** GET /api/attendance/logs?startDate=...&endDate=...&staffId=...&includeArchived=1
- * By default hides punches whose punchTime falls inside the last filed pay period’s
- * startDate–endDate (inclusive, UTC day bounds), unless includeArchived=1 (allowed roles).
+/** GET /api/attendance/logs?startDate=&endDate=&staffId=&includeExtracted=1
+ * Default: only punches not yet “extracted” (filed in a saved Pay Period Report).
+ * includeExtracted=1 (admin/manager/operations_manager): also return extracted rows.
+ * includeArchived=1 is accepted as an alias for includeExtracted (legacy).
+ * ATTENDANCE_RAW_LOGS env: no extraction filter (all rows).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -100,16 +101,14 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const staffId = searchParams.get('staffId')
-    const includeArchivedParam = searchParams.get('includeArchived') === '1'
+    const includeExtractedParam =
+      searchParams.get('includeExtracted') === '1' || searchParams.get('includeArchived') === '1'
 
     const session = await getSessionFromRequest(request)
-    const includeArchived =
-      includeArchivedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
+    const includeExtracted =
+      includeExtractedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
 
-    const filed = await getLatestFiledPayPeriodForAttendance()
-    const applyArchive = Boolean(
-      !attendanceRawLogsEnv() && filed && !includeArchived
-    )
+    const hideExtracted = !attendanceRawLogsEnv() && !includeExtracted
 
     const andParts: Prisma.AttendanceLogWhereInput[] = []
 
@@ -147,14 +146,9 @@ export async function GET(request: NextRequest) {
         })
       }
     }
-    if (applyArchive && filed && ymd.test(filed.startDate) && ymd.test(filed.endDate)) {
-      const closedStart = new Date(filed.startDate + 'T00:00:00.000Z')
-      const closedEndEod = new Date(filed.endDate + 'T23:59:59.999Z')
-      if (!Number.isNaN(closedStart.getTime()) && !Number.isNaN(closedEndEod.getTime())) {
-        andParts.push({
-          OR: [{ punchTime: { lt: closedStart } }, { punchTime: { gt: closedEndEod } }]
-        })
-      }
+
+    if (hideExtracted) {
+      andParts.push({ extractedAt: null })
     }
 
     if (staffId) {
@@ -165,9 +159,8 @@ export async function GET(request: NextRequest) {
       if (!staff) {
         return NextResponse.json({
           logs: [],
-          archivedClosedStart: filed?.startDate ?? null,
-          archivedClosedEnd: filed?.endDate ?? null,
-          archivedHidden: false
+          extractedHidden: hideExtracted,
+          rawLogsMode: attendanceRawLogsEnv()
         })
       }
       const dev = staff.deviceUserId?.trim()
@@ -194,9 +187,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       logs,
-      archivedClosedStart: filed?.startDate ?? null,
-      archivedClosedEnd: filed?.endDate ?? null,
-      archivedHidden: applyArchive && filed !== null,
+      extractedHidden: hideExtracted,
       rawLogsMode: attendanceRawLogsEnv()
     })
   } catch (error) {

@@ -15,7 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:migrate-from-sqlite": "node scripts/migrate-sqlite-to-neon.js",
-    "db:delete-pay-periods": "node scripts/delete-all-pay-periods.cjs"
+    "db:delete-pay-periods": "node scripts/delete-all-pay-periods.cjs",
+    "db:backfill-extracted": "node scripts/backfill-attendance-extracted.cjs"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

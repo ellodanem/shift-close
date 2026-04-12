@@ -105,7 +105,7 @@ export function canManagePublicHolidaySettings(role: string): boolean {
   return isFullAccessRole(role) || isOperationsManagerRole(role)
 }
 
-/** Archived attendance punches (before last saved pay period) — only these roles may load them in the log API. */
+/** Extracted / filed attendance punches — only these roles may load them in the log API (includeExtracted). */
 export function canViewArchivedAttendanceLogs(role: string): boolean {
   const r = normalizeAppRole(role)
   return r === 'admin' || r === 'manager' || r === 'operations_manager'

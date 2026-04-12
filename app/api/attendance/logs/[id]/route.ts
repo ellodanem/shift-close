@@ -20,6 +20,12 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: 'Log not found' }, { status: 404 })
     }
+    if (existing.extractedAt != null) {
+      return NextResponse.json(
+        { error: 'This punch was filed in a pay period report and cannot be edited.' },
+        { status: 409 }
+      )
+    }
 
     const data: { punchTime?: Date; punchType?: string; correctedAt: Date } = {
       correctedAt: new Date()
@@ -68,6 +74,12 @@ export async function DELETE(
     const existing = await prisma.attendanceLog.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+    }
+    if (existing.extractedAt != null) {
+      return NextResponse.json(
+        { error: 'This punch was filed in a pay period report and cannot be deleted.' },
+        { status: 409 }
+      )
     }
     await prisma.attendanceLog.delete({ where: { id } })
     return NextResponse.json({ ok: true })

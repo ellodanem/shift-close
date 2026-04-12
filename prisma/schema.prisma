@@ -577,12 +577,18 @@ model AttendanceLog {
   source      String   @default("zkteco")
   createdAt   DateTime @default(now()) @map("created_at")
   correctedAt DateTime? @map("corrected_at") // Set when punch time/type edited in UI
+  /// Set when this row was included in a saved Pay Period Report (“extracted” / filed).
+  extractedAt DateTime? @map("extracted_at")
+  extractedPayPeriodId String? @map("extracted_pay_period_id")
 
   staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  extractedPayPeriod PayPeriod? @relation(fields: [extractedPayPeriodId], references: [id], onDelete: Restrict)
 
   @@index([staffId])
   @@index([punchTime])
   @@index([deviceUserId])
+  @@index([extractedAt])
+  @@index([extractedPayPeriodId])
   @@map("attendance_logs")
 }
 
@@ -801,6 +807,8 @@ model PayPeriod {
   updatedAt   DateTime @updatedAt @map("updated_at")
   /// Set when the report is emailed successfully
   emailSentAt DateTime? @map("email_sent_at")
+
+  extractedPunches AttendanceLog[]
 
   @@index([startDate, endDate])
   @@index([emailSentAt])

@@ -2,9 +2,15 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/app/components/AuthContext'
+import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 
 export default function AttendanceSettingsPage() {
+  const { user } = useAuth()
+  const canShowExtractedSetting = canViewArchivedAttendanceLogs(user?.role ?? '')
+
   const [expectedPunchesPerDay, setExpectedPunchesPerDay] = useState(4)
+  const [showExtractedPunches, setShowExtractedPunches] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -34,6 +40,7 @@ export default function AttendanceSettingsPage() {
       if (!res.ok) return
       const data = (await res.json()) as {
         expectedPunchesPerDay?: number
+        showExtractedPunches?: boolean
         presentAbsenceEnabled?: boolean
         graceMinutes?: number
         absenceNotifyEmail?: boolean
@@ -43,6 +50,9 @@ export default function AttendanceSettingsPage() {
       }
       if (typeof data.expectedPunchesPerDay === 'number' && data.expectedPunchesPerDay >= 1) {
         setExpectedPunchesPerDay(data.expectedPunchesPerDay)
+      }
+      if (typeof data.showExtractedPunches === 'boolean') {
+        setShowExtractedPunches(data.showExtractedPunches)
       }
       if (typeof data.presentAbsenceEnabled === 'boolean') setPaEnabled(data.presentAbsenceEnabled)
       if (typeof data.graceMinutes === 'number' && data.graceMinutes >= 1) {
@@ -122,7 +132,10 @@ export default function AttendanceSettingsPage() {
       const res = await fetch('/api/attendance/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expectedPunchesPerDay })
+        body: JSON.stringify({
+          expectedPunchesPerDay,
+          ...(canShowExtractedSetting ? { showExtractedPunches } : {})
+        })
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -130,6 +143,9 @@ export default function AttendanceSettingsPage() {
       }
       if (typeof data.expectedPunchesPerDay === 'number') {
         setExpectedPunchesPerDay(data.expectedPunchesPerDay)
+      }
+      if (typeof data.showExtractedPunches === 'boolean') {
+        setShowExtractedPunches(data.showExtractedPunches)
       }
       setMessage('Saved.')
     } catch (e) {
@@ -255,6 +271,23 @@ export default function AttendanceSettingsPage() {
               they form a valid in/out pair; <span className="font-medium text-red-800">red</span> for any other issue.
             </p>
           </div>
+          {canShowExtractedSetting && (
+            <label className="mt-4 flex items-start gap-3 cursor-pointer border-t border-gray-100 pt-4">
+              <input
+                type="checkbox"
+                checked={showExtractedPunches}
+                onChange={(e) => setShowExtractedPunches(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+              />
+              <span>
+                <span className="font-medium text-gray-900">Show extracted (filed) punches on Attendance Logs</span>
+                <span className="block text-xs text-gray-600 mt-0.5">
+                  Punches included in a saved Pay Period Report are hidden by default. When enabled, they appear with a light
+                  purple background and are view-only (not editable). Click Save above to apply together with expected punches.
+                </span>
+              </span>
+            </label>
+          )}
           {message && (
             <p className={`mt-3 text-sm ${message === 'Saved.' ? 'text-emerald-700' : 'text-red-700'}`}>{message}</p>
           )}

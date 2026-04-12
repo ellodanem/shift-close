@@ -157,7 +157,10 @@ export async function buildAttendanceSummaryData(
   const dayEnd = endOfZonedDayUtc(reportDateYmd, timeZone)
 
   const periodLogs = await prisma.attendanceLog.findMany({
-    where: { punchTime: { gte: periodStart, lte: periodEnd } },
+    where: {
+      punchTime: { gte: periodStart, lte: periodEnd },
+      extractedAt: null
+    },
     orderBy: { punchTime: 'asc' }
   })
 
