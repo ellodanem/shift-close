@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -737,7 +738,7 @@ export default function DashboardPage() {
   }
 
   const renderUpcomingCard = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full min-h-[7.5rem] flex flex-col w-full min-w-0">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-5 h-full min-h-[9rem] flex flex-col w-full min-w-0">
       <div className="flex items-center justify-between mb-3 shrink-0">
         <h3 className="text-sm font-bold text-gray-900">Upcoming</h3>
         <div className="flex items-center gap-1">
@@ -922,7 +923,7 @@ export default function DashboardPage() {
   }
 
   const renderTodayRosterCard = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 w-full min-w-0">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-5 w-full min-w-0">
       <div className="flex items-center justify-between gap-2 mb-3">
         <h3 className="text-base font-bold text-gray-900">
           {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
@@ -947,6 +948,26 @@ export default function DashboardPage() {
           ) : null}
         </div>
       </div>
+      {todayRoster && todayRoster.presentAbsenceEnabled === false ? (
+        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2 mb-3 leading-snug">
+          Scheduled staff are listed below, but <strong>punch-in status is off</strong> until{' '}
+          <strong>Present / absent</strong> is enabled.{' '}
+          {isStakeholder ? (
+            <>Ask an administrator to turn it on under Attendance → Settings.</>
+          ) : (
+            <>
+              Enable it under{' '}
+              <Link
+                href="/attendance/settings"
+                className="font-semibold text-amber-950 underline hover:text-amber-800"
+              >
+                Attendance settings
+              </Link>{' '}
+              to see who has punched today on the dashboard.
+            </>
+          )}
+        </p>
+      ) : null}
       <div className="space-y-3">
         <div>
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
@@ -1054,9 +1075,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Dashboard</h1>
         </div>
 
-        {/* Wide metrics + narrow operations (matches dashboard mockup) */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
-          <div className="lg:col-span-8 space-y-6 min-w-0">
+        {/* Metrics ~60% + Upcoming/Roster ~40% */}
+        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-10 lg:items-start lg:gap-8">
+          <div className="lg:col-span-6 space-y-6 min-w-0">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1136,7 +1157,7 @@ export default function DashboardPage() {
             </div>
             {showFuelMtdHero && summary ? renderFuelMtdDepositBlock() : null}
           </div>
-          <aside className="lg:col-span-4 flex flex-col gap-4 w-full min-w-0">
+          <aside className="lg:col-span-4 flex flex-col gap-5 w-full min-w-0">
             {renderUpcomingCard()}
             {renderTodayRosterCard()}
           </aside>

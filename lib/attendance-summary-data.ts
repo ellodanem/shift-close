@@ -1,3 +1,4 @@
+import { deviceUserIdsMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
 import {
   inactiveStaffIdsWithVacationOverlap,
@@ -129,8 +130,8 @@ function logBelongsToStaff(
   s: { id: string; deviceUserId: string | null }
 ): boolean {
   if (log.staffId && log.staffId === s.id) return true
-  if (s.deviceUserId && log.deviceUserId === s.deviceUserId) return true
-  return false
+  const dev = s.deviceUserId?.trim()
+  return Boolean(dev && deviceUserIdsMatch(log.deviceUserId, dev))
 }
 
 export async function buildAttendanceSummaryData(

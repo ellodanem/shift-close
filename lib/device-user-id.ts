@@ -27,3 +27,10 @@ export function expandDeviceUserIdsForDbMatch(ids: string[]): string[] {
   }
   return [...out]
 }
+
+/** True when terminal id and staff profile id match (handles leading zeros). */
+export function deviceUserIdsMatch(deviceUserIdOnLog: string, staffDeviceUserId: string): boolean {
+  const a = deviceUserIdLookupKeys(deviceUserIdOnLog)
+  const b = new Set(deviceUserIdLookupKeys(staffDeviceUserId))
+  return a.some((k) => b.has(k))
+}

@@ -10,6 +10,7 @@ import {
   localCalendarDayKey,
   parseExpectedPunchesPerDay
 } from '@/lib/attendance-irregularity'
+import { deviceUserIdsMatch } from '@/lib/device-user-id'
 
 type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
 
@@ -52,7 +53,7 @@ function staffPillIndicator(
 function logBelongsToStaff(log: AttendanceLog, staff: Pick<Staff, 'id' | 'deviceUserId'>): boolean {
   if (log.staffId === staff.id) return true
   const dev = staff.deviceUserId?.trim()
-  return Boolean(dev && log.deviceUserId === dev)
+  return Boolean(dev && deviceUserIdsMatch(log.deviceUserId, dev))
 }
 
 /** Resolve manual punch staff from typed device user ID, staff id, or exact name match. */
