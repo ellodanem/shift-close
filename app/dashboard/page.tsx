@@ -84,6 +84,7 @@ interface CustomerArSummary {
   payments: number
   closing: number | null
   notes: string
+  updatedAt?: string
 }
 
 type MonthFilterType = 'currentMonth' | 'previousMonth' | 'custom'
@@ -873,6 +874,116 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </div>
+            )}
+            {id === 'customer-ar-glance' && summary && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-800 tracking-tight">
+                  Customer accounts (monthly)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
+                  Opening, charges, and payments for the dashboard month. Closing is computed as
+                  Opening + Charges − Payments.
+                </p>
+              </div>
+              {!isStakeholder && !isSupervisorLike && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/customer-accounts')}
+                  className="text-xs text-teal-600 hover:text-teal-700 font-semibold shrink-0"
+                >
+                  Customer Accounts →
+                </button>
+              )}
+            </div>
+
+            {arSummary ? (
+              <>
+                {(() => {
+                  const computedClosing =
+                    arSummary.opening + arSummary.charges - arSummary.payments
+                  const posClosing = arSummary.closing
+                  const posDiffers =
+                    posClosing != null && Math.abs(posClosing - computedClosing) >= 0.01
+                  const monthLabel = `${summary.monthName} ${summary.year}`
+                  return (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-3 sm:px-4">
+                      <div
+                        className="grid grid-cols-2 gap-y-3 gap-x-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-4"
+                        style={{ fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        <div className="col-span-2 sm:col-span-1 lg:col-span-1">
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Month
+                          </div>
+                          <div className="mt-0.5 text-sm font-semibold text-slate-900">{monthLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Opening
+                          </div>
+                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                            ${formatCurrency(arSummary.opening)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Charges
+                          </div>
+                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                            ${formatCurrency(arSummary.charges)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Payments
+                          </div>
+                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                            ${formatCurrency(arSummary.payments)}
+                          </div>
+                        </div>
+                        <div className="col-span-2 sm:col-span-3 lg:col-span-1 lg:border-l lg:border-slate-200 lg:pl-4">
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Closing (computed)
+                          </div>
+                          <div className="mt-0.5 text-lg font-bold text-slate-900">
+                            ${formatCurrency(computedClosing)}
+                          </div>
+                          {posDiffers && (
+                            <div className="mt-1 text-[11px] text-amber-700">
+                              POS closing: ${formatCurrency(posClosing!)} — compare
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {arSummary.updatedAt && (
+                        <div className="mt-3 pt-2 border-t border-slate-200/80 text-[11px] text-slate-400">
+                          Last updated{' '}
+                          <span className="text-slate-500">{formatDateTime(arSummary.updatedAt)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </>
+            ) : !isStakeholder && !isSupervisorLike ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-6 text-center">
+                <p className="text-sm text-slate-600">
+                  No customer A/R data for {summary.monthName} {summary.year}.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push('/customer-accounts')}
+                  className="mt-2 text-xs font-semibold text-teal-600 hover:text-teal-700"
+                >
+                  Import or enter on Customer Accounts →
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">Customer A/R is not shown for your role.</p>
+            )}
           </div>
             )}
             {id === 'fuel-mtd-deposit-block' && summary && (

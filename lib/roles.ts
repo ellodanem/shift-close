@@ -18,9 +18,17 @@ export const APP_ROLES: AppRole[] = [
   'stakeholder'
 ]
 
-/** Normalize role for comparisons (DB/JWT may vary in casing). */
+/**
+ * Normalize role for comparisons (DB/JWT may vary in casing/spacing).
+ * Human-entered values like "operations manager" must match `operations_manager`.
+ */
 export function normalizeAppRole(role: string): string {
-  return role.trim().toLowerCase()
+  return role
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
 }
 
 /** Full financial + unrestricted app areas (cashbook, vendor/fuel payments, financial reports). */

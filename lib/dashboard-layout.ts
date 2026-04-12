@@ -4,6 +4,7 @@
  */
 export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
+  'customer-ar-glance',
   'fuel-mtd-deposit-block',
   'phase1-status',
   'upcoming-roster',
@@ -44,7 +45,15 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       DASHBOARD_WIDGET_IDS.includes(id as DashboardWidgetId)
     )
     const missing = DEFAULT_LAYOUT.filter(id => !valid.includes(id))
-    return [...valid, ...missing]
+    let merged = [...valid, ...missing]
+    // Place new customer-ar-glance after month-summary when it was missing from saved layout
+    if (missing.includes('customer-ar-glance')) {
+      merged = merged.filter((id) => id !== 'customer-ar-glance')
+      const mi = merged.indexOf('month-summary')
+      if (mi >= 0) merged.splice(mi + 1, 0, 'customer-ar-glance')
+      else merged.unshift('customer-ar-glance')
+    }
+    return merged
   } catch {
     return DEFAULT_LAYOUT
   }

@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import type { NextRequest } from 'next/server'
+import { normalizeAppRole } from '@/lib/roles'
 
 export const SESSION_COOKIE = 'sc_token'
 
@@ -31,7 +32,7 @@ export async function signSessionToken(
 ): Promise<string> {
   const rememberMe = Boolean(options?.rememberMe)
   const exp = rememberMe ? '30d' : '1d'
-  return new SignJWT({ role: user.role, sa: user.isSuperAdmin })
+  return new SignJWT({ role: normalizeAppRole(user.role), sa: user.isSuperAdmin })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
@@ -46,7 +47,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     if (!sub) return null
     return {
       userId: sub,
-      role: String(payload.role ?? ''),
+      role: normalizeAppRole(String(payload.role ?? '')),
       isSuperAdmin: Boolean(payload.sa)
     }
   } catch {

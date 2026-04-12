@@ -65,8 +65,18 @@ export default function CustomerAccountsPage() {
   const [paymentAccount, setPaymentAccount] = useState<string>('')
   const [paymentAmount, setPaymentAmount] = useState<string>('')
   const [paymentRef, setPaymentRef] = useState<string>('')
+  const [paymentType, setPaymentType] = useState<'cash' | 'check' | 'eft'>('cash')
   const [savingPayment, setSavingPayment] = useState(false)
   const [paymentsFilterMonth, setPaymentsFilterMonth] = useState<string>(defaultMonth)
+
+  const formatPaymentTypeLabel = (method: string | null) => {
+    if (!method?.trim()) return '—'
+    const m = method.trim().toLowerCase()
+    if (m === 'cash') return 'Cash'
+    if (m === 'check' || m === 'cheque') return 'Check'
+    if (m === 'eft') return 'EFT'
+    return method
+  }
 
   const fetchPayments = async () => {
     setLoadingPayments(true)
@@ -110,6 +120,7 @@ export default function CustomerAccountsPage() {
           date: paymentDate,
           account: paymentAccount.trim(),
           amount: amt,
+          paymentMethod: paymentType,
           ref: paymentRef.trim() || undefined
         })
       })
@@ -120,6 +131,7 @@ export default function CustomerAccountsPage() {
       setPaymentAccount('')
       setPaymentAmount('')
       setPaymentRef('')
+      setPaymentType('cash')
       setPaymentDate(() => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -443,6 +455,20 @@ export default function CustomerAccountsPage() {
                 className="px-3 py-2 border border-gray-300 rounded text-sm w-28 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Payment type</label>
+              <select
+                value={paymentType}
+                onChange={(e) =>
+                  setPaymentType(e.target.value as 'cash' | 'check' | 'eft')
+                }
+                className="px-3 py-2 border border-gray-300 rounded text-sm bg-white min-w-[7.5rem] focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="eft">EFT</option>
+              </select>
+            </div>
             <div className="min-w-[120px]">
               <label className="block text-xs font-medium text-gray-700 mb-1">Ref (optional)</label>
               <input
@@ -486,6 +512,7 @@ export default function CustomerAccountsPage() {
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Ref</th>
                     </tr>
                   </thead>
@@ -495,6 +522,7 @@ export default function CustomerAccountsPage() {
                         <td className="px-3 py-2 text-gray-900">{p.date}</td>
                         <td className="px-3 py-2 font-medium text-gray-900">{p.account}</td>
                         <td className="px-3 py-2 text-right font-mono">{formatAmount(p.amount)}</td>
+                        <td className="px-3 py-2 text-gray-700">{formatPaymentTypeLabel(p.paymentMethod)}</td>
                         <td className="px-3 py-2 text-gray-600">{p.ref || '—'}</td>
                       </tr>
                     ))}
@@ -505,6 +533,7 @@ export default function CustomerAccountsPage() {
                       <td className="px-3 py-2 text-right font-mono">
                         {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
                       </td>
+                      <td className="px-3 py-2" />
                       <td className="px-3 py-2" />
                     </tr>
                   </tfoot>
