@@ -493,6 +493,10 @@ model CustomerArSummary {
   payments  Float   // Payments received on account for the month
   closing   Float?  // Optional: closing balance from POS to compare with computed
 
+  // Snapshot before last save/import (for dashboard “change since last update”)
+  chargesPrevious  Float? @map("charges_previous")
+  paymentsPrevious Float? @map("payments_previous")
+
   notes     String  @default("")
 
   createdAt DateTime @default(now()) @map("created_at")

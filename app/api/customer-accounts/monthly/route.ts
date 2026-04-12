@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { roundMoney } from '@/lib/fuelPayments'
+import { upsertCustomerArSummaryRow } from '@/lib/customer-ar-summary-upsert'
 
 // GET /api/customer-accounts/monthly
 // Optional query params:
@@ -72,29 +72,14 @@ export async function POST(request: NextRequest) {
     const safeClosing =
       typeof closing === 'number' && !Number.isNaN(closing) ? closing : null
 
-    const summary = await prisma.customerArSummary.upsert({
-      where: {
-        customer_ar_year_month: {
-          year,
-          month
-        }
-      },
-      update: {
-        opening: roundMoney(opening),
-        charges: roundMoney(charges),
-        payments: roundMoney(payments),
-        closing: safeClosing !== null ? roundMoney(safeClosing) : null,
-        notes: notes ?? ''
-      },
-      create: {
-        year,
-        month,
-        opening: roundMoney(opening),
-        charges: roundMoney(charges),
-        payments: roundMoney(payments),
-        closing: safeClosing !== null ? roundMoney(safeClosing) : null,
-        notes: notes ?? ''
-      }
+    const summary = await upsertCustomerArSummaryRow({
+      year,
+      month,
+      opening,
+      charges,
+      payments,
+      closing: safeClosing,
+      notes: typeof notes === 'string' ? notes : ''
     })
 
     return NextResponse.json(summary, { status: 201 })

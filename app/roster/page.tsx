@@ -1057,7 +1057,7 @@ export default function RosterPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow">
           <div className={`px-4 py-2 border-b border-gray-200 flex justify-between items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
             <span className="text-sm font-semibold">
               Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
@@ -1299,11 +1299,11 @@ export default function RosterPage() {
               No staff found. Add staff first, then build the roster.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible pb-2 sm:pb-3 rounded-b-lg">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className={weekBannerStyle.bg}>
                   <tr>
-                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${weekBannerStyle.text}`}>
+                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider align-top ${weekBannerStyle.text}`}>
                       Staff
                     </th>
                     {weekDates.map((date, idx) => {
@@ -1378,9 +1378,10 @@ export default function RosterPage() {
                   </tr>
                   {displayStaff.map((s, index) => (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
+                      <td className="px-2 py-2 align-top text-xs sm:text-sm min-w-[7.5rem]">
+                        <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1">
-                          <div className="flex flex-col">
+                          <div className="flex flex-col shrink-0">
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'up')}
@@ -1402,10 +1403,10 @@ export default function RosterPage() {
                               ↓
                             </button>
                           </div>
-                          <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
+                          <div className="font-medium text-gray-900 min-w-0 break-words">{s.firstName?.trim() || s.name}</div>
                         </div>
                         {!rosterCellsLocked && (
-                          <div className="relative ml-1">
+                          <div className="relative ml-0 pl-7 sm:pl-8">
                             <button
                               type="button"
                               title="Fill entire week"
@@ -1474,6 +1475,7 @@ export default function RosterPage() {
                             )}
                           </div>
                         )}
+                        </div>
                       </td>
                       {weekDates.map((date) => {
                         const onVacation = isOnVacation(s, date)

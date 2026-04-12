@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { upsertCustomerArSummaryRow } from '@/lib/customer-ar-summary-upsert'
 
 // GET /api/customer-accounts/accounts?year=2026&month=1
 // Returns all account snapshots for a given month
@@ -114,28 +115,13 @@ export async function POST(request: NextRequest) {
       { opening: 0, charges: 0, payments: 0, closing: 0 }
     )
 
-    const summary = await prisma.customerArSummary.upsert({
-      where: {
-        customer_ar_year_month: {
-          year,
-          month
-        }
-      },
-      update: {
-        opening: roundMoney(aggregates.opening),
-        charges: roundMoney(aggregates.charges),
-        payments: roundMoney(aggregates.payments),
-        closing: roundMoney(aggregates.closing)
-      },
-      create: {
-        year,
-        month,
-        opening: roundMoney(aggregates.opening),
-        charges: roundMoney(aggregates.charges),
-        payments: roundMoney(aggregates.payments),
-        closing: roundMoney(aggregates.closing),
-        notes: ''
-      }
+    const summary = await upsertCustomerArSummaryRow({
+      year,
+      month,
+      opening: aggregates.opening,
+      charges: aggregates.charges,
+      payments: aggregates.payments,
+      closing: aggregates.closing
     })
 
     return NextResponse.json({ summary }, { status: 201 })

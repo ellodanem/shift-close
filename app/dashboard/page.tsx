@@ -83,6 +83,8 @@ interface CustomerArSummary {
   charges: number
   payments: number
   closing: number | null
+  chargesPrevious?: number | null
+  paymentsPrevious?: number | null
   notes: string
   updatedAt?: string
 }
@@ -572,6 +574,22 @@ export default function DashboardPage() {
     return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   }
 
+  const customerArDeltaTitle = (
+    label: string,
+    current: number,
+    previous: number | null | undefined
+  ): string => {
+    if (previous == null || previous === undefined) {
+      return `${label}: no prior upload on file for this month yet. After the next import or save, hover will show the change since that update.`
+    }
+    const d = current - previous
+    if (Math.abs(d) < 0.005) {
+      return `${label} unchanged since last update (${formatCurrency(current)}).`
+    }
+    const dir = d > 0 ? 'Up' : 'Down'
+    return `${label} ${dir} ${formatCurrency(Math.abs(d))} since last update (was ${formatCurrency(previous)}).`
+  }
+
   const formatLitres = (num: number): string =>
     num.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 })
 
@@ -602,18 +620,21 @@ export default function DashboardPage() {
   const WidgetWrapper = ({
     id,
     children,
-    className = ''
+    className = '',
+    contentClassName
   }: {
     id: DashboardWidgetId
     children: React.ReactNode
     className?: string
+    /** When set, replaces default flex-1 content shell (e.g. half-width cards). */
+    contentClassName?: string
   }) => {
     const idx = visibleLayout.indexOf(id)
     const canMoveUp = idx > 0
     const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
     return (
       <div className={`flex gap-3 items-start mb-6 ${className}`}>
-        <div className="flex-1 min-w-0">
+        <div className={contentClassName ?? 'flex-1 min-w-0'}>
           {children}
         </div>
         <div className="flex flex-col gap-0.5 flex-shrink-0 pt-2">
@@ -735,7 +756,15 @@ export default function DashboardPage() {
 
         {/* Moveable widgets */}
         {visibleLayout.map((id) => (
-          <WidgetWrapper key={id} id={id}>
+          <WidgetWrapper
+            key={id}
+            id={id}
+            contentClassName={
+              id === 'customer-ar-glance'
+                ? 'w-full max-w-xl sm:max-w-2xl flex-none min-w-0'
+                : undefined
+            }
+          >
             {id === 'month-summary' && summary && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="mb-4">
@@ -877,15 +906,15 @@ export default function DashboardPage() {
           </div>
             )}
             {id === 'customer-ar-glance' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-              <div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 w-full">
+            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="min-w-0">
                 <h2 className="text-base font-semibold text-slate-800 tracking-tight">
-                  Customer accounts (monthly)
+                  Customer accounts
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
-                  Opening, charges, and payments for the dashboard month. Closing is computed as
-                  Opening + Charges − Payments.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Totals for {summary.monthName} {summary.year}. Hover Charges or Payments to see change
+                  since the last import or save.
                 </p>
               </div>
               {!isStakeholder && !isSupervisorLike && (
@@ -907,57 +936,64 @@ export default function DashboardPage() {
                   const posClosing = arSummary.closing
                   const posDiffers =
                     posClosing != null && Math.abs(posClosing - computedClosing) >= 0.01
-                  const monthLabel = `${summary.monthName} ${summary.year}`
                   return (
                     <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-3 sm:px-4">
                       <div
-                        className="grid grid-cols-2 gap-y-3 gap-x-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-4"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5"
                         style={{ fontVariantNumeric: 'tabular-nums' }}
                       >
-                        <div className="col-span-2 sm:col-span-1 lg:col-span-1">
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            Month
-                          </div>
-                          <div className="mt-0.5 text-sm font-semibold text-slate-900">{monthLabel}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            Opening
-                          </div>
-                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
-                            ${formatCurrency(arSummary.opening)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        <div
+                          className="rounded-md bg-white/80 border border-slate-200/80 px-3 py-3 cursor-help shadow-sm"
+                          title={customerArDeltaTitle(
+                            'Charges',
+                            arSummary.charges,
+                            arSummary.chargesPrevious
+                          )}
+                        >
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                             Charges
                           </div>
-                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                          <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums break-all sm:break-normal">
                             ${formatCurrency(arSummary.charges)}
                           </div>
                         </div>
-                        <div>
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        <div
+                          className="rounded-md bg-white/80 border border-slate-200/80 px-3 py-3 cursor-help shadow-sm"
+                          title={customerArDeltaTitle(
+                            'Payments',
+                            arSummary.payments,
+                            arSummary.paymentsPrevious
+                          )}
+                        >
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                             Payments
                           </div>
-                          <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                          <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums break-all sm:break-normal">
                             ${formatCurrency(arSummary.payments)}
                           </div>
                         </div>
-                        <div className="col-span-2 sm:col-span-3 lg:col-span-1 lg:border-l lg:border-slate-200 lg:pl-4">
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            Closing (computed)
-                          </div>
-                          <div className="mt-0.5 text-lg font-bold text-slate-900">
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500 border-t border-slate-200/80 pt-3">
+                        <div>
+                          <span className="text-slate-400">Opening</span>{' '}
+                          <span className="tabular-nums text-slate-600">
+                            ${formatCurrency(arSummary.opening)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Closing (computed)</span>{' '}
+                          <span className="tabular-nums text-slate-600">
                             ${formatCurrency(computedClosing)}
-                          </div>
+                          </span>
                           {posDiffers && (
-                            <div className="mt-1 text-[11px] text-amber-700">
-                              POS closing: ${formatCurrency(posClosing!)} — compare
-                            </div>
+                            <span className="ml-1 text-amber-700">
+                              (POS {formatCurrency(posClosing!)})
+                            </span>
                           )}
                         </div>
                       </div>
+
                       {arSummary.updatedAt && (
                         <div className="mt-3 pt-2 border-t border-slate-200/80 text-[11px] text-slate-400">
                           Last updated{' '}
