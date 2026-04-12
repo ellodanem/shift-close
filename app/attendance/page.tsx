@@ -422,6 +422,26 @@ export default function AttendancePage() {
   const [mappingSaving, setMappingSaving] = useState(false)
   const [pushingStaff, setPushingStaff] = useState(false)
   const [deviceActionResult, setDeviceActionResult] = useState<string | null>(null)
+  type AdmsHealth = {
+    totalAdmsPunches: number
+    unmappedCount: number
+    last24hCount: number
+    last7dCount: number
+    manualTotal: number
+    distinctSerials: string[]
+    latest: {
+      punchTime: string
+      createdAt: string
+      deviceUserId: string
+      punchType: string
+      source: string
+      staffName: string | null
+      staffId: string | null
+    } | null
+  }
+  const [admsHealth, setAdmsHealth] = useState<AdmsHealth | null>(null)
+  const [admsHealthLoading, setAdmsHealthLoading] = useState(false)
+  const [admsHealthError, setAdmsHealthError] = useState<string | null>(null)
   const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>({
     zk_device_ip: '',
     zk_device_port: '4370',
@@ -672,6 +692,26 @@ export default function AttendancePage() {
     }
     void loadSettings()
   }, [])
+
+  const fetchAdmsHealth = useCallback(async () => {
+    setAdmsHealthLoading(true)
+    setAdmsHealthError(null)
+    try {
+      const res = await fetch('/api/attendance/adms-health', { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
+      setAdmsHealth(data as AdmsHealth)
+    } catch (e) {
+      setAdmsHealth(null)
+      setAdmsHealthError(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      setAdmsHealthLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'device') void fetchAdmsHealth()
+  }, [activeTab, fetchAdmsHealth])
 
   const handleSaveDeviceSettings = async () => {
     setSettingsSaving(true)
@@ -1616,6 +1656,101 @@ export default function AttendancePage() {
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
                 <strong>Hostname:</strong> If the keypad cannot type hyphens, set <strong>Public app URL</strong> above to your renamed Vercel host and save.
               </p>
+            </div>
+
+            {/* ADMS health — rows in DB from cloud push */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">ADMS activity (this database)</h2>
+                  <p className="text-sm text-gray-600 mt-0.5">
+                    Counts only punches stored from the device push (<code className="bg-gray-100 px-1 rounded text-xs">source</code> starts with{' '}
+                    <code className="bg-gray-100 px-1 rounded text-xs">adms:</code>). If recent counts stay at0 but Vercel shows POSTs, the device may be sending{' '}
+                    <strong>OPERLOG</strong> instead of <strong>ATTLOG</strong>.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void fetchAdmsHealth()}
+                  disabled={admsHealthLoading}
+                  className="shrink-0 px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {admsHealthLoading ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+              {admsHealthError && (
+                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{admsHealthError}</div>
+              )}
+              {!admsHealthLoading && admsHealth && (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                      <div className="text-xs text-gray-500">ADMS rows (all time)</div>
+                      <div className="text-lg font-bold text-gray-900 tabular-nums">{admsHealth.totalAdmsPunches}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                      <div className="text-xs text-gray-500">Last 24 hours</div>
+                      <div className="text-lg font-bold text-gray-900 tabular-nums">{admsHealth.last24hCount}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                      <div className="text-xs text-gray-500">Last 7 days</div>
+                      <div className="text-lg font-bold text-gray-900 tabular-nums">{admsHealth.last7dCount}</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                      <div className="text-xs text-gray-500">Manual rows (all time)</div>
+                      <div className="text-lg font-bold text-gray-900 tabular-nums">{admsHealth.manualTotal}</div>
+                    </div>
+                  </div>
+                  {admsHealth.unmappedCount > 0 && (
+                    <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2">
+                      <strong>{admsHealth.unmappedCount}</strong> ADMS punch(es) are not linked to a staff profile (
+                      <code className="bg-amber-100/80 px-1 rounded">staff_id</code> null). Match{' '}
+                      <strong>Device User ID</strong> on the terminal to <strong>Device User ID</strong> on each staff profile.
+                    </p>
+                  )}
+                  {admsHealth.distinctSerials.length > 0 && (
+                    <p className="text-xs text-gray-600">
+                      Device serial(s) seen:{' '}
+                      <span className="font-mono font-medium text-gray-800">{admsHealth.distinctSerials.join(', ')}</span>
+                    </p>
+                  )}
+                  {admsHealth.latest ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                      <div className="font-semibold text-slate-900 mb-1">Most recently stored ADMS punch</div>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        <div>
+                          <span className="text-slate-500">Punch time (stored):</span>{' '}
+                          {new Date(admsHealth.latest.punchTime).toLocaleString(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                          })}
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Saved to DB:</span>{' '}
+                          {new Date(admsHealth.latest.createdAt).toLocaleString(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                          })}
+                        </div>
+                        <div>
+                          <span className="text-slate-500">User / type:</span>{' '}
+                          <span className="font-mono">{admsHealth.latest.deviceUserId}</span> · {admsHealth.latest.punchType}
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Staff:</span>{' '}
+                          {admsHealth.latest.staffName ?? (admsHealth.latest.staffId ? 'Linked' : 'Unmapped')}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <span className="text-slate-500">Source:</span>{' '}
+                          <code className="bg-white px-1 rounded border border-slate-200">{admsHealth.latest.source}</code>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic">No ADMS punches in this database yet.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Windows Agent */}
