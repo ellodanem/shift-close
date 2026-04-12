@@ -14,7 +14,21 @@ export const DASHBOARD_WIDGET_IDS = [
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number]
 
+/** Rendered fixed under month filters (not reorderable). Kept in layout for role gating only. */
+export const DASHBOARD_PINNED_TOP_WIDGET_IDS: readonly DashboardWidgetId[] = ['fuel-mtd-deposit-block']
+
 const DEFAULT_LAYOUT: DashboardWidgetId[] = [...DASHBOARD_WIDGET_IDS]
+
+export function isPinnedTopDashboardWidget(id: DashboardWidgetId): boolean {
+  return (DASHBOARD_PINNED_TOP_WIDGET_IDS as readonly string[]).includes(id)
+}
+
+/** Pinned widgets first (stable order), then the rest in their relative order. */
+export function normalizeDashboardLayout(layout: DashboardWidgetId[]): DashboardWidgetId[] {
+  const pinned = DASHBOARD_PINNED_TOP_WIDGET_IDS.filter((w) => layout.includes(w))
+  const rest = layout.filter((w) => !isPinnedTopDashboardWidget(w))
+  return [...pinned, ...rest]
+}
 
 const STORAGE_KEY = 'dashboardLayout'
 
@@ -23,7 +37,7 @@ function getStorageKey(userId?: string): string {
 }
 
 export function getDefaultLayout(): DashboardWidgetId[] {
-  return [...DEFAULT_LAYOUT]
+  return normalizeDashboardLayout([...DEFAULT_LAYOUT])
 }
 
 /**
@@ -90,7 +104,7 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
         else merged.push('average-deposit')
       }
     }
-    return merged
+    return normalizeDashboardLayout(merged)
   } catch {
     return getDefaultLayout()
   }
@@ -99,24 +113,32 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
 export function saveDashboardLayout(layout: DashboardWidgetId[], userId?: string): void {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(getStorageKey(userId), JSON.stringify(layout))
+    localStorage.setItem(getStorageKey(userId), JSON.stringify(normalizeDashboardLayout(layout)))
   } catch {
     // ignore
   }
 }
 
 export function moveWidgetUp(layout: DashboardWidgetId[], id: DashboardWidgetId): DashboardWidgetId[] {
-  const i = layout.indexOf(id)
-  if (i <= 0) return layout
-  const next = [...layout]
-  ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-  return next
+  const normalized = normalizeDashboardLayout(layout)
+  if (isPinnedTopDashboardWidget(id)) return normalized
+  const pinned = DASHBOARD_PINNED_TOP_WIDGET_IDS.filter((w) => normalized.includes(w))
+  const tail = normalized.filter((w) => !isPinnedTopDashboardWidget(w))
+  const i = tail.indexOf(id)
+  if (i <= 0) return normalized
+  const nextTail = [...tail]
+  ;[nextTail[i - 1], nextTail[i]] = [nextTail[i], nextTail[i - 1]]
+  return normalizeDashboardLayout([...pinned, ...nextTail])
 }
 
 export function moveWidgetDown(layout: DashboardWidgetId[], id: DashboardWidgetId): DashboardWidgetId[] {
-  const i = layout.indexOf(id)
-  if (i < 0 || i >= layout.length - 1) return layout
-  const next = [...layout]
-  ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-  return next
+  const normalized = normalizeDashboardLayout(layout)
+  if (isPinnedTopDashboardWidget(id)) return normalized
+  const pinned = DASHBOARD_PINNED_TOP_WIDGET_IDS.filter((w) => normalized.includes(w))
+  const tail = normalized.filter((w) => !isPinnedTopDashboardWidget(w))
+  const i = tail.indexOf(id)
+  if (i < 0 || i >= tail.length - 1) return normalized
+  const nextTail = [...tail]
+  ;[nextTail[i], nextTail[i + 1]] = [nextTail[i + 1], nextTail[i]]
+  return normalizeDashboardLayout([...pinned, ...nextTail])
 }

@@ -9,7 +9,8 @@ import {
   saveDashboardLayout,
   moveWidgetUp,
   moveWidgetDown,
-  buildDashboardSegments
+  buildDashboardSegments,
+  isPinnedTopDashboardWidget
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
@@ -280,6 +281,16 @@ export default function DashboardPage() {
   useEffect(() => {
     if (authLoading) return
     void refreshTodayRoster()
+  }, [authLoading, refreshTodayRoster])
+
+  /** Roster/presence is not realtime; refetch when the tab becomes visible again after a punch. */
+  useEffect(() => {
+    if (authLoading) return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshTodayRoster()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [authLoading, refreshTodayRoster])
 
   useEffect(() => {
@@ -606,15 +617,15 @@ export default function DashboardPage() {
 
   const visibleLayout = layout.filter(id => id !== 'fuel-volume' || fuelComparison.length > 0)
 
-  /** Fuel MTD is pinned under month filters in the wide column (matches dashboard hero layout). */
-  const layoutForScrollableWidgets = useMemo(
-    () => visibleLayout.filter((id) => id !== 'fuel-mtd-deposit-block'),
+  /** Widgets that participate in reorder controls and the scrollable list (excludes pinned top). */
+  const reorderableVisibleLayout = useMemo(
+    () => visibleLayout.filter((id) => !isPinnedTopDashboardWidget(id)),
     [visibleLayout]
   )
 
   const dashboardSegments = useMemo(
-    () => buildDashboardSegments(layoutForScrollableWidgets),
-    [layoutForScrollableWidgets]
+    () => buildDashboardSegments(reorderableVisibleLayout),
+    [reorderableVisibleLayout]
   )
 
   const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
@@ -694,9 +705,9 @@ export default function DashboardPage() {
     /** When set, replaces default flex-1 content shell (e.g. half-width cards). */
     contentClassName?: string
   }) => {
-    const idx = visibleLayout.indexOf(id)
+    const idx = reorderableVisibleLayout.indexOf(id)
     const canMoveUp = idx > 0
-    const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
+    const canMoveDown = idx >= 0 && idx < reorderableVisibleLayout.length - 1
     const marginClass = className.includes('mb-') ? '' : 'mb-6'
     return (
       <div className={`flex gap-3 items-start ${marginClass} ${className}`.trim()}>
@@ -1123,11 +1134,7 @@ export default function DashboardPage() {
             )}
           </div>
             </div>
-            {showFuelMtdHero && summary ? (
-              <WidgetWrapper id="fuel-mtd-deposit-block" className="mb-0">
-                {renderFuelMtdDepositBlock()}
-              </WidgetWrapper>
-            ) : null}
+            {showFuelMtdHero && summary ? renderFuelMtdDepositBlock() : null}
           </div>
           <aside className="lg:col-span-4 flex flex-col gap-4 w-full min-w-0">
             {renderUpcomingCard()}
