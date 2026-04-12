@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   type DashboardWidgetId,
@@ -8,7 +8,9 @@ import {
   loadDashboardLayout,
   saveDashboardLayout,
   moveWidgetUp,
-  moveWidgetDown
+  moveWidgetDown,
+  buildDashboardSegments,
+  pinUpcomingFirst
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
@@ -221,9 +223,9 @@ export default function DashboardPage() {
     if (authLoading) return
     const restricted = getDashboardWidgetIdsForRole(appRole)
     if (restricted === 'all') {
-      setLayout(loadDashboardLayout())
+      setLayout(pinUpcomingFirst(loadDashboardLayout()))
     } else {
-      setLayout(restricted)
+      setLayout(pinUpcomingFirst(restricted))
     }
   }, [authLoading, appRole])
 
@@ -605,14 +607,19 @@ export default function DashboardPage() {
 
   const visibleLayout = layout.filter(id => id !== 'fuel-volume' || fuelComparison.length > 0)
 
+  const dashboardSegments = useMemo(
+    () => buildDashboardSegments(visibleLayout),
+    [visibleLayout]
+  )
+
   const handleMoveUp = (id: DashboardWidgetId) => {
-    const next = moveWidgetUp(layout, id)
+    const next = pinUpcomingFirst(moveWidgetUp(layout, id))
     setLayout(next)
     saveDashboardLayout(next)
   }
 
   const handleMoveDown = (id: DashboardWidgetId) => {
-    const next = moveWidgetDown(layout, id)
+    const next = pinUpcomingFirst(moveWidgetDown(layout, id))
     setLayout(next)
     saveDashboardLayout(next)
   }
@@ -755,16 +762,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Moveable widgets */}
-        {visibleLayout.map((id) => (
-          <WidgetWrapper
-            key={id}
-            id={id}
-            contentClassName={
-              id === 'customer-ar-glance'
-                ? 'w-full max-w-xl sm:max-w-2xl flex-none min-w-0'
-                : undefined
-            }
-          >
+        {dashboardSegments.map((segment) => {
+          const renderOne = (id: DashboardWidgetId) => (
+            <>
             {id === 'month-summary' && summary && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="mb-4">
@@ -1736,8 +1736,39 @@ export default function DashboardPage() {
             )}
           </div>
             )}
-          </WidgetWrapper>
-        ))}
+            </>
+          )
+          if (segment.length === 2) {
+            return (
+              <div
+                key={`dashboard-pair-${segment[0]}-${segment[1]}`}
+                className="flex flex-col lg:flex-row gap-6 mb-6 w-full items-stretch"
+              >
+                {segment.map((id) => (
+                  <WidgetWrapper
+                    key={id}
+                    id={id}
+                    className="mb-0 flex-1 min-w-0 basis-0 lg:max-w-[calc(50%-0.75rem)]"
+                    contentClassName="w-full min-w-0"
+                  >
+                    {renderOne(id)}
+                  </WidgetWrapper>
+                ))}
+              </div>
+            )
+          }
+          return (
+            <WidgetWrapper
+              key={segment[0]}
+              id={segment[0]}
+              contentClassName={
+                segment[0] === 'customer-ar-glance' ? 'w-full min-w-0' : undefined
+              }
+            >
+              {renderOne(segment[0])}
+            </WidgetWrapper>
+          )
+        })}
         </div>
 
       {/* Add Pay Day Modal */}

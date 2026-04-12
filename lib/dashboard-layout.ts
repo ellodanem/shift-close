@@ -3,11 +3,11 @@
  * For now uses localStorage. When users exist, switch to userId-scoped key or DB.
  */
 export const DASHBOARD_WIDGET_IDS = [
+  'upcoming-roster',
   'month-summary',
   'customer-ar-glance',
   'fuel-mtd-deposit-block',
   'phase1-status',
-  'upcoming-roster',
   'fuel-volume',
   'recent-fuel-payment'
 ] as const
@@ -26,13 +26,51 @@ export function getDefaultLayout(): DashboardWidgetId[] {
   return [...DEFAULT_LAYOUT]
 }
 
+/** Keep Upcoming first so it stays visible without scrolling. */
+export function pinUpcomingFirst(layout: DashboardWidgetId[]): DashboardWidgetId[] {
+  const i = layout.indexOf('upcoming-roster')
+  if (i <= 0) return layout
+  const next = [...layout]
+  next.splice(i, 1)
+  next.unshift('upcoming-roster')
+  return next
+}
+
+/**
+ * Group customer A/R + fuel MTD into one row when both are present (side-by-side on large screens).
+ */
+export function buildDashboardSegments(layout: DashboardWidgetId[]): DashboardWidgetId[][] {
+  const hasAr = layout.includes('customer-ar-glance')
+  const hasFuel = layout.includes('fuel-mtd-deposit-block')
+  const pairActive = hasAr && hasFuel
+  const used = new Set<DashboardWidgetId>()
+  const out: DashboardWidgetId[][] = []
+
+  for (const id of layout) {
+    if (used.has(id)) continue
+    if (pairActive && (id === 'customer-ar-glance' || id === 'fuel-mtd-deposit-block')) {
+      const iAr = layout.indexOf('customer-ar-glance')
+      const iFu = layout.indexOf('fuel-mtd-deposit-block')
+      const ordered: [DashboardWidgetId, DashboardWidgetId] =
+        iAr < iFu ? ['customer-ar-glance', 'fuel-mtd-deposit-block'] : ['fuel-mtd-deposit-block', 'customer-ar-glance']
+      out.push([ordered[0], ordered[1]])
+      used.add('customer-ar-glance')
+      used.add('fuel-mtd-deposit-block')
+      continue
+    }
+    out.push([id])
+    used.add(id)
+  }
+  return out
+}
+
 export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
   if (typeof window === 'undefined') return getDefaultLayout()
   try {
     const raw = localStorage.getItem(getStorageKey(userId))
-    if (!raw) return DEFAULT_LAYOUT
+    if (!raw) return pinUpcomingFirst(getDefaultLayout())
     const parsed = JSON.parse(raw) as string[]
-    if (!Array.isArray(parsed)) return DEFAULT_LAYOUT
+    if (!Array.isArray(parsed)) return pinUpcomingFirst(getDefaultLayout())
     // Migrate: merge 'upcoming' + 'today-roster' -> 'upcoming-roster'
     // Migrate: 'fuel-mtd-sold' + 'average-deposit' -> single 'fuel-mtd-deposit-block'
     const migrated = parsed.map((id) => {
@@ -53,9 +91,9 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       if (mi >= 0) merged.splice(mi + 1, 0, 'customer-ar-glance')
       else merged.unshift('customer-ar-glance')
     }
-    return merged
+    return pinUpcomingFirst(merged)
   } catch {
-    return DEFAULT_LAYOUT
+    return pinUpcomingFirst(getDefaultLayout())
   }
 }
 
