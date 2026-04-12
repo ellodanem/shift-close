@@ -666,6 +666,171 @@ export default function DashboardPage() {
     )
   }
 
+  const renderUpcomingCard = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full min-h-[7.5rem] flex flex-col lg:max-w-md xl:max-w-lg lg:flex-shrink-0 w-full">
+      <div className="flex items-center justify-between mb-3 shrink-0">
+        <h3 className="text-sm font-semibold text-gray-900">Upcoming</h3>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => router.push('/settings/pay-days')}
+            className="text-xs text-gray-500 hover:text-indigo-600 font-medium"
+            title="Manage pay days"
+          >
+            Pay Days
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const today = new Date()
+              const y = today.getFullYear()
+              const m = String(today.getMonth() + 1).padStart(2, '0')
+              const d = String(today.getDate()).padStart(2, '0')
+              setPayDayForm({
+                date: `${y}-${m}-${d}`,
+                notes: ''
+              })
+              setPayDayModalOpen(true)
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
+            title="Add pay day"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const today = new Date()
+              setReminderForm({
+                title: '',
+                date: today.toISOString().slice(0, 10),
+                notes: '',
+                notifyEmail: true,
+                notifyWhatsApp: false,
+                notifyDaysBefore: '7,3,1,0',
+                recurrenceType: '',
+                recurrenceEndDate: ''
+              })
+              setReminderModalOpen(true)
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+            title="Add reminder"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col justify-center min-h-0">
+        {upcoming.length === 0 ? (
+          <p className="text-gray-400 text-xs italic text-center py-3">No events in next 7 days</p>
+        ) : (
+          <div className="space-y-2">
+            {upcoming.slice(0, 3).map((event, index) => {
+              const getIcon = () => {
+                switch (event.type) {
+                  case 'birthday':
+                    return '🎂'
+                  case 'invoice':
+                    return '📄'
+                  case 'contract':
+                    return '📋'
+                  case 'pay-day':
+                    return '💰'
+                  default:
+                    return '📅'
+                }
+              }
+              const getPriorityColor = () => {
+                switch (event.priority) {
+                  case 'high':
+                    return 'border-l-2 border-red-400 bg-red-50'
+                  case 'medium':
+                    return 'border-l-2 border-yellow-400 bg-yellow-50'
+                  default:
+                    return 'border-l-2 border-blue-400 bg-blue-50'
+                }
+              }
+              const formatEventDate = (dateStr: string) => {
+                const [y, m, d] = dateStr.split('-').map(Number)
+                if (!y || !m || !d) return dateStr
+                const date = new Date(y, m - 1, d)
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              }
+              const getDaysText = () => {
+                if (event.daysUntil === 0) return 'Today'
+                if (event.daysUntil === 1) return 'Tomorrow'
+                return `${event.daysUntil}d`
+              }
+
+              return (
+                <div
+                  key={`${event.type}-${event.reminderId ?? event.payDayId ?? index}-${event.date}`}
+                  className={`rounded p-2 ${getPriorityColor()}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-lg flex-shrink-0">{getIcon()}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-gray-900 truncate">{event.title}</div>
+                        <div className="text-xs text-gray-500">{formatEventDate(event.date)}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="text-xs font-semibold text-gray-700">{getDaysText()}</div>
+                      {event.type === 'other' && event.reminderId && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('Delete this reminder?')) return
+                            try {
+                              const res = await fetch(`/api/reminders/${event.reminderId}`, {
+                                method: 'DELETE'
+                              })
+                              if (res.ok) fetchUpcoming()
+                            } catch (err) {
+                              console.error('Failed to delete reminder:', err)
+                            }
+                          }}
+                          className="text-gray-400 hover:text-red-600 text-xs p-0.5"
+                          title="Delete reminder"
+                        >
+                          ✕
+                        </button>
+                      )}
+                      {event.type === 'pay-day' && event.payDayId && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('Delete this pay day?')) return
+                            try {
+                              const res = await fetch(`/api/pay-days/${event.payDayId}`, {
+                                method: 'DELETE'
+                              })
+                              if (res.ok) fetchUpcoming()
+                            } catch (err) {
+                              console.error('Failed to delete pay day:', err)
+                            }
+                          }}
+                          className="text-gray-400 hover:text-red-600 text-xs p-0.5"
+                          title="Delete pay day"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {upcoming.length > 3 && (
+              <p className="text-xs text-gray-400 text-center pt-1">+{upcoming.length - 3} more</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -682,8 +847,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         </div>
 
-        {/* Month Filter */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        {/* Month filter + Upcoming (top row) */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
@@ -759,6 +925,8 @@ export default function DashboardPage() {
               </span>
             )}
           </div>
+        </div>
+        {renderUpcomingCard()}
         </div>
 
         {/* Moveable widgets */}
@@ -1320,153 +1488,6 @@ export default function DashboardPage() {
           </div>
         )}
             {id === 'upcoming-roster' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upcoming */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Upcoming</h3>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => router.push('/settings/pay-days')}
-                  className="text-xs text-gray-500 hover:text-indigo-600"
-                  title="Manage pay days"
-                >
-                  Pay Days
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date()
-                    const y = today.getFullYear()
-                    const m = String(today.getMonth() + 1).padStart(2, '0')
-                    const d = String(today.getDate()).padStart(2, '0')
-                    setPayDayForm({
-                      date: `${y}-${m}-${d}`,
-                      notes: ''
-                    })
-                    setPayDayModalOpen(true)
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
-                  title="Add pay day"
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => {
-                    const today = new Date()
-                    setReminderForm({
-                      title: '',
-                      date: today.toISOString().slice(0, 10),
-                      notes: '',
-                      notifyEmail: true,
-                      notifyWhatsApp: false,
-                      notifyDaysBefore: '7,3,1,0',
-                      recurrenceType: '',
-                      recurrenceEndDate: ''
-                    })
-                    setReminderModalOpen(true)
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
-                  title="Add reminder"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            {upcoming.length === 0 ? (
-              <p className="text-gray-400 text-xs italic py-2">No events in next 7 days</p>
-            ) : (
-              <div className="space-y-2">
-                {upcoming.slice(0, 3).map((event, index) => {
-                  const getIcon = () => {
-                    switch (event.type) {
-                      case 'birthday': return '🎂'
-                      case 'invoice': return '📄'
-                      case 'contract': return '📋'
-                      case 'pay-day': return '💰'
-                      default: return '📅'
-                    }
-                  }
-                  const getPriorityColor = () => {
-                    switch (event.priority) {
-                      case 'high': return 'border-l-2 border-red-400 bg-red-50'
-                      case 'medium': return 'border-l-2 border-yellow-400 bg-yellow-50'
-                      default: return 'border-l-2 border-blue-400 bg-blue-50'
-                    }
-                  }
-                  const formatDate = (dateStr: string) => {
-                    const [y, m, d] = dateStr.split('-').map(Number)
-                    if (!y || !m || !d) return dateStr
-                    const date = new Date(y, m - 1, d)
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  }
-                  const getDaysText = () => {
-                    if (event.daysUntil === 0) return 'Today'
-                    if (event.daysUntil === 1) return 'Tomorrow'
-                    return `${event.daysUntil}d`
-                  }
-                  
-                  return (
-                    <div key={`${event.type}-${event.reminderId ?? event.payDayId ?? index}-${event.date}`} className={`rounded p-2 ${getPriorityColor()}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="text-lg flex-shrink-0">{getIcon()}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-medium text-gray-900 truncate">{event.title}</div>
-                            <div className="text-xs text-gray-500">{formatDate(event.date)}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <div className="text-xs font-semibold text-gray-700">
-                          {getDaysText()}
-                          </div>
-                          {event.type === 'other' && event.reminderId && (
-                            <button
-                              onClick={async () => {
-                                if (!confirm('Delete this reminder?')) return
-                                try {
-                                  const res = await fetch(`/api/reminders/${event.reminderId}`, { method: 'DELETE' })
-                                  if (res.ok) fetchUpcoming()
-                                } catch (err) {
-                                  console.error('Failed to delete reminder:', err)
-                                }
-                              }}
-                              className="text-gray-400 hover:text-red-600 text-xs p-0.5"
-                              title="Delete reminder"
-                            >
-                              ✕
-                            </button>
-                          )}
-                          {event.type === 'pay-day' && event.payDayId && (
-                            <button
-                              onClick={async () => {
-                                if (!confirm('Delete this pay day?')) return
-                                try {
-                                  const res = await fetch(`/api/pay-days/${event.payDayId}`, { method: 'DELETE' })
-                                  if (res.ok) fetchUpcoming()
-                                } catch (err) {
-                                  console.error('Failed to delete pay day:', err)
-                                }
-                              }}
-                              className="text-gray-400 hover:text-red-600 text-xs p-0.5"
-                              title="Delete pay day"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {upcoming.length > 3 && (
-                  <p className="text-xs text-gray-400 text-center pt-1">
-                    +{upcoming.length - 3} more
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          {/* Today's Roster */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">
@@ -1571,7 +1592,6 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-          </div>
           </div>
             )}
             {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
