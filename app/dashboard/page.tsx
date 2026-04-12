@@ -923,13 +923,18 @@ export default function DashboardPage() {
         <div>
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Who&apos;s off</div>
           {todayRoster?.off && todayRoster.off.length > 0 ? (
-            <ul className="space-y-1">
-              {todayRoster.off.map((s) => (
-                <li key={s.staffId} className="text-xs text-gray-700">
-                  {s.staffFirstName ?? s.staffName}
-                </li>
+            <div className="text-xs text-gray-700 leading-snug flex flex-wrap items-baseline gap-y-1">
+              {todayRoster.off.map((s, i) => (
+                <span key={s.staffId} className="inline-flex min-w-0 max-w-full items-baseline">
+                  {i > 0 ? (
+                    <span className="mx-1.5 shrink-0 text-slate-300 select-none" aria-hidden>
+                      |
+                    </span>
+                  ) : null}
+                  <span className="break-words">{s.staffFirstName ?? s.staffName}</span>
+                </span>
               ))}
-            </ul>
+            </div>
           ) : (
             <p className="text-xs text-gray-500 italic">No one off today.</p>
           )}
