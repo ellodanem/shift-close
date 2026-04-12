@@ -606,10 +606,18 @@ export default function DashboardPage() {
 
   const visibleLayout = layout.filter(id => id !== 'fuel-volume' || fuelComparison.length > 0)
 
-  const dashboardSegments = useMemo(
-    () => buildDashboardSegments(visibleLayout),
+  /** Fuel MTD is pinned under month filters in the wide column (matches dashboard hero layout). */
+  const layoutForScrollableWidgets = useMemo(
+    () => visibleLayout.filter((id) => id !== 'fuel-mtd-deposit-block'),
     [visibleLayout]
   )
+
+  const dashboardSegments = useMemo(
+    () => buildDashboardSegments(layoutForScrollableWidgets),
+    [layoutForScrollableWidgets]
+  )
+
+  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
 
   const handleMoveUp = (id: DashboardWidgetId) => {
     const next = moveWidgetUp(layout, id)
@@ -621,6 +629,57 @@ export default function DashboardPage() {
     const next = moveWidgetDown(layout, id)
     setLayout(next)
     saveDashboardLayout(next)
+  }
+
+  const renderFuelMtdDepositBlock = () => {
+    if (!summary) return null
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-blue-950">Fuel sold — daily average (MTD)</h2>
+          <p className="text-sm text-slate-500 mt-1 leading-snug">
+            Litres from shift close entries for {summary.monthName} {summary.year}. Averages divide total volume
+            by calendar days in the period (current month: 1st through today; past months: full month).
+          </p>
+        </div>
+        {fuelMtdLoadState !== 'done' ? (
+          <p className="text-sm text-slate-400 italic">Loading fuel volumes…</p>
+        ) : fuelMtdSold?.isFutureMonth ? (
+          <p className="text-sm text-slate-400 italic">No data for a future month.</p>
+        ) : fuelMtdSold ? (
+          <div className="space-y-4">
+            <p className="text-xs font-medium text-slate-500">{fuelMtdSold.periodLabel}</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                <div className="mb-1 text-xs font-semibold text-emerald-800">Gas (unleaded)</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L
+                </div>
+                <div className="mt-0.5 text-xs font-medium text-emerald-700">per day average</div>
+                <div className="mt-3 border-t border-emerald-200/90 pt-2 text-xs font-medium text-slate-700">
+                  MTD total: {formatLitres(fuelMtdSold.totalUnleaded)} L
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-1 text-xs font-semibold text-slate-600">Diesel</div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {formatLitres(fuelMtdSold.avgDieselPerDay)} L
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500">per day average</div>
+                <div className="mt-3 border-t border-slate-200 pt-2 text-xs font-medium text-slate-700">
+                  MTD total: {formatLitres(fuelMtdSold.totalDiesel)} L
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-amber-800">
+            Could not load fuel volumes. If this persists, check that you are signed in and have access to
+            dashboard data.
+          </p>
+        )}
+      </div>
+    )
   }
 
   const WidgetWrapper = ({
@@ -638,8 +697,9 @@ export default function DashboardPage() {
     const idx = visibleLayout.indexOf(id)
     const canMoveUp = idx > 0
     const canMoveDown = idx >= 0 && idx < visibleLayout.length - 1
+    const marginClass = className.includes('mb-') ? '' : 'mb-6'
     return (
-      <div className={`flex gap-3 items-start mb-6 ${className}`}>
+      <div className={`flex gap-3 items-start ${marginClass} ${className}`.trim()}>
         <div className={contentClassName ?? 'flex-1 min-w-0'}>
           {children}
         </div>
@@ -668,7 +728,7 @@ export default function DashboardPage() {
   const renderUpcomingCard = () => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full min-h-[7.5rem] flex flex-col w-full min-w-0">
       <div className="flex items-center justify-between mb-3 shrink-0">
-        <h3 className="text-sm font-semibold text-gray-900">Upcoming</h3>
+        <h3 className="text-sm font-bold text-gray-900">Upcoming</h3>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -830,23 +890,42 @@ export default function DashboardPage() {
     </div>
   )
 
+  const formatShiftTimeLabel = (shiftStartTime?: string, shiftName?: string): string => {
+    const name = shiftName?.trim()
+    if (name && /\d/.test(name) && /[-–]/.test(name)) return name
+    if (shiftStartTime && shiftStartTime.trim()) {
+      const t = shiftStartTime.trim()
+      const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+      if (m) {
+        let h = Number(m[1])
+        const min = m[2]
+        const ap = h >= 12 ? 'PM' : 'AM'
+        if (h > 12) h -= 12
+        if (h === 0) h = 12
+        const startLabel = `${h}:${min} ${ap}`
+        if (name && name !== t) return `${startLabel} · ${name}`
+        return startLabel
+      }
+    }
+    return name || 'Shift'
+  }
+
   const renderTodayRosterCard = () => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 w-full min-w-0">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-base font-bold text-gray-900">
           {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end shrink-0">
           {todayRoster?.presentAbsenceEnabled ? (
             <button
               type="button"
               onClick={() => router.push('/dashboard/present-absence')}
-              className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
             >
-              Present / Absent
+              Present / Absent Roster →
             </button>
-          ) : null}
-          {!isStakeholder && (
+          ) : !isStakeholder ? (
             <button
               type="button"
               onClick={() => router.push('/roster')}
@@ -854,67 +933,72 @@ export default function DashboardPage() {
             >
               Roster →
             </button>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="space-y-3">
         <div>
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
           {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
-              {groupScheduledByShift(todayRoster.scheduled).map((group) => (
-                <div key={group.shiftName} className="text-xs">
-                  <div className="inline-flex items-center gap-1 font-semibold text-gray-900">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: group.color || '#94a3b8' }}
-                      title={group.shiftName}
-                    />
-                    {group.shiftName}
+            <div className="flex flex-col gap-4">
+              {groupScheduledByShift(todayRoster.scheduled).map((group) => {
+                const rowForHeader =
+                  todayRoster.scheduled.find(
+                    (s) => s.shiftName === group.shiftName && s.shiftStartTime
+                  ) ?? todayRoster.scheduled.find((s) => s.shiftName === group.shiftName)
+                const headerLabel = formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)
+                return (
+                  <div key={group.shiftName} className="text-xs">
+                    <div className="inline-flex items-center gap-1.5 font-semibold text-gray-900">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: group.color || '#7c3aed' }}
+                        title={group.shiftName}
+                      />
+                      <span>{headerLabel}</span>
+                    </div>
+                    <div className="mt-1.5 text-gray-800 space-y-0.5 pl-3 border-l border-slate-100 ml-1">
+                      {group.entries.map((e) => {
+                        const g = e.presence ? presenceStatusGlyph(e.presence.status) : null
+                        const canEditPresence =
+                          todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
+                        return (
+                          <div
+                            key={`${group.shiftName}-${e.staffId}`}
+                            className="flex items-center gap-1.5 min-h-[1.25rem]"
+                          >
+                            {g && (
+                              <button
+                                type="button"
+                                title={g.title}
+                                disabled={!canEditPresence}
+                                onClick={() => {
+                                  if (!canEditPresence || !todayRoster.date) return
+                                  setPresenceModal({
+                                    staffId: e.staffId,
+                                    staffName: e.displayName,
+                                    date: todayRoster.date,
+                                    manualPresent: e.presence?.manualPresent === true,
+                                    manualAbsent: e.presence?.manualAbsent === true,
+                                    punchExempt: e.presence?.punchExempt === true,
+                                    lateReason: e.presence?.lateReason ?? ''
+                                  })
+                                }}
+                                className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
+                                  g.className
+                                } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                              >
+                                {g.char}
+                              </button>
+                            )}
+                            <span>{e.displayName}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-gray-700 space-y-0.5">
-                    {group.entries.map((e) => {
-                      const g = e.presence
-                        ? presenceStatusGlyph(e.presence.status)
-                        : null
-                      const canEditPresence =
-                        todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
-                      return (
-                        <div
-                          key={`${group.shiftName}-${e.staffId}`}
-                          className="flex items-center gap-1.5 min-h-[1.25rem]"
-                        >
-                          {g && (
-                            <button
-                              type="button"
-                              title={g.title}
-                              disabled={!canEditPresence}
-                              onClick={() => {
-                                if (!canEditPresence || !todayRoster.date) return
-                                setPresenceModal({
-                                  staffId: e.staffId,
-                                  staffName: e.displayName,
-                                  date: todayRoster.date,
-                                  manualPresent: e.presence?.manualPresent === true,
-                                  manualAbsent: e.presence?.manualAbsent === true,
-                                  punchExempt: e.presence?.punchExempt === true,
-                                  lateReason: e.presence?.lateReason ?? ''
-                                })
-                              }}
-                              className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
-                                g.className
-                              } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                            >
-                              {g.char}
-                            </button>
-                          )}
-                          <span>{e.displayName}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <p className="text-xs text-gray-500 italic">No one scheduled.</p>
@@ -956,12 +1040,13 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Dashboard</h1>
         </div>
 
-        {/* Upper dashboard: month (top-left), Upcoming + today roster stacked (right); row-2 left reserved for future cards */}
-        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:grid-rows-2 lg:items-start">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0 lg:col-start-1 lg:row-start-1">
+        {/* Wide metrics + narrow operations (matches dashboard mockup) */}
+        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
+          <div className="lg:col-span-8 space-y-6 min-w-0">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
@@ -1037,12 +1122,17 @@ export default function DashboardPage() {
               </span>
             )}
           </div>
-        </div>
-          <div className="flex flex-col gap-4 w-full min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+            </div>
+            {showFuelMtdHero && summary ? (
+              <WidgetWrapper id="fuel-mtd-deposit-block" className="mb-0">
+                {renderFuelMtdDepositBlock()}
+              </WidgetWrapper>
+            ) : null}
+          </div>
+          <aside className="lg:col-span-4 flex flex-col gap-4 w-full min-w-0">
             {renderUpcomingCard()}
             {renderTodayRosterCard()}
-          </div>
-          <div className="hidden min-h-0 lg:block lg:col-start-1 lg:row-start-2" aria-hidden />
+          </aside>
         </div>
 
         {/* Moveable widgets */}
@@ -1301,53 +1391,6 @@ export default function DashboardPage() {
               </div>
             ) : (
               <p className="text-xs text-slate-400">Customer A/R is not shown for your role.</p>
-            )}
-          </div>
-            )}
-            {id === 'fuel-mtd-deposit-block' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-blue-950">Fuel sold — daily average (MTD)</h2>
-              <p className="text-sm text-slate-500 mt-1 leading-snug">
-                Litres from shift close entries for {summary.monthName} {summary.year}. Averages divide total volume
-                by calendar days in the period (current month: 1st through today; past months: full month).
-              </p>
-            </div>
-            {fuelMtdLoadState !== 'done' ? (
-              <p className="text-sm text-slate-400 italic">Loading fuel volumes…</p>
-            ) : fuelMtdSold?.isFutureMonth ? (
-              <p className="text-sm text-slate-400 italic">No data for a future month.</p>
-            ) : fuelMtdSold ? (
-              <div className="space-y-4">
-                <p className="text-xs font-medium text-slate-500">{fuelMtdSold.periodLabel}</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                    <div className="mb-1 text-xs font-semibold text-emerald-800">Gas (unleaded)</div>
-                    <div className="text-2xl font-bold text-blue-950 tabular-nums">
-                      {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L
-                    </div>
-                    <div className="mt-0.5 text-xs font-medium text-emerald-700">per day average</div>
-                    <div className="mt-3 border-t border-emerald-200/90 pt-2 text-xs font-medium text-blue-950">
-                      MTD total: {formatLitres(fuelMtdSold.totalUnleaded)} L
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="mb-1 text-xs font-semibold text-slate-600">Diesel</div>
-                    <div className="text-2xl font-bold text-blue-950 tabular-nums">
-                      {formatLitres(fuelMtdSold.avgDieselPerDay)} L
-                    </div>
-                    <div className="mt-0.5 text-xs text-slate-500">per day average</div>
-                    <div className="mt-3 border-t border-slate-200 pt-2 text-xs font-medium text-blue-950">
-                      MTD total: {formatLitres(fuelMtdSold.totalDiesel)} L
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-amber-800">
-                Could not load fuel volumes. If this persists, check that you are signed in and have access to
-                dashboard data.
-              </p>
             )}
           </div>
             )}
