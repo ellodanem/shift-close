@@ -26,10 +26,29 @@ export function attendanceBootstrapEarliestYmd(): string | null {
   return raw
 }
 
+/** Result of resolving the slice after the last filed pay period. */
+export type OpenAttendanceWindow = {
+  /** Inclusive first calendar day of the open period (station-aligned semantics via `todayYmd`). */
+  startDate: string
+  /**
+   * Inclusive last calendar day to **query** logs (station “today”).
+   * This is not a filed pay-period end — see `openPeriodEndDate`.
+   */
+  endDate: string
+  /**
+   * Filed end date for the open pay period: always `null` until the next Pay Period Report is saved.
+   * `endDate` above is only the rolling upper bound for listing punches.
+   */
+  openPeriodEndDate: null
+}
+
 /**
  * Inclusive YYYY-MM-DD bounds for the **current open** attendance window after the last
  * **filed** pay period (greatest `createdAt`). Starts the earlier of (day after closed end,
  * calendar day of first save) so punches on the last closed day **after** the save stay in range.
+ *
+ * The open pay period has **no filed end** until someone saves the next report (`openPeriodEndDate`).
+ * For SQL/API filters, use `endDate`, which is always station “today” (rolling).
  *
  * Pass `todayYmd` as **station** calendar today (same TZ as attendance logs) so the window
  * end matches local “today”; otherwise UTC date is used (legacy).
@@ -38,11 +57,11 @@ export function openAttendanceWindowAfterLastClosed(p: {
   endDate: string
   createdAt: Date
   todayYmd?: string
-}): { startDate: string; endDate: string } {
+}): OpenAttendanceWindow {
   const today =
     p.todayYmd && YMD.test(p.todayYmd) ? p.todayYmd : todayYmdUtc()
   if (!YMD.test(p.endDate)) {
-    return { startDate: today, endDate: today }
+    return { startDate: today, endDate: today, openPeriodEndDate: null }
   }
   const dayAfterClose = ymdAddUtcDays(p.endDate, 1)
   const filedYmd = p.createdAt.toISOString().slice(0, 10)
@@ -54,5 +73,5 @@ export function openAttendanceWindowAfterLastClosed(p: {
   if (boot) {
     startDate = ymdMin(startDate, boot)
   }
-  return { startDate, endDate: today }
+  return { startDate, endDate: today, openPeriodEndDate: null }
 }

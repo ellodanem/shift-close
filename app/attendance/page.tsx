@@ -374,8 +374,15 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** Inclusive date range for the current *open* pay period (day after last filed report end → today). */
-  const [payPeriodBounds, setPayPeriodBounds] = useState<{ start: string; end: string } | null>(null)
+  /**
+   * Open pay period: `start` … filed end is unset (`openEnded`) until the next report save;
+   * `queryEnd` is the inclusive punch-query bound (station “today”).
+   */
+  const [payPeriodBounds, setPayPeriodBounds] = useState<{
+    start: string
+    queryEnd: string
+    openEnded: boolean
+  } | null>(null)
   /** Last generated (filed) pay period date range shown for context. */
   const [closedPayPeriod, setClosedPayPeriod] = useState<{ start: string; end: string } | null>(null)
   const { user } = useAuth()
@@ -476,11 +483,13 @@ export default function AttendancePage() {
       const row = data as {
         startDate: string
         endDate: string
+        openPeriodEndDate?: string | null
         closedPeriodStart?: string
         closedPeriodEnd?: string
       }
       setError(null)
-      setPayPeriodBounds({ start: row.startDate, end: row.endDate })
+      const openEnded = row.openPeriodEndDate == null
+      setPayPeriodBounds({ start: row.startDate, queryEnd: row.endDate, openEnded })
       if (typeof row.closedPeriodStart === 'string' && typeof row.closedPeriodEnd === 'string') {
         setClosedPayPeriod({ start: row.closedPeriodStart, end: row.closedPeriodEnd })
       } else {
@@ -489,7 +498,7 @@ export default function AttendancePage() {
 
       const logParams = new URLSearchParams({
         startDate: row.startDate,
-        endDate: row.endDate
+        endDate: row.endDate,
       })
       if (canToggleArchivedLogs && includeArchivedPunches) {
         logParams.set('includeArchived', '1')
@@ -1049,12 +1058,24 @@ export default function AttendancePage() {
 
             {payPeriodBounds && !error && (
               <p className="text-xs text-gray-600 mb-2">
-                <span className="font-medium text-gray-800">Open pay-period window (logs filter):</span>{' '}
+                <span className="font-medium text-gray-800">Current open pay period (logs filter):</span>{' '}
                 <span className="font-mono">
-                  {payPeriodBounds.start} → {payPeriodBounds.end}
-                </span>{' '}
-                (station timezone). Punches outside this range are hidden — use <strong>Refresh list</strong> after midnight
-                or <strong>Include archived punches</strong> if your role allows.
+                  {payPeriodBounds.start} →{' '}
+                  {payPeriodBounds.openEnded ? (
+                    <>
+                      <span className="text-gray-800">ongoing</span>
+                      <span className="text-gray-600">
+                        {' '}
+                        (punches through {payPeriodBounds.queryEnd}, station date)
+                      </span>
+                    </>
+                  ) : (
+                    payPeriodBounds.queryEnd
+                  )}
+                </span>
+                . The period end is fixed when you save a Pay Period Report; until then the list grows through each
+                station day. Punches outside this range are hidden — use <strong>Refresh list</strong> after midnight or{' '}
+                <strong>Include archived punches</strong> if your role allows.
               </p>
             )}
 

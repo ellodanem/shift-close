@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       }
       const tz = await readStationTimeZone()
       const todayYmd = calendarYmdInTz(new Date(), tz)
-      const { startDate, endDate } = openAttendanceWindowAfterLastClosed({
+      const { startDate, endDate, openPeriodEndDate } = openAttendanceWindowAfterLastClosed({
         endDate: p.endDate,
         createdAt: p.createdAt,
         todayYmd
@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         startDate,
         endDate,
+        openPeriodEndDate,
         savedAt: p.updatedAt.toISOString(),
         closedPeriodStart: p.startDate,
         closedPeriodEnd: p.endDate,
