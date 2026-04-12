@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
 import { openAttendanceWindowAfterLastClosed } from '@/lib/attendance-open-period'
 import { prisma } from '@/lib/prisma'
 import { calendarYmdInTz, readStationTimeZone } from '@/lib/present-absence'
@@ -12,6 +13,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     if (searchParams.get('latestSaved') === '1') {
+      if (attendanceRawLogsEnv()) {
+        return NextResponse.json({
+          rawMode: true,
+          startDate: null,
+          endDate: null,
+          openPeriodEndDate: null,
+          savedAt: null,
+          closedPeriodStart: null,
+          closedPeriodEnd: null,
+          closedAt: null
+        })
+      }
       const p = await prisma.payPeriod.findFirst({
         orderBy: { createdAt: 'desc' },
         select: {

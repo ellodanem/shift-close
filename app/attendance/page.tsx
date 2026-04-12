@@ -374,15 +374,17 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /**
-   * Open pay period: `start` … filed end is unset (`openEnded`) until the next report save;
-   * `queryEnd` is the inclusive punch-query bound (station “today”).
-   */
-  const [payPeriodBounds, setPayPeriodBounds] = useState<{
-    start: string
-    queryEnd: string
-    openEnded: boolean
-  } | null>(null)
+  /** Normal window after a filed report, or `all` when env raw mode / no reports yet. */
+  const [payPeriodBounds, setPayPeriodBounds] = useState<
+    | {
+        kind: 'window'
+        start: string
+        queryEnd: string
+        openEnded: boolean
+      }
+    | { kind: 'all'; reason: 'raw_env' | 'no_pay_period' }
+    | null
+  >(null)
   /** Last generated (filed) pay period date range shown for context. */
   const [closedPayPeriod, setClosedPayPeriod] = useState<{ start: string; end: string } | null>(null)
   const { user } = useAuth()
@@ -457,30 +459,75 @@ export default function AttendancePage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
-  /** Always refetch pay-period bounds before logs so `endDate` matches station “today” (avoids stale window after midnight or long-open tabs). */
+  /** Refetch pay-period bounds before logs; supports full-database “all punches” when no report or ATTENDANCE_RAW_LOGS. */
   const refreshAttendanceLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const periodRes = await fetch('/api/attendance/pay-period?latestSaved=1', { cache: 'no-store' })
-      if (!periodRes.ok) throw new Error('Could not load the last saved pay period report.')
-      const data = await periodRes.json().catch(() => null)
-      if (
-        data === null ||
-        typeof data !== 'object' ||
-        typeof (data as { startDate?: string }).startDate !== 'string' ||
-        typeof (data as { endDate?: string }).endDate !== 'string'
-      ) {
+      if (!periodRes.ok) throw new Error('Could not load pay period metadata.')
+      const data: unknown = await periodRes.json().catch(() => null)
+
+      const isRecord = (v: unknown): v is Record<string, unknown> =>
+        v !== null && typeof v === 'object' && !Array.isArray(v)
+
+      const row = isRecord(data) ? data : null
+      const rawFromEnv = row?.rawMode === true
+      const noPayPeriodYet = data === null
+
+      if (rawFromEnv || noPayPeriodYet) {
+        setError(null)
+        setPayPeriodBounds({
+          kind: 'all',
+          reason: rawFromEnv ? 'raw_env' : 'no_pay_period'
+        })
+        setClosedPayPeriod(null)
+
+        const logParams = new URLSearchParams()
+        if (canToggleArchivedLogs && includeArchivedPunches) {
+          logParams.set('includeArchived', '1')
+        }
+        const logsUrl =
+          logParams.toString().length > 0 ? `/api/attendance/logs?${logParams}` : '/api/attendance/logs'
+
+        const [logsRes, settingsRes, pdRes] = await Promise.all([
+          fetch(logsUrl, { cache: 'no-store' }),
+          fetch('/api/attendance/settings', { cache: 'no-store' }),
+          fetch('/api/pay-days?period=current', { cache: 'no-store' })
+        ])
+
+        if (!logsRes.ok) throw new Error('Failed to load logs')
+        const rawLogs = await logsRes.json()
+        const list: AttendanceLog[] = Array.isArray(rawLogs) ? rawLogs : rawLogs.logs
+        setLogs(Array.isArray(list) ? list : [])
+
+        if (settingsRes.ok) {
+          const s = (await settingsRes.json()) as { expectedPunchesPerDay?: number }
+          if (typeof s.expectedPunchesPerDay === 'number') {
+            setExpectedPunchesPerDay(parseExpectedPunchesPerDay(String(s.expectedPunchesPerDay)))
+          }
+        }
+
+        const pdData = await pdRes.json().catch(() => null)
+        if (pdRes.ok && pdData && typeof pdData === 'object' && 'payDay' in pdData) {
+          const pd = (pdData as { payDay?: { date?: string; notes?: string | null } | null }).payDay
+          setCurrentPeriodPayDay(pd?.date ? { date: pd.date, notes: pd.notes ?? null } : null)
+        } else {
+          setCurrentPeriodPayDay(null)
+        }
+        return
+      }
+
+      if (!row || typeof row.startDate !== 'string' || typeof row.endDate !== 'string') {
         setPayPeriodBounds(null)
         setClosedPayPeriod(null)
         setCurrentPeriodPayDay(null)
         setLogs([])
-        setError(
-          'No saved pay period report yet. Open Pay Period Report, set your dates, and save a report—then Attendance shows the open period after that filing.'
-        )
+        setError('Unexpected pay period response from the server. Try again or check server logs.')
         return
       }
-      const row = data as {
+
+      const pr = row as {
         startDate: string
         endDate: string
         openPeriodEndDate?: string | null
@@ -488,22 +535,22 @@ export default function AttendancePage() {
         closedPeriodEnd?: string
       }
       setError(null)
-      const openEnded = row.openPeriodEndDate == null
-      setPayPeriodBounds({ start: row.startDate, queryEnd: row.endDate, openEnded })
-      if (typeof row.closedPeriodStart === 'string' && typeof row.closedPeriodEnd === 'string') {
-        setClosedPayPeriod({ start: row.closedPeriodStart, end: row.closedPeriodEnd })
+      const openEnded = pr.openPeriodEndDate == null
+      setPayPeriodBounds({ kind: 'window', start: pr.startDate, queryEnd: pr.endDate, openEnded })
+      if (typeof pr.closedPeriodStart === 'string' && typeof pr.closedPeriodEnd === 'string') {
+        setClosedPayPeriod({ start: pr.closedPeriodStart, end: pr.closedPeriodEnd })
       } else {
         setClosedPayPeriod(null)
       }
 
       const logParams = new URLSearchParams({
-        startDate: row.startDate,
-        endDate: row.endDate,
+        startDate: pr.startDate,
+        endDate: pr.endDate
       })
       if (canToggleArchivedLogs && includeArchivedPunches) {
         logParams.set('includeArchived', '1')
       }
-      const payDaysQs = new URLSearchParams({ periodStart: row.startDate, periodEnd: row.endDate })
+      const payDaysQs = new URLSearchParams({ periodStart: pr.startDate, periodEnd: pr.endDate })
 
       const [logsRes, settingsRes, pdRes] = await Promise.all([
         fetch(`/api/attendance/logs?${logParams}`, { cache: 'no-store' }),
@@ -1056,7 +1103,24 @@ export default function AttendancePage() {
               )}
             </div>
 
-            {payPeriodBounds && !error && (
+            {payPeriodBounds?.kind === 'all' && !error && (
+              <p className="text-xs text-amber-900 mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-2">
+                <span className="font-semibold">All punches (no pay-period window).</span>{' '}
+                {payPeriodBounds.reason === 'raw_env' ? (
+                  <>
+                    <code className="rounded bg-amber-100/80 px-1">ATTENDANCE_RAW_LOGS</code> is enabled on the server —
+                    archive and date slicing are bypassed. Remove it from env when you want normal behavior again.
+                  </>
+                ) : (
+                  <>
+                    No Pay Period Report has been filed yet, so every row in the database is listed. Save a report when
+                    you want the usual open-period window and archived punch rules.
+                  </>
+                )}
+              </p>
+            )}
+
+            {payPeriodBounds?.kind === 'window' && !error && (
               <p className="text-xs text-gray-600 mb-2">
                 <span className="font-medium text-gray-800">Current open pay period (logs filter):</span>{' '}
                 <span className="font-mono">

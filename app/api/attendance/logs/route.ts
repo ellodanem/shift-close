@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
 import { addCalendarYmd, readStationTimeZone } from '@/lib/present-absence'
+import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
 import { getLatestFiledPayPeriodForAttendance } from '@/lib/pay-period-archive'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
@@ -106,7 +107,9 @@ export async function GET(request: NextRequest) {
       includeArchivedParam && session !== null && canViewArchivedAttendanceLogs(session.role)
 
     const filed = await getLatestFiledPayPeriodForAttendance()
-    const applyArchive = Boolean(filed && !includeArchived)
+    const applyArchive = Boolean(
+      !attendanceRawLogsEnv() && filed && !includeArchived
+    )
 
     const andParts: Prisma.AttendanceLogWhereInput[] = []
 
@@ -193,7 +196,8 @@ export async function GET(request: NextRequest) {
       logs,
       archivedClosedStart: filed?.startDate ?? null,
       archivedClosedEnd: filed?.endDate ?? null,
-      archivedHidden: applyArchive && filed !== null
+      archivedHidden: applyArchive && filed !== null,
+      rawLogsMode: attendanceRawLogsEnv()
     })
   } catch (error) {
     console.error('Error fetching attendance logs:', error)
