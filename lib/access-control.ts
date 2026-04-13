@@ -22,7 +22,14 @@ export function isPublicPath(pathname: string): boolean {
     return true
   }
   if (pathname.startsWith('/api/attendance/adms')) return true
-  if (pathname === '/api/attendance/ingest') return true
+  // Local Windows agent: no browser session; routes validate `x-agent-secret` vs AGENT_SECRET.
+  if (pathname === '/api/attendance/ingest' || pathname === '/api/attendance/ingest/') return true
+  if (
+    pathname === '/api/attendance/device/pending-staff' ||
+    pathname === '/api/attendance/device/pending-staff/'
+  ) {
+    return true
+  }
   // Cron jobs validate CRON_SECRET inside the route (see route handler).
   if (pathname === '/api/cron/end-of-day-email') return true
   if (pathname === '/api/cron/present-absence-notify') return true
