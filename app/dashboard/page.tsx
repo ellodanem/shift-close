@@ -972,66 +972,77 @@ export default function DashboardPage() {
         <div>
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
           {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              {groupScheduledByShift(todayRoster.scheduled).map((group) => {
-                const rowForHeader =
-                  todayRoster.scheduled.find(
-                    (s) => s.shiftName === group.shiftName && s.shiftStartTime
-                  ) ?? todayRoster.scheduled.find((s) => s.shiftName === group.shiftName)
-                const headerLabel = formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)
-                return (
-                  <div key={group.shiftName} className="text-xs">
-                    <div className="inline-flex items-center gap-1.5 font-semibold text-gray-900">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: group.color || '#7c3aed' }}
-                        title={group.shiftName}
-                      />
-                      <span>{headerLabel}</span>
-                    </div>
-                    <div className="mt-1.5 text-gray-800 space-y-0.5 pl-3 border-l border-slate-100 ml-1">
-                      {group.entries.map((e) => {
-                        const g = e.presence ? presenceStatusGlyph(e.presence.status) : null
-                        const canEditPresence =
-                          todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
-                        return (
-                          <div
-                            key={`${group.shiftName}-${e.staffId}`}
-                            className="flex items-center gap-1.5 min-h-[1.25rem]"
-                          >
-                            {g && (
-                              <button
-                                type="button"
-                                title={g.title}
-                                disabled={!canEditPresence}
-                                onClick={() => {
-                                  if (!canEditPresence || !todayRoster.date) return
-                                  setPresenceModal({
-                                    staffId: e.staffId,
-                                    staffName: e.displayName,
-                                    date: todayRoster.date,
-                                    manualPresent: e.presence?.manualPresent === true,
-                                    manualAbsent: e.presence?.manualAbsent === true,
-                                    punchExempt: e.presence?.punchExempt === true,
-                                    lateReason: e.presence?.lateReason ?? ''
-                                  })
-                                }}
-                                className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
-                                  g.className
-                                } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+            (() => {
+              const shiftGroups = groupScheduledByShift(todayRoster.scheduled)
+              return (
+                <div
+                  className={
+                    shiftGroups.length > 1
+                      ? 'grid grid-cols-2 gap-x-4 gap-y-4'
+                      : 'grid grid-cols-1 gap-y-4'
+                  }
+                >
+                  {shiftGroups.map((group) => {
+                    const rowForHeader =
+                      todayRoster.scheduled.find(
+                        (s) => s.shiftName === group.shiftName && s.shiftStartTime
+                      ) ?? todayRoster.scheduled.find((s) => s.shiftName === group.shiftName)
+                    const headerLabel = formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)
+                    return (
+                      <div key={group.shiftName} className="text-xs min-w-0">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-gray-900">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: group.color || '#7c3aed' }}
+                            title={group.shiftName}
+                          />
+                          <span>{headerLabel}</span>
+                        </div>
+                        <div className="mt-1.5 text-gray-800 space-y-0.5 pl-3 border-l border-slate-100 ml-1">
+                          {group.entries.map((e) => {
+                            const g = e.presence ? presenceStatusGlyph(e.presence.status) : null
+                            const canEditPresence =
+                              todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
+                            return (
+                              <div
+                                key={`${group.shiftName}-${e.staffId}`}
+                                className="flex items-center gap-1.5 min-h-[1.25rem]"
                               >
-                                {g.char}
-                              </button>
-                            )}
-                            <span>{e.displayName}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                                {g && (
+                                  <button
+                                    type="button"
+                                    title={g.title}
+                                    disabled={!canEditPresence}
+                                    onClick={() => {
+                                      if (!canEditPresence || !todayRoster.date) return
+                                      setPresenceModal({
+                                        staffId: e.staffId,
+                                        staffName: e.displayName,
+                                        date: todayRoster.date,
+                                        manualPresent: e.presence?.manualPresent === true,
+                                        manualAbsent: e.presence?.manualAbsent === true,
+                                        punchExempt: e.presence?.punchExempt === true,
+                                        lateReason: e.presence?.lateReason ?? ''
+                                      })
+                                    }}
+                                    className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
+                                      g.className
+                                    } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                                  >
+                                    {g.char}
+                                  </button>
+                                )}
+                                <span>{e.displayName}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()
           ) : (
             <p className="text-xs text-gray-500 italic">No one scheduled.</p>
           )}
