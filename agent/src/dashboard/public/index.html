@@ -46,6 +46,12 @@
     .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
     .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
     #toast { position: fixed; bottom: 20px; right: 20px; max-width: 320px; z-index: 99; }
+    .punch-table-wrap { max-height: 300px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 10px; }
+    .punch-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .punch-table th, .punch-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+    .punch-table th { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
+    .punch-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .punch-meta { font-size: 0.8rem; color: #6b7280; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -70,7 +76,7 @@
         <div class="value" id="statUptime">—</div>
       </div>
       <div class="stat">
-        <div class="label">Last Attendance Sync</div>
+        <div class="label">Last punch upload (manual)</div>
         <div class="value" id="statAttSync">Never</div>
         <div class="sub" id="statAttResult">—</div>
       </div>
@@ -86,10 +92,37 @@
       <h2>Actions</h2>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btnTestDevice">Test Device Connection</button>
-        <button class="btn btn-green" id="btnSyncAtt">Sync Attendance Now</button>
         <button class="btn btn-amber" id="btnSyncStaff">Push Staff to Device</button>
       </div>
+      <p class="punch-meta" style="margin-top:12px">Staff are synced to the device automatically on a schedule and when you use <strong>Push Staff to Device</strong>. Punches are <strong>not</strong> sent to the cloud automatically.</p>
       <div id="actionResult" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- Manual punch upload -->
+    <div class="card">
+      <h2>Upload punches to cloud (manual)</h2>
+      <p class="punch-meta">Load punches from the device, select rows, then upload. Duplicates may still be skipped server-side by time window; avoid re-uploading the same punches if they already appear in Shift Close.</p>
+      <div class="punch-toolbar">
+        <button class="btn btn-outline" id="btnLoadPunches">Load from device</button>
+        <button class="btn btn-outline" id="btnSelectAllPunches">Select all (loaded)</button>
+        <button class="btn btn-outline" id="btnClearPunches">Clear selection</button>
+        <button class="btn btn-green" id="btnUploadPunches">Upload selected to Vercel</button>
+      </div>
+      <div class="punch-meta" id="punchLoadMeta">No punches loaded.</div>
+      <div class="punch-table-wrap" id="punchTableWrap" style="display:none;">
+        <table class="punch-table">
+          <thead>
+            <tr>
+              <th style="width:36px"><input type="checkbox" id="chkPunchMaster" title="Toggle all" /></th>
+              <th>User ID</th>
+              <th>Time (UTC)</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody id="punchTableBody"></tbody>
+        </table>
+      </div>
+      <div id="punchUploadResult" style="margin-top:12px;"></div>
     </div>
 
     <!-- Settings -->
@@ -159,7 +192,6 @@
         const res = await fetch('/api/status')
         const s = await res.json()
 
-        // Header
         const dot = document.getElementById('headerDot')
         const sub = document.getElementById('headerSub')
         if (s.configured) {
@@ -174,17 +206,17 @@
         document.getElementById('statDeviceIp').textContent = s.deviceIp || 'Not set'
         document.getElementById('statUptime').textContent = s.uptime
         document.getElementById('statAttSync').textContent = s.lastAttendanceSync ? fmtTime(s.lastAttendanceSync) : 'Never'
-        document.getElementById('statAttResult').textContent = s.lastAttendanceSyncResult ? `${s.lastAttendanceSyncResult.synced ?? 0} records` : '—'
+        document.getElementById('statAttResult').textContent = s.lastAttendanceSyncResult
+          ? (s.lastAttendanceSyncResult.error ? s.lastAttendanceSyncResult.error : `${s.lastAttendanceSyncResult.synced ?? 0} new`)
+          : '—'
         document.getElementById('statStaffSync').textContent = s.lastStaffSync ? fmtTime(s.lastStaffSync) : 'Never'
         document.getElementById('statStaffResult').textContent = s.lastStaffSyncResult ? `${s.lastStaffSyncResult.pushed ?? 0} pushed` : '—'
 
-        // Activity
         const list = document.getElementById('activityList')
         if (s.activity && s.activity.length > 0) {
           list.innerHTML = s.activity.map(a => `<li><span class="time">${a.time}</span><span class="msg">${a.message}</span></li>`).join('')
         }
 
-        // ADMS
         if (s.vercelUrl) {
           document.getElementById('admsUrl').textContent = `ADMS Endpoint: ${s.vercelUrl}/api/attendance/adms`
           const url = new URL(s.vercelUrl)
@@ -224,21 +256,96 @@
       btn.disabled = false; btn.textContent = 'Test Device Connection'
       const el = document.getElementById('actionResult')
       el.innerHTML = data.ok
-        ? `<div class="alert alert-success">✓ Device connected successfully</div>`
-        : `<div class="alert alert-error">✗ ${data.error}</div>`
+        ? `<div class="alert alert-success">Device connected successfully</div>`
+        : `<div class="alert alert-error">${data.error}</div>`
       loadStatus()
     })
 
-    document.getElementById('btnSyncAtt').addEventListener('click', async () => {
-      const btn = document.getElementById('btnSyncAtt')
-      btn.disabled = true; btn.textContent = 'Syncing…'
-      const res = await fetch('/api/sync-attendance', { method: 'POST' })
+    let loadedPunches = []
+
+    document.getElementById('btnLoadPunches').addEventListener('click', async () => {
+      const btn = document.getElementById('btnLoadPunches')
+      const meta = document.getElementById('punchLoadMeta')
+      const wrap = document.getElementById('punchTableWrap')
+      const tbody = document.getElementById('punchTableBody')
+      btn.disabled = true; btn.textContent = 'Loading…'
+      try {
+        const res = await fetch('/api/device-punches?limit=2000')
+        const data = await res.json()
+        if (!data.ok) {
+          meta.textContent = data.error || 'Failed to load'
+          wrap.style.display = 'none'
+          loadedPunches = []
+        } else {
+          loadedPunches = data.punches || []
+          meta.textContent = `Showing ${loadedPunches.length} of ${data.totalOnDevice ?? loadedPunches.length} punch(es) on device (newest first).`
+          tbody.innerHTML = loadedPunches.map((p, i) => `
+            <tr>
+              <td><input type="checkbox" class="punch-row-chk" data-idx="${i}" /></td>
+              <td>${escapeHtml(p.deviceUserId)}</td>
+              <td>${escapeHtml(p.recordTime)}</td>
+              <td>${p.state !== undefined && p.state !== null ? escapeHtml(String(p.state)) : '—'}</td>
+            </tr>`).join('')
+          wrap.style.display = loadedPunches.length ? 'block' : 'none'
+          document.getElementById('chkPunchMaster').checked = false
+        }
+      } catch (e) {
+        meta.textContent = 'Request failed'
+        wrap.style.display = 'none'
+        loadedPunches = []
+      }
+      btn.disabled = false; btn.textContent = 'Load from device'
+    })
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    }
+
+    function getSelectedLogs() {
+      const logs = []
+      document.querySelectorAll('.punch-row-chk:checked').forEach((el) => {
+        const i = parseInt(el.getAttribute('data-idx'), 10)
+        const p = loadedPunches[i]
+        if (p) logs.push({ deviceUserId: p.deviceUserId, recordTime: p.recordTime, state: p.state })
+      })
+      return logs
+    }
+
+    document.getElementById('btnSelectAllPunches').addEventListener('click', () => {
+      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = true })
+      const m = document.getElementById('chkPunchMaster')
+      if (m) m.checked = loadedPunches.length > 0
+    })
+
+    document.getElementById('btnClearPunches').addEventListener('click', () => {
+      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = false })
+      document.getElementById('chkPunchMaster').checked = false
+    })
+
+    document.getElementById('chkPunchMaster').addEventListener('change', (e) => {
+      const on = e.target.checked
+      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = on })
+    })
+
+    document.getElementById('btnUploadPunches').addEventListener('click', async () => {
+      const logs = getSelectedLogs()
+      const out = document.getElementById('punchUploadResult')
+      if (logs.length === 0) {
+        out.innerHTML = '<div class="alert alert-error">Select at least one punch, or load from device first.</div>'
+        return
+      }
+      const btn = document.getElementById('btnUploadPunches')
+      btn.disabled = true; btn.textContent = 'Uploading…'
+      const res = await fetch('/api/push-punches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logs })
+      })
       const data = await res.json()
-      btn.disabled = false; btn.textContent = 'Sync Attendance Now'
-      const el = document.getElementById('actionResult')
-      el.innerHTML = data.error
-        ? `<div class="alert alert-error">✗ ${data.error}</div>`
-        : `<div class="alert alert-success">✓ Synced ${data.synced} new record${data.synced === 1 ? '' : 's'}</div>`
+      btn.disabled = false; btn.textContent = 'Upload selected to Vercel'
+      out.innerHTML = data.error
+        ? `<div class="alert alert-error">Error: ${escapeHtml(data.error)}</div>`
+        : `<div class="alert alert-success">Accepted ${data.total ?? logs.length} punch(es); ${data.synced ?? 0} new row(s) in database</div>`
       loadStatus()
     })
 
@@ -250,12 +357,11 @@
       btn.disabled = false; btn.textContent = 'Push Staff to Device'
       const el = document.getElementById('actionResult')
       el.innerHTML = data.error
-        ? `<div class="alert alert-error">✗ ${data.error}</div>`
-        : `<div class="alert alert-success">✓ Pushed ${data.pushed} staff member${data.pushed === 1 ? '' : 's'} (${data.skipped} already on device)</div>`
+        ? `<div class="alert alert-error">${data.error}</div>`
+        : `<div class="alert alert-success">Pushed ${data.pushed} staff member${data.pushed === 1 ? '' : 's'} (${data.skipped} already on device)</div>`
       loadStatus()
     })
 
-    // Poll status every 10 seconds
     loadStatus()
     loadConfig()
     setInterval(loadStatus, 10000)

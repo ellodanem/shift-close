@@ -2,13 +2,16 @@
   "name": "shift-close-agent",
   "version": "1.0.0",
   "description": "Shift Close local attendance agent — syncs ZKTeco device with cloud",
-  "author": "Westline",
+  "author": {
+    "name": "Ellodane Enterprises"
+  },
   "main": "electron/main.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "electron": "electron .",
     "build": "node scripts/build-win.js",
+    "icons": "node scripts/build-icons.mjs",
     "build:package": "electron-packager . \"Shift Close Agent\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=node_modules/@electron/packager --prune=true",
     "build:mac": "electron-builder --mac"
   },
@@ -22,17 +25,25 @@
     "@electron/packager": "^19.0.5",
     "cross-env": "^10.1.0",
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5"
   },
   "build": {
+    "directories": {
+      "output": "installer-release-v4"
+    },
     "appId": "com.westline.shiftclose.agent",
     "productName": "Shift Close Agent",
+    "copyright": "Copyright © 2026 Ellodane Enterprises",
     "asar": true,
     "asarUnpack": [
-      "src/**"
+      "electron/assets/**"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis",
+      "publisherName": "Ellodane Enterprises",
       "sign": null,
       "signAndEditExecutable": false,
       "signDlls": false,

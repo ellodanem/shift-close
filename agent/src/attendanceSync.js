@@ -1,40 +1,31 @@
 /**
- * attendanceSync.js — polls ZKTeco device for attendance logs, pushes to Vercel.
- * Runs every 15 minutes as a backup for ADMS.
- * Tracks last sync time to avoid re-pushing old records.
+ * attendanceSync.js — read punches from the ZKTeco device; push to Vercel only when explicitly requested.
+ * No automatic polling to the cloud (staff sync handles users; ADMS can handle device→cloud if configured).
  */
 
 const DeviceClient = require('./deviceClient')
-const fs = require('fs')
-const path = require('path')
 
-const STATE_FILE = path.join(process.cwd(), 'agent.state.json')
 const log = (msg) => console.log(`[AttendanceSync] ${new Date().toISOString()} ${msg}`)
 
-function loadState() {
-  if (fs.existsSync(STATE_FILE)) {
-    try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) } catch {}
-  }
-  return { lastSyncTime: null }
+function normalizeRawRecord(r) {
+  const deviceUserId = String(r.deviceUserId || r.userId || '').trim()
+  const t = new Date(r.recordTime || r.attTime || 0)
+  if (!deviceUserId || isNaN(t.getTime())) return null
+  const state = r.state ?? r.status ?? undefined
+  const key = `${deviceUserId}|${t.getTime()}`
+  return { key, deviceUserId, recordTime: t.toISOString(), state }
 }
 
-function saveState(state) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8')
-}
-
-async function syncAttendanceToCloud(config, activityLog) {
+/**
+ * Pull punch records from the device for display / manual selection (newest first).
+ */
+async function fetchPunchesFromDevice(config, limit = 2000) {
   if (!config.deviceIp) {
-    log('Skipped — device IP not configured')
-    return { synced: 0, error: 'Device IP not configured' }
-  }
-  if (!config.vercelUrl || !config.agentSecret) {
-    log('Skipped — Vercel URL or agent secret not configured')
-    return { synced: 0, error: 'Vercel URL or agent secret not configured' }
+    return { ok: false, punches: [], error: 'Device IP not configured' }
   }
 
-  const fetch = require('node-fetch')
+  const cap = Math.min(Math.max(1, parseInt(limit, 10) || 2000), 10000)
   const device = new DeviceClient(config.deviceIp, config.devicePort)
-  const state = loadState()
 
   try {
     await device.connect()
@@ -42,39 +33,71 @@ async function syncAttendanceToCloud(config, activityLog) {
     await device.disconnect()
 
     if (!rawLogs || rawLogs.length === 0) {
-      log('No attendance records on device')
-      return { synced: 0 }
+      return { ok: true, punches: [], totalOnDevice: 0 }
     }
 
-    // Filter to records newer than last sync
-    const lastSync = state.lastSyncTime ? new Date(state.lastSyncTime) : null
-    const toSync = lastSync
-      ? rawLogs.filter((r) => {
-          const t = new Date(r.recordTime || r.attTime || 0)
-          return t > lastSync
-        })
-      : rawLogs
-
-    if (toSync.length === 0) {
-      log('No new records since last sync')
-      return { synced: 0 }
+    const normalized = []
+    const seen = new Set()
+    for (const r of rawLogs) {
+      const n = normalizeRawRecord(r)
+      if (n && !seen.has(n.key)) {
+        seen.add(n.key)
+        normalized.push(n)
+      }
     }
+    normalized.sort((a, b) => new Date(b.recordTime) - new Date(a.recordTime))
 
-    // Normalise record format
-    const logs = toSync.map((r) => ({
-      deviceUserId: String(r.deviceUserId || r.userId || '').trim(),
-      recordTime: new Date(r.recordTime || r.attTime).toISOString(),
-      state: r.state ?? r.status ?? undefined
-    })).filter((r) => r.deviceUserId)
+    return {
+      ok: true,
+      punches: normalized.slice(0, cap),
+      totalOnDevice: normalized.length
+    }
+  } catch (err) {
+    await device.disconnect()
+    log(`fetchPunchesFromDevice: ${err.message}`)
+    return { ok: false, punches: [], error: err.message }
+  }
+}
 
-    // Push to Vercel
+/**
+ * POST selected punches to Vercel ingest (manual only).
+ * @param {Array<{ deviceUserId: string, recordTime: string, state?: number }>} logs
+ */
+async function pushPunchesToCloud(config, logs, activityLog) {
+  if (!config.deviceIp) {
+    return { synced: 0, error: 'Device IP not configured' }
+  }
+  if (!config.vercelUrl || !config.agentSecret) {
+    return { synced: 0, error: 'Vercel URL or agent secret not configured' }
+  }
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return { synced: 0, error: 'No punches selected' }
+  }
+
+  const fetch = require('node-fetch')
+  const bodyLogs = logs
+    .map((l) => ({
+      deviceUserId: String(l.deviceUserId || '').trim(),
+      recordTime:
+        typeof l.recordTime === 'string'
+          ? l.recordTime
+          : new Date(l.recordTime).toISOString(),
+      state: l.state
+    }))
+    .filter((l) => l.deviceUserId)
+
+  if (bodyLogs.length === 0) {
+    return { synced: 0, error: 'No valid punches in selection' }
+  }
+
+  try {
     const res = await fetch(`${config.vercelUrl}/api/attendance/ingest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-agent-secret': config.agentSecret
       },
-      body: JSON.stringify({ logs })
+      body: JSON.stringify({ logs: bodyLogs })
     })
 
     if (!res.ok) {
@@ -83,19 +106,17 @@ async function syncAttendanceToCloud(config, activityLog) {
       return { synced: 0, error: `API error: ${res.status}` }
     }
 
-    const { synced } = await res.json()
-
-    // Update state
-    saveState({ lastSyncTime: new Date().toISOString() })
-
-    log(`Done — sent ${logs.length} records, ${synced} new`)
-    if (synced > 0) activityLog.add(`Synced ${synced} attendance record${synced === 1 ? '' : 's'}`)
-    return { synced }
+    const data = await res.json()
+    const synced = typeof data.synced === 'number' ? data.synced : 0
+    log(`Manual upload — sent ${bodyLogs.length} punch(es), ${synced} new in DB`)
+    if (synced > 0) {
+      activityLog.add(`Uploaded ${synced} punch record${synced === 1 ? '' : 's'} to cloud`)
+    }
+    return { synced, total: bodyLogs.length }
   } catch (err) {
-    await device.disconnect()
-    log(`Error: ${err.message}`)
+    log(`pushPunchesToCloud: ${err.message}`)
     return { synced: 0, error: err.message }
   }
 }
 
-module.exports = { syncAttendanceToCloud }
+module.exports = { fetchPunchesFromDevice, pushPunchesToCloud }

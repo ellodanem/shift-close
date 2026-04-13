@@ -10,6 +10,14 @@ const path = require('path')
 
 const agentRoot = path.join(__dirname, '..')
 
+const icons = spawnSync(process.execPath, [path.join(agentRoot, 'scripts', 'build-icons.mjs')], {
+  cwd: agentRoot,
+  stdio: 'inherit',
+})
+if (icons.status !== 0) {
+  process.exit(typeof icons.status === 'number' ? icons.status : 1)
+}
+
 function findSigntool() {
   if (process.platform !== 'win32') return null
   const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles]

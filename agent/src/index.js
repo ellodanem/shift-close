@@ -1,66 +1,81 @@
 /**
  * index.js — main entry point for the Shift Close Agent.
- * Starts the dashboard server and the sync loops.
- * Can be run standalone (node src/index.js) or inside Electron.
+ * Starts the dashboard server and periodic staff→device sync only.
+ * Attendance punches are uploaded to Vercel only via the dashboard (manual selection).
  */
 
 require('dotenv').config()
 
-const { loadConfig } = require('./config')
-const { syncStaffToDevice } = require('./staffSync')
-const { syncAttendanceToCloud } = require('./attendanceSync')
-const { createDashboardServer } = require('./dashboard/server')
-const ActivityLog = require('./activityLog')
+let httpServer = null
+let staffInterval = null
+let initialSyncTimeout = null
 
-const config = loadConfig()
-const activityLog = new ActivityLog()
+function start() {
+  const { loadConfig } = require('./config')
+  const { syncStaffToDevice } = require('./staffSync')
+  const { createDashboardServer } = require('./dashboard/server')
+  const ActivityLog = require('./activityLog')
 
-const status = {
-  deviceStatus: 'unknown',
-  lastStaffSync: null,
-  lastAttendanceSync: null,
-  lastStaffSyncResult: null,
-  lastAttendanceSyncResult: null
-}
+  const config = loadConfig()
+  const activityLog = new ActivityLog()
 
-async function runStaffSync() {
-  const cfg = loadConfig()
-  Object.assign(config, cfg)
-  const result = await syncStaffToDevice(cfg, activityLog)
-  status.lastStaffSync = new Date().toISOString()
-  status.lastStaffSyncResult = result
-}
-
-async function runAttendanceSync() {
-  const cfg = loadConfig()
-  Object.assign(config, cfg)
-  const result = await syncAttendanceToCloud(cfg, activityLog)
-  status.lastAttendanceSync = new Date().toISOString()
-  status.lastAttendanceSyncResult = result
-}
-
-// Start dashboard server
-const app = createDashboardServer(config, activityLog, status)
-const port = config.dashboardPort || 3001
-app.listen(port, '127.0.0.1', () => {
-  console.log(`[Agent] Dashboard running at http://localhost:${port}`)
-  activityLog.add('Agent started')
-})
-
-// Run initial sync after a short delay (let server start first)
-setTimeout(async () => {
-  if (config.deviceIp && config.vercelUrl) {
-    await runAttendanceSync()
-    await runStaffSync()
-  } else {
-    console.log('[Agent] Not fully configured — open http://localhost:' + port + ' to set up')
+  const status = {
+    deviceStatus: 'unknown',
+    lastStaffSync: null,
+    lastAttendanceSync: null,
+    lastStaffSyncResult: null,
+    lastAttendanceSyncResult: null
   }
-}, 3000)
 
-// Schedule recurring syncs
-const cfg = loadConfig()
-setInterval(runAttendanceSync, cfg.attendanceSyncIntervalMs || 15 * 60 * 1000)
-setInterval(runStaffSync, cfg.staffSyncIntervalMs || 5 * 60 * 1000)
+  async function runStaffSync() {
+    const cfg = loadConfig()
+    Object.assign(config, cfg)
+    const result = await syncStaffToDevice(cfg, activityLog)
+    status.lastStaffSync = new Date().toISOString()
+    status.lastStaffSyncResult = result
+  }
 
-// Export for Electron IPC
-module.exports = { status, activityLog, config }
+  const app = createDashboardServer(config, activityLog, status)
+  const port = config.dashboardPort || 3001
+  httpServer = app.listen(port, '127.0.0.1', () => {
+    console.log(`[Agent] Dashboard running at http://127.0.0.1:${port}`)
+    activityLog.add('Agent started')
+  })
+  httpServer.on('error', (err) => {
+    console.error('[Agent] Dashboard listen error:', err)
+  })
+
+  initialSyncTimeout = setTimeout(async () => {
+    initialSyncTimeout = null
+    const cfg = loadConfig()
+    if (cfg.deviceIp && cfg.vercelUrl && cfg.agentSecret) {
+      await runStaffSync()
+    } else {
+      console.log('[Agent] Not fully configured — open http://127.0.0.1:' + port + ' to set up')
+    }
+  }, 3000)
+
+  const cfg = loadConfig()
+  staffInterval = setInterval(runStaffSync, cfg.staffSyncIntervalMs || 5 * 60 * 1000)
+}
+
+function stop() {
+  if (initialSyncTimeout) {
+    clearTimeout(initialSyncTimeout)
+    initialSyncTimeout = null
+  }
+  if (staffInterval) {
+    clearInterval(staffInterval)
+    staffInterval = null
+  }
+  if (httpServer) {
+    httpServer.close()
+    httpServer = null
+  }
+}
+
+if (require.main === module) {
+  start()
+}
+
+module.exports = { start, stop }

@@ -7,7 +7,7 @@ const express = require('express')
 const path = require('path')
 const { loadConfig, saveConfig } = require('../config')
 const { syncStaffToDevice } = require('../staffSync')
-const { syncAttendanceToCloud } = require('../attendanceSync')
+const { fetchPunchesFromDevice, pushPunchesToCloud } = require('../attendanceSync')
 const DeviceClient = require('../deviceClient')
 
 function createDashboardServer(config, activityLog, status) {
@@ -71,11 +71,20 @@ function createDashboardServer(config, activityLog, status) {
     res.json(result)
   })
 
-  // POST /api/sync-attendance — manual trigger
-  app.post('/api/sync-attendance', async (req, res) => {
+  // GET /api/device-punches — load punches from device for manual selection (limit query, default 2000)
+  app.get('/api/device-punches', async (req, res) => {
     const cfg = loadConfig()
-    activityLog.add('Manual attendance sync triggered')
-    const result = await syncAttendanceToCloud(cfg, activityLog)
+    const limit = parseInt(req.query.limit, 10) || 2000
+    const result = await fetchPunchesFromDevice(cfg, limit)
+    res.json(result)
+  })
+
+  // POST /api/push-punches — upload selected punches to Vercel (body: { logs: [...] })
+  app.post('/api/push-punches', async (req, res) => {
+    const cfg = loadConfig()
+    const logs = req.body && Array.isArray(req.body.logs) ? req.body.logs : []
+    activityLog.add(`Manual punch upload (${logs.length} selected)`)
+    const result = await pushPunchesToCloud(cfg, logs, activityLog)
     status.lastAttendanceSync = new Date().toISOString()
     status.lastAttendanceSyncResult = result
     res.json(result)

@@ -1,6 +1,7 @@
 node_modules/
+release/
 dist/
-agent.config.json
-agent.state.json
-.env
+dist-installer/
+installer-release*/
 *.log
+agent.state.json

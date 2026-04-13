@@ -6,11 +6,13 @@ Local Windows agent that bridges your ZKTeco F22 attendance device with the Shif
 
 | Task | How |
 |---|---|
-| Pushes new staff to device | Polls app every 5 min, calls `setUser()` on device |
-| Syncs attendance logs (backup) | Polls device every 15 min, pushes to Vercel API |
-| Provides a local dashboard | Web UI at http://localhost:3001 |
-| Runs silently in system tray | Green/yellow/red icon shows connection status |
+| Pushes staff to device | Polls Vercel every 5 min (and on demand), calls `setUser()` on the ZKTeco |
+| Upload punches to cloud | **Manual only** — load punches in the dashboard, select rows (or all), then upload to `/api/attendance/ingest` |
+| Provides a local dashboard | Web UI at http://127.0.0.1:3001 |
+| Runs silently in system tray | Tray icon shows connection status |
 | Starts with Windows automatically | Registered as a login item on first launch |
+
+Primary cloud path for punches is normally **ADMS** on the device. The agent does **not** auto-push punches to Vercel.
 
 ---
 
@@ -58,7 +60,7 @@ npm install
 npm run build
 ```
 
-Output: `agent/dist/Shift Close Agent Setup 1.0.0.exe`
+Output: see `package.json` → `build.directories.output` (e.g. `agent/installer-release-v4/Shift Close Agent Setup 1.0.0.exe`)
 
 Run the installer on the station PC. It will:
 - Install the agent
