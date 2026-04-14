@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
 import DepositBreakdownModal from './DepositBreakdownModal'
+import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
 
 type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
 
@@ -22,6 +23,7 @@ export default function DaysPage() {
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
+  const [showOtherItemsBreakdown, setShowOtherItemsBreakdown] = useState<string | null>(null)
   const [emailModal, setEmailModal] = useState<{ subject: string; body: string; urls: string[] } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
   const [emailToId, setEmailToId] = useState('')
@@ -731,13 +733,28 @@ export default function DaysPage() {
                         </div>
                         <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Total Credit</p>
-                        <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Total Debit</p>
-                        <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
+                      <div className="md:col-span-2 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <p className="text-sm font-medium text-gray-800">Other items — credit &amp; debit</p>
+                          <button
+                            type="button"
+                            onClick={() => setShowOtherItemsBreakdown(dayReport.date)}
+                            className="text-violet-700 hover:text-violet-900 text-sm font-semibold"
+                            title="View other items breakdown and compare scans"
+                          >
+                            ℹ️
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                          <div>
+                            <p className="text-xs text-gray-600">Total Credit</p>
+                            <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600">Total Debit</p>
+                            <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
+                          </div>
+                        </div>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">System Cash + Check</p>
@@ -883,8 +900,21 @@ export default function DaysPage() {
           <DepositBreakdownModal
             date={dayReport.date}
             dayReport={dayReport}
+            depositScanUrls={dayReport.depositScans}
             onClose={() => setShowDepositBreakdown(null)}
             onSaved={refreshDayReports}
+          />
+        )
+      })()}
+      {showOtherItemsBreakdown && (() => {
+        const dayReport = dayReports.find((r) => r.date === showOtherItemsBreakdown)
+        if (!dayReport) return null
+        return (
+          <OtherItemsBreakdownModal
+            date={dayReport.date}
+            dayReport={dayReport}
+            debitScanUrls={dayReport.debitScans}
+            onClose={() => setShowOtherItemsBreakdown(null)}
           />
         )
       })()}

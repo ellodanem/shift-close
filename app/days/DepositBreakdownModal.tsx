@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatCurrency } from '@/lib/format'
+import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import type { DayReport } from '@/lib/types'
 import type { DepositSlipSelection } from '@/lib/missing-deposit-slip-alert'
 
@@ -45,14 +46,27 @@ function buildDepositLineOptions(dayReport: DayReport): DepositLineOption[] {
   return out
 }
 
+function scanLabelFromUrl(url: string, index: number): string {
+  try {
+    const path = new URL(url, 'http://local.invalid').pathname
+    const seg = path.split('/').filter(Boolean).pop()
+    if (seg && seg.length > 0 && seg.length < 80) return decodeURIComponent(seg)
+  } catch {
+    /* ignore */
+  }
+  return `Deposit scan ${index + 1}`
+}
+
 export default function DepositBreakdownModal({
   date,
   dayReport,
+  depositScanUrls,
   onClose,
   onSaved
 }: {
   date: string
   dayReport: DayReport
+  depositScanUrls: string[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -68,11 +82,51 @@ export default function DepositBreakdownModal({
   const [notifySending, setNotifySending] = useState(false)
   /** Collapsible “missing slip” panel — collapsed by default for a cleaner modal. */
   const [missingSlipPanelExpanded, setMissingSlipPanelExpanded] = useState(false)
+  /** Side-by-side deposit slip preview (same calendar day). */
+  const [compareScansOpen, setCompareScansOpen] = useState(false)
+  const [activeScanIndex, setActiveScanIndex] = useState(0)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [, setTick] = useState(0)
 
   const lineOptions = useMemo(() => buildDepositLineOptions(dayReport), [dayReport])
+
+  const depositScans = useMemo(
+    () => depositScanUrls.map((u) => (typeof u === 'string' ? u.trim() : '')).filter(Boolean),
+    [depositScanUrls]
+  )
+
+  useEffect(() => {
+    setActiveScanIndex((i) => (depositScans.length === 0 ? 0 : Math.min(i, depositScans.length - 1)))
+  }, [depositScans.length])
+
+  useEffect(() => {
+    if (!compareScansOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (depositScans.length <= 1) return
+      e.preventDefault()
+      setActiveScanIndex((i) => {
+        if (e.key === 'ArrowLeft') return i <= 0 ? depositScans.length - 1 : i - 1
+        return i >= depositScans.length - 1 ? 0 : i + 1
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [compareScansOpen, depositScans.length])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (compareScansOpen) {
+        setCompareScansOpen(false)
+        return
+      }
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [compareScansOpen, onClose])
 
   const loadAlert = useCallback(async () => {
     setLoading(true)
@@ -227,22 +281,51 @@ export default function DepositBreakdownModal({
   const secondsLeft =
     notifyQueuedUntil !== null ? Math.max(0, Math.ceil((notifyQueuedUntil - Date.now()) / 1000)) : 0
 
+  const activeScanUrl = depositScans[activeScanIndex] ?? null
+  const activeScanTitle = activeScanUrl ? scanLabelFromUrl(activeScanUrl, activeScanIndex) : ''
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-50 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-gray-300">
-        <div className="sticky top-0 bg-gray-50 border-b-2 border-gray-300 px-6 py-4 flex justify-between items-center z-10">
-          <h3 className="text-lg font-semibold text-gray-900">Deposit Breakdown — {date}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-            aria-label="Close"
-          >
-            ×
-          </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-3 sm:p-4">
+      <div
+        className={`bg-gray-50 rounded-lg shadow-xl w-full max-h-[min(92vh,900px)] border-2 border-gray-300 flex flex-col overflow-hidden ${
+          compareScansOpen ? 'max-w-[min(96vw,1400px)]' : 'max-w-2xl'
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deposit-breakdown-modal-title"
+      >
+        <div className="shrink-0 bg-gray-50 border-b-2 border-gray-300 px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 z-10">
+          <h3 id="deposit-breakdown-modal-title" className="text-base sm:text-lg font-semibold text-gray-900 min-w-0">
+            Deposit Breakdown — {date}
+          </h3>
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+            <button
+              type="button"
+              onClick={() => setCompareScansOpen((v) => !v)}
+              className={`text-sm font-semibold rounded-lg border px-3 py-1.5 transition-colors ${
+                compareScansOpen
+                  ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+              aria-pressed={compareScansOpen}
+            >
+              {compareScansOpen ? 'Hide scans' : 'Compare scans'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none px-1"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
-        <div className="p-6">
+        <div
+          className={`flex-1 min-h-0 grid ${compareScansOpen ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-gray-300' : 'grid-cols-1'}`}
+        >
+          <div className={`min-h-0 overflow-y-auto p-4 sm:p-6 ${compareScansOpen ? 'lg:max-h-[min(85vh,820px)]' : ''}`}>
           {loading ? (
             <p className="text-sm text-gray-500">Loading…</p>
           ) : (
@@ -438,6 +521,76 @@ export default function DepositBreakdownModal({
                 </div>
               </div>
             </>
+          )}
+          </div>
+
+          {compareScansOpen && (
+            <div className="min-h-0 flex flex-col bg-slate-100 border-t-2 border-gray-300 lg:border-t-0 lg:max-h-[min(85vh,820px)]">
+              <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-2 sm:px-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit scans (this day)</p>
+                {depositScans.length === 0 ? (
+                  <p className="text-sm text-slate-600 mt-1">
+                    No deposit scans uploaded for this date. Add them under Document scans on the End of Day card.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {depositScans.map((url, i) => {
+                        const label = scanLabelFromUrl(url, i)
+                        const active = i === activeScanIndex
+                        return (
+                          <button
+                            key={`${url}-${i}`}
+                            type="button"
+                            onClick={() => setActiveScanIndex(i)}
+                            className={`max-w-full truncate rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                            title={label}
+                          >
+                            {depositScans.length > 1 ? `Scan ${i + 1}` : 'Scan'}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {depositScans.length > 1 && (
+                      <p className="text-[11px] text-slate-500 mt-1.5 hidden sm:block">
+                        Tip: use ← → arrow keys to switch scans while this panel is open.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+              {depositScans.length > 0 && activeScanUrl && (
+                <div className="flex-1 min-h-[min(50vh,480px)] flex flex-col min-w-0">
+                  <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 bg-white/80 border-b border-slate-200 sm:px-4">
+                    <span className="text-xs font-medium text-slate-800 truncate pr-2" title={activeScanTitle}>
+                      {activeScanTitle}
+                    </span>
+                    <a
+                      href={activeScanUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs font-semibold text-blue-600 hover:underline"
+                    >
+                      Open in new tab
+                    </a>
+                  </div>
+                  <div className="flex-1 min-h-[280px] bg-slate-200/80">
+                    <iframe
+                      src={pdfIframeSrc(activeScanUrl)}
+                      className="h-full w-full min-h-[280px] border-0"
+                      title={activeScanTitle}
+                    />
+                  </div>
+                  <p className="shrink-0 text-[11px] text-slate-600 px-3 py-2 bg-slate-50 border-t border-slate-200 sm:px-4">
+                    Preview may not work for some hosts — use Open in new tab if the frame is blank.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
