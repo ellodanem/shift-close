@@ -51,13 +51,20 @@ export default function DaysPage() {
   const fetchDayReports = () => {
     setLoading(true)
     fetch('/api/days', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        setDayReports(data)
-        setLoading(false)
+      .then(async (res) => {
+        const data: unknown = await res.json()
+        if (!res.ok || !Array.isArray(data)) {
+          console.error('Error fetching day reports:', !res.ok ? res.status : 'invalid payload', data)
+          setDayReports([])
+          return
+        }
+        setDayReports(data as DayReport[])
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error fetching day reports:', err)
+        setDayReports([])
+      })
+      .finally(() => {
         setLoading(false)
       })
   }
