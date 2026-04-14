@@ -34,6 +34,17 @@ export async function buildDayReports(): Promise<DayReport[]> {
         ).map((r) => r.date)
   )
 
+  const securityWaiverByDate = new Map<string, string>(
+    allDates.length === 0
+      ? []
+      : (
+          await prisma.securityScanDayWaiver.findMany({
+            where: { date: { in: allDates } },
+            select: { date: true, note: true }
+          })
+        ).map((r) => [r.date, r.note ?? ''])
+  )
+
   for (const [date, dayShifts] of byDate.entries()) {
     const shiftTypes = dayShifts.map((s) => s.shift)
     const hasDraft = dayShifts.some((s) => (s as { status?: string }).status === 'draft')
@@ -162,6 +173,8 @@ export async function buildDayReports(): Promise<DayReport[]> {
       depositScans,
       debitScans,
       securityScans,
+      securityScanWaived: securityWaiverByDate.has(date),
+      securityScanWaiverNote: securityWaiverByDate.get(date) ?? '',
       missingDepositSlipAlertOpen: openMissingSlipDates.has(date)
     })
   }

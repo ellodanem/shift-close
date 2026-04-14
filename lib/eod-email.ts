@@ -37,6 +37,14 @@ function absUrl(base: string, path: string): string {
   return `${b}${p}`
 }
 
+function escapeHtmlText(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export function buildEndOfDayEmailHtml(
   report: DayReport | null,
   date: string,
@@ -62,10 +70,15 @@ export function buildEndOfDayEmailHtml(
       ? `<ul>${report.debitScans.map((u) => `<li><a href="${u}">Debit scan</a></li>`).join('')}</ul>`
       : '<p><em>No debit scans uploaded.</em></p>'
   const securityScans = report.securityScans ?? []
+  const waiverNote = (report.securityScanWaiverNote ?? '').trim()
   const securityLinks =
     securityScans.length > 0
       ? `<ul>${securityScans.map((u) => `<li><a href="${u}">Security scan</a></li>`).join('')}</ul>`
-      : '<p><em>No security scans uploaded.</em></p>'
+      : report.securityScanWaived
+        ? `<p><em>No security scan file — marked without pickup (deposit still dropped off).</em>${
+            waiverNote ? ` <span style="color:#444">(${escapeHtmlText(waiverNote)})</span>` : ''
+          }</p>`
+        : '<p><em>No security scans uploaded.</em></p>'
 
   const daysLink = baseUrl ? `<p><a href="${absUrl(baseUrl, '/days')}">Open End of Day in Shift Close</a></p>` : ''
 

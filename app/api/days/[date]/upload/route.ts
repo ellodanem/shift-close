@@ -96,7 +96,11 @@ export async function POST(
     })
     
     await Promise.all(updatePromises)
-    
+
+    if (type === 'security') {
+      await prisma.securityScanDayWaiver.deleteMany({ where: { date } })
+    }
+
     return NextResponse.json({ success: true, url })
   } catch (error: any) {
     console.error('Error uploading day file:', error)

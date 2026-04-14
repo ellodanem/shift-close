@@ -661,11 +661,17 @@ export default function DaysPage() {
                             </div>
                             <div
                               className="relative"
-                              title={
-                                (dayReport.securityScans ?? []).length > 0
-                                  ? `${(dayReport.securityScans ?? []).length} security slip(s) uploaded`
-                                  : 'No security slips uploaded'
-                              }
+                              title={(() => {
+                                const n = (dayReport.securityScans ?? []).length
+                                if (n > 0) return `${n} security slip(s) uploaded`
+                                if (dayReport.securityScanWaived) {
+                                  const note = (dayReport.securityScanWaiverNote ?? '').trim()
+                                  return note
+                                    ? `No security scan — marked without pickup (${note})`
+                                    : 'No security scan — marked without pickup'
+                                }
+                                return 'No security slips uploaded'
+                              })()}
                             >
                               <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -682,9 +688,15 @@ export default function DaysPage() {
                                 />
                               </svg>
                               <span
-                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${(dayReport.securityScans ?? []).length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${
+                                  (dayReport.securityScans ?? []).length > 0
+                                    ? 'bg-green-500'
+                                    : dayReport.securityScanWaived
+                                      ? 'bg-amber-500'
+                                      : 'bg-red-500'
+                                }`}
                               >
-                                {(dayReport.securityScans ?? []).length > 0 ? '✓' : '✕'}
+                                {(dayReport.securityScans ?? []).length > 0 || dayReport.securityScanWaived ? '✓' : '✕'}
                               </span>
                             </div>
                           </div>
@@ -795,6 +807,8 @@ export default function DaysPage() {
                       depositScans={dayReport.depositScans}
                       debitScans={dayReport.debitScans}
                       securityScans={dayReport.securityScans ?? []}
+                      securityScanWaived={dayReport.securityScanWaived ?? false}
+                      securityScanWaiverNote={dayReport.securityScanWaiverNote ?? ''}
                       onRefresh={refreshDayReports}
                       onOpenPreview={(url, title) => setScanPreview({ url, title })}
                     />

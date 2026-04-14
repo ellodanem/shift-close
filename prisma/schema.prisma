@@ -166,6 +166,16 @@ model MissingDepositSlipAlert {
   @@map("missing_deposit_slip_alerts")
 }
 
+/// Calendar-day: security did not pick up / no slip, but deposit was still dropped off — satisfies EOD security column without a file.
+model SecurityScanDayWaiver {
+  date      String   @id // YYYY-MM-DD
+  note      String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("security_scan_day_waivers")
+}
+
 /// Reconciliation rows: deposit lines (recordKind deposit, lineIndex = index in ShiftClose.deposits JSON)
 /// or one debit row per shift (recordKind debit, lineIndex = 0).
 model DepositRecord {

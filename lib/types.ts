@@ -65,6 +65,10 @@ export interface DayReport {
   depositScans: string[]
   debitScans: string[]
   securityScans: string[]
+  /** True when staff marked “no security pickup” for this calendar day (no scan file). */
+  securityScanWaived?: boolean
+  /** Optional note stored with the security scan waiver. */
+  securityScanWaiverNote?: string
   /** True when a Missing deposit slip alert exists and is open for this calendar day */
   missingDepositSlipAlertOpen?: boolean
 }

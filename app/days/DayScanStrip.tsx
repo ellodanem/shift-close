@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type RefObject, type Ref } from 'react'
+import { useEffect, useRef, useState, type RefObject, type Ref } from 'react'
 import {
   IconDebitCard,
   IconDepositSlip,
@@ -27,6 +27,8 @@ export default function DayScanStrip({
   depositScans,
   debitScans,
   securityScans,
+  securityScanWaived,
+  securityScanWaiverNote,
   onRefresh,
   onOpenPreview
 }: {
@@ -34,10 +36,18 @@ export default function DayScanStrip({
   depositScans: string[]
   debitScans: string[]
   securityScans: string[]
+  securityScanWaived: boolean
+  securityScanWaiverNote: string
   onRefresh: () => void
   onOpenPreview: (url: string, title: string) => void
 }) {
   const [uploading, setUploading] = useState<ScanKind | null>(null)
+  const [savingWaiver, setSavingWaiver] = useState(false)
+  const [waiverNoteDraft, setWaiverNoteDraft] = useState(securityScanWaiverNote)
+
+  useEffect(() => {
+    setWaiverNoteDraft(securityScanWaiverNote)
+  }, [securityScanWaiverNote, date])
   const depInput = useRef<HTMLInputElement>(null)
   const debInput = useRef<HTMLInputElement>(null)
   const secInput = useRef<HTMLInputElement>(null)
@@ -100,6 +110,26 @@ export default function DayScanStrip({
     }
   }
 
+  const saveSecurityWaiver = async (waived: boolean, note: string) => {
+    setSavingWaiver(true)
+    try {
+      const res = await fetch(`/api/days/${encodeURIComponent(date)}/security-scan-waiver`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waived, note })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(typeof err.error === 'string' ? err.error : 'Save failed')
+      }
+      onRefresh()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not update security waiver')
+    } finally {
+      setSavingWaiver(false)
+    }
+  }
+
   const uploadFooter = (kind: ScanKind, inputRef: RefObject<HTMLInputElement | null>) => (
     <div className="flex flex-col gap-1">
       <input
@@ -122,6 +152,7 @@ export default function DayScanStrip({
   )
 
   return (
+    <>
     <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-3 sm:grid-cols-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Deposits</span>
@@ -171,9 +202,52 @@ export default function DayScanStrip({
           footer={uploadFooter('security', secInput)}
         />
         {securityScans.length === 0 ? (
-          <span className="text-[11px] text-emerald-700/70">No security scans</span>
+          <span
+            className={`text-[11px] ${securityScanWaived ? 'text-amber-800/90 font-medium' : 'text-emerald-700/70'}`}
+          >
+            {securityScanWaived ? 'No scan — marked without pickup' : 'No security scans'}
+          </span>
         ) : null}
       </div>
     </div>
+    {securityScans.length === 0 ? (
+      <div className="border-b border-slate-100 bg-slate-50/30 px-4 py-3">
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+            checked={securityScanWaived}
+            disabled={savingWaiver}
+            onChange={(e) => void saveSecurityWaiver(e.target.checked, waiverNoteDraft)}
+          />
+          <span className="text-sm text-slate-800 leading-snug">
+            No security pickup — deposit was still dropped off; mark security as recorded without a slip.
+            {savingWaiver ? <span className="text-slate-500"> Saving…</span> : null}
+          </span>
+        </label>
+        {securityScanWaived ? (
+          <div className="mt-2 ml-7 max-w-xl">
+            <label className="block text-[11px] font-medium text-slate-600 mb-0.5" htmlFor={`sec-waiver-note-${date}`}>
+              Optional note
+            </label>
+            <input
+              id={`sec-waiver-note-${date}`}
+              type="text"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm text-slate-900"
+              placeholder="e.g. manual bank drop, security off duty"
+              value={waiverNoteDraft}
+              disabled={savingWaiver}
+              onChange={(e) => setWaiverNoteDraft(e.target.value)}
+              onBlur={() => {
+                if (!securityScanWaived) return
+                if (waiverNoteDraft === securityScanWaiverNote) return
+                void saveSecurityWaiver(true, waiverNoteDraft)
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+    ) : null}
+    </>
   )
 }
