@@ -171,6 +171,49 @@ interface FuelMtdSoldPayload {
   periodLabel: string
 }
 
+/** Minutes from midnight for unknown labels — sorts after real shift starts. */
+const ROSTER_SHIFT_SORT_FALLBACK = 24 * 60 + 10_000
+
+function parseShiftStartTimeToMinutes(t?: string): number | null {
+  if (!t?.trim()) return null
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null
+  return h * 60 + min
+}
+
+/**
+ * Parse shift labels like "6-1" (6am–1pm), "10-6" (10am–6pm), "1-9" (1pm–9pm) for roster order.
+ */
+function parseShiftLabelStartMinutes(shiftName: string): number {
+  const m = shiftName.trim().match(/^(\d{1,2})\s*[-–]\s*(\d{1,2})\b/)
+  if (!m) return ROSTER_SHIFT_SORT_FALLBACK
+  const a = Number(m[1])
+  const b = Number(m[2])
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a < 1 || a > 12 || b < 1 || b > 12) {
+    return ROSTER_SHIFT_SORT_FALLBACK
+  }
+  if (a > b) {
+    if (a === 12) return 12 * 60
+    return a * 60
+  }
+  if (a <= 5) return (a + 12) * 60
+  return a * 60
+}
+
+function rosterShiftGroupSortMinutes(shiftName: string, scheduled: TodayScheduled[]): number {
+  let best: number | null = null
+  for (const row of scheduled) {
+    if (row.shiftName !== shiftName) continue
+    const mins = parseShiftStartTimeToMinutes(row.shiftStartTime)
+    if (mins != null && (best === null || mins < best)) best = mins
+  }
+  if (best !== null) return best
+  return parseShiftLabelStartMinutes(shiftName)
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading, isStakeholder, isSupervisorLike } = useAuth()
@@ -973,12 +1016,17 @@ export default function DashboardPage() {
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
           {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
             (() => {
-              const shiftGroups = groupScheduledByShift(todayRoster.scheduled)
+              const shiftGroups = groupScheduledByShift(todayRoster.scheduled).sort((a, b) => {
+                const da = rosterShiftGroupSortMinutes(a.shiftName, todayRoster.scheduled)
+                const db = rosterShiftGroupSortMinutes(b.shiftName, todayRoster.scheduled)
+                if (da !== db) return da - db
+                return a.shiftName.localeCompare(b.shiftName)
+              })
               return (
                 <div
                   className={
                     shiftGroups.length > 1
-                      ? 'grid grid-cols-2 gap-x-4 gap-y-4'
+                      ? 'grid grid-cols-4 max-[520px]:grid-cols-2 gap-x-2 sm:gap-x-3 gap-y-4'
                       : 'grid grid-cols-1 gap-y-4'
                   }
                 >
@@ -1086,9 +1134,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Dashboard</h1>
         </div>
 
-        {/* Metrics ~60% + Upcoming/Roster ~40% */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-10 lg:items-start lg:gap-8">
-          <div className="lg:col-span-6 space-y-6 min-w-0">
+        {/* Main metrics + Upcoming/Roster: even 50/50 from lg */}
+        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
+          <div className="space-y-6 min-w-0">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1168,7 +1216,7 @@ export default function DashboardPage() {
             </div>
             {showFuelMtdHero && summary ? renderFuelMtdDepositBlock() : null}
           </div>
-          <aside className="lg:col-span-4 flex flex-col gap-5 w-full min-w-0">
+          <aside className="flex flex-col gap-5 w-full min-w-0">
             {renderUpcomingCard()}
             {renderTodayRosterCard()}
           </aside>
