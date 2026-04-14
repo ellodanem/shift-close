@@ -22,6 +22,8 @@ interface PayPeriodData {
   entityName: string
   rows: PayPeriodRow[]
   notes?: string
+  /** Parsed `rowsBeforeLastEdit` when editing/viewing a saved period — used for Trans Ttl “previous” hints. */
+  previousRowsSnapshot?: PayPeriodRow[] | null
 }
 
 interface SavedPayPeriod {
@@ -31,6 +33,7 @@ interface SavedPayPeriod {
   reportDate: string
   entityName: string
   rows: string
+  rowsBeforeLastEdit?: string | null
   notes: string
   createdAt: string
   updatedAt: string
@@ -55,6 +58,82 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00')
   const e = new Date(end + 'T23:59:59')
   return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 0:00 To ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 23:59`
+}
+
+function parsePreviousRows(raw: string | null | undefined): PayPeriodRow[] | null {
+  if (raw == null || !String(raw).trim()) return null
+  try {
+    const p = JSON.parse(raw) as PayPeriodRow[]
+    return Array.isArray(p) ? p : null
+  } catch {
+    return null
+  }
+}
+
+function resolvePreviousRow(
+  prevRows: PayPeriodRow[] | null,
+  staffId: string,
+  index: number
+): PayPeriodRow | undefined {
+  if (!prevRows?.length) return undefined
+  return prevRows.find((r) => r.staffId === staffId) ?? prevRows[index]
+}
+
+function formatShortageDisplay(n: number): string {
+  return n > 0 ? `$${n.toFixed(2)}` : ''
+}
+
+function HoverPreviousValue({
+  currentDisplay,
+  previousDisplay,
+  justify = 'start'
+}: {
+  currentDisplay: string
+  previousDisplay: string | null
+  justify?: 'start' | 'center' | 'end'
+}) {
+  const show = previousDisplay !== null && previousDisplay !== currentDisplay
+  const flexCls =
+    justify === 'end'
+      ? 'flex justify-end'
+      : justify === 'center'
+        ? 'flex justify-center'
+        : 'flex justify-start'
+  const tipAlign =
+    justify === 'end'
+      ? 'right-0 left-auto translate-x-0'
+      : justify === 'center'
+        ? 'left-1/2 -translate-x-1/2'
+        : 'left-0 translate-x-0'
+
+  const prevTitle = show ? `Previously: ${previousDisplay}` : undefined
+
+  if (!show) {
+    return (
+      <div className={`${flexCls} w-full min-h-[1.25rem]`}>
+        <span>{currentDisplay}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`${flexCls} w-full min-h-[1.25rem]`}>
+      <span className="group relative inline-block">
+        <span
+          className="cursor-help border-b border-dotted border-gray-500"
+          title={prevTitle}
+        >
+          {currentDisplay}
+        </span>
+        <span
+          role="tooltip"
+          className={`pointer-events-none absolute bottom-full mb-1 ${tipAlign} z-20 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-gray-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100`}
+        >
+          Previously: {previousDisplay}
+        </span>
+      </span>
+    </div>
+  )
 }
 
 export default function PayPeriodPage() {
@@ -105,7 +184,7 @@ export default function PayPeriodPage() {
         throw new Error(err.error || 'Failed to generate')
       }
       const data: PayPeriodData = await res.json()
-      setReportData({ ...data, notes: data.notes ?? '' })
+      setReportData({ ...data, notes: data.notes ?? '', previousRowsSnapshot: null })
       setEditingSavedId(null)
       setShowModal(true)
     } catch (err) {
@@ -169,7 +248,8 @@ export default function PayPeriodPage() {
       reportDate: p.reportDate,
       entityName: p.entityName,
       rows,
-      notes: p.notes ?? ''
+      notes: p.notes ?? '',
+      previousRowsSnapshot: parsePreviousRows(p.rowsBeforeLastEdit)
     })
     setEditingSavedId(p.id)
     setShowConfirm(false)
@@ -439,8 +519,17 @@ export default function PayPeriodPage() {
             </div>
           )}
 
-          {viewingPeriod && displayData && (
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          {viewingPeriod && displayData && (() => {
+            const prevRows = parsePreviousRows(viewingPeriod.rowsBeforeLastEdit)
+            const totalTrans = displayData.rows.reduce((s, r) => s + r.transTtl, 0)
+            const totalSick = displayData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)
+            const totalShort = displayData.rows.reduce((s, r) => s + r.shortage, 0)
+            const prevTotalTrans = prevRows ? prevRows.reduce((s, r) => s + r.transTtl, 0) : null
+            const prevTotalSick = prevRows ? prevRows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0) : null
+            const prevTotalShort = prevRows ? prevRows.reduce((s, r) => s + r.shortage, 0) : null
+
+            return (
+            <div className="mt-6 overflow-visible p-4 bg-gray-50 rounded-lg border border-gray-200">
               <h3 className="font-semibold mb-2">Summary Report</h3>
               <p className="text-sm text-gray-600 mb-2">
                 Report Date: {formatDateDisplay(displayData.reportDate)} | Date Range: {formatDateRange(displayData.startDate, displayData.endDate)}
@@ -452,10 +541,15 @@ export default function PayPeriodPage() {
                   <> · Last edited {new Date(viewingPeriod.updatedAt).toLocaleString()}</>
                 )}
               </p>
+              {prevRows && (
+                <p className="text-xs text-amber-800 mb-2">
+                  Underlined figures changed in the last save — hover to see the previous value.
+                </p>
+              )}
               {(displayData.notes ?? '').trim() ? (
                 <p className="text-sm text-gray-800 mb-3 whitespace-pre-wrap border-l-2 border-gray-300 pl-3">{displayData.notes}</p>
               ) : null}
-              <table className="w-full text-sm border-collapse">
+              <table className="w-full text-sm border-collapse overflow-visible">
                 <thead>
                   <tr className="border-b-2 border-gray-300">
                     <th className="text-left py-2">Staff</th>
@@ -467,32 +561,85 @@ export default function PayPeriodPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayData.rows.map((r, i) => (
+                  {displayData.rows.map((r, i) => {
+                    const prev = resolvePreviousRow(prevRows, r.staffId, i)
+                    const curVac = (r.vacation ?? '').trim()
+                    const prevVac = prev ? (prev.vacation ?? '').trim() : null
+                    const curSickDays = String(r.sickLeaveDays ?? 0)
+                    const prevSickDays = prev ? String(prev.sickLeaveDays ?? 0) : null
+                    const curRanges = (r.sickLeaveRanges ?? '').trim()
+                    const prevRanges = prev ? (prev.sickLeaveRanges ?? '').trim() : null
+                    return (
                     <tr key={i} className="border-b border-gray-200">
                       <td className="py-1">{r.staffName}</td>
-                      <td className="text-right">{r.transTtl.toFixed(2)}</td>
-                      <td className="text-center">{r.vacation || ''}</td>
-                      <td className="text-right">{r.sickLeaveDays ?? 0}</td>
-                      <td className="text-left text-gray-600">{r.sickLeaveRanges ?? ''}</td>
-                      <td className="text-right">{r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
+                      <td className="text-right align-top">
+                        <HoverPreviousValue
+                          currentDisplay={r.transTtl.toFixed(2)}
+                          previousDisplay={prev ? prev.transTtl.toFixed(2) : null}
+                          justify="end"
+                        />
+                      </td>
+                      <td className="text-center align-top">
+                        <HoverPreviousValue
+                          currentDisplay={curVac}
+                          previousDisplay={prevVac}
+                          justify="center"
+                        />
+                      </td>
+                      <td className="text-right align-top">
+                        <HoverPreviousValue
+                          currentDisplay={curSickDays}
+                          previousDisplay={prevSickDays}
+                          justify="end"
+                        />
+                      </td>
+                      <td className="text-left align-top text-gray-600">
+                        <HoverPreviousValue
+                          currentDisplay={curRanges}
+                          previousDisplay={prevRanges}
+                          justify="start"
+                        />
+                      </td>
+                      <td className="text-right align-top">
+                        <HoverPreviousValue
+                          currentDisplay={formatShortageDisplay(r.shortage)}
+                          previousDisplay={prev ? formatShortageDisplay(prev.shortage) : null}
+                          justify="end"
+                        />
+                      </td>
                     </tr>
-                  ))}
+                  )})}
                   <tr className="font-bold border-t-2 border-gray-300">
                     <td className="py-2">Total</td>
-                    <td className="text-right">{displayData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
+                    <td className="text-right align-top">
+                      <HoverPreviousValue
+                        currentDisplay={totalTrans.toFixed(1)}
+                        previousDisplay={prevTotalTrans !== null ? prevTotalTrans.toFixed(1) : null}
+                        justify="end"
+                      />
+                    </td>
                     <td></td>
-                    <td className="text-right">{displayData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
+                    <td className="text-right align-top">
+                      <HoverPreviousValue
+                        currentDisplay={String(totalSick)}
+                        previousDisplay={prevTotalSick !== null ? String(prevTotalSick) : null}
+                        justify="end"
+                      />
+                    </td>
                     <td></td>
-                    <td className="text-right">
-                      {displayData.rows.reduce((s, r) => s + r.shortage, 0) > 0
-                        ? `$${displayData.rows.reduce((s, r) => s + r.shortage, 0).toFixed(2)}`
-                        : ''}
+                    <td className="text-right align-top">
+                      <HoverPreviousValue
+                        currentDisplay={formatShortageDisplay(totalShort)}
+                        previousDisplay={prevTotalShort !== null ? formatShortageDisplay(prevTotalShort) : null}
+                        justify="end"
+                      />
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          )}
+            )
+          })()}
         </div>
       </div>
 
@@ -523,7 +670,13 @@ export default function PayPeriodPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.rows.map((r, i) => (
+                  {reportData.rows.map((r, i) => {
+                    const prevRow = resolvePreviousRow(reportData.previousRowsSnapshot ?? null, r.staffId, i)
+                    const transPrevTitle =
+                      prevRow && prevRow.transTtl.toFixed(2) !== r.transTtl.toFixed(2)
+                        ? `Previously: ${prevRow.transTtl.toFixed(2)}`
+                        : undefined
+                    return (
                     <tr key={i} className="border-b border-gray-200">
                       <td className="py-1">{r.staffName}</td>
                       <td className="text-right">
@@ -531,8 +684,9 @@ export default function PayPeriodPage() {
                           type="number"
                           step="0.01"
                           value={r.transTtl}
+                          title={transPrevTitle}
                           onChange={(e) => updateRow(i, 'transTtl', parseFloat(e.target.value) || 0)}
-                          className="w-full text-right border border-gray-300 rounded px-2 py-1"
+                          className={`w-full text-right border border-gray-300 rounded px-2 py-1${transPrevTitle ? ' decoration-dotted underline decoration-gray-500' : ''}`}
                         />
                       </td>
                       <td className="text-center">
@@ -574,7 +728,7 @@ export default function PayPeriodPage() {
                         />
                       </td>
                     </tr>
-                  ))}
+                  )})}
                   <tr className="font-bold border-t-2 border-gray-300">
                     <td className="py-2">Total</td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>

@@ -43,6 +43,7 @@ export async function PATCH(
     const data: {
       emailSentAt?: Date
       rows?: string
+      rowsBeforeLastEdit?: string
       notes?: string
     } = {}
 
@@ -54,6 +55,7 @@ export async function PATCH(
       if (!Array.isArray(rows)) {
         return NextResponse.json({ error: 'rows must be an array when provided' }, { status: 400 })
       }
+      data.rowsBeforeLastEdit = existing.rows
       data.rows = JSON.stringify(rows)
     }
 

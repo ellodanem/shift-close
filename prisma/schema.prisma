@@ -812,6 +812,8 @@ model PayPeriod {
   reportDate  String   @map("report_date")  // YYYY-MM-DD (when report was generated)
   entityName  String   @default("Total Auto Service Station") @map("entity_name")
   rows        String   // JSON: [{ staffId, staffName, transTtl, vacation, shortage }]
+  /// Snapshot of `rows` immediately before the last PATCH that changed rows (for hover “previous value”).
+  rowsBeforeLastEdit String? @map("rows_before_last_edit")
   notes       String   @default("") // Free-form notes on the saved report
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

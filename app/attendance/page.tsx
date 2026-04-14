@@ -426,6 +426,15 @@ export default function AttendancePage() {
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
+  /** Multi-delete: only non-extracted rows in the current table view. */
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(() => new Set())
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkActionBanner, setBulkActionBanner] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(
+    null
+  )
+  const bulkSelectAllRef = useRef<HTMLInputElement>(null)
+
   const [showAddPunch, setShowAddPunch] = useState(false)
   const [addStaffInput, setAddStaffInput] = useState('')
   const [addPunchLocal, setAddPunchLocal] = useState('')
@@ -707,6 +716,43 @@ export default function AttendancePage() {
     )
   }, [logs, staffFilter, staffWithDevice])
 
+  const deletableLogsInView = useMemo(
+    () => displayedLogs.filter((l) => !l.extractedAt),
+    [displayedLogs]
+  )
+
+  const selectedDeletableCount = useMemo(
+    () => deletableLogsInView.reduce((n, l) => n + (selectedLogIds.has(l.id) ? 1 : 0), 0),
+    [deletableLogsInView, selectedLogIds]
+  )
+
+  useEffect(() => {
+    const allowed = new Set(deletableLogsInView.map((l) => l.id))
+    setSelectedLogIds((prev) => {
+      let needsPrune = false
+      for (const id of prev) {
+        if (!allowed.has(id)) {
+          needsPrune = true
+          break
+        }
+      }
+      if (!needsPrune) return prev
+      const next = new Set<string>()
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id)
+      }
+      return next
+    })
+  }, [deletableLogsInView])
+
+  useEffect(() => {
+    const el = bulkSelectAllRef.current
+    if (!el) return
+    const total = deletableLogsInView.length
+    const sel = selectedDeletableCount
+    el.indeterminate = sel > 0 && sel < total
+  }, [deletableLogsInView.length, selectedDeletableCount])
+
   const staffListFiltered = useMemo(() => {
     const q = staffSearch.trim().toLowerCase()
     if (!q) return activeStaffWithDevice
@@ -785,6 +831,93 @@ export default function AttendancePage() {
       if (res.ok) setSettingsSaved(true)
     } catch {}
     finally { setSettingsSaving(false) }
+  }
+
+  const toggleLogSelected = (log: AttendanceLog) => {
+    if (log.extractedAt) return
+    setBulkActionBanner(null)
+    setSelectedLogIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(log.id)) next.delete(log.id)
+      else next.add(log.id)
+      return next
+    })
+  }
+
+  const selectAllDeletableInView = () => {
+    setBulkActionBanner(null)
+    setSelectedLogIds(new Set(deletableLogsInView.map((l) => l.id)))
+  }
+
+  const clearLogSelection = () => {
+    setBulkActionBanner(null)
+    setSelectedLogIds(new Set())
+  }
+
+  const openBulkDeleteConfirm = () => {
+    if (selectedDeletableCount === 0) return
+    setBulkDeleteConfirmOpen(true)
+  }
+
+  const closeBulkDeleteConfirm = () => {
+    if (bulkDeleting) return
+    setBulkDeleteConfirmOpen(false)
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    const ids = deletableLogsInView.filter((l) => selectedLogIds.has(l.id)).map((l) => l.id)
+    if (ids.length === 0) {
+      setBulkDeleteConfirmOpen(false)
+      return
+    }
+    setBulkDeleting(true)
+    setBulkActionBanner(null)
+    try {
+      const outcomes = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const res = await fetch(`/api/attendance/logs/${id}`, { method: 'DELETE' })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              return {
+                ok: false as const,
+                error: typeof data.error === 'string' ? data.error : 'Failed to delete'
+              }
+            }
+            return { ok: true as const }
+          } catch {
+            return { ok: false as const, error: 'Network error' }
+          }
+        })
+      )
+      const okCount = outcomes.filter((o) => o.ok).length
+      const failCount = outcomes.length - okCount
+      const errMsgs = [...new Set(outcomes.filter((o) => !o.ok).map((o) => o.error))]
+      setBulkDeleteConfirmOpen(false)
+      setSelectedLogIds(new Set())
+      await refreshAttendanceLogs()
+      if (failCount === 0) {
+        setBulkActionBanner({
+          kind: 'success',
+          text:
+            okCount === 1
+              ? 'Deleted 1 punch.'
+              : `Deleted ${okCount} punches.`
+        })
+      } else if (okCount === 0) {
+        setBulkActionBanner({
+          kind: 'error',
+          text: `Could not delete any punches. ${errMsgs.slice(0, 3).join(' ')}${errMsgs.length > 3 ? ' …' : ''}`
+        })
+      } else {
+        setBulkActionBanner({
+          kind: 'warning',
+          text: `Deleted ${okCount} of ${ids.length}. ${failCount} could not be removed. ${errMsgs.slice(0, 2).join(' ')}${errMsgs.length > 2 ? ' …' : ''}`
+        })
+      }
+    } finally {
+      setBulkDeleting(false)
+    }
   }
 
   const openEditLog = (log: AttendanceLog) => {
@@ -893,6 +1026,12 @@ export default function AttendancePage() {
       const res = await fetch(`/api/attendance/logs/${editingLog.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to delete')
+      setSelectedLogIds((prev) => {
+        if (!prev.has(editingLog.id)) return prev
+        const next = new Set(prev)
+        next.delete(editingLog.id)
+        return next
+      })
       closeEditLog()
       await refreshAttendanceLogs()
     } catch (err) {
@@ -1182,11 +1321,49 @@ export default function AttendancePage() {
                 )}
 
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              {bulkActionBanner && (
+                <div
+                  className={`px-3 py-2 text-sm border-b ${
+                    bulkActionBanner.kind === 'success'
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-100'
+                      : bulkActionBanner.kind === 'warning'
+                        ? 'bg-amber-50 text-amber-950 border-amber-100'
+                        : 'bg-red-50 text-red-900 border-red-100'
+                  }`}
+                >
+                  {bulkActionBanner.text}
+                </div>
+              )}
+              {selectedDeletableCount > 0 && (
+                <div
+                  className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-gray-100 bg-slate-50/90"
+                  role="region"
+                  aria-label="Bulk actions for selected punches"
+                >
+                  <span className="text-sm font-medium text-gray-800">
+                    {selectedDeletableCount} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearLogSelection}
+                    className="text-sm font-medium text-gray-600 hover:text-gray-900 underline-offset-2 hover:underline"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openBulkDeleteConfirm}
+                    className="ml-auto rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
+                  >
+                    Delete selected
+                  </button>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr className="border-b border-gray-200 bg-slate-50">
-                      <td colSpan={6} className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                      <td colSpan={7} className="px-3 py-2 text-left text-xs font-medium text-gray-600">
                         {hoursInRangeSummary.caption}
                       </td>
                       <td className="px-3 py-2 text-right align-bottom">
@@ -1204,6 +1381,29 @@ export default function AttendancePage() {
                       </td>
                     </tr>
                     <tr>
+                      <th className="px-2 py-2 w-10 text-left font-semibold text-gray-700" scope="col">
+                        <span className="sr-only">Select for bulk delete</span>
+                        <input
+                          ref={bulkSelectAllRef}
+                          type="checkbox"
+                          disabled={deletableLogsInView.length === 0 || loading}
+                          checked={
+                            deletableLogsInView.length > 0 &&
+                            selectedDeletableCount === deletableLogsInView.length
+                          }
+                          onChange={() => {
+                            if (deletableLogsInView.length === 0) return
+                            if (selectedDeletableCount === deletableLogsInView.length) {
+                              clearLogSelection()
+                            } else {
+                              selectAllDeletableInView()
+                            }
+                          }}
+                          className="rounded border-gray-300 align-middle"
+                          title="Select all deletable punches in this list"
+                          aria-label="Select all deletable punches in this list"
+                        />
+                      </th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700 w-12" title="Green full day / blue possible missed / red irregular">
                         Status
                       </th>
@@ -1217,10 +1417,10 @@ export default function AttendancePage() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">Loading…</td></tr>
+                      <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-500">Loading…</td></tr>
                     ) : displayedLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
+                        <td colSpan={8} className="px-3 py-8 text-center text-gray-500">
                           {staffFilter
                             ? 'No attendance logs for this staff in the current view.'
                             : 'No attendance logs in the current view. Sync from the device, or use Add punch for a missed clock-in/out.'}
@@ -1239,6 +1439,23 @@ export default function AttendancePage() {
                               : 'bg-emerald-50/35'
                         return (
                         <tr key={log.id} className={`border-t border-gray-100 hover:bg-gray-50 ${rowBg}`}>
+                          <td className="px-2 py-2 align-middle">
+                            {isExtracted ? (
+                              <span
+                                className="inline-block w-4 h-4 shrink-0 rounded border border-violet-200 bg-violet-50"
+                                title="Filed — cannot delete"
+                                aria-hidden
+                              />
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={selectedLogIds.has(log.id)}
+                                onChange={() => toggleLogSelected(log)}
+                                className="rounded border-gray-300"
+                                aria-label={`Select punch ${formatDateDisplay(log.punchTime)} ${formatTime(log.punchTime)} ${log.punchType === 'in' ? 'In' : 'Out'}`}
+                              />
+                            )}
+                          </td>
                           <td className="px-3 py-2">
                             {st === 'irregular' ? (
                               <span
@@ -1651,6 +1868,61 @@ export default function AttendancePage() {
                         {editSaving ? 'Saving…' : 'Save'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {bulkDeleteConfirmOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bulk-delete-title"
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-lg w-full p-5">
+                  <h2 id="bulk-delete-title" className="text-lg font-semibold text-gray-900 mb-1">
+                    Delete {selectedDeletableCount} punch{selectedDeletableCount === 1 ? '' : 'es'}?
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-3">
+                    This cannot be undone. Use only for duplicate or mistaken entries. Filed punches cannot be removed.
+                  </p>
+                  <ul className="mb-4 max-h-48 overflow-y-auto rounded-md border border-gray-100 bg-gray-50/80 text-sm text-gray-800 divide-y divide-gray-100">
+                    {deletableLogsInView
+                      .filter((l) => selectedLogIds.has(l.id))
+                      .slice(0, 12)
+                      .map((l) => (
+                        <li key={l.id} className="px-3 py-2 flex flex-wrap gap-x-2 gap-y-0.5">
+                          <span className="font-medium">{l.staff?.name ?? l.deviceUserName ?? `Device ${l.deviceUserId}`}</span>
+                          <span className="text-gray-600">
+                            {formatDateDisplay(l.punchTime)} · {formatTime(l.punchTime)} ·{' '}
+                            {l.punchType === 'in' ? 'In' : 'Out'}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                  {selectedDeletableCount > 12 && (
+                    <p className="text-xs text-gray-500 mb-4">
+                      And {selectedDeletableCount - 12} more — all selected punches will be deleted.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeBulkDeleteConfirm}
+                      disabled={bulkDeleting}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmBulkDelete()}
+                      disabled={bulkDeleting}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {bulkDeleting ? 'Deleting…' : 'Delete punches'}
+                    </button>
                   </div>
                 </div>
               </div>
