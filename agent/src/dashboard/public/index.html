@@ -46,11 +46,17 @@
     .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
     .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
     #toast { position: fixed; bottom: 20px; right: 20px; max-width: 320px; z-index: 99; }
-    .punch-table-wrap { max-height: 300px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 10px; }
+    .punch-table-wrap { max-height: 400px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 10px; }
     .punch-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
     .punch-table th, .punch-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
     .punch-table th { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
     .punch-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .punch-filters { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    .punch-filters .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+    @media (max-width: 640px) { .punch-filters .filter-grid { grid-template-columns: 1fr; } }
+    .punch-filters .date-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .punch-filters label { font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 4px; }
+    .punch-filter-section-title { font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; }
     .punch-meta { font-size: 0.8rem; color: #6b7280; margin-top: 8px; }
   </style>
 </head>
@@ -104,9 +110,30 @@
       <p class="punch-meta">Load punches from the device, select rows, then upload. Duplicates may still be skipped server-side by time window; avoid re-uploading the same punches if they already appear in Shift Close.</p>
       <div class="punch-toolbar">
         <button class="btn btn-outline" id="btnLoadPunches">Load from device</button>
-        <button class="btn btn-outline" id="btnSelectAllPunches">Select all (loaded)</button>
+        <button class="btn btn-outline" id="btnSelectAllPunches">Select all (shown)</button>
         <button class="btn btn-outline" id="btnClearPunches">Clear selection</button>
         <button class="btn btn-green" id="btnUploadPunches">Upload selected to Vercel</button>
+      </div>
+      <div class="punch-filters" id="punchFilters" style="display:none;">
+        <div class="filter-grid">
+          <div>
+            <label for="punchSearch">Search (matches as you type)</label>
+            <input type="search" id="punchSearch" placeholder="User ID, name, time, state…" autocomplete="off" />
+          </div>
+          <div>
+            <div class="punch-filter-section-title">Date range (local calendar day on this PC)</div>
+            <div class="date-pair">
+              <div>
+                <label for="punchDateFrom">From</label>
+                <input type="date" id="punchDateFrom" />
+              </div>
+              <div>
+                <label for="punchDateTo">To</label>
+                <input type="date" id="punchDateTo" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="punch-meta" id="punchLoadMeta">No punches loaded.</div>
       <div class="punch-table-wrap" id="punchTableWrap" style="display:none;">
@@ -115,6 +142,7 @@
             <tr>
               <th style="width:36px"><input type="checkbox" id="chkPunchMaster" title="Toggle all" /></th>
               <th>User ID</th>
+              <th>Name (on device)</th>
               <th>Time (UTC)</th>
               <th>State</th>
             </tr>
@@ -262,12 +290,137 @@
     })
 
     let loadedPunches = []
+    let totalOnDevice = null
+    const selectedPunchIndices = new Set()
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    }
+
+    function punchTimestamp(p) {
+      const t = Date.parse(p.recordTime)
+      return Number.isNaN(t) ? null : t
+    }
+
+    function hasActivePunchFilters() {
+      const q = (document.getElementById('punchSearch').value || '').trim()
+      const df = document.getElementById('punchDateFrom').value
+      const dt = document.getElementById('punchDateTo').value
+      return q !== '' || df !== '' || dt !== ''
+    }
+
+    /** @returns {Array<{ p: object, i: number }>} */
+    function getFilteredPunches() {
+      const q = (document.getElementById('punchSearch').value || '').trim().toLowerCase()
+      const fromStr = document.getElementById('punchDateFrom').value
+      const toStr = document.getElementById('punchDateTo').value
+      let fromMs = null
+      let toMs = null
+      if (fromStr) {
+        const d = new Date(fromStr + 'T00:00:00')
+        fromMs = d.getTime()
+      }
+      if (toStr) {
+        const d = new Date(toStr + 'T23:59:59.999')
+        toMs = d.getTime()
+      }
+      const out = []
+      loadedPunches.forEach((p, i) => {
+        if (q) {
+          const hay = [
+            p.deviceUserId,
+            p.deviceUserName || '',
+            p.recordTime || '',
+            p.state !== undefined && p.state !== null ? String(p.state) : ''
+          ].join(' ').toLowerCase()
+          const tokens = q.split(/\s+/).filter(Boolean)
+          for (const tok of tokens) {
+            if (!hay.includes(tok)) return
+          }
+        }
+        const ts = punchTimestamp(p)
+        if (fromMs != null && (ts == null || ts < fromMs)) return
+        if (toMs != null && (ts == null || ts > toMs)) return
+        out.push({ p, i })
+      })
+      return out
+    }
+
+    function updatePunchLoadMeta() {
+      const meta = document.getElementById('punchLoadMeta')
+      if (!loadedPunches.length) {
+        meta.textContent = 'No punches loaded.'
+        return
+      }
+      const filtered = getFilteredPunches()
+      const n = filtered.length
+      const totalLoaded = loadedPunches.length
+      const dev = totalOnDevice != null ? totalOnDevice : totalLoaded
+      if (hasActivePunchFilters()) {
+        meta.textContent = `Showing ${n} of ${totalLoaded} loaded punch(es) that match your filter · ${dev} total on device (newest first).`
+      } else {
+        meta.textContent = `Showing ${totalLoaded} of ${dev} punch(es) on device (newest first).`
+      }
+    }
+
+    function updateMasterCheckboxState() {
+      const master = document.getElementById('chkPunchMaster')
+      const visible = getFilteredPunches()
+      if (!visible.length) {
+        master.checked = false
+        master.indeterminate = false
+        return
+      }
+      let c = 0
+      for (const { i } of visible) {
+        if (selectedPunchIndices.has(i)) c++
+      }
+      master.checked = c === visible.length
+      master.indeterminate = c > 0 && c < visible.length
+    }
+
+    function renderPunchTable() {
+      const tbody = document.getElementById('punchTableBody')
+      const wrap = document.getElementById('punchTableWrap')
+      const filters = document.getElementById('punchFilters')
+      if (!loadedPunches.length) {
+        wrap.style.display = 'none'
+        filters.style.display = 'none'
+        tbody.innerHTML = ''
+        return
+      }
+      wrap.style.display = 'block'
+      filters.style.display = 'block'
+      const filtered = getFilteredPunches()
+      tbody.innerHTML = filtered.map(({ p, i }) => {
+        const checked = selectedPunchIndices.has(i) ? ' checked' : ''
+        return `
+            <tr>
+              <td><input type="checkbox" class="punch-row-chk" data-idx="${i}"${checked} /></td>
+              <td>${escapeHtml(p.deviceUserId)}</td>
+              <td>${p.deviceUserName ? escapeHtml(p.deviceUserName) : '—'}</td>
+              <td>${escapeHtml(p.recordTime)}</td>
+              <td>${p.state !== undefined && p.state !== null ? escapeHtml(String(p.state)) : '—'}</td>
+            </tr>`
+      }).join('')
+      updatePunchLoadMeta()
+      updateMasterCheckboxState()
+    }
+
+    document.getElementById('punchTableBody').addEventListener('change', (e) => {
+      const t = e.target
+      if (!t || !t.classList || !t.classList.contains('punch-row-chk')) return
+      const i = parseInt(t.getAttribute('data-idx'), 10)
+      if (Number.isNaN(i)) return
+      if (t.checked) selectedPunchIndices.add(i)
+      else selectedPunchIndices.delete(i)
+      updateMasterCheckboxState()
+    })
 
     document.getElementById('btnLoadPunches').addEventListener('click', async () => {
       const btn = document.getElementById('btnLoadPunches')
       const meta = document.getElementById('punchLoadMeta')
       const wrap = document.getElementById('punchTableWrap')
-      const tbody = document.getElementById('punchTableBody')
       btn.disabled = true; btn.textContent = 'Loading…'
       try {
         const res = await fetch('/api/device-punches?limit=2000')
@@ -275,36 +428,35 @@
         if (!data.ok) {
           meta.textContent = data.error || 'Failed to load'
           wrap.style.display = 'none'
+          document.getElementById('punchFilters').style.display = 'none'
           loadedPunches = []
+          totalOnDevice = null
+          selectedPunchIndices.clear()
+          document.getElementById('punchTableBody').innerHTML = ''
         } else {
           loadedPunches = data.punches || []
-          meta.textContent = `Showing ${loadedPunches.length} of ${data.totalOnDevice ?? loadedPunches.length} punch(es) on device (newest first).`
-          tbody.innerHTML = loadedPunches.map((p, i) => `
-            <tr>
-              <td><input type="checkbox" class="punch-row-chk" data-idx="${i}" /></td>
-              <td>${escapeHtml(p.deviceUserId)}</td>
-              <td>${escapeHtml(p.recordTime)}</td>
-              <td>${p.state !== undefined && p.state !== null ? escapeHtml(String(p.state)) : '—'}</td>
-            </tr>`).join('')
-          wrap.style.display = loadedPunches.length ? 'block' : 'none'
-          document.getElementById('chkPunchMaster').checked = false
+          totalOnDevice = data.totalOnDevice != null ? data.totalOnDevice : loadedPunches.length
+          selectedPunchIndices.clear()
+          document.getElementById('punchSearch').value = ''
+          document.getElementById('punchDateFrom').value = ''
+          document.getElementById('punchDateTo').value = ''
+          renderPunchTable()
         }
       } catch (e) {
         meta.textContent = 'Request failed'
         wrap.style.display = 'none'
+        document.getElementById('punchFilters').style.display = 'none'
         loadedPunches = []
+        totalOnDevice = null
+        selectedPunchIndices.clear()
+        document.getElementById('punchTableBody').innerHTML = ''
       }
       btn.disabled = false; btn.textContent = 'Load from device'
     })
 
-    function escapeHtml(s) {
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    }
-
     function getSelectedLogs() {
       const logs = []
-      document.querySelectorAll('.punch-row-chk:checked').forEach((el) => {
-        const i = parseInt(el.getAttribute('data-idx'), 10)
+      selectedPunchIndices.forEach((i) => {
         const p = loadedPunches[i]
         if (p) logs.push({ deviceUserId: p.deviceUserId, recordTime: p.recordTime, state: p.state })
       })
@@ -312,20 +464,27 @@
     }
 
     document.getElementById('btnSelectAllPunches').addEventListener('click', () => {
-      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = true })
-      const m = document.getElementById('chkPunchMaster')
-      if (m) m.checked = loadedPunches.length > 0
+      getFilteredPunches().forEach(({ i }) => selectedPunchIndices.add(i))
+      renderPunchTable()
     })
 
     document.getElementById('btnClearPunches').addEventListener('click', () => {
-      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = false })
-      document.getElementById('chkPunchMaster').checked = false
+      selectedPunchIndices.clear()
+      renderPunchTable()
     })
 
     document.getElementById('chkPunchMaster').addEventListener('change', (e) => {
       const on = e.target.checked
-      document.querySelectorAll('.punch-row-chk').forEach((c) => { c.checked = on })
+      getFilteredPunches().forEach(({ i }) => {
+        if (on) selectedPunchIndices.add(i)
+        else selectedPunchIndices.delete(i)
+      })
+      renderPunchTable()
     })
+
+    document.getElementById('punchSearch').addEventListener('input', () => renderPunchTable())
+    document.getElementById('punchDateFrom').addEventListener('change', () => renderPunchTable())
+    document.getElementById('punchDateTo').addEventListener('change', () => renderPunchTable())
 
     document.getElementById('btnUploadPunches').addEventListener('click', async () => {
       const logs = getSelectedLogs()
