@@ -5,3 +5,4 @@ dist-installer/
 installer-release*/
 *.log
 agent.state.json
+.stfolder/
