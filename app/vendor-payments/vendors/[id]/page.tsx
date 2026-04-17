@@ -8,7 +8,7 @@ interface VendorInvoice {
   invoiceNumber: string
   amount: number
   invoiceDate: string
-  dueDate: string
+  dueDate: string | null
   vat: number | null
   status: string
   notes: string
@@ -162,7 +162,7 @@ export default function VendorDetailPage() {
                         <tr key={inv.id} className="border-t border-gray-100">
                           <td className="py-2">{inv.invoiceNumber}</td>
                           <td>{formatDate(inv.invoiceDate)}</td>
-                          <td>{formatDate(inv.dueDate)}</td>
+                          <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
                           <td className="text-right font-medium">{formatAmount(inv.amount)}</td>
                           <td className="text-right">
                             <button

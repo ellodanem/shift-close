@@ -431,7 +431,7 @@ model VendorInvoice {
   invoiceNumber String   @map("invoice_number")
   amount        Float
   invoiceDate   DateTime @map("invoice_date")
-  dueDate       DateTime @map("due_date")
+  dueDate       DateTime? @map("due_date")
   vat           Float?   @default(0) // VAT / Prepaid Tax if included
   status        String   @default("pending") // 'pending' | 'paid'
   notes         String   @default("")

@@ -79,7 +79,7 @@ export default function NewVendorInvoicePage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Add Invoice</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Add a new pending invoice for {vendor.name}. If no due date is provided, it will be set to 5 days after invoice date.
+            Add a new pending invoice for {vendor.name}. Due date is optional.
           </p>
         </div>
 

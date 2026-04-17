@@ -57,6 +57,80 @@ export default function InvoicesPage() {
   })
   const [savingBalance, setSavingBalance] = useState(false)
 
+  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false)
+  const [addInvoiceSaving, setAddInvoiceSaving] = useState(false)
+  const [addInvoiceForm, setAddInvoiceForm] = useState({
+    invoiceNumber: '',
+    amount: '',
+    type: 'Fuel',
+    invoiceDate: '',
+    notes: ''
+  })
+
+  const openAddInvoiceModal = () => {
+    setAddInvoiceForm({
+      invoiceNumber: '',
+      amount: '',
+      type: 'Fuel',
+      invoiceDate: new Date().toISOString().split('T')[0],
+      notes: ''
+    })
+    setShowAddInvoiceModal(true)
+  }
+
+  const closeAddInvoiceModal = () => {
+    setShowAddInvoiceModal(false)
+    setAddInvoiceSaving(false)
+  }
+
+  const handleAddInvoiceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amt = parseFloat(addInvoiceForm.amount)
+    if (Number.isNaN(amt)) {
+      alert('Please enter a valid amount')
+      return
+    }
+    setAddInvoiceSaving(true)
+    try {
+      const res = await fetch('/api/fuel-payments/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceNumber: addInvoiceForm.invoiceNumber.trim(),
+          amount: amt,
+          type: addInvoiceForm.type,
+          invoiceDate: addInvoiceForm.invoiceDate,
+          notes: addInvoiceForm.notes.trim()
+        })
+      })
+
+      if (res.ok) {
+        closeAddInvoiceModal()
+        void fetchInvoices()
+        const [pendingRes, paidRes] = await Promise.all([
+          fetch('/api/fuel-payments/invoices?status=pending'),
+          fetch('/api/fuel-payments/invoices?status=paid')
+        ])
+        if (pendingRes.ok) {
+          const pendingData = await pendingRes.json()
+          setPendingCount(pendingData.length)
+        }
+        if (paidRes.ok) {
+          const paidData = await paidRes.json()
+          setPaidCount(paidData.length)
+        }
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to create invoice')
+      }
+    } catch (error) {
+      console.error('Error creating invoice:', error)
+      alert('Failed to create invoice')
+    } finally {
+      setAddInvoiceSaving(false)
+    }
+  }
+
   useEffect(() => {
     fetchInvoices()
   }, [activeTab])
@@ -347,7 +421,8 @@ export default function InvoicesPage() {
             </button>
             {activeTab === 'pending' && (
               <button
-                onClick={() => router.push('/fuel-payments/invoices/new')}
+                type="button"
+                onClick={openAddInvoiceModal}
                 className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
                 + Add Invoice
@@ -518,7 +593,8 @@ export default function InvoicesPage() {
             </p>
             {activeTab === 'pending' && (
               <button
-                onClick={() => router.push('/fuel-payments/invoices/new')}
+                type="button"
+                onClick={openAddInvoiceModal}
                 className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
                 Add First Invoice
@@ -703,6 +779,146 @@ export default function InvoicesPage() {
               </tbody>
             </table>
             )}
+          </div>
+        )}
+
+        {showAddInvoiceModal && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            role="presentation"
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-fuel-invoice-title"
+              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="mb-6">
+                <h2
+                  id="add-fuel-invoice-title"
+                  className="text-3xl font-bold text-gray-900"
+                >
+                  Add invoice
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Add a new pending invoice. Due date is set automatically to 5 days after
+                  invoice date.
+                </p>
+              </div>
+
+              <form onSubmit={handleAddInvoiceSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Invoice number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addInvoiceForm.invoiceNumber}
+                    onChange={(e) =>
+                      setAddInvoiceForm({
+                        ...addInvoiceForm,
+                        invoiceNumber: e.target.value
+                      })
+                    }
+                    placeholder="e.g., 1146248"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Amount <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      min="0"
+                      value={addInvoiceForm.amount}
+                      onChange={(e) =>
+                        setAddInvoiceForm({ ...addInvoiceForm, amount: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={addInvoiceForm.type}
+                      onChange={(e) =>
+                        setAddInvoiceForm({ ...addInvoiceForm, type: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Fuel">Fuel</option>
+                      <option value="LPG">LPG</option>
+                      <option value="Lubricants">Lubricants</option>
+                      <option value="Rent">Rent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Invoice date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={addInvoiceForm.invoiceDate}
+                    onChange={(e) =>
+                      setAddInvoiceForm({
+                        ...addInvoiceForm,
+                        invoiceDate: e.target.value
+                      })
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Due date will be set to 5 days after this date.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Notes
+                  </label>
+                  <textarea
+                    value={addInvoiceForm.notes}
+                    onChange={(e) =>
+                      setAddInvoiceForm({ ...addInvoiceForm, notes: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Optional notes…"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-4">
+                  <button
+                    type="submit"
+                    disabled={addInvoiceSaving}
+                    className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {addInvoiceSaving ? 'Creating…' : 'Create invoice'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeAddInvoiceModal}
+                    disabled={addInvoiceSaving}
+                    className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 

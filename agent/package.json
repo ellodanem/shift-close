@@ -31,7 +31,7 @@
   },
   "build": {
     "directories": {
-      "output": "installer-release-v4"
+      "output": "installer-release-v5"
     },
     "appId": "com.westline.shiftclose.agent",
     "productName": "Shift Close Agent",

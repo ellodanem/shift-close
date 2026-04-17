@@ -46,8 +46,12 @@ export async function PATCH(
       if (!isNaN(d.getTime())) data.invoiceDate = d
     }
     if (dueDate !== undefined) {
-      const d = new Date(String(dueDate))
-      if (!isNaN(d.getTime())) data.dueDate = d
+      if (dueDate === null || dueDate === '') {
+        data.dueDate = null
+      } else {
+        const d = new Date(String(dueDate))
+        if (!isNaN(d.getTime())) data.dueDate = d
+      }
     }
     if (vat !== undefined) data.vat = Math.round(Number(vat) * 100) / 100
     if (notes !== undefined) data.notes = String(notes).trim()

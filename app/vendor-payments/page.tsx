@@ -7,7 +7,7 @@ export default function VendorPaymentsPage() {
   const router = useRouter()
 
   useEffect(() => {
-    router.replace('/vendor-payments/vendors')
+    router.replace('/vendor-payments/invoices')
   }, [router])
 
   return (

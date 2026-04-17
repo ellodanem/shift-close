@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const tabs = [
+  { label: 'Invoices', href: '/vendor-payments/invoices' },
   { label: 'Vendors', href: '/vendor-payments/vendors' },
-  { label: 'Make Payment', href: '/vendor-payments/make-payment' },
   { label: 'Uncashed Checks', href: '/vendor-payments/uncashed-checks' }
 ]
 

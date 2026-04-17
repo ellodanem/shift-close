@@ -9,7 +9,7 @@ interface VendorInvoice {
   invoiceNumber: string
   amount: number
   invoiceDate: string
-  dueDate: string
+  dueDate: string | null
   vat: number | null
   status: string
   notes: string
@@ -49,7 +49,7 @@ export default function EditVendorInvoicePage() {
         invoiceNumber: data.invoiceNumber,
         amount: String(data.amount),
         invoiceDate: data.invoiceDate.slice(0, 10),
-        dueDate: data.dueDate.slice(0, 10),
+        dueDate: data.dueDate ? data.dueDate.slice(0, 10) : '',
         vat: data.vat != null ? String(data.vat) : '',
         notes: data.notes || ''
       })
