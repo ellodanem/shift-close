@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
+import { FuelMakePaymentModal } from '../components/FuelMakePaymentModal'
+import { FuelRevertPaymentModal } from '../components/FuelRevertPaymentModal'
 
 interface Invoice {
   id: string
@@ -81,6 +83,15 @@ export default function InvoicesPage() {
   const closeAddInvoiceModal = () => {
     setShowAddInvoiceModal(false)
     setAddInvoiceSaving(false)
+  }
+
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [payModalSelectedCsv, setPayModalSelectedCsv] = useState('')
+  const [showRevertModal, setShowRevertModal] = useState(false)
+
+  const openMakePaymentModal = (selectedCsv: string) => {
+    setPayModalSelectedCsv(selectedCsv)
+    setShowPayModal(true)
   }
 
   const handleAddInvoiceSubmit = async (e: React.FormEvent) => {
@@ -281,9 +292,7 @@ export default function InvoicesPage() {
       alert('Please select at least one invoice')
       return
     }
-    // Navigate to make-payment page with selected invoice IDs
-    const ids = Array.from(selectedInvoiceIds).join(',')
-    router.push(`/fuel-payments/make-payment?selected=${ids}`)
+    openMakePaymentModal(Array.from(selectedInvoiceIds).join(','))
   }
 
   const selectedTotal = invoices
@@ -430,7 +439,7 @@ export default function InvoicesPage() {
             )}
             {activeTab === 'paid' && (
               <button
-                onClick={() => router.push('/fuel-payments/revert')}
+                onClick={() => setShowRevertModal(true)}
                 className="px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-700"
               >
                 ↩️ Revert Payment
@@ -781,6 +790,41 @@ export default function InvoicesPage() {
             )}
           </div>
         )}
+
+        <FuelMakePaymentModal
+          open={showPayModal}
+          initialSelectedCsv={payModalSelectedCsv}
+          onClose={() => setShowPayModal(false)}
+          onSuccess={(batchId) => {
+            void fetchInvoices()
+            void Promise.all([
+              fetch('/api/fuel-payments/invoices?status=pending').then(async (res) => {
+                if (res.ok) setPendingCount((await res.json()).length)
+              }),
+              fetch('/api/fuel-payments/invoices?status=paid').then(async (res) => {
+                if (res.ok) setPaidCount((await res.json()).length)
+              })
+            ])
+            setSelectedInvoiceIds(new Set())
+            router.push(`/fuel-payments/make-payment/share/${batchId}`)
+          }}
+        />
+
+        <FuelRevertPaymentModal
+          open={showRevertModal}
+          onClose={() => setShowRevertModal(false)}
+          onSuccess={() => {
+            void fetchInvoices()
+            void Promise.all([
+              fetch('/api/fuel-payments/invoices?status=pending').then(async (res) => {
+                if (res.ok) setPendingCount((await res.json()).length)
+              }),
+              fetch('/api/fuel-payments/invoices?status=paid').then(async (res) => {
+                if (res.ok) setPaidCount((await res.json()).length)
+              })
+            ])
+          }}
+        />
 
         {showAddInvoiceModal && (
           <div
