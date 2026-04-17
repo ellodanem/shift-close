@@ -60,7 +60,7 @@ npm install
 npm run build
 ```
 
-Output: see `package.json` → `build.directories.output` (e.g. `agent/installer-release-v4/Shift Close Agent Setup 1.0.0.exe`)
+Output: see `package.json` → `build.directories.output` (e.g. `agent/installer-release-v6/Shift Close Agent Setup 1.0.0.exe`)
 
 Run the installer on the station PC. It will:
 - Install the agent
@@ -92,7 +92,7 @@ AGENT_SECRET=your-secret-key   # Same value as agent config
 
 ## ADMS (Real-time Push from Device)
 
-The agent's attendance sync is a **backup**. For real-time punches, configure ADMS on the F22:
+For automatic punches to Shift Close, configure **ADMS** on the F22. The agent does not push punches on a schedule; use the dashboard’s manual upload only when you need to catch up. ADMS setup:
 
 1. On device: **COMM → Cloud Server Setting**
 2. Set Server Address to your Vercel domain (without https://)

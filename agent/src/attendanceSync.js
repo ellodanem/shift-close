@@ -16,6 +16,19 @@ function normalizeRawRecord(r) {
   return { key, deviceUserId, recordTime: t.toISOString(), state }
 }
 
+/** Map device user id string → name as stored on the terminal (from getUsers). */
+function buildDeviceUserNameMap(users) {
+  const map = new Map()
+  if (!Array.isArray(users)) return map
+  for (const u of users) {
+    const id = String(u.userId ?? u.uid ?? u.deviceUserId ?? '').trim()
+    if (!id) continue
+    const name = String(u.name ?? u.userName ?? u.employeeName ?? '').trim()
+    if (name) map.set(id, name)
+  }
+  return map
+}
+
 /**
  * Pull punch records from the device for display / manual selection (newest first).
  */
@@ -30,6 +43,13 @@ async function fetchPunchesFromDevice(config, limit = 2000) {
   try {
     await device.connect()
     const rawLogs = await device.getAttendances()
+    let nameByDeviceId = new Map()
+    try {
+      const deviceUsers = await device.getUsers()
+      nameByDeviceId = buildDeviceUserNameMap(deviceUsers)
+    } catch (e) {
+      log(`getUsers failed (User ID only): ${e.message}`)
+    }
     await device.disconnect()
 
     if (!rawLogs || rawLogs.length === 0) {
@@ -42,7 +62,10 @@ async function fetchPunchesFromDevice(config, limit = 2000) {
       const n = normalizeRawRecord(r)
       if (n && !seen.has(n.key)) {
         seen.add(n.key)
-        normalized.push(n)
+        normalized.push({
+          ...n,
+          deviceUserName: nameByDeviceId.get(n.deviceUserId) || null
+        })
       }
     }
     normalized.sort((a, b) => new Date(b.recordTime) - new Date(a.recordTime))

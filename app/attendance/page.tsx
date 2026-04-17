@@ -85,7 +85,7 @@ interface DeviceSettings {
   public_app_url: string
 }
 
-type Tab = 'logs' | 'device'
+type Tab = 'logs' | 'device' | 'agent'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
 const ATTENDANCE_LOGS_POLL_MS = 45_000
@@ -1176,17 +1176,24 @@ export default function AttendancePage() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-4 border-b border-gray-200">
-          {(['logs', 'device'] as Tab[]).map((tab) => (
+          {(
+            [
+              { id: 'logs' as const, label: 'Attendance Logs' },
+              { id: 'device' as const, label: 'Device Management' },
+              { id: 'agent' as const, label: 'Windows Agent' }
+            ] as const
+          ).map(({ id, label }) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
               className={`px-4 py-2 text-sm font-medium rounded-t border-b-2 transition-colors ${
-                activeTab === tab
+                activeTab === id
                   ? 'border-blue-600 text-blue-700 bg-white'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              {tab === 'logs' ? 'Attendance Logs' : 'Device Management'}
+              {label}
             </button>
           ))}
         </div>
@@ -1208,7 +1215,7 @@ export default function AttendancePage() {
                 disabled={staffWithDevice.length === 0}
                 title={
                   staffWithDevice.length === 0
-                    ? 'Map staff to device users on the Device Management tab first'
+                    ? 'Map staff to device users on the Windows Agent tab (or edit staff profiles) first'
                     : 'Record a missed clock-in or clock-out'
                 }
                 className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1995,7 +2002,7 @@ export default function AttendancePage() {
               {deviceSettings.zk_device_ip && (
                 <p className="mt-3 text-xs text-gray-500">
                   Current: <span className="font-mono font-medium text-gray-700">{deviceSettings.zk_device_ip}:{deviceSettings.zk_device_port || 4370}</span>
-                  {' '} — Use &ldquo;Sync from device&rdquo; on the Logs tab when on the same network, or configure the Windows Agent for automatic cloud sync.
+                  {' '} — Use &ldquo;Sync from device&rdquo; on the Logs tab when on the same network, or use <strong>ADMS</strong> on the device for automatic punch delivery; the Windows Agent handles staff-to-device sync and optional manual punch upload from its local dashboard.
                 </p>
               )}
             </div>
@@ -2137,29 +2144,64 @@ export default function AttendancePage() {
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* ── WINDOWS AGENT TAB ── */}
+        {activeTab === 'agent' && (
+          <div className="space-y-6">
             {/* Windows Agent */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-1">Windows Agent</h2>
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <h2 className="font-semibold text-gray-900">Windows Agent</h2>
+                <a
+                  href="/api/attendance/windows-agent/installer"
+                  className="shrink-0 px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold text-sm hover:bg-gray-800"
+                >
+                  Download installer
+                </a>
+              </div>
               <p className="text-sm text-gray-600 mb-4">
-                Install the local agent on an always-on PC at the station. It automatically pushes new staff to the device
-                and syncs attendance logs as a backup. Runs silently in the system tray.
+                Install the local agent on an always-on PC on the same LAN as the ZKTeco device. It runs in the system tray
+                and keeps the device&apos;s user list aligned with Shift Close by pushing new staff on a schedule. Punches
+                normally reach the cloud in real time via <strong>ADMS</strong> on the device; the agent does{' '}
+                <strong>not</strong> poll the device for punches on a timer. Use its local dashboard when you need to test
+                the device, upload selected punches manually, or copy ADMS settings.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                  <div className="font-semibold text-blue-800 mb-1">Auto Staff Sync</div>
-                  <div className="text-blue-700">Every 5 min — pushes new staff to device automatically</div>
+                  <div className="font-semibold text-blue-800 mb-1">Auto staff sync</div>
+                  <div className="text-blue-700">Every 5 minutes (default) — pushes staff who have a Device User ID onto the terminal</div>
                 </div>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
-                  <div className="font-semibold text-green-800 mb-1">Attendance Backup</div>
-                  <div className="text-green-700">Every 15 min — backup sync in case ADMS fails</div>
+                  <div className="font-semibold text-green-800 mb-1">Manual punch upload</div>
+                  <div className="text-green-700">
+                    On demand at <code className="text-xs bg-green-100 px-1 rounded">localhost:3001</code> — load punches from
+                    the device, choose rows, send to Shift Close (e.g. catch-up if ADMS was offline)
+                  </div>
                 </div>
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm">
-                  <div className="font-semibold text-purple-800 mb-1">Local Dashboard</div>
-                  <div className="text-purple-700">Status & controls at localhost:3001</div>
+                  <div className="font-semibold text-purple-800 mb-1">Local dashboard</div>
+                  <div className="text-purple-700">
+                    Status, device test, push staff now, punch table with names from the device, and ADMS URL reference
+                  </div>
                 </div>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                <strong>To build the installer:</strong> Run <code className="bg-amber-100 px-1 rounded">cd agent &amp;&amp; npm install &amp;&amp; npm run build</code> — produces a <code>.exe</code> installer in <code>agent/dist/</code>.
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 space-y-2">
+                <p>
+                  <strong>To build the installer:</strong> From the <code className="bg-amber-100 px-1 rounded">agent</code>{' '}
+                  folder (inside this app):{' '}
+                  <code className="bg-amber-100 px-1 rounded">npm install &amp;&amp; npm run build</code> — the NSIS{' '}
+                  <code>.exe</code> is written under <code className="bg-amber-100 px-1 rounded">agent/</code> plus whatever{' '}
+                  <code className="bg-amber-100 px-1 rounded">build.directories.output</code> is in{' '}
+                  <code className="bg-amber-100 px-1 rounded">agent/package.json</code>.
+                </p>
+                <p>
+                  <strong>Download button:</strong> Serves the newest <code className="bg-amber-100 px-1 rounded">.exe</code> from
+                  that output folder when this server has a local build. On Vercel (or whenever the file is not on disk), set{' '}
+                  <code className="bg-amber-100 px-1 rounded">WINDOWS_AGENT_INSTALLER_URL</code> to a direct link (for example a
+                  GitHub Release asset); the button then redirects there instead.
+                </p>
               </div>
             </div>
 
@@ -2219,7 +2261,6 @@ export default function AttendancePage() {
                 </button>
               </div>
             </div>
-
           </div>
         )}
       </div>
