@@ -490,7 +490,10 @@ export default function AttendanceSettingsPage() {
                   </code>
                 </p>
                 <p className="mt-2 text-xs text-gray-600">
-                  At most one send per report date. Schedule after shifts close if you use automated sends.
+                  At most one send per report date. Schedule after shifts close if you use automated sends. If you already
+                  cron <code className="bg-white px-1 rounded border border-gray-100">GET /api/cron/end-of-day-email</code>{' '}
+                  with the same bearer secret, the app sends this summary in the same run—no extra cron required unless you
+                  want this endpoint alone.
                 </p>
               </div>
             </>
