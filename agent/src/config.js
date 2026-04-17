@@ -17,6 +17,8 @@ const DEFAULTS = {
   vercelUrl: '',
   agentSecret: '',
   staffSyncIntervalMs: 5 * 60 * 1000,      // 5 minutes
+  /** TCP/SDK reachability check for dashboard status (min 60s if overridden in config). */
+  devicePingIntervalMs: 5 * 60 * 1000,
   attendanceSyncIntervalMs: 15 * 60 * 1000, // 15 minutes
   dashboardPort: 3001
 }

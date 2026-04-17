@@ -223,15 +223,40 @@
         const dot = document.getElementById('headerDot')
         const sub = document.getElementById('headerSub')
         if (s.configured) {
-          dot.className = 'status-dot ' + (s.deviceStatus === 'connected' ? 'dot-green' : s.deviceStatus === 'error' ? 'dot-red' : 'dot-yellow')
-          sub.textContent = s.deviceStatus === 'connected' ? 'Connected · ' + s.uptime : 'Running · ' + s.uptime
+          const ok = s.deviceStatus === 'connected'
+          const bad = s.deviceStatus === 'error'
+          dot.className = 'status-dot ' + (ok ? 'dot-green' : bad ? 'dot-red' : 'dot-yellow')
+          sub.textContent = ok
+            ? 'Device reachable · ' + s.uptime
+            : bad
+              ? 'Device unreachable · ' + s.uptime
+              : 'Checking device · ' + s.uptime
         } else {
           dot.className = 'status-dot dot-grey'
           sub.textContent = 'Not fully configured'
         }
 
-        document.getElementById('statDevice').textContent = s.deviceStatus || 'Unknown'
-        document.getElementById('statDeviceIp').textContent = s.deviceIp || 'Not set'
+        const devLabel =
+          s.deviceStatus === 'connected'
+            ? 'Reachable'
+            : s.deviceStatus === 'error'
+              ? 'Unreachable'
+              : s.deviceStatus === 'unknown'
+                ? 'Not checked'
+                : (s.deviceStatus || 'Unknown')
+        document.getElementById('statDevice').textContent = devLabel
+        let devSub = s.deviceIp || 'Not set'
+        if (s.lastDevicePingAt) {
+          try {
+            const pingD = new Date(s.lastDevicePingAt)
+            devSub += ' · Last check ' + pingD.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+          } catch {}
+        }
+        if (s.lastDevicePingError) {
+          const errShort = String(s.lastDevicePingError).length > 80 ? String(s.lastDevicePingError).slice(0, 77) + '…' : s.lastDevicePingError
+          devSub += ' — ' + errShort
+        }
+        document.getElementById('statDeviceIp').textContent = devSub
         document.getElementById('statUptime').textContent = s.uptime
         document.getElementById('statAttSync').textContent = s.lastAttendanceSync ? fmtTime(s.lastAttendanceSync) : 'Never'
         document.getElementById('statAttResult').textContent = s.lastAttendanceSyncResult

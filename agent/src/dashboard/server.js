@@ -26,6 +26,8 @@ function createDashboardServer(config, activityLog, status) {
       lastStaffSyncResult: status.lastStaffSyncResult,
       lastAttendanceSyncResult: status.lastAttendanceSyncResult,
       deviceStatus: status.deviceStatus,
+      lastDevicePingAt: status.lastDevicePingAt,
+      lastDevicePingError: status.lastDevicePingError,
       activity: activityLog.getAll().slice(0, 20),
       uptime: Math.floor(process.uptime() / 60) + ' min'
     })
@@ -67,6 +69,8 @@ function createDashboardServer(config, activityLog, status) {
     const device = new DeviceClient(cfg.deviceIp, cfg.devicePort)
     const result = await device.testConnection()
     status.deviceStatus = result.ok ? 'connected' : 'error'
+    status.lastDevicePingAt = new Date().toISOString()
+    status.lastDevicePingError = result.ok ? null : String(result.error || '')
     activityLog.add(result.ok ? `Device test OK (${cfg.deviceIp})` : `Device test failed: ${result.error}`)
     res.json(result)
   })
