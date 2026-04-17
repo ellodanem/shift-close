@@ -62,6 +62,20 @@ function setAutoStart(enable) {
   })
 }
 
+/** Desktop .lnk → same EXE the user should run daily (not the NSIS installer). */
+function createDesktopShortcutForAgent() {
+  if (process.platform !== 'win32' || typeof shell.writeShortcutLink !== 'function') return false
+  const exe = app.getPath('exe')
+  const lnk = path.join(app.getPath('desktop'), 'Shift Close Agent.lnk')
+  return shell.writeShortcutLink(lnk, 'create', {
+    target: exe,
+    cwd: path.dirname(exe),
+    description: 'Shift Close Agent',
+    icon: exe,
+    iconIndex: 0
+  })
+}
+
 /** Branded tray / window icon (cropped tile from horizontal lockup). */
 function getBrandedIconPath() {
   if (app.isPackaged) {
@@ -194,12 +208,38 @@ function openDashboard() {
 }
 
 function buildTrayMenu() {
+  const winExtras =
+    process.platform === 'win32'
+      ? [
+          {
+            label: 'Create Desktop shortcut',
+            click: () => {
+              const ok = createDesktopShortcutForAgent()
+              if (ok) {
+                const lnk = path.join(app.getPath('desktop'), 'Shift Close Agent.lnk')
+                shell.showItemInFolder(lnk)
+              } else {
+                dialog.showErrorBox(
+                  'Shift Close Agent',
+                  'Could not create a shortcut on your Desktop. Open the folder where the app is installed and pin "Shift Close Agent.exe", or run the installer once and leave "Create desktop shortcut" enabled.'
+                )
+              }
+            }
+          },
+          {
+            label: 'Show program in File Explorer',
+            click: () => shell.showItemInFolder(app.getPath('exe'))
+          },
+          { type: 'separator' }
+        ]
+      : []
   return Menu.buildFromTemplate([
     { label: 'Shift Close Agent', enabled: false },
     { type: 'separator' },
     { label: 'Open Dashboard', click: openDashboard },
     { label: 'Open in Browser', click: () => shell.openExternal(dashboardOrigin() + '/') },
     { type: 'separator' },
+    ...winExtras,
     { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => setAutoStart(item.checked) },
     { type: 'separator' },
