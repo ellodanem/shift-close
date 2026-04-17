@@ -69,8 +69,12 @@ export default function NewStaffPage() {
       })
 
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Failed to create staff')
+        const errorData = await res.json().catch(() => ({}))
+        const detail =
+          typeof errorData.details === 'string' && errorData.details.trim() !== ''
+            ? ` ${errorData.details}`
+            : ''
+        throw new Error((errorData.error || 'Failed to create staff') + detail)
       }
 
       router.push('/staff')
@@ -97,6 +101,10 @@ export default function NewStaffPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <p className="text-sm text-gray-600 mb-4">
+            A clock device ID (1–999) is assigned automatically when you save. Inactive staff still keep
+            their numbers; deleting a staff member frees their number for reuse.
+          </p>
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">
               {error}

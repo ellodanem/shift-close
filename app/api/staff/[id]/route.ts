@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { redactStaffRecord } from '@/lib/staff-redact'
 import { canViewStaffSensitiveFields } from '@/lib/roles'
+import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
 
 export async function GET(
   request: NextRequest,
@@ -66,7 +67,6 @@ export async function PATCH(
       ...(role !== undefined && { role }),
       ...(roleId !== undefined && { roleId: roleId || null }),
       ...(canViewStaffSensitiveFields(appRole) && nicNumber !== undefined && { nicNumber: nicNumber || null }),
-      ...(deviceUserId !== undefined && { deviceUserId: deviceUserId && String(deviceUserId).trim() ? String(deviceUserId).trim() : null }),
       ...(canViewStaffSensitiveFields(appRole) && bankName !== undefined && { bankName: bankName || null }),
       ...(canViewStaffSensitiveFields(appRole) && accountNumber !== undefined && { accountNumber: accountNumber || null }),
       ...(mobileNumber !== undefined && { mobileNumber: mobileNumber || null }),
@@ -92,6 +92,23 @@ export async function PATCH(
         return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
       }
       data.name = name.trim()
+    }
+
+    if (deviceUserId !== undefined) {
+      const trimmed = deviceUserId != null && String(deviceUserId).trim() !== '' ? String(deviceUserId).trim() : ''
+      if (!trimmed) {
+        data.deviceUserId = null
+      } else {
+        const parsed = parseExplicitDeviceUserIdInput(trimmed)
+        if (!parsed.ok) {
+          return NextResponse.json({ error: parsed.error }, { status: 400 })
+        }
+        const other = await findStaffOccupyingSlot(prisma, parsed.slot, params.id)
+        if (other) {
+          return NextResponse.json({ error: 'Device ID already in use by another staff member.' }, { status: 400 })
+        }
+        data.deviceUserId = parsed.normalized
+      }
     }
 
     const staff = await prisma.staff.update({
