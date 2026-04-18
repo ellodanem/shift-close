@@ -19,6 +19,8 @@ export interface SessionPayload {
   userId: string
   role: string
   isSuperAdmin: boolean
+  /** True when the user signed in with "Remember me on this device" (JWT claim `rd`). */
+  rememberDevice: boolean
 }
 
 /** When rememberMe is false: short-lived JWT + session cookie (no maxAge). When true: 30-day JWT + persistent cookie. */
@@ -32,7 +34,11 @@ export async function signSessionToken(
 ): Promise<string> {
   const rememberMe = Boolean(options?.rememberMe)
   const exp = rememberMe ? '30d' : '1d'
-  return new SignJWT({ role: normalizeAppRole(user.role), sa: user.isSuperAdmin })
+  return new SignJWT({
+    role: normalizeAppRole(user.role),
+    sa: user.isSuperAdmin,
+    ...(rememberMe ? { rd: true } : {})
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
@@ -48,7 +54,8 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     return {
       userId: sub,
       role: normalizeAppRole(String(payload.role ?? '')),
-      isSuperAdmin: Boolean(payload.sa)
+      isSuperAdmin: Boolean(payload.sa),
+      rememberDevice: Boolean((payload as { rd?: unknown }).rd)
     }
   } catch {
     return null

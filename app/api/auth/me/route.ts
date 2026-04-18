@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     user: {
       ...user,
-      role: normalizeAppRole(user.role)
+      role: normalizeAppRole(user.role),
+      rememberDevice: session.rememberDevice
     }
   })
 }

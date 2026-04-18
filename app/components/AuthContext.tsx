@@ -23,6 +23,8 @@ export interface AuthUser {
   lastName?: string | null
   role: string
   isSuperAdmin: boolean
+  /** From session JWT: user checked "Remember me on this device" at sign-in. */
+  rememberDevice?: boolean
 }
 
 interface AuthContextValue {
@@ -80,6 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return
+    // "Remember me" extends the cookie/JWT; skip the strict idle timer so it actually keeps you signed in.
+    if (user.rememberDevice) return
 
     let timeoutId: ReturnType<typeof setTimeout>
     let lastThrottle = 0
