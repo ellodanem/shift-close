@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import * as XLSX from 'xlsx'
+import {
+  downloadPayPeriodExcel,
+  formatDateDisplay,
+  formatDateRange,
+  payPeriodExcelFilename
+} from '@/lib/pay-period-excel'
 
 interface PayPeriodRow {
   staffId: string
@@ -48,16 +53,32 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function formatDateDisplay(d: string): string {
-  const [y, m, day] = d.split('-')
-  const date = new Date(parseInt(y!), parseInt(m!) - 1, parseInt(day!))
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+/** Same wording as the saved-period row (for email subject). */
+function formatSavedRowDateRange(start: string, end: string): string {
+  return `${formatDateDisplay(start)} \u2013 ${formatDateDisplay(end)}`
 }
 
-function formatDateRange(start: string, end: string): string {
-  const s = new Date(start + 'T00:00:00')
-  const e = new Date(end + 'T23:59:59')
-  return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 0:00 To ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 23:59`
+function buildPayPeriodEmailHtml(data: PayPeriodData): string {
+  const rows = data.rows
+  const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
+  const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
+  return `
+        <h2>Summary Report</h2>
+        <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
+        <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
+        <p><strong>${data.entityName}</strong></p>
+        ${(data.notes ?? '').trim() ? `<p style="white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</p>` : ''}
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+          <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
+          ${rows
+            .map(
+              (r) =>
+                `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.sickLeaveDays ?? 0}</td><td>${r.sickLeaveRanges ?? ''}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`
+            )
+            .join('')}
+          <tr><td><strong>Total</strong></td><td><strong>${totalTrans.toFixed(1)}</strong></td><td></td><td><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td></td><td><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
+        </table>
+      `
 }
 
 function parsePreviousRows(raw: string | null | undefined): PayPeriodRow[] | null {
@@ -153,7 +174,13 @@ export default function PayPeriodPage() {
   const [saving, setSaving] = useState(false)
   const [savedPeriods, setSavedPeriods] = useState<SavedPayPeriod[]>([])
   const [viewingPeriod, setViewingPeriod] = useState<SavedPayPeriod | null>(null)
-  const [emailing, setEmailing] = useState(false)
+  /** Open “compose email” modal for a saved pay period (send happens only from the modal). */
+  const [emailModalData, setEmailModalData] = useState<PayPeriodData | null>(null)
+  const [emailTo, setEmailTo] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailHtml, setEmailHtml] = useState('')
+  const [emailPrefillLoading, setEmailPrefillLoading] = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
   /** When set, Save updates this record via PATCH instead of creating a new one. */
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
 
@@ -316,81 +343,74 @@ export default function PayPeriodPage() {
   }
 
   const handleDownloadExcel = (data: PayPeriodData) => {
-    const rows = data.rows
-    const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
-    const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
-    const wsData = [
-      ['Summary Report'],
-      ['Report Date:', formatDateDisplay(data.reportDate)],
-      ['Date Range:', formatDateRange(data.startDate, data.endDate)],
-      [data.entityName],
-      ...(data.notes?.trim() ? [['Notes:', data.notes]] as (string | number)[][] : []),
-      [],
-      ['Staff', 'Trans Ttl', 'Vacation', 'Sick Days', 'Sick Leave', 'Shortage'],
-      ...rows.map(r => [r.staffName, r.transTtl, r.vacation, r.sickLeaveDays ?? 0, r.sickLeaveRanges ?? '', r.shortage > 0 ? r.shortage : '']),
-      ['Total', totalTrans, '', rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0), '', totalShortage > 0 ? totalShortage : '']
-    ]
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Pay Period')
-    XLSX.writeFile(wb, `pay-period-${data.startDate}-${data.endDate}.xlsx`)
+    downloadPayPeriodExcel(data)
   }
 
-  const handleEmail = async (data: PayPeriodData) => {
-    setEmailing(true)
+  const closePayPeriodEmailModal = () => {
+    setEmailModalData(null)
+    setEmailTo('')
+    setEmailSubject('')
+    setEmailHtml('')
+  }
+
+  const openPayPeriodEmailModal = async (data: PayPeriodData) => {
+    if (!data.id) {
+      alert('Save this pay period first, then use Email from the saved list.')
+      return
+    }
+    setEmailPrefillLoading(true)
     try {
-      if (!data.id) {
-        alert('Save this pay period first, then use Email from the saved list.')
-        return
-      }
       const recipientsRes = await fetch('/api/email-recipients')
       const list = recipientsRes.ok ? await recipientsRes.json() : []
       const primary = Array.isArray(list) && list.length > 0 ? list[0] : null
-      const to = primary?.email
-      if (!to) {
-        alert('No email recipients configured. Add one in Settings → Email recipients.')
-        return
-      }
-      const rows = data.rows
-      const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
-      const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
-      const html = `
-        <h2>Summary Report</h2>
-        <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
-        <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
-        <p><strong>${data.entityName}</strong></p>
-        ${(data.notes ?? '').trim() ? `<p style="white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</p>` : ''}
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-          <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
-          ${rows.map(r => `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.sickLeaveDays ?? 0}</td><td>${r.sickLeaveRanges ?? ''}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`).join('')}
-          <tr><td><strong>Total</strong></td><td><strong>${totalTrans.toFixed(1)}</strong></td><td></td><td><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td></td><td><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
-        </table>
-      `
-      const res = await fetch('/api/send-email', {
+      setEmailTo(primary?.email?.trim() ?? '')
+      setEmailSubject(formatSavedRowDateRange(data.startDate, data.endDate))
+      setEmailHtml(buildPayPeriodEmailHtml(data))
+      setEmailModalData(data)
+    } catch {
+      alert('Could not load email recipients.')
+    } finally {
+      setEmailPrefillLoading(false)
+    }
+  }
+
+  const sendPayPeriodEmailFromModal = async () => {
+    if (!emailModalData?.id) return
+    const to = emailTo.trim()
+    if (!to) {
+      alert('Enter a recipient email address.')
+      return
+    }
+    const subject = emailSubject.trim()
+    if (!subject) {
+      alert('Enter a subject.')
+      return
+    }
+    setEmailSending(true)
+    try {
+      const res = await fetch(`/api/attendance/pay-period/${emailModalData.id}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to,
-          subject: `Pay Period Report – ${data.startDate} to ${data.endDate}`,
-          html
+          subject,
+          html: emailHtml.trim() || undefined
         })
       })
-      if (!res.ok) throw new Error('Failed to send email')
-
-      const patchRes = await fetch(`/api/attendance/pay-period/${data.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markEmailSent: true })
-      })
-      if (!patchRes.ok) {
-        console.error('Failed to mark pay period as emailed')
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        const msg = typeof errBody.error === 'string' ? errBody.error : 'Failed to send email'
+        throw new Error(msg)
       }
       await loadSavedPeriods()
-      alert(`Report emailed to ${to}. The default attendance log still follows the last saved pay period (not email).`)
+      alert(
+        `Report emailed to ${to}. The default attendance log still follows the last saved pay period (not email).`
+      )
+      closePayPeriodEmailModal()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to send email')
     } finally {
-      setEmailing(false)
+      setEmailSending(false)
     }
   }
 
@@ -466,7 +486,7 @@ export default function PayPeriodPage() {
                     className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     <span className="font-medium flex flex-wrap items-center gap-2">
-                      {formatDateDisplay(p.startDate)} – {formatDateDisplay(p.endDate)}
+                      {formatSavedRowDateRange(p.startDate, p.endDate)}
                       {p.emailSentAt && (
                         <span className="text-xs font-normal px-2 py-0.5 rounded bg-green-100 text-green-800">
                           Emailed
@@ -499,11 +519,12 @@ export default function PayPeriodPage() {
                         Excel
                       </button>
                       <button
-                        onClick={() => handleEmail(data)}
-                        disabled={emailing}
+                        type="button"
+                        onClick={() => void openPayPeriodEmailModal(data)}
+                        disabled={emailPrefillLoading}
                         className="px-3 py-1 text-sm bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200 disabled:opacity-60"
                       >
-                        Email
+                        {emailPrefillLoading ? '…' : 'Email'}
                       </button>
                       <button
                         disabled
@@ -799,6 +820,91 @@ export default function PayPeriodPage() {
               >
                 {saving ? 'Saving…' : 'Proceed'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailModalData && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto my-4"
+            role="dialog"
+            aria-labelledby="pay-period-email-title"
+          >
+            <div className="p-6">
+              <h3 id="pay-period-email-title" className="text-lg font-semibold text-gray-900 mb-1">
+                Send pay period report
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Review or edit the message, then send. The same Excel file as the Excel button (
+                <span className="font-mono text-xs">{payPeriodExcelFilename(emailModalData)}</span>) is attached
+                automatically.
+              </p>
+              {!emailTo.trim() && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+                  No default recipient is set. Add one under Settings → Email recipients, or type an address below.
+                </p>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="pay-period-email-to" className="block text-sm font-medium text-gray-700 mb-1">
+                    To
+                  </label>
+                  <input
+                    id="pay-period-email-to"
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    placeholder="accounting@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="pay-period-email-subject" className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    id="pay-period-email-subject"
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="pay-period-email-body" className="block text-sm font-medium text-gray-700 mb-1">
+                    Message (HTML)
+                  </label>
+                  <textarea
+                    id="pay-period-email-body"
+                    value={emailHtml}
+                    onChange={(e) => setEmailHtml(e.target.value)}
+                    rows={14}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={closePayPeriodEmailModal}
+                  disabled={emailSending}
+                  className="px-4 py-2 border border-gray-300 rounded font-medium hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendPayPeriodEmailFromModal()}
+                  disabled={emailSending}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {emailSending ? 'Sending…' : 'Send email'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
