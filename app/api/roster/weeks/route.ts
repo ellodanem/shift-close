@@ -73,6 +73,30 @@ export async function POST(request: NextRequest) {
 
     const distinctDates = [...new Set(safeEntries.map((e) => e.date))]
     const stationClosedDates = await getStationClosedDates(prisma, distinctDates)
+    const activeShiftEntries = safeEntries.filter((e) => !!e.shiftTemplateId)
+    const shiftStaffIds = [...new Set(activeShiftEntries.map((e) => e.staffId))]
+    const minDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a < b ? a : b)) : null
+    const maxDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a > b ? a : b)) : null
+    const [staffRows, sickLeaves] = await Promise.all([
+      shiftStaffIds.length
+        ? prisma.staff.findMany({
+            where: { id: { in: shiftStaffIds } },
+            select: { id: true, vacationStart: true, vacationEnd: true }
+          })
+        : Promise.resolve([]),
+      shiftStaffIds.length && minDate && maxDate
+        ? prisma.staffSickLeave.findMany({
+            where: {
+              staffId: { in: shiftStaffIds },
+              status: { not: 'denied' },
+              startDate: { lte: maxDate },
+              endDate: { gte: minDate }
+            },
+            select: { staffId: true, startDate: true, endDate: true }
+          })
+        : Promise.resolve([])
+    ])
+    const staffById = new Map(staffRows.map((s) => [s.id, s]))
     for (const entry of safeEntries) {
       if (entry.shiftTemplateId && stationClosedDates.has(entry.date)) {
         return NextResponse.json(
@@ -81,6 +105,36 @@ export async function POST(request: NextRequest) {
           },
           { status: 400 }
         )
+      }
+      if (entry.shiftTemplateId) {
+        const staff = staffById.get(entry.staffId)
+        if (
+          staff?.vacationStart &&
+          staff.vacationEnd &&
+          staff.vacationStart <= entry.date &&
+          staff.vacationEnd >= entry.date
+        ) {
+          return NextResponse.json(
+            {
+              error: `Cannot assign shifts on ${entry.date}: staff is on vacation.`
+            },
+            { status: 400 }
+          )
+        }
+        const onSickLeave = sickLeaves.some(
+          (leave) =>
+            leave.staffId === entry.staffId &&
+            leave.startDate <= entry.date &&
+            leave.endDate >= entry.date
+        )
+        if (onSickLeave) {
+          return NextResponse.json(
+            {
+              error: `Cannot assign shifts on ${entry.date}: staff is on sick leave.`
+            },
+            { status: 400 }
+          )
+        }
       }
     }
 

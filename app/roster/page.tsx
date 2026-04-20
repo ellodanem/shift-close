@@ -51,6 +51,50 @@ interface RosterEntry {
   notes?: string | null
 }
 
+interface StaffDayOffRequest {
+  id: string
+  staffId: string
+  date: string
+  reason?: string | null
+  status: string
+}
+
+interface StaffSickLeave {
+  id: string
+  staffId: string
+  startDate: string
+  endDate: string
+  reason?: string | null
+  status: string
+}
+
+interface ParsedDayOffRequest {
+  type: 'off' | 'shift'
+  shiftTemplateId: string | null
+  reason: string
+}
+
+function encodeShiftRequestReason(shiftTemplateId: string, reason: string): string {
+  const trimmed = reason.trim()
+  return trimmed
+    ? `SHIFT_REQUEST:${shiftTemplateId}|${trimmed}`
+    : `SHIFT_REQUEST:${shiftTemplateId}`
+}
+
+function parseDayOffRequestReason(reason: string | null | undefined): ParsedDayOffRequest {
+  const raw = (reason || '').trim()
+  if (!raw.startsWith('SHIFT_REQUEST:')) {
+    return { type: 'off', shiftTemplateId: null, reason: raw }
+  }
+  const payload = raw.slice('SHIFT_REQUEST:'.length)
+  const [templateId, ...rest] = payload.split('|')
+  return {
+    type: templateId ? 'shift' : 'off',
+    shiftTemplateId: templateId || null,
+    reason: rest.join('|').trim()
+  }
+}
+
 interface PublicHolidayRow {
   id: string
   date: string
@@ -144,6 +188,8 @@ export default function RosterPage() {
   const [showDayOffModal, setShowDayOffModal] = useState(false)
   const [dayOffStaffId, setDayOffStaffId] = useState('')
   const [dayOffDate, setDayOffDate] = useState('')
+  const [dayOffRequestType, setDayOffRequestType] = useState<'off' | 'shift'>('off')
+  const [dayOffShiftTemplateId, setDayOffShiftTemplateId] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
   const [savingDayOff, setSavingDayOff] = useState(false)
   const [dayOffSuccess, setDayOffSuccess] = useState(false)
@@ -166,6 +212,8 @@ export default function RosterPage() {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
   const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
+  const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
+  const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -280,6 +328,24 @@ export default function RosterPage() {
 
   useEffect(() => {
     const weekEnd = addDays(weekStart, 6)
+    void Promise.all([
+      fetch(`/api/staff/day-off?startDate=${weekStart}&endDate=${weekEnd}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows: unknown) =>
+          setDayOffRequests(Array.isArray(rows) ? (rows as StaffDayOffRequest[]) : [])
+        )
+        .catch(() => setDayOffRequests([])),
+      fetch(`/api/staff/sick-leave?startDate=${weekStart}&endDate=${weekEnd}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows: unknown) =>
+          setSickLeaves(Array.isArray(rows) ? (rows as StaffSickLeave[]) : [])
+        )
+        .catch(() => setSickLeaves([]))
+    ])
+  }, [weekStart])
+
+  useEffect(() => {
+    const weekEnd = addDays(weekStart, 6)
     void fetch(`/api/public-holidays?from=${weekStart}&to=${weekEnd}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data: unknown) =>
@@ -322,6 +388,20 @@ export default function RosterPage() {
     entry?.shiftTemplateId
       ? templates.find((t) => t.id === entry.shiftTemplateId) || null
       : null
+
+  const isOnSickLeave = (staffId: string, date: string): boolean =>
+    sickLeaves.some(
+      (leave) =>
+        leave.staffId === staffId &&
+        leave.status !== 'denied' &&
+        leave.startDate <= date &&
+        leave.endDate >= date
+    )
+
+  const getDayOffRequestFor = (staffId: string, date: string): StaffDayOffRequest | undefined =>
+    dayOffRequests.find(
+      (request) => request.staffId === staffId && request.date === date && request.status !== 'denied'
+    )
 
   // Per-day, per-shift running counts (updates as assignments change)
   const countByDayAndShift = useMemo(() => {
@@ -375,6 +455,9 @@ export default function RosterPage() {
 
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     if (rosterCellsLocked) return
+    const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isOnVacation(staff, date)) return
+    if (isOnSickLeave(staffId, date)) return
     if (publicHolidays.some((h) => h.date === date && h.stationClosed)) return
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
@@ -416,6 +499,7 @@ export default function RosterPage() {
       let next = [...prev]
       for (const date of weekDates) {
         if (staff && isOnVacation(staff, date)) continue
+        if (isOnSickLeave(staffId, date)) continue
         if (publicHolidays.some((h) => h.date === date && h.stationClosed)) continue
         const existing = next.find((e) => e.staffId === staffId && e.date === date)
         if (existing) {
@@ -540,7 +624,10 @@ export default function RosterPage() {
         .filter((e): e is NonNullable<typeof e> => e != null)
       const newEntriesStripped = newEntries.map((e) => {
         const closed = publicHolidays.some((h) => h.date === e.date && h.stationClosed)
-        return closed ? { ...e, shiftTemplateId: null } : e
+        const staff = allStaff.find((s) => s.id === e.staffId)
+        const blockedByLeave =
+          (staff ? isOnVacation(staff, e.date) : false) || isOnSickLeave(e.staffId, e.date)
+        return (closed || blockedByLeave) ? { ...e, shiftTemplateId: null } : e
       })
       const saveRes = await fetch('/api/roster/weeks', {
         method: 'POST',
@@ -906,12 +993,20 @@ export default function RosterPage() {
 
   const handleAddDayOff = async () => {
     if (!dayOffStaffId || !dayOffDate) return
+    if (dayOffRequestType === 'shift' && !dayOffShiftTemplateId) {
+      alert('Select a requested shift.')
+      return
+    }
     setSavingDayOff(true)
     try {
+      const reason =
+        dayOffRequestType === 'shift'
+          ? encodeShiftRequestReason(dayOffShiftTemplateId, dayOffReason)
+          : dayOffReason
       const res = await fetch(`/api/staff/${dayOffStaffId}/day-off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
+        body: JSON.stringify({ date: dayOffDate, reason })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -919,7 +1014,17 @@ export default function RosterPage() {
       }
       setDayOffSuccess(true)
       setDayOffDate('')
+      setDayOffRequestType('off')
+      setDayOffShiftTemplateId('')
       setDayOffReason('')
+      const weekEnd = addDays(weekStart, 6)
+      if (dayOffDate >= weekStart && dayOffDate <= weekEnd) {
+        const refreshRes = await fetch(`/api/staff/day-off?startDate=${weekStart}&endDate=${weekEnd}`)
+        if (refreshRes.ok) {
+          const refreshed: StaffDayOffRequest[] = await refreshRes.json()
+          setDayOffRequests(refreshed)
+        }
+      }
       setTimeout(() => setDayOffSuccess(false), 3000)
     } catch (err) {
       console.error('Error saving day off request', err)
@@ -986,6 +1091,8 @@ export default function RosterPage() {
               onClick={() => {
                 setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
                 setDayOffDate(formatInputDate(new Date()))
+                setDayOffRequestType('off')
+                setDayOffShiftTemplateId('')
                 setDayOffReason('')
                 setDayOffSuccess(false)
                 setShowDayOffModal(true)
@@ -1479,9 +1586,21 @@ export default function RosterPage() {
                       </td>
                       {weekDates.map((date) => {
                         const onVacation = isOnVacation(s, date)
+                        const onSickLeave = isOnSickLeave(s.id, date)
                         const ph = publicHolidays.find((h) => h.date === date)
                         const stationClosedHoliday = ph?.stationClosed
+                        const dayOffRequest = getDayOffRequestFor(s.id, date)
+                        const parsedDayOffRequest = dayOffRequest
+                          ? parseDayOffRequestReason(dayOffRequest.reason)
+                          : null
+                        const requestedTemplateName =
+                          parsedDayOffRequest?.type === 'shift' && parsedDayOffRequest.shiftTemplateId
+                            ? templates.find((t) => t.id === parsedDayOffRequest.shiftTemplateId)?.name
+                            : null
                         const entry = getEntryFor(s.id, date)
+                        const blockedScheduledByLeave =
+                          !!entry?.shiftTemplateId &&
+                          (onVacation || onSickLeave || parsedDayOffRequest?.type === 'off')
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
@@ -1492,6 +1611,8 @@ export default function RosterPage() {
                             style={
                               onVacation
                                 ? { backgroundColor: '#f3f4f6' }
+                                : onSickLeave
+                                  ? { backgroundColor: '#ffe4e6' }
                                 : stationClosedHoliday
                                   ? { backgroundColor: '#fff7ed' }
                                   : bgColor
@@ -1510,8 +1631,38 @@ export default function RosterPage() {
                                   🎂
                                 </span>
                               ) : null}
+                              {parsedDayOffRequest?.type === 'off' ? (
+                                <span
+                                  className="text-[12px] leading-none select-none"
+                                  title={`Off day request${parsedDayOffRequest.reason ? `: ${parsedDayOffRequest.reason}` : ''}`}
+                                  role="img"
+                                  aria-label="Off day request"
+                                >
+                                  🙋
+                                </span>
+                              ) : null}
+                              {parsedDayOffRequest?.type === 'shift' ? (
+                                <span
+                                  className="text-[12px] leading-none select-none"
+                                  title={`Shift request${requestedTemplateName ? `: ${requestedTemplateName}` : ''}${parsedDayOffRequest.reason ? ` (${parsedDayOffRequest.reason})` : ''}`}
+                                  role="img"
+                                  aria-label="Shift request"
+                                >
+                                  ⭐
+                                </span>
+                              ) : null}
+                              {blockedScheduledByLeave ? (
+                                <span
+                                  className="inline-flex items-center rounded border border-rose-300 bg-rose-50 px-1 py-[1px] text-[9px] font-bold uppercase tracking-wide text-rose-700"
+                                  title="Shift assignment exists but is blocked by leave/day-off request"
+                                >
+                                  Blocked
+                                </span>
+                              ) : null}
                               {onVacation ? (
                                 <span className="text-xs font-medium text-gray-500">Vacation</span>
+                              ) : onSickLeave ? (
+                                <span className="text-xs font-medium text-rose-700">Sick leave</span>
                               ) : stationClosedHoliday ? (
                                 <div className="px-0.5 py-1">
                                   <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
@@ -1533,6 +1684,7 @@ export default function RosterPage() {
                               ) : (
                                 <select
                                   value={entry?.shiftTemplateId || ''}
+                                  disabled={onSickLeave || onVacation}
                                   onChange={(e) =>
                                     setEntryFor(
                                       s.id,
@@ -1618,6 +1770,36 @@ export default function RosterPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Request Type</label>
+                  <select
+                    value={dayOffRequestType}
+                    onChange={(e) => setDayOffRequestType(e.target.value as 'off' | 'shift')}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="off">Off day request</option>
+                    <option value="shift">Specific shift request</option>
+                  </select>
+                </div>
+
+                {dayOffRequestType === 'shift' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Requested Shift</label>
+                    <select
+                      value={dayOffShiftTemplateId}
+                      onChange={(e) => setDayOffShiftTemplateId(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">— Select shift —</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Reason <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
@@ -1649,7 +1831,7 @@ export default function RosterPage() {
                 <button
                   type="button"
                   onClick={() => void handleAddDayOff()}
-                  disabled={!dayOffStaffId || !dayOffDate || savingDayOff}
+                  disabled={!dayOffStaffId || !dayOffDate || savingDayOff || (dayOffRequestType === 'shift' && !dayOffShiftTemplateId)}
                   className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
                 >
                   {savingDayOff ? 'Saving…' : 'Save Request'}

@@ -149,6 +149,11 @@ export interface ScheduledRow {
   shiftStartTime: string
 }
 
+function isShiftRequestDayOff(reason: string | null | undefined): boolean {
+  const raw = (reason ?? '').trim()
+  return raw.startsWith('SHIFT_REQUEST:')
+}
+
 export async function loadRosterForCalendarYmd(
   ymd: string,
   tz: string
@@ -163,7 +168,7 @@ export async function loadRosterForCalendarYmd(
   const firstName = (s: { name: string; firstName: string | null }) =>
     (s.firstName && s.firstName.trim()) || s.name.split(' ')[0] || s.name
 
-  const [week, vacationStaff, dayOffs] = await Promise.all([
+  const [week, vacationStaff, sickLeaveStaff, dayOffs] = await Promise.all([
     prisma.rosterWeek.findFirst({
       where: { weekStart },
       include: {
@@ -185,15 +190,36 @@ export async function loadRosterForCalendarYmd(
       },
       select: { id: true, name: true, firstName: true }
     }),
+    prisma.staffSickLeave.findMany({
+      where: {
+        status: { not: 'denied' },
+        startDate: { lte: ymd },
+        endDate: { gte: ymd },
+        staff: { status: 'active' }
+      },
+      select: {
+        staff: { select: { id: true, name: true, firstName: true } }
+      }
+    }),
     prisma.staffDayOff.findMany({
       where: { date: ymd, status: 'approved' },
-      include: { staff: { select: { id: true, name: true, firstName: true } } }
+      select: {
+        staffId: true,
+        reason: true,
+        staff: { select: { id: true, name: true, firstName: true } }
+      }
     })
   ])
 
+  const offDayRequests = dayOffs.filter((d) => !isShiftRequestDayOff(d.reason))
+  const blockedStaffIds = new Set<string>()
+  vacationStaff.forEach((s) => blockedStaffIds.add(s.id))
+  sickLeaveStaff.forEach((s) => blockedStaffIds.add(s.staff.id))
+  offDayRequests.forEach((d) => blockedStaffIds.add(d.staffId))
+
   const entries = week?.entries ?? []
   const scheduled = entries
-    .filter((e) => e.shiftTemplateId != null)
+    .filter((e) => e.shiftTemplateId != null && !blockedStaffIds.has(e.staff.id))
     .map((e) => ({
       staffId: e.staff.id,
       staffName: e.staff.name,
@@ -210,7 +236,13 @@ export async function loadRosterForCalendarYmd(
   const offMap = new Map<string, { staffName: string; staffFirstName: string }>()
   rosterOffToday.forEach((s) => offMap.set(s.staffId, { staffName: s.staffName, staffFirstName: s.staffFirstName }))
   vacationStaff.forEach((s) => offMap.set(s.id, { staffName: s.name, staffFirstName: firstName(s) }))
-  for (const d of dayOffs) {
+  sickLeaveStaff.forEach((s) =>
+    offMap.set(s.staff.id, {
+      staffName: s.staff.name,
+      staffFirstName: firstName(s.staff)
+    })
+  )
+  for (const d of offDayRequests) {
     offMap.set(d.staffId, {
       staffName: d.staff.name,
       staffFirstName: firstName(d.staff)
