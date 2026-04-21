@@ -255,6 +255,24 @@ export function getListDisplayOverShort(shift: {
   return shift.overShortTotal ?? 0
 }
 
+/**
+ * Per-shift O/S included in dashboard MTD (and similar rollups): matches what the shift list shows as a number
+ * (draft = raw; non-draft undisclosed = 0; legit-as-is = raw; reviewed entry = osReviewed).
+ */
+export function getDashboardDisclosedOverShort(shift: {
+  status: string
+  overShortTotal: number | null | undefined
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
+}): number {
+  if (shift.status === 'draft') {
+    return shift.overShortTotal ?? 0
+  }
+  if (shift.osLegitAsIs) return shift.overShortTotal ?? 0
+  if (isOsReviewedSet(shift.osReviewed)) return shift.osReviewed as number
+  return 0
+}
+
 export type ShiftListOkKind = 'needs_review' | 'ok_green' | 'ok_blue'
 
 /** Closed-shift OK / needs-review for shift list (draft / reopened / reviewed are handled by caller). */

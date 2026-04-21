@@ -1691,9 +1691,9 @@ export default function DashboardPage() {
                 {summary.status.pendingReviewCount}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                {summary.status.pendingReviewCount === 0 
-                  ? 'All shifts reviewed' 
-                  : 'Need over/short explanation'}
+                {summary.status.pendingReviewCount === 0
+                  ? 'All shifts reviewed'
+                  : 'Need O/S reviewed + notes, or legit as-is'}
               </div>
             </div>
 

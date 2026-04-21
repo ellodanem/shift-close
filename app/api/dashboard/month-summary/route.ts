@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getShiftListOkKind } from '@/lib/calculations'
+import { getDashboardDisclosedOverShort, getShiftListOkKind } from '@/lib/calculations'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,10 +206,15 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 4. Over/Short trend (total for the month)
+    // 4. Over/Short (MTD): sum only figures visible on the shift list (draft = raw; else disclosed or 0)
     let totalOverShort = 0
-    shifts.forEach(shift => {
-      totalOverShort += shift.overShortTotal || 0
+    shifts.forEach((shift) => {
+      totalOverShort += getDashboardDisclosedOverShort({
+        status: shift.status,
+        overShortTotal: shift.overShortTotal,
+        osReviewed: shift.osReviewed,
+        osLegitAsIs: shift.osLegitAsIs
+      })
     })
 
     return NextResponse.json({
