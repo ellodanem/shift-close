@@ -3,7 +3,12 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import CustomDatePicker from '../days/CustomDatePicker'
-import { getListDisplayOverShort, getShiftListOkKind, OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import {
+  getListDisplayOverShort,
+  getShiftListOkKind,
+  isOsReviewedSet,
+  OS_REVIEW_THRESHOLD
+} from '@/lib/calculations'
 
 interface Shift {
   id: string
@@ -349,8 +354,14 @@ export default function ShiftsPage() {
                 </tr>
               ) : (
                 filteredShifts.map((shift) => {
-                  const netOS =
-                    shift.netOverShort != null
+                  const disclosed =
+                    shift.osLegitAsIs === true || isOsReviewedSet(shift.osReviewed)
+                  const hideListOverShort =
+                    shift.status !== 'draft' && !disclosed
+
+                  const netOS = hideListOverShort
+                    ? null
+                    : shift.netOverShort != null
                       ? shift.netOverShort
                       : getListDisplayOverShort({
                           overShortTotal: shift.overShortTotal,
@@ -402,8 +413,17 @@ export default function ShiftsPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-900">{shift.shift}</td>
                       <td className="px-4 py-3 text-gray-900">{shift.supervisor}</td>
-                      <td className={`px-4 py-3 text-right font-semibold ${getOsColor(netOS)}`}>
-                        {netOS.toFixed(2)}
+                      <td
+                        className={`px-4 py-3 text-right font-semibold ${
+                          netOS === null ? 'text-gray-400' : getOsColor(netOS)
+                        }`}
+                        title={
+                          hideListOverShort
+                            ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
+                            : undefined
+                        }
+                      >
+                        {netOS === null ? '--' : netOS.toFixed(2)}
                       </td>
                       <td 
                         className="px-4 py-3 text-center"

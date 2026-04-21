@@ -697,7 +697,6 @@ export default function ShiftDetailPage() {
                 <th className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right">Count</th>
                 <th className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right">System</th>
                 <th className="bg-black text-white border border-gray-300 px-4 py-2 text-right">Over/Short</th>
-                <th className="bg-indigo-600 text-white border border-gray-300 px-4 py-2 text-right">O/S reviewed</th>
               </tr>
             </thead>
             <tbody>
@@ -752,7 +751,6 @@ export default function ShiftDetailPage() {
                     (shift.overShortCash || 0).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
               <tr>
                 <td className="border border-gray-300 px-4 py-2">Checks</td>
@@ -797,7 +795,6 @@ export default function ShiftDetailPage() {
                     ((shift.overShortTotal || 0) - (shift.overShortCash || 0)).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
               <tr>
                 <td className="border border-gray-300 px-4 py-2">Credits</td>
@@ -842,7 +839,6 @@ export default function ShiftDetailPage() {
                     (shift.countCredit - shift.systemCredit).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
               <tr>
                 <td className="border border-gray-300 px-4 py-2">In-House</td>
@@ -891,7 +887,6 @@ export default function ShiftDetailPage() {
                     (shift.countInhouse - shift.systemInhouse).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
               <tr>
                 <td className="border border-gray-300 px-4 py-2">Fleets</td>
@@ -940,7 +935,6 @@ export default function ShiftDetailPage() {
                     (shift.countFleet - shift.systemFleet).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
               <tr>
                 <td className="border border-gray-300 px-4 py-2">Massy Coupons</td>
@@ -989,7 +983,6 @@ export default function ShiftDetailPage() {
                     (shift.countMassyCoupons - shift.systemMassyCoupons).toFixed(2)
                   )}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-gray-400">—</td>
               </tr>
             </tbody>
           </table>
@@ -1021,13 +1014,6 @@ export default function ShiftDetailPage() {
                      ((Number.isNaN(editData.systemCash) ? 0 : editData.systemCash) + (Number.isNaN(editData.systemChecks) ? 0 : editData.systemChecks))).toFixed(2)
                   ) : (
                     (shift.overShortTotal || 0).toFixed(2)
-                  )}
-                </td>
-                <td className="bg-indigo-100 border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {!isDraft && shift.osReviewed !== null && shift.osReviewed !== undefined ? (
-                    shift.osReviewed.toFixed(2)
-                  ) : (
-                    '—'
                   )}
                 </td>
               </tr>
