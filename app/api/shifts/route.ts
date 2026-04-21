@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateShiftClose, computeNetOverShort } from '@/lib/calculations'
+import { calculateShiftClose, getListDisplayOverShort } from '@/lib/calculations'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -10,8 +10,7 @@ export async function GET() {
     const shifts = await prisma.shiftClose.findMany({
       orderBy: { date: 'desc' },
       include: {
-        corrections: true,
-        overShortItems: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
+        corrections: true
       }
     })
     
@@ -68,14 +67,10 @@ export async function GET() {
         }
       }
       
-      const netOverShort = computeNetOverShort(
-        shift.overShortTotal || 0,
-        (shift.overShortItems ?? []).map(i => ({
-          type: i.type,
-          amount: i.amount,
-          noteOnly: i.noteOnly ?? false
-        }))
-      )
+      const netOverShort = getListDisplayOverShort({
+        overShortTotal: shift.overShortTotal,
+        osReviewed: shift.osReviewed
+      })
       return {
         ...shift,
         totalDeposits: recalculatedTotalDeposits,

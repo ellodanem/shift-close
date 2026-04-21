@@ -112,6 +112,24 @@ export async function PATCH(
     if ('overShortExplanation' in body) {
       updateData.overShortExplanation = String(body.overShortExplanation || '')
     }
+    if ('osLegitAsIs' in body) {
+      updateData.osLegitAsIs = Boolean(body.osLegitAsIs)
+      if (updateData.osLegitAsIs) {
+        updateData.osReviewed = null
+      }
+    }
+    if ('osReviewed' in body) {
+      const v = (body as { osReviewed?: unknown }).osReviewed
+      if (v === null || v === undefined || v === '') {
+        updateData.osReviewed = null
+      } else {
+        const n = Number(v)
+        if (!Number.isNaN(n)) {
+          updateData.osReviewed = n
+          updateData.osLegitAsIs = false
+        }
+      }
+    }
     // Allow updating status (for reviewed status)
     if ('status' in body) {
       updateData.status = String(body.status)
@@ -302,6 +320,9 @@ export async function PATCH(
         },
         noteHistory: {
           orderBy: { createdAt: 'desc' }
+        },
+        overShortItems: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
         }
       }
     })

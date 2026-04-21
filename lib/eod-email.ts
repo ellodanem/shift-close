@@ -89,7 +89,7 @@ export function buildEndOfDayEmailHtml(
   <h2 style="color:#111">End of day — ${report.date}</h2>
   <p><strong>Status:</strong> ${report.status} &nbsp;·&nbsp; <strong>Day type:</strong> ${report.dayType}</p>
   <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
-    <tr><td style="padding:6px 0;border-bottom:1px solid #eee">Over/short (net)</td><td style="padding:6px 0;text-align:right;border-bottom:1px solid #eee">${formatCurrency(t.overShortTotal)}</td></tr>
+    <tr><td style="padding:6px 0;border-bottom:1px solid #eee">Over/short (disclosed)</td><td style="padding:6px 0;text-align:right;border-bottom:1px solid #eee">${t.overShortDisclosedTotal === null ? '—' : formatCurrency(t.overShortDisclosedTotal)}</td></tr>
     <tr><td style="padding:6px 0;border-bottom:1px solid #eee">Total deposits</td><td style="padding:6px 0;text-align:right;border-bottom:1px solid #eee">${formatCurrency(t.totalDeposits)}</td></tr>
     <tr><td style="padding:6px 0;border-bottom:1px solid #eee">Total credit (other)</td><td style="padding:6px 0;text-align:right;border-bottom:1px solid #eee">${formatCurrency(t.totalCredit)}</td></tr>
     <tr><td style="padding:6px 0;border-bottom:1px solid #eee">System debit</td><td style="padding:6px 0;text-align:right;border-bottom:1px solid #eee">${formatCurrency(t.totalDebit)}</td></tr>

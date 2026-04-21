@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
+import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
@@ -248,10 +249,8 @@ export default function DaysPage() {
 
   const filteredReports = getFilteredReports()
   
-  const OS_THRESHOLD = 20
-
   const getOsColor = (amount: number) => {
-    if (Math.abs(amount) <= OS_THRESHOLD) return 'text-green-600'
+    if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
     if (amount > 0) return 'text-blue-600'
     return 'text-red-600'
   }
@@ -280,7 +279,12 @@ export default function DaysPage() {
       ['Status', dayReport.status],
       [],
       ['Money Summary'],
-      ['Total Over/Short', formatCurrency(dayReport.totals.overShortTotal)],
+      [
+        'Total Over/Short (disclosed)',
+        dayReport.totals.overShortDisclosedTotal === null
+          ? '--'
+          : formatCurrency(dayReport.totals.overShortDisclosedTotal)
+      ],
       ['Total Deposits', formatCurrency(dayReport.totals.totalDeposits)],
       ['Total Credit', formatCurrency(dayReport.totals.totalCredit)],
       ['Total Debit', formatCurrency(dayReport.totals.totalDebit)],
@@ -299,7 +303,13 @@ export default function DaysPage() {
       summaryData.push([
         shift.shift,
         shift.supervisor,
-        formatCurrency(shift.overShortTotal),
+        `${formatCurrency(shift.overShortTotal)} (system) / ${
+          shift.osReviewed != null
+            ? formatCurrency(shift.osReviewed)
+            : shift.osLegitAsIs
+              ? 'legit as-is'
+              : '—'
+        }`,
         formatCurrency(shift.totalDeposits),
         shift.notes.trim() ? 'Yes' : 'No'
       ])
@@ -585,9 +595,15 @@ export default function DaysPage() {
                               <span className="text-sm text-gray-500 flex flex-wrap gap-x-3 gap-y-1 items-center">
                                 <span>
                                   O/S:&nbsp;
-                                  <span className={`font-semibold ${getOsColor(dayReport.totals.overShortTotal)}`}>
-                                    {formatCurrency(dayReport.totals.overShortTotal)}
-                                  </span>
+                                  {dayReport.totals.overShortDisclosedTotal === null ? (
+                                    <span className="font-semibold text-gray-500">--</span>
+                                  ) : (
+                                    <span
+                                      className={`font-semibold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}
+                                    >
+                                      {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
+                                    </span>
+                                  )}
                                 </span>
                                 <span>Deposits: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDeposits)}</span></span>
                                 <span>Credit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalCredit)}</span></span>
@@ -726,10 +742,14 @@ export default function DaysPage() {
                     <h3 className="font-semibold text-gray-900 mb-3">Money Summary</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
-                        <p className="text-sm text-gray-600">Total Over/Short</p>
-                        <p className={`text-lg font-bold ${getOsColor(dayReport.totals.overShortTotal)}`}>
-                          {formatCurrency(dayReport.totals.overShortTotal)}
-                        </p>
+                        <p className="text-sm text-gray-600">Total Over/Short (disclosed)</p>
+                        {dayReport.totals.overShortDisclosedTotal === null ? (
+                          <p className="text-lg font-bold text-gray-500">--</p>
+                        ) : (
+                          <p className={`text-lg font-bold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}>
+                            {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -876,10 +896,19 @@ export default function DaysPage() {
                               </button>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
-                              <div>
-                                <span className="text-gray-600">Over/Short: </span>
+                              <div className="md:col-span-2">
+                                <span className="text-gray-600">Count vs system: </span>
                                 <span className={`font-semibold ${getOsColor(shift.overShortTotal)}`}>
                                   {formatCurrency(shift.overShortTotal)}
+                                </span>
+                                <span className="text-gray-400 mx-2">•</span>
+                                <span className="text-gray-600">O/S reviewed: </span>
+                                <span className="font-semibold text-gray-900">
+                                  {shift.osReviewed != null
+                                    ? formatCurrency(shift.osReviewed)
+                                    : shift.osLegitAsIs
+                                      ? '— (legit as-is)'
+                                      : '—'}
                                 </span>
                               </div>
                               <div>

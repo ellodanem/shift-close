@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { computeNetOverShort } from '@/lib/calculations'
+import { getListDisplayOverShort } from '@/lib/calculations'
 import {
   inactiveStaffIdsWithVacationOverlap,
   mergePayPeriodStaffLists,
@@ -87,20 +87,15 @@ export async function POST(request: NextRequest) {
       where: {
         date: { gte: startDate, lte: endDate },
         status: { in: ['closed', 'reviewed'] }
-      },
-      include: { overShortItems: true }
+      }
     })
 
     const shortageByStaff = new Map<string, number>()
     for (const shift of shifts) {
-      const netOS = computeNetOverShort(
-        shift.overShortTotal || 0,
-        (shift.overShortItems ?? []).map(i => ({
-          type: i.type,
-          amount: i.amount,
-          noteOnly: i.noteOnly ?? false
-        }))
-      )
+      const netOS = getListDisplayOverShort({
+        overShortTotal: shift.overShortTotal,
+        osReviewed: shift.osReviewed
+      })
       if (netOS < 0 && shift.supervisorId) {
         const sid = shift.supervisorId
         shortageByStaff.set(sid, (shortageByStaff.get(sid) || 0) + Math.abs(netOS))

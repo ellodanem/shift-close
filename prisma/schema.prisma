@@ -135,6 +135,8 @@ model ShiftClose {
   missingDataNotes       String   @default("") @map("missing_data_notes")
   overShortExplained     Boolean  @default(false) @map("over_short_explained")
   overShortExplanation   String   @default("") @map("over_short_explanation")
+  osReviewed             Float?   @map("os_reviewed") // Manual reviewed O/S; null = not entered
+  osLegitAsIs            Boolean  @default(false) @map("os_legit_as_is") // Raw count-vs-system accepted as correct
   createdAt              DateTime @default(now()) @map("created_at")
 
   corrections      Correction[]

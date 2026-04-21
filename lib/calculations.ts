@@ -237,46 +237,61 @@ export function canCloseShift(shift: {
   }
 }
 
-/** Unexplained over/short within this amount (dollars) does not require review */
-export const OS_REVIEW_THRESHOLD = 20
+/** Dollar band for “small” over/short coloring on lists and summaries (±this amount). */
+export const OS_REVIEW_THRESHOLD = 30
+
+export function isOsReviewedSet(osReviewed: number | null | undefined): boolean {
+  return osReviewed !== null && osReviewed !== undefined
+}
 
 /**
- * Check if a shift is fully reviewed (all conditions met for marking as reviewed).
- * Uses net unexplained over/short (after Account Activity items) and threshold.
+ * Amount shown on shift list / aggregates: manual reviewed figure when set, otherwise raw count-vs-system total.
+ */
+export function getListDisplayOverShort(shift: {
+  overShortTotal: number | null | undefined
+  osReviewed?: number | null
+}): number {
+  if (isOsReviewedSet(shift.osReviewed)) return shift.osReviewed as number
+  return shift.overShortTotal ?? 0
+}
+
+export type ShiftListOkKind = 'needs_review' | 'ok_green' | 'ok_blue'
+
+/** Closed-shift OK / needs-review for shift list (draft / reopened / reviewed are handled by caller). */
+export function getShiftListOkKind(shift: {
+  status?: string
+  notes: string
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
+}): ShiftListOkKind {
+  if (shift.osLegitAsIs) return 'ok_green'
+  if (isOsReviewedSet(shift.osReviewed)) {
+    const hasNotes = (shift.notes || '').trim().length > 0
+    return hasNotes ? 'ok_green' : 'ok_blue'
+  }
+  return 'needs_review'
+}
+
+/**
+ * Manager “Reviewed” status: structural fields complete plus an O/S resolution path
+ * (manual reviewed amount + notes, or “legit as-is” checkbox).
  */
 export function isShiftFullyReviewed(shift: {
-  overShortTotal: number | null
   notes: string
   hasMissingHardCopyData?: boolean
   missingDataNotes?: string
-  overShortExplained?: boolean
-  overShortExplanation?: string | null
-  depositScanUrls?: string
-  debitScanUrls?: string
   missingFields: string[]
-  overShortItems?: Array<{ type: string; amount: number; noteOnly?: boolean }>
-  threshold?: number
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
 }): boolean {
-  const threshold = shift.threshold ?? OS_REVIEW_THRESHOLD
-  const rawOS = shift.overShortTotal || 0
-  const items = (shift.overShortItems ?? []).map(i => ({
-    type: i.type,
-    amount: i.amount,
-    noteOnly: i.noteOnly ?? false
-  }))
-  const unexplained = computeNetOverShort(rawOS, items)
-
-  // Unexplained variance outside threshold requires review
-  if (Math.abs(unexplained) > threshold) return false
-
-  // No missing numeric / deposit fields
   if (shift.missingFields.length > 0) return false
 
-  // If missing hard copy data is checked, must have notes explaining what is missing
   if (shift.hasMissingHardCopyData && (!shift.missingDataNotes || shift.missingDataNotes.trim() === '')) {
     return false
   }
 
-  return true
+  if (shift.osLegitAsIs) return true
+  if (isOsReviewedSet(shift.osReviewed) && (shift.notes || '').trim() !== '') return true
+  return false
 }
 

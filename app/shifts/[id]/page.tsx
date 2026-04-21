@@ -5,9 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import {
   getMissingFields,
   isShiftFullyReviewed,
-  computeNetOverShort,
-  computeOverShortTally,
-  getOverShortSignedContribution,
+  getListDisplayOverShort,
+  getShiftListOkKind,
   OS_REVIEW_THRESHOLD,
   calculateShiftClose
 } from '@/lib/calculations'
@@ -64,6 +63,8 @@ interface Shift {
   missingDataNotes?: string
   overShortExplained?: boolean
   overShortExplanation?: string | null
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
   overShortItems?: Array<{
     id: string
     type: string
@@ -87,15 +88,8 @@ export default function ShiftDetailPage() {
   const [loading, setLoading] = useState(true)
   const [hasMissingHardCopyData, setHasMissingHardCopyData] = useState(false)
   const [missingDataNotes, setMissingDataNotes] = useState('')
-  const [overShortExplained, setOverShortExplained] = useState(false)
-  const [overShortExplanationDraft, setOverShortExplanationDraft] = useState('')
-  const [showOverShortModal, setShowOverShortModal] = useState(false)
-  const [showAddOverShortModal, setShowAddOverShortModal] = useState(false)
-  const [savingOverShortItem, setSavingOverShortItem] = useState(false)
-  // Account Activity add item state (simplified: amount, description, type)
-  const [addItemAmount, setAddItemAmount] = useState('')
-  const [addItemDescription, setAddItemDescription] = useState('')
-  const [addItemType, setAddItemType] = useState<'add' | 'subtract' | 'note'>('add')
+  const [osReviewedInput, setOsReviewedInput] = useState('')
+  const [savingOsReviewed, setSavingOsReviewed] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
@@ -139,9 +133,9 @@ export default function ShiftDetailPage() {
           setShift(data)
           setHasMissingHardCopyData(data.hasMissingHardCopyData || false)
           setMissingDataNotes(data.missingDataNotes || '')
-          setOverShortExplained(data.overShortExplained || false)
-          setOverShortExplanationDraft(data.overShortExplanation || '')
-          setOverShortExplanationDraft(data.overShortExplanation || '')
+          setOsReviewedInput(
+            data.osReviewed !== null && data.osReviewed !== undefined ? String(data.osReviewed) : ''
+          )
           // Track which fields have been changed
           if (data.corrections && data.corrections.length > 0) {
             const changed = new Set<string>(data.corrections.map((c: any) => c.field as string))
@@ -211,7 +205,6 @@ export default function ShiftDetailPage() {
                   })
                   if (draft.hasMissingHardCopyData !== undefined) setHasMissingHardCopyData(draft.hasMissingHardCopyData)
                   if (draft.missingDataNotes !== undefined) setMissingDataNotes(draft.missingDataNotes)
-                  if (draft.overShortExplained !== undefined) setOverShortExplained(draft.overShortExplained)
                 }
               } catch (error) {
                 console.error('Error loading draft from localStorage:', error)
@@ -225,12 +218,6 @@ export default function ShiftDetailPage() {
         })
     }
   }, [params.id])
-
-  function resetAddItemState() {
-    setAddItemAmount('')
-    setAddItemDescription('')
-    setAddItemType('add')
-  }
 
   // Fetch supervisors and managers for the supervisor dropdown
   useEffect(() => {
@@ -304,8 +291,7 @@ export default function ShiftDetailPage() {
         supervisorId,
         deposits: editData.deposits,
         hasMissingHardCopyData,
-        missingDataNotes,
-        overShortExplained
+        missingDataNotes
       }
       localStorage.setItem(`${DRAFT_STORAGE_KEY}-${shift.id}`, JSON.stringify(draftData))
     }, 500) // 500ms delay
@@ -316,20 +302,20 @@ export default function ShiftDetailPage() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [editData, shift?.id, hasMissingHardCopyData, missingDataNotes, overShortExplained])
+  }, [editData, shift?.id, hasMissingHardCopyData, missingDataNotes])
   
   const deposits = shift ? JSON.parse(shift.deposits) : []
-  const netOverShort = shift
-    ? computeNetOverShort(
-        shift.overShortTotal || 0,
-        (shift.overShortItems ?? []).map(i => ({
-          type: i.type,
-          amount: i.amount,
-          noteOnly: i.noteOnly ?? false
-        }))
-      )
-    : 0
-  const hasRedFlag = shift ? Math.abs(netOverShort) > OS_REVIEW_THRESHOLD : false
+  const rawOverShort = shift ? shift.overShortTotal || 0 : 0
+  const displayOverShort = shift ? getListDisplayOverShort(shift) : 0
+  const hasRedFlag = shift
+    ? shift.status === 'closed' &&
+      getShiftListOkKind({
+        status: shift.status,
+        notes: shift.notes,
+        osReviewed: shift.osReviewed,
+        osLegitAsIs: shift.osLegitAsIs
+      }) === 'needs_review'
+    : false
   const isDraft = shift?.status === 'draft'
   const isReopened = shift?.status === 'reopened'
   // Editable numeric fields when draft OR reopened (reopened edits are fully audited in backend)
@@ -381,67 +367,6 @@ export default function ShiftDetailPage() {
     )
   }
 
-  const handleConfirmOverShortExplanation = async () => {
-    if (!shift) return
-    try {
-      const missingFields = getMissingFields({
-        systemCash: shift.systemCash,
-        systemChecks: shift.systemChecks,
-        systemCredit: shift.systemCredit,
-        systemDebit: shift.systemDebit,
-        otherCredit: shift.otherCredit,
-        systemInhouse: shift.systemInhouse,
-        systemFleet: shift.systemFleet,
-        systemMassyCoupons: shift.systemMassyCoupons,
-        countCash: shift.countCash,
-        countChecks: shift.countChecks,
-        countCredit: shift.countCredit,
-        countInhouse: shift.countInhouse,
-        countFleet: shift.countFleet,
-        countMassyCoupons: shift.countMassyCoupons,
-        unleaded: shift.unleaded,
-        diesel: shift.diesel,
-        deposits: shift.deposits
-      })
-      const fullyReviewed = isShiftFullyReviewed({
-        overShortTotal: shift.overShortTotal,
-        notes: shift.notes,
-        hasMissingHardCopyData: shift.hasMissingHardCopyData,
-        missingDataNotes: shift.missingDataNotes,
-        depositScanUrls: shift.depositScanUrls,
-        debitScanUrls: shift.debitScanUrls,
-        missingFields,
-        overShortItems: shift.overShortItems?.map(i => ({
-          type: i.type,
-          amount: i.amount,
-          noteOnly: i.noteOnly ?? false
-        }))
-      })
-      const payload: any = {
-        overShortExplained: true,
-        overShortExplanation: overShortExplanationDraft
-      }
-      if (fullyReviewed) {
-        payload.status = 'reviewed'
-      }
-      const res = await fetch(`/api/shifts/${String(params.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      if (!res.ok) {
-        throw new Error('Failed to save over/short explanation')
-      }
-      const updated = await res.json()
-      setShift(updated)
-      setOverShortExplained(true)
-      setShowOverShortModal(false)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to save over/short explanation')
-    }
-  }
-  
   const handleSaveDraft = async () => {
     try {
       const res = await fetch(`/api/shifts/${shift.id}`, {
@@ -486,16 +411,12 @@ export default function ShiftDetailPage() {
         deposits: editData.deposits
       } as any)
       const fullyReviewed = isShiftFullyReviewed({
-        overShortTotal: calculated.overShortTotal,
         notes: editData.notes,
         hasMissingHardCopyData,
         missingDataNotes,
         missingFields,
-        overShortItems: shift?.overShortItems?.map(i => ({
-          type: i.type,
-          amount: i.amount,
-          noteOnly: i.noteOnly ?? false
-        }))
+        osReviewed: shift?.osReviewed,
+        osLegitAsIs: shift?.osLegitAsIs
       })
       const statusToSet = fullyReviewed ? 'reviewed' : 'closed'
 
@@ -698,7 +619,14 @@ export default function ShiftDetailPage() {
         {hasRedFlag && (
           <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded">
             <p className="text-yellow-900 font-bold text-lg">
-              ⚠️ Needs Review: Net over/short after Account Activity (${netOverShort.toFixed(2)}) is outside the ±${OS_REVIEW_THRESHOLD} review band.
+              ⚠️ Needs review: enter <span className="font-semibold">O/S reviewed</span> (from your paper reconciliation), check{' '}
+              <span className="font-semibold">Count vs system is legit as-is</span> if no manual figure is needed, and use{' '}
+              <span className="font-semibold">Notes</span> when you have entered O/S reviewed.
+            </p>
+            <p className="text-sm text-yellow-900 mt-2">
+              Count vs system (cash+check): <span className="font-mono font-semibold">${rawOverShort.toFixed(2)}</span>
+              {' · '}
+              List / End of Day display: <span className="font-mono font-semibold">${displayOverShort.toFixed(2)}</span>
             </p>
           </div>
         )}
@@ -769,7 +697,7 @@ export default function ShiftDetailPage() {
                 <th className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right">Count</th>
                 <th className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right">System</th>
                 <th className="bg-black text-white border border-gray-300 px-4 py-2 text-right">Over/Short</th>
-                <th className="bg-indigo-600 text-white border border-gray-300 px-4 py-2 text-right">Explained</th>
+                <th className="bg-indigo-600 text-white border border-gray-300 px-4 py-2 text-right">O/S reviewed</th>
               </tr>
             </thead>
             <tbody>
@@ -1096,12 +1024,11 @@ export default function ShiftDetailPage() {
                   )}
                 </td>
                 <td className="bg-indigo-100 border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {(shift?.overShortItems?.length ?? 0) > 0
-                    ? ((shift?.overShortItems ?? []).reduce(
-                        (sum, i) => sum + (i.type === 'overage' ? i.amount : -i.amount),
-                        0
-                      )).toFixed(2)
-                    : '—'}
+                  {!isDraft && shift.osReviewed !== null && shift.osReviewed !== undefined ? (
+                    shift.osReviewed.toFixed(2)
+                  ) : (
+                    '—'
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -1426,192 +1353,131 @@ export default function ShiftDetailPage() {
             )}
           </div>
           
-          <div className="flex flex-col gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setShowOverShortModal(true)}
-              disabled={shift?.status === 'draft'}
-              className="inline-flex items-center px-3 py-1.5 rounded border font-medium
-                         border-blue-500 text-blue-600 hover:bg-blue-50 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {shift?.overShortExplained ? 'Edit Over/Short Explanation' : 'Explain Over/Short Discrepancy'}
-            </button>
-            {shift?.overShortExplained && shift.overShortExplanation && (
-              <p className="text-xs text-gray-600 border border-blue-100 bg-blue-50 rounded px-2 py-1">
-                <span className="font-semibold">Current explanation:</span> {shift.overShortExplanation}
+          <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/40 space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wide text-indigo-900">
+                Over / Short review
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 max-w-2xl">
+                Reconcile on paper, then enter the reviewed over/short here. That value is what the shift list and End of Day
+                use as the disclosed figure. Use <span className="font-semibold">Notes</span> for explanations (the old
+                “explain discrepancy” field is retired).
               </p>
-            )}
+            </div>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                disabled={shift.status === 'draft'}
+                checked={Boolean(shift.osLegitAsIs)}
+                onChange={(e) => {
+                  const v = e.target.checked
+                  void (async () => {
+                    await updateCheckbox('osLegitAsIs', v)
+                    if (v) setOsReviewedInput('')
+                  })()
+                }}
+              />
+              <span className="text-sm text-gray-800">
+                <span className="font-semibold">Count vs system is legit as-is</span> — the cash+check over/short from the
+                register is correct and no manual O/S reviewed entry is needed. Checking this clears any saved O/S reviewed
+                value.
+              </span>
+            </label>
+            <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+              <div className="flex-1 min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-1">O/S reviewed ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  disabled={shift.status === 'draft' || Boolean(shift.osLegitAsIs)}
+                  value={osReviewedInput}
+                  onChange={(e) => setOsReviewedInput(e.target.value)}
+                  className="w-full max-w-sm border border-gray-300 rounded px-3 py-2 text-right"
+                  placeholder="After paper math"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={shift.status === 'draft' || savingOsReviewed || Boolean(shift.osLegitAsIs)}
+                  onClick={async () => {
+                    if (!shift) return
+                    const trimmed = osReviewedInput.trim()
+                    if (trimmed === '') {
+                      alert('Enter an amount, or use Clear to remove a saved value.')
+                      return
+                    }
+                    const n = Number(trimmed)
+                    if (Number.isNaN(n)) {
+                      alert('Enter a valid number.')
+                      return
+                    }
+                    setSavingOsReviewed(true)
+                    try {
+                      const res = await fetch(`/api/shifts/${shift.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ osReviewed: n })
+                      })
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}))
+                        throw new Error(err.error || 'Failed to save')
+                      }
+                      const updated = await res.json()
+                      setShift(updated)
+                      setOsReviewedInput(
+                        updated.osReviewed !== null && updated.osReviewed !== undefined
+                          ? String(updated.osReviewed)
+                          : ''
+                      )
+                    } catch (err) {
+                      console.error(err)
+                      alert(err instanceof Error ? err.message : 'Failed to save O/S reviewed')
+                    } finally {
+                      setSavingOsReviewed(false)
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 disabled:bg-gray-400 text-sm"
+                >
+                  {savingOsReviewed ? 'Saving…' : 'Save O/S reviewed'}
+                </button>
+                <button
+                  type="button"
+                  disabled={shift.status === 'draft' || savingOsReviewed || Boolean(shift.osLegitAsIs)}
+                  onClick={async () => {
+                    if (!shift) return
+                    setSavingOsReviewed(true)
+                    try {
+                      const res = await fetch(`/api/shifts/${shift.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ osReviewed: null })
+                      })
+                      if (!res.ok) throw new Error('Failed to clear')
+                      const updated = await res.json()
+                      setShift(updated)
+                      setOsReviewedInput('')
+                    } catch (err) {
+                      console.error(err)
+                      alert('Failed to clear O/S reviewed')
+                    } finally {
+                      setSavingOsReviewed(false)
+                    }
+                  }}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded font-semibold hover:bg-gray-50 disabled:bg-gray-200 text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
             <p className="text-xs text-gray-500">
-              When over/short is handled per your procedures (including notes or ledger lines where appropriate) and other review conditions are met, this shift can be marked <span className="font-semibold">Reviewed</span>—not because any number had to equal $0.00.
+              Green “OK” on the list: either this checkbox, or saved O/S reviewed plus notes. Blue “OK”: reviewed saved but
+              notes missing (hover: breakdown notes missing). Values within ±{OS_REVIEW_THRESHOLD} still show in green in the
+              Over/Short column even while status is “Needs review” until one of those paths is satisfied.
             </p>
           </div>
 
-          {/* Account Activity — additive signed ledger (starting balance + signed lines = unexplained) */}
-          {(() => {
-            const rawOS = shift?.overShortTotal ?? 0
-            const items = [...(shift?.overShortItems ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
-            const tally = computeOverShortTally(rawOS, items)
-            const unexplained = netOverShort
-            const isFullyExplained = Math.abs(unexplained) < 0.005
-
-            const formatBal = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(n).toFixed(2)}`
-            const formatSignedDelta = (n: number) => `${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}`
-
-            type Row = { item: (typeof items)[0]; contrib: number | null; running: number }
-            const rows: Row[] = []
-            let ti = 0
-            for (const item of items) {
-              const contrib = getOverShortSignedContribution(item)
-              if (contrib === null) {
-                const running = ti === 0 ? rawOS : tally[ti - 1]!.balanceAfter
-                rows.push({ item, contrib: null, running })
-                continue
-              }
-              const running = tally[ti]!.balanceAfter
-              ti += 1
-              rows.push({ item, contrib, running })
-            }
-
-            return (
-              <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                <div className="bg-gray-800 text-white px-5 py-3 flex items-center justify-between">
-                  <h4 className="font-bold text-sm tracking-wide uppercase">Account Activity</h4>
-                  <button
-                    type="button"
-                    onClick={() => { resetAddItemState(); setShowAddOverShortModal(true) }}
-                    className="px-3 py-1 bg-white text-gray-800 rounded font-semibold text-xs hover:bg-gray-100"
-                  >
-                    + Add Item
-                  </button>
-                </div>
-                <p className="text-xs text-gray-600 px-5 py-2 bg-gray-50 border-b border-gray-200">
-                  <span className="font-medium text-gray-700">Additive ledger:</span> starting balance is count vs system.
-                  Each row is a signed change (positive explains a shortfall; negative explains extra cash). Rows add to the
-                  running balance. <span className="font-medium text-gray-700">You are not required to drive this to $0.00</span>
-                  —record what is true. $0.00 here only means this ledger has no cent left over after your lines, not that every
-                  real-world variance disappeared.
-                </p>
-
-                <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-gray-700 font-medium">
-                    Starting balance <span className="text-xs font-normal text-gray-500">(count vs system)</span>
-                  </span>
-                  <span className={`font-bold text-base tabular-nums ${rawOS > 0 ? 'text-green-700' : rawOS < 0 ? 'text-red-700' : 'text-gray-500'}`}>
-                    {formatBal(rawOS)}
-                  </span>
-                </div>
-
-                {items.length > 0 ? (
-                  <>
-                    <div className="hidden sm:grid sm:grid-cols-[minmax(0,7rem)_1fr_minmax(0,6.5rem)_auto] gap-2 px-5 py-2 bg-gray-100 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                      <span className="text-right">Change</span>
-                      <span>Description</span>
-                      <span className="text-right">Running</span>
-                      <span className="w-6" />
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      {rows.map(({ item, contrib, running }) => {
-                        const isNoteOnly = item.noteOnly ?? false
-                        return (
-                          <div
-                            key={item.id}
-                            className="px-5 py-3 grid grid-cols-1 sm:grid-cols-[minmax(0,7rem)_1fr_minmax(0,6.5rem)_auto] gap-x-2 gap-y-1 items-center hover:bg-gray-50"
-                          >
-                            <div className="text-right font-semibold tabular-nums text-sm sm:order-none order-2 sm:col-auto">
-                              {contrib !== null ? (
-                                <span className={contrib >= 0 ? 'text-emerald-700' : 'text-rose-700'}>{formatSignedDelta(contrib)}</span>
-                              ) : (
-                                <span className="text-gray-400">—</span>
-                              )}
-                              <span className="sm:hidden text-gray-500 font-normal ml-2">change</span>
-                            </div>
-                            <div className="min-w-0 sm:order-none order-1 col-span-1 sm:col-span-1">
-                              {item.itemKind === 'cheque_balance' ? (
-                                <div className="text-sm">
-                                  <span className="font-medium text-gray-900">{item.customerName}</span>
-                                  <span className={`ml-2 px-1.5 py-0.5 text-xs rounded font-medium ${item.type === 'overage' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                    {item.type === 'overage' ? 'Cheque received' : 'Fuel / cash taken'}
-                                  </span>
-                                  {isNoteOnly && <span className="ml-2 text-xs text-gray-400">(note only)</span>}
-                                  <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-3">
-                                    {item.previousBalance != null && item.type === 'shortage' && (
-                                      <span>prev bal ${item.previousBalance.toFixed(2)}</span>
-                                    )}
-                                    {item.newBalance != null && item.newBalance > 0 ? (
-                                      <span className="text-amber-600 font-medium">→ remaining ${item.newBalance.toFixed(2)}</span>
-                                    ) : item.itemKind === 'cheque_balance' && item.newBalance === 0 && item.type === 'shortage' ? (
-                                      <span className="text-gray-400">account cleared</span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <span className="text-sm text-gray-800">{item.description}</span>
-                                  {isNoteOnly && <span className="ml-2 text-xs text-gray-400">(note only)</span>}
-                                </>
-                              )}
-                            </div>
-                            <div
-                              className={`text-right font-semibold tabular-nums text-sm sm:order-none order-3 ${running > 0 ? 'text-green-700' : running < 0 ? 'text-red-700' : 'text-gray-600'}`}
-                            >
-                              {formatBal(running)}
-                              <span className="sm:hidden text-gray-500 font-normal ml-2">running</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!confirm('Delete this item?')) return
-                                try {
-                                  const res = await fetch(`/api/shifts/${shift!.id}/over-short-items/${item.id}`, { method: 'DELETE' })
-                                  if (res.ok) {
-                                    const updated = await fetch(`/api/shifts/${shift!.id}`).then(r => r.json())
-                                    setShift(updated)
-                                  }
-                                } catch (err) {
-                                  console.error('Failed to delete:', err)
-                                }
-                              }}
-                              className="justify-self-end text-gray-300 hover:text-red-500 text-base leading-none px-1 sm:order-none order-4"
-                              aria-label="Delete line"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <div className="px-5 py-6 text-center text-sm text-gray-400 italic">
-                    No lines yet. Use &ldquo;+ Add Item&rdquo; to record signed changes (money in or out) or a note.
-                  </div>
-                )}
-
-                <div className={`px-5 py-4 border-t-2 flex items-center justify-between ${isFullyExplained ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-200'}`}>
-                  <div>
-                    <div className={`font-bold text-base ${isFullyExplained ? 'text-green-800' : 'text-amber-900'}`}>
-                      {isFullyExplained ? '✓ Running total ~$0 (within 1¢)' : 'Running total after lines'}
-                    </div>
-                    {isFullyExplained ? (
-                      <div className="text-xs text-green-800 mt-0.5 max-w-xl">
-                        Signed lines net out on this ledger—an optional cross-check, not proof you were required to hit zero.
-                      </div>
-                    ) : (
-                      <div className="text-xs text-amber-800 mt-0.5 max-w-xl">
-                        After your signed rows. <span className="font-semibold">You do not have to force this to $0.00.</span>{' '}
-                        A non-zero amount can be correct if the true story lives in honest lines, notes, or follow-up outside
-                        this table.
-                      </div>
-                    )}
-                  </div>
-                  <div className={`font-bold text-2xl tabular-nums ${isFullyExplained ? 'text-green-700' : 'text-amber-900'}`}>
-                    {isFullyExplained ? '$0.00' : formatBal(unexplained)}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-          
           {/* Auto-detected missing fields warning */}
           {shift && (() => {
             const missing = getMissingFields({
@@ -1683,146 +1549,6 @@ export default function ShiftDetailPage() {
           Created: {new Date(shift.createdAt).toLocaleString()}
         </p>
       </div>
-
-      {/* Over/Short Explanation Modal */}
-      {showOverShortModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">
-                Explain Over/Short Discrepancy
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowOverShortModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <p className="text-sm text-gray-700">
-                Over/Short total:{' '}
-                <span className="font-semibold">
-                  {(shift.overShortTotal || 0).toFixed(2)}
-                </span>
-              </p>
-              <textarea
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                rows={4}
-                value={overShortExplanationDraft}
-                onChange={(e) => setOverShortExplanationDraft(e.target.value)}
-                placeholder="Describe why this over/short is acceptable..."
-              />
-            </div>
-            <div className="px-4 py-3 border-t flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowOverShortModal(false)}
-                className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmOverShortExplanation}
-                className="px-4 py-1.5 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
-              >
-                Confirm &amp; Mark Explained
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Account Activity Item Modal */}
-      {showAddOverShortModal && shift && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">Add Account Activity Item</h3>
-              <button
-                type="button"
-                onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select
-                  value={addItemType}
-                  onChange={e => setAddItemType(e.target.value as 'add' | 'subtract' | 'note')}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                >
-                  <option value="add">Money added (adds to drawer)</option>
-                  <option value="subtract">Money subtracted (removed from drawer)</option>
-                  <option value="note">Note only (no effect on balance)</option>
-                </select>
-              </div>
-              {addItemType !== 'note' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={addItemAmount}
-                    onChange={e => setAddItemAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={addItemDescription}
-                  onChange={e => setAddItemDescription(e.target.value)}
-                  placeholder="e.g. Manager returned $200"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-            <div className="px-4 py-3 border-t flex justify-end gap-2">
-              <button type="button" onClick={() => { setShowAddOverShortModal(false); resetAddItemState() }} className="px-4 py-1.5 rounded border text-sm text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
-              <button
-                type="button"
-                disabled={
-                  savingOverShortItem ||
-                  !addItemDescription.trim() ||
-                  (addItemType !== 'note' && (!addItemAmount || Number(addItemAmount) <= 0))
-                }
-                onClick={async () => {
-                  setSavingOverShortItem(true)
-                  try {
-                    const payload = {
-                      type: addItemType,
-                      amount: addItemType === 'note' ? 0 : Number(addItemAmount) || 0,
-                      description: addItemDescription.trim(),
-                    }
-                    const res = await fetch(`/api/shifts/${shift.id}/over-short-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                    if (!res.ok) throw new Error((await res.json()).error || 'Failed to add')
-                    const updated = await fetch(`/api/shifts/${shift.id}`).then(r => r.json())
-                    setShift(updated)
-                    setShowAddOverShortModal(false)
-                    resetAddItemState()
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : 'Failed to add item')
-                  } finally {
-                    setSavingOverShortItem(false)
-                  }
-                }}
-                className="px-4 py-1.5 rounded text-sm font-semibold disabled:opacity-60 bg-gray-800 text-white hover:bg-gray-700"
-              >{savingOverShortItem ? 'Saving…' : 'Save Item'}</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getShiftListOkKind } from '@/lib/calculations'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,8 +129,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 2. Shifts pending review (over/short not zero and not explained)
-    // Get all closed/reopened shifts first, then filter in code
+    // 2. Shifts pending review (no O/S resolution path: reviewed+notes or legit-as-is)
     const allClosedShifts = await prisma.shiftClose.findMany({
       where: {
         OR: [
@@ -139,22 +139,21 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
-        overShortTotal: true,
-        overShortExplained: true,
-        overShortExplanation: true
+        status: true,
+        notes: true,
+        osReviewed: true,
+        osLegitAsIs: true
       }
     })
-    
-    const pendingReviewShifts = allClosedShifts.filter(shift => {
-      const overShort = shift.overShortTotal || 0
-      if (overShort === 0) return false
-      
-      const isExplained = shift.overShortExplained === true && 
-                         shift.overShortExplanation && 
-                         shift.overShortExplanation.trim() !== ''
-      
-      return !isExplained
-    })
+
+    const pendingReviewShifts = allClosedShifts.filter((shift) =>
+      getShiftListOkKind({
+        status: shift.status,
+        notes: shift.notes ?? '',
+        osReviewed: shift.osReviewed,
+        osLegitAsIs: shift.osLegitAsIs
+      }) === 'needs_review'
+    )
 
     // 3. Incomplete days - check all days in the month
     const allShiftsForMonth = await prisma.shiftClose.findMany({

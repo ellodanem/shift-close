@@ -47,13 +47,25 @@ export interface ShiftCloseWithCalculations extends ShiftCloseInput {
   status?: ShiftStatus
 }
 
+/** Shift row on End of Day: raw O/S plus optional manual review fields. */
+export type DayReportShiftRow = ShiftCloseWithCalculations & {
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
+}
+
 export interface DayReport {
   date: string
   dayType: "Standard" | "Custom"
   status: "Complete" | "Incomplete" | "Invalid mix"
-  shifts: ShiftCloseWithCalculations[]
+  shifts: DayReportShiftRow[]
   totals: {
+    /** Sum of count-vs-system over/short (raw) for the calendar day. */
     overShortTotal: number
+    /**
+     * Sum of disclosed reviewed amounts when every shift is resolved (reviewed figure or “legit as-is”).
+     * Null when any shift is still undisclosed — collapsed End of Day should show “--” for O/S.
+     */
+    overShortDisclosedTotal: number | null
     totalDeposits: number
     totalCredit: number
     totalDebit: number

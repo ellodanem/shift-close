@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import CustomDatePicker from '../days/CustomDatePicker'
+import { getListDisplayOverShort, getShiftListOkKind, OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 
 interface Shift {
   id: string
@@ -12,18 +13,17 @@ interface Shift {
   status?: string
   overShortTotal: number | null
   netOverShort?: number | null
+  osReviewed?: number | null
+  osLegitAsIs?: boolean
   notes: string
   totalDeposits: number | null
   unleaded: number
   diesel: number
   hasDayDebitScans?: boolean
-  overShortItems?: Array<{ type: string; amount: number; noteOnly?: boolean }>
 }
 
-const OS_THRESHOLD = 20
-
 function getOsColor(amount: number): string {
-  if (Math.abs(amount) <= OS_THRESHOLD) return 'text-green-600'
+  if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
   if (amount > 0) return 'text-blue-600'
   return 'text-red-600'
 }
@@ -349,10 +349,23 @@ export default function ShiftsPage() {
                 </tr>
               ) : (
                 filteredShifts.map((shift) => {
-                  const netOS = shift.netOverShort != null
-                    ? shift.netOverShort
-                    : shift.overShortTotal || 0
+                  const netOS =
+                    shift.netOverShort != null
+                      ? shift.netOverShort
+                      : getListDisplayOverShort({
+                          overShortTotal: shift.overShortTotal,
+                          osReviewed: shift.osReviewed
+                        })
                   const hasNotes = shift.notes.trim() !== ''
+                  const okKind =
+                    shift.status === 'closed'
+                      ? getShiftListOkKind({
+                          status: shift.status,
+                          notes: shift.notes,
+                          osReviewed: shift.osReviewed,
+                          osLegitAsIs: shift.osLegitAsIs
+                        })
+                      : 'needs_review'
                   
                   return (
                     <tr
@@ -428,13 +441,23 @@ export default function ShiftsPage() {
                           <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-semibold">
                             Reviewed
                           </span>
+                        ) : okKind === 'ok_green' ? (
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-300 text-xs font-semibold"
+                            title="OK"
+                          >
+                            OK
+                          </span>
+                        ) : okKind === 'ok_blue' ? (
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-semibold"
+                            title="Breakdown notes missing"
+                          >
+                            OK
+                          </span>
                         ) : (
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                            Math.abs(netOS) <= OS_THRESHOLD
-                              ? 'bg-green-100 text-green-800 border border-green-300'
-                              : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
-                          }`}>
-                            {Math.abs(netOS) <= OS_THRESHOLD ? 'OK' : 'Needs review'}
+                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-xs font-semibold">
+                            Needs review
                           </span>
                         )}
                       </td>

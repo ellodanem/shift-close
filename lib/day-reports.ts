@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import type { DayReport } from '@/lib/types'
-import { computeNetOverShort } from '@/lib/calculations'
+import { getShiftListOkKind } from '@/lib/calculations'
 
 /** Build End of Day reports (same shape as GET /api/days). */
 export async function buildDayReports(): Promise<DayReport[]> {
   const shifts = await prisma.shiftClose.findMany({
     orderBy: { date: 'desc' },
     include: {
-      corrections: true,
-      overShortItems: true
+      corrections: true
     }
   })
 
@@ -73,18 +72,18 @@ export async function buildDayReports(): Promise<DayReport[]> {
       status = 'Incomplete'
     }
 
+    const perShiftDisclosed = dayShifts.map((s) => {
+      if (s.osLegitAsIs) return s.overShortTotal || 0
+      if (s.osReviewed !== null && s.osReviewed !== undefined) return s.osReviewed
+      return null
+    })
+    const overShortDisclosedTotal = perShiftDisclosed.some((v) => v === null)
+      ? null
+      : (perShiftDisclosed as number[]).reduce((sum, v) => sum + v, 0)
+
     const totals = {
-      overShortTotal: dayShifts.reduce((sum, s) => {
-        const net = computeNetOverShort(
-          s.overShortTotal || 0,
-          (s.overShortItems ?? []).map((i) => ({
-            type: i.type,
-            amount: i.amount,
-            noteOnly: i.noteOnly ?? false
-          }))
-        )
-        return sum + net
-      }, 0),
+      overShortTotal: dayShifts.reduce((sum, s) => sum + (s.overShortTotal || 0), 0),
+      overShortDisclosedTotal,
       totalDeposits: dayShifts.reduce((sum, s) => sum + (s.totalDeposits || 0), 0),
       totalCredit: dayShifts.reduce((sum, s) => sum + s.otherCredit, 0),
       totalDebit: dayShifts.reduce((sum, s) => sum + s.systemDebit, 0),
@@ -157,17 +156,20 @@ export async function buildDayReports(): Promise<DayReport[]> {
         deposits: JSON.parse(s.deposits),
         notes: s.notes,
         overShortCash: s.overShortCash || 0,
-        overShortTotal: computeNetOverShort(
-          s.overShortTotal || 0,
-          (s.overShortItems ?? []).map((i) => ({
-            type: i.type,
-            amount: i.amount,
-            noteOnly: i.noteOnly ?? false
-          }))
-        ),
+        overShortTotal: s.overShortTotal || 0,
+        osReviewed: s.osReviewed,
+        osLegitAsIs: s.osLegitAsIs,
         totalDeposits: s.totalDeposits || 0,
         createdAt: s.createdAt,
-        hasRedFlag: false
+        status: s.status as 'draft' | 'closed' | 'reopened' | 'reviewed',
+        hasRedFlag:
+          (s.status === 'closed' || s.status === 'reopened') &&
+          getShiftListOkKind({
+            status: s.status,
+            notes: s.notes,
+            osReviewed: s.osReviewed,
+            osLegitAsIs: s.osLegitAsIs
+          }) === 'needs_review'
       })),
       totals,
       depositScans,
