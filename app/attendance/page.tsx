@@ -39,6 +39,15 @@ interface Staff {
   status?: string
 }
 
+/** One row in the bulk-add modal (12-hour clock + AM/PM). */
+interface BulkAddPunchRow {
+  id: string
+  direction: 'in' | 'out'
+  hour12: number
+  minute: number
+  period: 'AM' | 'PM'
+}
+
 /** Staff filter pill: red = any irregular; blue = no irregular but ≥1 possible missed day; green = all full days. */
 function staffPillIndicator(
   logsForScope: AttendanceLog[],
@@ -223,6 +232,29 @@ function hour12To24(h12: number, period: 'AM' | 'PM'): number {
   const h = Math.max(1, Math.min(12, Math.floor(h12)))
   if (period === 'AM') return h === 12 ? 0 : h
   return h === 12 ? 12 : h + 12
+}
+
+function createBulkAddRow(
+  partial?: Partial<Pick<BulkAddPunchRow, 'direction' | 'hour12' | 'minute' | 'period'>>
+): BulkAddPunchRow {
+  const id =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `b_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  return {
+    id,
+    direction: partial?.direction ?? 'in',
+    hour12: partial?.hour12 ?? 9,
+    minute: partial?.minute ?? 0,
+    period: partial?.period ?? 'AM'
+  }
+}
+
+function bulkAddRowToApiLine(row: BulkAddPunchRow): string {
+  const h24 = hour12To24(row.hour12, row.period)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const sym = row.direction === 'in' ? '+' : '-'
+  return `${sym} ${pad(h24)}:${pad(row.minute)}`
 }
 
 const timeArrowBtn =
@@ -430,6 +462,11 @@ export default function AttendancePage() {
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(() => new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkEditShiftInput, setBulkEditShiftInput] = useState('')
+  const [bulkEditTypeAction, setBulkEditTypeAction] = useState<'none' | 'in' | 'out' | 'flip'>('none')
+  const [bulkEditSaving, setBulkEditSaving] = useState(false)
+  const [bulkEditError, setBulkEditError] = useState<string | null>(null)
   const [bulkActionBanner, setBulkActionBanner] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(
     null
   )
@@ -453,6 +490,14 @@ export default function AttendancePage() {
     lastSavedManual: AddPunchHint | null
   }>({ byTime: null, lastSavedManual: null })
   const [addLastPunchLoading, setAddLastPunchLoading] = useState(false)
+
+  /** Many manual punches for one staff on one calendar day (+/− lines). */
+  const [showBulkAdd, setShowBulkAdd] = useState(false)
+  const [bulkAddStaffInput, setBulkAddStaffInput] = useState('')
+  const [bulkAddDate, setBulkAddDate] = useState('')
+  const [bulkAddRows, setBulkAddRows] = useState<BulkAddPunchRow[]>([])
+  const [bulkAddSaving, setBulkAddSaving] = useState(false)
+  const [bulkAddError, setBulkAddError] = useState<string | null>(null)
 
   // --- Current period pay day ---
   const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
@@ -920,9 +965,89 @@ export default function AttendancePage() {
     }
   }
 
+  const openBulkEdit = () => {
+    if (selectedDeletableCount === 0) return
+    setBulkActionBanner(null)
+    setBulkEditError(null)
+    setBulkEditShiftInput('')
+    setBulkEditTypeAction('none')
+    setBulkEditOpen(true)
+  }
+
+  const closeBulkEdit = () => {
+    if (bulkEditSaving) return
+    setBulkEditOpen(false)
+    setBulkEditError(null)
+  }
+
+  const handleApplyBulkEdit = async () => {
+    const ids = deletableLogsInView.filter((l) => selectedLogIds.has(l.id)).map((l) => l.id)
+    if (ids.length === 0) {
+      setBulkEditError('No punches selected.')
+      return
+    }
+
+    const rawShift = bulkEditShiftInput.trim()
+    let shiftMinutes: number | undefined
+    if (rawShift !== '') {
+      const n = Math.trunc(Number(rawShift))
+      if (!Number.isFinite(n)) {
+        setBulkEditError('Shift minutes must be a whole number (for example 15 or -30).')
+        return
+      }
+      shiftMinutes = n
+    }
+
+    const hasShift = shiftMinutes !== undefined && shiftMinutes !== 0
+    const hasType = bulkEditTypeAction !== 'none'
+    if (!hasShift && !hasType) {
+      setBulkEditError('Enter a non-zero time shift and/or choose a punch type change.')
+      return
+    }
+
+    setBulkEditSaving(true)
+    setBulkEditError(null)
+    try {
+      const body: { ids: string[]; shiftMinutes?: number; setPunchType?: 'in' | 'out' | 'flip' } = { ids }
+      if (hasShift && shiftMinutes !== undefined) body.shiftMinutes = shiftMinutes
+      if (hasType) body.setPunchType = bulkEditTypeAction
+
+      const res = await fetch('/api/attendance/logs/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setBulkEditError(typeof data.error === 'string' ? data.error : 'Bulk update failed')
+        return
+      }
+      const updated = typeof data.updated === 'number' ? data.updated : 0
+      setBulkEditOpen(false)
+      setBulkEditShiftInput('')
+      setBulkEditTypeAction('none')
+      setSelectedLogIds(new Set())
+      await refreshAttendanceLogs()
+      setBulkActionBanner({
+        kind: 'success',
+        text:
+          updated === 0
+            ? (typeof data.message === 'string' ? data.message : 'No rows needed changes.')
+            : updated === 1
+              ? 'Updated 1 punch.'
+              : `Updated ${updated} punches.`
+      })
+    } catch {
+      setBulkEditError('Network error — try again.')
+    } finally {
+      setBulkEditSaving(false)
+    }
+  }
+
   const openEditLog = (log: AttendanceLog) => {
     if (log.extractedAt) return
     setShowAddPunch(false)
+    setShowBulkAdd(false)
     setEditingLog(log)
     setEditPunchLocal(toDatetimeLocalValue(log.punchTime))
     setEditPunchType(log.punchType === 'out' ? 'out' : 'in')
@@ -936,6 +1061,7 @@ export default function AttendancePage() {
 
   const openAddPunch = () => {
     setEditingLog(null)
+    setShowBulkAdd(false)
     setAddError(null)
     const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
     const fallback = staffWithDevice[0]
@@ -950,6 +1076,79 @@ export default function AttendancePage() {
     if (addSaving) return
     setShowAddPunch(false)
     setAddError(null)
+  }
+
+  const openBulkAddPunches = () => {
+    setEditingLog(null)
+    setShowAddPunch(false)
+    setBulkAddError(null)
+    const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
+    const fallback = staffWithDevice[0]
+    setBulkAddStaffInput(fromFilter?.name?.trim() ?? fallback?.name?.trim() ?? '')
+    setBulkAddDate(formatDate(new Date()))
+    setBulkAddRows([createBulkAddRow()])
+    setShowBulkAdd(true)
+  }
+
+  const closeBulkAddPunches = () => {
+    if (bulkAddSaving) return
+    setShowBulkAdd(false)
+    setBulkAddError(null)
+  }
+
+  const handleSaveBulkAddPunches = async () => {
+    const staff = resolveStaffForManualPunch(bulkAddStaffInput, staffWithDevice)
+    if (!staff) {
+      setBulkAddError(
+        'Enter the device user ID (number from the ZKTeco device), or pick a staff name from the suggestions.'
+      )
+      return
+    }
+    const ymd = bulkAddDate.trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+      setBulkAddError('Choose a valid date.')
+      return
+    }
+    if (bulkAddRows.length === 0) {
+      setBulkAddError('Add at least one punch line using the + button below.')
+      return
+    }
+    const bulkText = bulkAddRows.map(bulkAddRowToApiLine).join('\n')
+    setBulkAddSaving(true)
+    setBulkAddError(null)
+    try {
+      const res = await fetch('/api/attendance/logs/bulk-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staffId: staff.id,
+          date: ymd,
+          text: bulkText
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setBulkAddError(typeof data.error === 'string' ? data.error : 'Bulk add failed')
+        return
+      }
+      const created = typeof data.created === 'number' ? data.created : 0
+      setShowBulkAdd(false)
+      setBulkAddRows([])
+      setBulkActionBanner({
+        kind: 'success',
+        text:
+          created === 0
+            ? 'No punches were added.'
+            : created === 1
+              ? 'Added 1 punch.'
+              : `Added ${created} punches.`
+      })
+      await refreshAttendanceLogs()
+    } catch {
+      setBulkAddError('Network error — try again.')
+    } finally {
+      setBulkAddSaving(false)
+    }
   }
 
   const handleSaveAddPunch = async () => {
@@ -1222,6 +1421,19 @@ export default function AttendancePage() {
               >
                 Add punch
               </button>
+              <button
+                type="button"
+                onClick={openBulkAddPunches}
+                disabled={staffWithDevice.length === 0}
+                title={
+                  staffWithDevice.length === 0
+                    ? 'Map staff to device users first'
+                    : 'Add several punches for one person on one day (one line per time)'
+                }
+                className="px-4 py-2 border border-emerald-600 text-emerald-800 bg-white rounded-lg font-semibold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Bulk add…
+              </button>
 
               {lastFiledPayPeriod && (
                 <span className="text-sm text-gray-600 max-w-md">
@@ -1359,6 +1571,13 @@ export default function AttendancePage() {
                   </button>
                   <button
                     type="button"
+                    onClick={openBulkEdit}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                  >
+                    Bulk edit…
+                  </button>
+                  <button
+                    type="button"
                     onClick={openBulkDeleteConfirm}
                     className="ml-auto rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
                   >
@@ -1389,7 +1608,7 @@ export default function AttendancePage() {
                     </tr>
                     <tr>
                       <th className="px-2 py-2 w-10 text-left font-semibold text-gray-700" scope="col">
-                        <span className="sr-only">Select for bulk delete</span>
+                        <span className="sr-only">Select for bulk delete or bulk edit</span>
                         <input
                           ref={bulkSelectAllRef}
                           type="checkbox"
@@ -1645,6 +1864,243 @@ export default function AttendancePage() {
               </aside>
             </div>
 
+            {showBulkAdd && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bulk-add-title"
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-xl w-full p-5 max-h-[90vh] overflow-y-auto">
+                  <h2 id="bulk-add-title" className="text-lg font-semibold text-gray-900 mb-1">
+                    Bulk add punches
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose staff and the calendar day, then add punch lines with <strong>+ Add line</strong>. Times use
+                    the <strong>station time zone</strong> (same as pay-day / attendance settings), not necessarily your
+                    browser&apos;s zone.
+                  </p>
+                  {bulkAddError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 whitespace-pre-line">
+                      {bulkAddError}
+                    </div>
+                  )}
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-add-staff">
+                        Staff
+                      </label>
+                      <input
+                        id="bulk-add-staff"
+                        type="text"
+                        list="bulk-add-staff-datalist"
+                        value={bulkAddStaffInput}
+                        onChange={(e) => setBulkAddStaffInput(e.target.value)}
+                        placeholder="Device user ID or name"
+                        autoComplete="off"
+                        disabled={bulkAddSaving}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                      <datalist id="bulk-add-staff-datalist">
+                        {staffWithDevice.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {`Device user ${s.deviceUserId ?? '—'}`}
+                          </option>
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-add-date">
+                        Date
+                      </label>
+                      <input
+                        id="bulk-add-date"
+                        type="date"
+                        value={bulkAddDate}
+                        onChange={(e) => setBulkAddDate(e.target.value)}
+                        disabled={bulkAddSaving}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span className="text-sm font-medium text-gray-700">Punch times</span>
+                        <button
+                          type="button"
+                          onClick={() => setBulkAddRows((rows) => [...rows, createBulkAddRow()])}
+                          disabled={bulkAddSaving}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <span className="text-lg leading-none" aria-hidden>
+                            +
+                          </span>
+                          Add line
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-[min(22rem,50vh)] overflow-y-auto pr-1">
+                        {bulkAddRows.length === 0 ? (
+                          <p className="text-sm text-gray-500 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-center">
+                            No lines yet — click <strong>+ Add line</strong> to add a punch.
+                          </p>
+                        ) : (
+                          bulkAddRows.map((row, idx) => (
+                            <div
+                              key={row.id}
+                              className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-gray-50/90 px-3 py-2.5"
+                              role="group"
+                              aria-label={`Punch line ${idx + 1}`}
+                            >
+                              <div className="min-w-[6.5rem]">
+                                <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-0.5">
+                                  In / out
+                                </label>
+                                <select
+                                  value={row.direction}
+                                  onChange={(e) =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) =>
+                                        r.id === row.id
+                                          ? { ...r, direction: e.target.value as 'in' | 'out' }
+                                          : r
+                                      )
+                                    )
+                                  }
+                                  disabled={bulkAddSaving}
+                                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-medium text-gray-900 shadow-sm"
+                                >
+                                  <option value="in">In (+)</option>
+                                  <option value="out">Out (−)</option>
+                                </select>
+                              </div>
+                              <div className="flex flex-wrap items-end gap-1.5">
+                                <TimeSpinInput
+                                  label="Hour"
+                                  value={row.hour12}
+                                  min={1}
+                                  max={12}
+                                  pad={false}
+                                  disabled={bulkAddSaving}
+                                  onChange={(hour12) =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) => (r.id === row.id ? { ...r, hour12 } : r))
+                                    )
+                                  }
+                                  onIncrement={() =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) => {
+                                        if (r.id !== row.id) return r
+                                        const h = r.hour12 >= 12 ? 1 : r.hour12 + 1
+                                        return { ...r, hour12: h }
+                                      })
+                                    )
+                                  }
+                                  onDecrement={() =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) => {
+                                        if (r.id !== row.id) return r
+                                        const h = r.hour12 <= 1 ? 12 : r.hour12 - 1
+                                        return { ...r, hour12: h }
+                                      })
+                                    )
+                                  }
+                                />
+                                <span className="self-center pb-1 text-xl font-light text-gray-400 select-none" aria-hidden>
+                                  :
+                                </span>
+                                <TimeSpinInput
+                                  label="Minute"
+                                  value={row.minute}
+                                  min={0}
+                                  max={59}
+                                  pad
+                                  disabled={bulkAddSaving}
+                                  onChange={(minute) =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) => (r.id === row.id ? { ...r, minute } : r))
+                                    )
+                                  }
+                                  onIncrement={() =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) =>
+                                        r.id === row.id ? { ...r, minute: r.minute >= 59 ? 0 : r.minute + 1 } : r
+                                      )
+                                    )
+                                  }
+                                  onDecrement={() =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) =>
+                                        r.id === row.id ? { ...r, minute: r.minute <= 0 ? 59 : r.minute - 1 } : r
+                                      )
+                                    )
+                                  }
+                                />
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                    AM / PM
+                                  </span>
+                                  <select
+                                    id={`bulk-add-ampm-${row.id}`}
+                                    value={row.period}
+                                    onChange={(e) =>
+                                      setBulkAddRows((rows) =>
+                                        rows.map((r) =>
+                                          r.id === row.id
+                                            ? { ...r, period: e.target.value as 'AM' | 'PM' }
+                                            : r
+                                        )
+                                      )
+                                    }
+                                    disabled={bulkAddSaving}
+                                    className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                  >
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBulkAddRows((rows) => rows.filter((r) => r.id !== row.id))
+                                }
+                                disabled={bulkAddSaving}
+                                className="ml-auto rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-red-50 hover:border-red-200 hover:text-red-800 disabled:opacity-50"
+                                aria-label={`Remove punch line ${idx + 1}`}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        <strong>In (+)</strong> and <strong>Out (−)</strong> match a normal clock sequence. Use{' '}
+                        <strong>+ Add line</strong> for each extra punch on this date.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeBulkAddPunches}
+                      disabled={bulkAddSaving}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveBulkAddPunches()}
+                      disabled={bulkAddSaving}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {bulkAddSaving ? 'Saving…' : 'Add punches'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {showAddPunch && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
@@ -1875,6 +2331,83 @@ export default function AttendancePage() {
                         {editSaving ? 'Saving…' : 'Save'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {bulkEditOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bulk-edit-title"
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-lg w-full p-5">
+                  <h2 id="bulk-edit-title" className="text-lg font-semibold text-gray-900 mb-1">
+                    Bulk edit {selectedDeletableCount} punch{selectedDeletableCount === 1 ? '' : 'es'}
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Shift every selected punch by the same number of minutes (for clock drift or wrong time zone), and/or
+                    fix in/out labels together. Filed punches cannot be edited — they are not selectable here.
+                  </p>
+                  {bulkEditError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                      {bulkEditError}
+                    </div>
+                  )}
+                  <div className="space-y-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-edit-shift">
+                        Shift all times (minutes)
+                      </label>
+                      <input
+                        id="bulk-edit-shift"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="e.g. 15 or -30 (leave blank for no time change)"
+                        value={bulkEditShiftInput}
+                        onChange={(e) => setBulkEditShiftInput(e.target.value)}
+                        disabled={bulkEditSaving}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Whole minutes only. Positive moves punches later.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-edit-type">
+                        Punch type
+                      </label>
+                      <select
+                        id="bulk-edit-type"
+                        value={bulkEditTypeAction}
+                        onChange={(e) => setBulkEditTypeAction(e.target.value as 'none' | 'in' | 'out' | 'flip')}
+                        disabled={bulkEditSaving}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="none">No change</option>
+                        <option value="in">Set all to In</option>
+                        <option value="out">Set all to Out</option>
+                        <option value="flip">Flip In ↔ Out on each row</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeBulkEdit}
+                      disabled={bulkEditSaving}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleApplyBulkEdit()}
+                      disabled={bulkEditSaving}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {bulkEditSaving ? 'Applying…' : 'Apply to selected'}
+                    </button>
                   </div>
                 </div>
               </div>
