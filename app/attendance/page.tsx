@@ -2703,12 +2703,17 @@ export default function AttendancePage() {
               <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <h2 className="font-semibold text-gray-900">Windows Agent</h2>
                 <a
-                  href="/api/attendance/windows-agent/installer"
+                  href="https://github.com/ellodanem/shift-close/releases/latest"
+                  target="_blank"
+                  rel="noreferrer"
                   className="shrink-0 px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold text-sm hover:bg-gray-800"
                 >
-                  Download installer
+                  Download installer (placeholder)
                 </a>
               </div>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+                Temporary placeholder link. Replace with the direct release asset URL when ready.
+              </p>
               <p className="text-sm text-gray-600 mb-4">
                 Install the local agent on an always-on PC on the same LAN as the ZKTeco device. It runs in the system tray
                 and keeps the device&apos;s user list aligned with Shift Close by pushing new staff on a schedule. Punches
