@@ -13,7 +13,7 @@ function pad2(n: number): string {
 }
 
 /** + = clock in, − = clock out. Also accepts leading/trailing `in` / `out`. */
-export function parseBulkAddLine(trimmed: string): { punchType: 'in' | 'out'; timePart: string } | null {
+function parseBulkAddLine(trimmed: string): { punchType: 'in' | 'out'; timePart: string } | null {
   // Include ASCII hyphen-minus (U+002D); bulk UI emits `-` for clock-out.
   const m1 = /^([+\u2212\u2013\u2014-])\s*(.+)$/.exec(trimmed)
   if (m1) {
@@ -40,7 +40,7 @@ export function parseBulkAddLine(trimmed: string): { punchType: 'in' | 'out'; ti
  * Wall time on the given calendar date (interpreted later with station TZ).
  * 24-hour if no AM/PM (`09:00`, `17:30`). With meridiem: 12-hour (`9:00 AM`).
  */
-export function parseTimeOnDate(timePart: string): { hour: number; minute: number } | null {
+function parseTimeOnDate(timePart: string): { hour: number; minute: number } | null {
   const s = timePart.trim().replace(/\s+/g, ' ')
   const mer = /\b(A\.?M\.?|P\.?M\.?)\s*$/i.exec(s)
   const core = mer ? s.slice(0, mer.index).trim() : s
