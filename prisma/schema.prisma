@@ -115,7 +115,7 @@ model ShiftClose {
   countFleet        Float @map("count_fleet")
   countMassyCoupons Float @map("count_massy_coupons")
 
-  // Fuel
+  // Fuel (sold volumes per shift). Optional book-inventory / cost ideas: docs/future-fuel-inventory-and-pricing.md
   unleaded Float
   diesel   Float
 
@@ -371,6 +371,7 @@ model PaidInvoice {
   amount        Float
   // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
   // For now, round to 2 decimals in application layer to prevent precision issues
+  // Financial amounts only; fuel/LPG unit cost over time: docs/future-fuel-inventory-and-pricing.md
   type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent'
   invoiceDate   DateTime @map("invoice_date")
   dueDate       DateTime @map("due_date")

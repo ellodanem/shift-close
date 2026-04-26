@@ -42,6 +42,7 @@ interface Staff {
 /** One row in the bulk-add modal (12-hour clock + AM/PM). */
 interface BulkAddPunchRow {
   id: string
+  date: string
   direction: 'in' | 'out'
   hour12: number
   minute: number
@@ -94,7 +95,7 @@ interface DeviceSettings {
   public_app_url: string
 }
 
-type Tab = 'logs' | 'device' | 'agent'
+type Tab = 'logs' | 'device' | 'agent' | 'instructions'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
 const ATTENDANCE_LOGS_POLL_MS = 45_000
@@ -235,7 +236,7 @@ function hour12To24(h12: number, period: 'AM' | 'PM'): number {
 }
 
 function createBulkAddRow(
-  partial?: Partial<Pick<BulkAddPunchRow, 'direction' | 'hour12' | 'minute' | 'period'>>
+  partial?: Partial<Pick<BulkAddPunchRow, 'date' | 'direction' | 'hour12' | 'minute' | 'period'>>
 ): BulkAddPunchRow {
   const id =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -243,6 +244,7 @@ function createBulkAddRow(
       : `b_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
   return {
     id,
+    date: partial?.date ?? formatDate(new Date()),
     direction: partial?.direction ?? 'in',
     hour12: partial?.hour12 ?? 9,
     minute: partial?.minute ?? 0,
@@ -250,11 +252,14 @@ function createBulkAddRow(
   }
 }
 
-function bulkAddRowToApiLine(row: BulkAddPunchRow): string {
+function bulkAddRowToApiEntry(row: BulkAddPunchRow): { date: string; punchType: 'in' | 'out'; time: string } {
   const h24 = hour12To24(row.hour12, row.period)
   const pad = (n: number) => String(n).padStart(2, '0')
-  const sym = row.direction === 'in' ? '+' : '-'
-  return `${sym} ${pad(h24)}:${pad(row.minute)}`
+  return {
+    date: row.date.trim(),
+    punchType: row.direction,
+    time: `${pad(h24)}:${pad(row.minute)}`
+  }
 }
 
 const timeArrowBtn =
@@ -425,6 +430,7 @@ function LocalDateTimePicker({
 
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<Tab>('logs')
+  const [openInstructionId, setOpenInstructionId] = useState<string>('')
 
   // --- Logs tab state ---
   const [logs, setLogs] = useState<AttendanceLog[]>([])
@@ -491,10 +497,9 @@ export default function AttendancePage() {
   }>({ byTime: null, lastSavedManual: null })
   const [addLastPunchLoading, setAddLastPunchLoading] = useState(false)
 
-  /** Many manual punches for one staff on one calendar day (+/− lines). */
+  /** Many manual punches for one staff across one or many calendar days. */
   const [showBulkAdd, setShowBulkAdd] = useState(false)
   const [bulkAddStaffInput, setBulkAddStaffInput] = useState('')
-  const [bulkAddDate, setBulkAddDate] = useState('')
   const [bulkAddRows, setBulkAddRows] = useState<BulkAddPunchRow[]>([])
   const [bulkAddSaving, setBulkAddSaving] = useState(false)
   const [bulkAddError, setBulkAddError] = useState<string | null>(null)
@@ -1085,8 +1090,7 @@ export default function AttendancePage() {
     const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
     const fallback = staffWithDevice[0]
     setBulkAddStaffInput(fromFilter?.name?.trim() ?? fallback?.name?.trim() ?? '')
-    setBulkAddDate(formatDate(new Date()))
-    setBulkAddRows([createBulkAddRow()])
+    setBulkAddRows([createBulkAddRow({ date: formatDate(new Date()) })])
     setShowBulkAdd(true)
   }
 
@@ -1104,16 +1108,16 @@ export default function AttendancePage() {
       )
       return
     }
-    const ymd = bulkAddDate.trim()
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-      setBulkAddError('Choose a valid date.')
-      return
-    }
     if (bulkAddRows.length === 0) {
       setBulkAddError('Add at least one punch line using the + button below.')
       return
     }
-    const bulkText = bulkAddRows.map(bulkAddRowToApiLine).join('\n')
+    const badDateIdx = bulkAddRows.findIndex((r) => !/^\d{4}-\d{2}-\d{2}$/.test(r.date.trim()))
+    if (badDateIdx >= 0) {
+      setBulkAddError(`Line ${badDateIdx + 1}: choose a valid date.`)
+      return
+    }
+    const entries = bulkAddRows.map(bulkAddRowToApiEntry)
     setBulkAddSaving(true)
     setBulkAddError(null)
     try {
@@ -1122,8 +1126,7 @@ export default function AttendancePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           staffId: staff.id,
-          date: ymd,
-          text: bulkText
+          entries
         })
       })
       const data = await res.json().catch(() => ({}))
@@ -1379,7 +1382,8 @@ export default function AttendancePage() {
             [
               { id: 'logs' as const, label: 'Attendance Logs' },
               { id: 'device' as const, label: 'Device Management' },
-              { id: 'agent' as const, label: 'Windows Agent' }
+              { id: 'agent' as const, label: 'Windows Agent' },
+              { id: 'instructions' as const, label: 'Instructions' }
             ] as const
           ).map(({ id, label }) => (
             <button
@@ -1400,84 +1404,87 @@ export default function AttendancePage() {
         {/* ── LOGS TAB ── */}
         {activeTab === 'logs' && (
           <>
-            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap items-center gap-4">
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {syncing ? 'Syncing…' : 'Sync from device'}
-              </button>
-              <button
-                type="button"
-                onClick={openAddPunch}
-                disabled={staffWithDevice.length === 0}
-                title={
-                  staffWithDevice.length === 0
-                    ? 'Map staff to device users on the Windows Agent tab (or edit staff profiles) first'
-                    : 'Record a missed clock-in or clock-out'
-                }
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add punch
-              </button>
-              <button
-                type="button"
-                onClick={openBulkAddPunches}
-                disabled={staffWithDevice.length === 0}
-                title={
-                  staffWithDevice.length === 0
-                    ? 'Map staff to device users first'
-                    : 'Add several punches for one person on one day (one line per time)'
-                }
-                className="px-4 py-2 border border-emerald-600 text-emerald-800 bg-white rounded-lg font-semibold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Bulk add…
-              </button>
-
-              {lastFiledPayPeriod && (
-                <span className="text-sm text-gray-600 max-w-md">
-                  <span className="text-gray-600">Last filed pay period: </span>
-                  <span className="font-medium text-gray-800">
-                    {formatDateDisplay(lastFiledPayPeriod.start + 'T12:00:00')} —{' '}
-                    {formatDateDisplay(lastFiledPayPeriod.end + 'T12:00:00')}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {syncing ? 'Syncing…' : 'Sync from device'}
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddPunch}
+                  disabled={staffWithDevice.length === 0}
+                  title={
+                    staffWithDevice.length === 0
+                      ? 'Map staff to device users on the Windows Agent tab (or edit staff profiles) first'
+                      : 'Record a missed clock-in or clock-out'
+                  }
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add punch
+                </button>
+                <button
+                  type="button"
+                  onClick={openBulkAddPunches}
+                  disabled={staffWithDevice.length === 0}
+                  title={
+                    staffWithDevice.length === 0
+                      ? 'Map staff to device users first'
+                      : 'Add several punches for one person on one day (one line per time)'
+                  }
+                  className="px-4 py-2 border border-emerald-600 text-emerald-800 bg-white rounded-lg font-semibold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Bulk add…
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {lastFiledPayPeriod && (
+                  <span className="text-sm text-gray-600">
+                    <span className="text-gray-600">Last filed pay period: </span>
+                    <span className="font-medium text-gray-800">
+                      {formatDateDisplay(lastFiledPayPeriod.start + 'T12:00:00')} —{' '}
+                      {formatDateDisplay(lastFiledPayPeriod.end + 'T12:00:00')}
+                    </span>
                   </span>
-                </span>
-              )}
+                )}
 
-              {canToggleArchivedLogs && (
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showExtractedPunches}
-                    onChange={(e) => {
-                      const v = e.target.checked
-                      void (async () => {
-                        try {
-                          const res = await fetch('/api/attendance/settings', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ showExtractedPunches: v })
-                          })
-                          if (!res.ok) throw new Error('Failed to save')
-                          setShowExtractedPunches(v)
-                          void refreshAttendanceLogs()
-                        } catch {
-                          setShowExtractedPunches(!v)
-                        }
-                      })()
-                    }}
-                    className="rounded border-gray-300"
-                  />
-                  Show extracted (filed) punches
-                </label>
-              )}
+                {canToggleArchivedLogs && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showExtractedPunches}
+                      onChange={(e) => {
+                        const v = e.target.checked
+                        void (async () => {
+                          try {
+                            const res = await fetch('/api/attendance/settings', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ showExtractedPunches: v })
+                            })
+                            if (!res.ok) throw new Error('Failed to save')
+                            setShowExtractedPunches(v)
+                            void refreshAttendanceLogs()
+                          } catch {
+                            setShowExtractedPunches(!v)
+                          }
+                        })()
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    Show extracted (filed) punches
+                  </label>
+                )}
 
-              {irregularityCount > 0 && (
-                <div className="ml-auto px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
-                  {irregularityCount} irregularit{irregularityCount === 1 ? 'y' : 'ies'} need attention
-                </div>
-              )}
+                {irregularityCount > 0 && (
+                  <div className="ml-auto px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
+                    {irregularityCount} irregularit{irregularityCount === 1 ? 'y' : 'ies'} need attention
+                  </div>
+                )}
+              </div>
             </div>
 
             {rawLogsEnvActive && !error && (
@@ -1876,8 +1883,8 @@ export default function AttendancePage() {
                     Bulk add punches
                   </h2>
                   <p className="text-sm text-gray-600 mb-4">
-                    Choose staff and the calendar day, then add punch lines with <strong>+ Add line</strong>. Times use
-                    the <strong>station time zone</strong> (same as pay-day / attendance settings), not necessarily your
+                    Choose staff, then add punch rows (each row can be a different day). Times use the{' '}
+                    <strong>station time zone</strong> (same as pay-day / attendance settings), not necessarily your
                     browser&apos;s zone.
                   </p>
                   {bulkAddError && (
@@ -1910,24 +1917,16 @@ export default function AttendancePage() {
                       </datalist>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-add-date">
-                        Date
-                      </label>
-                      <input
-                        id="bulk-add-date"
-                        type="date"
-                        value={bulkAddDate}
-                        onChange={(e) => setBulkAddDate(e.target.value)}
-                        disabled={bulkAddSaving}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <span className="text-sm font-medium text-gray-700">Punch times</span>
                         <button
                           type="button"
-                          onClick={() => setBulkAddRows((rows) => [...rows, createBulkAddRow()])}
+                          onClick={() =>
+                            setBulkAddRows((rows) => {
+                              const last = rows[rows.length - 1]
+                              return [...rows, createBulkAddRow({ date: last?.date ?? formatDate(new Date()) })]
+                            })
+                          }
                           disabled={bulkAddSaving}
                           className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
                         >
@@ -1950,6 +1949,22 @@ export default function AttendancePage() {
                               role="group"
                               aria-label={`Punch line ${idx + 1}`}
                             >
+                              <div className="min-w-[10rem]">
+                                <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-0.5">
+                                  Date
+                                </label>
+                                <input
+                                  type="date"
+                                  value={row.date}
+                                  onChange={(e) =>
+                                    setBulkAddRows((rows) =>
+                                      rows.map((r) => (r.id === row.id ? { ...r, date: e.target.value } : r))
+                                    )
+                                  }
+                                  disabled={bulkAddSaving}
+                                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm"
+                                />
+                              </div>
                               <div className="min-w-[6.5rem]">
                                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-0.5">
                                   In / out
@@ -2075,7 +2090,7 @@ export default function AttendancePage() {
                       </div>
                       <p className="mt-2 text-xs text-gray-500">
                         <strong>In (+)</strong> and <strong>Out (−)</strong> match a normal clock sequence. Use{' '}
-                        <strong>+ Add line</strong> for each extra punch on this date.
+                        <strong>+ Add line</strong> for each extra punch across one or many dates for this staff.
                       </p>
                     </div>
                   </div>
@@ -2793,6 +2808,119 @@ export default function AttendancePage() {
                   {deviceLoading ? 'Checking…' : 'Import from Device (LAN only)'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── INSTRUCTIONS TAB ── */}
+        {activeTab === 'instructions' && (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenInstructionId((prev) =>
+                    prev === 'add-fingerprint-existing-user' ? '' : 'add-fingerprint-existing-user'
+                  )
+                }
+                className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50"
+                aria-expanded={openInstructionId === 'add-fingerprint-existing-user'}
+              >
+                <span className="font-semibold text-gray-900">Add Fingerprint (Existing User Only)</span>
+                <span className="text-sm font-semibold text-gray-500">
+                  {openInstructionId === 'add-fingerprint-existing-user' ? 'Hide' : 'Open'}
+                </span>
+              </button>
+
+              {openInstructionId === 'add-fingerprint-existing-user' && (
+                <div className="border-t border-gray-200 p-5 space-y-6">
+                  <p className="text-sm text-gray-600">
+                    Use this guide for ZKTeco F22 and similar models. Screen names can vary slightly by firmware version.
+                  </p>
+
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-semibold mb-2">Important rules</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>This guide is for existing users only.</li>
+                      <li>Do not create a new user in this flow.</li>
+                      <li>Always test the finger after saving.</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Quick steps</h3>
+                    <ol className="list-decimal pl-5 text-sm text-gray-700 space-y-2">
+                      <li>Press <strong>Menu</strong> and sign in as Admin.</li>
+                      <li>Open <strong>User Mgt</strong>, then <strong>All Users</strong> or <strong>User List</strong>.</li>
+                      <li>Select the correct existing employee.</li>
+                      <li>
+                        Tap <strong>Edit</strong>, then <strong>Fingerprint</strong>, then <strong>Add FP</strong> /{' '}
+                        <strong>Enroll FP</strong>.
+                      </li>
+                      <li>Have the employee place the same finger as prompted until success shows.</li>
+                      <li>Tap <strong>OK</strong> / <strong>Save</strong>.</li>
+                      <li>Test the same finger to confirm it works.</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Visual walkthrough (placeholders)</h3>
+                    <div className="space-y-3 text-sm">
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="font-semibold text-gray-900">Screenshot 1: Menu</p>
+                        <p className="text-gray-600">Main screen with the Menu button highlighted.</p>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="font-semibold text-gray-900">Screenshot 2: User Management</p>
+                        <p className="text-gray-600">Menu screen with User Mgt circled.</p>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="font-semibold text-gray-900">Screenshot 3: Select Existing User</p>
+                        <p className="text-gray-600">User list with the correct employee row highlighted.</p>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="font-semibold text-gray-900">Screenshot 4: Fingerprint Screen</p>
+                        <p className="text-gray-600">Edit screen with Fingerprint then Add FP / Enroll FP selected.</p>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="font-semibold text-gray-900">Screenshot 5: Scan Prompt</p>
+                        <p className="text-gray-600">Place finger prompt or success confirmation screen.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Common mistakes</h3>
+                    <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+                      <li>Selecting the wrong employee.</li>
+                      <li>Creating a new user instead of editing the existing user.</li>
+                      <li>Skipping the final finger test after save.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOpenInstructionId((prev) => (prev === 'new-user-enrollment' ? '' : 'new-user-enrollment'))}
+                className="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50"
+                aria-expanded={openInstructionId === 'new-user-enrollment'}
+              >
+                <span className="font-semibold text-gray-900">New User Enrollment (Separate Guide)</span>
+                <span className="text-sm font-semibold text-gray-500">
+                  {openInstructionId === 'new-user-enrollment' ? 'Hide' : 'Open'}
+                </span>
+              </button>
+
+              {openInstructionId === 'new-user-enrollment' && (
+                <div className="border-t border-gray-200 p-5">
+                  <p className="text-sm text-gray-600">
+                    Add this guide separately. The fingerprint steps in this page are for existing users only.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

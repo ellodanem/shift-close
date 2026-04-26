@@ -77,16 +77,17 @@ function instantOnCalendarDay(dateYmd: string, hour: number, minute: number, tz:
 
 /**
  * POST /api/attendance/logs/bulk-add
- * Body: { staffId, date: 'YYYY-MM-DD', text: string } — one punch per non-empty line.
- * Each line: + or − then time, or `in`/`out` with time (see parseBulkAddLine).
+ * Preferred body: { staffId, entries: Array<{ date: 'YYYY-MM-DD', punchType: 'in'|'out', time: string }> }.
+ * Legacy body also supported: { staffId, date: 'YYYY-MM-DD', text: string }.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { staffId: rawStaffId, date: rawDate, text: rawText } = body as {
+    const { staffId: rawStaffId, date: rawDate, text: rawText, entries: rawEntries } = body as {
       staffId?: unknown
       date?: unknown
       text?: unknown
+      entries?: unknown
     }
 
     const staffId = typeof rawStaffId === 'string' ? rawStaffId.trim() : ''
@@ -94,22 +95,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'staffId is required' }, { status: 400 })
     }
 
-    const date = typeof rawDate === 'string' ? rawDate.trim() : ''
-    if (!DATE_RE.test(date)) {
-      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+    type InputLine = {
+      n: number
+      date: string
+      raw: string
+      punchType: 'in' | 'out'
+      timePart: string
     }
+    const lines: InputLine[] = []
 
-    const text = typeof rawText === 'string' ? rawText : ''
-    const rawLines = text.split(/\r?\n/)
-    const lines: { n: number; raw: string }[] = []
-    for (let i = 0; i < rawLines.length; i++) {
-      const raw = rawLines[i].trim()
-      if (!raw || raw.startsWith('#')) continue
-      lines.push({ n: i + 1, raw })
+    if (Array.isArray(rawEntries) && rawEntries.length > 0) {
+      for (let i = 0; i < rawEntries.length; i++) {
+        const n = i + 1
+        const row = rawEntries[i]
+        const rec = row && typeof row === 'object' ? (row as Record<string, unknown>) : null
+        const date = typeof rec?.date === 'string' ? rec.date.trim() : ''
+        const time = typeof rec?.time === 'string' ? rec.time.trim() : ''
+        const ptRaw = typeof rec?.punchType === 'string' ? rec.punchType.toLowerCase().trim() : ''
+        const punchType: 'in' | 'out' | null = ptRaw === 'in' || ptRaw === 'out' ? ptRaw : null
+        if (!DATE_RE.test(date)) {
+          return NextResponse.json({ error: `Line ${n}: date must be YYYY-MM-DD.` }, { status: 400 })
+        }
+        if (!time) {
+          return NextResponse.json({ error: `Line ${n}: time is required.` }, { status: 400 })
+        }
+        if (!punchType) {
+          return NextResponse.json({ error: `Line ${n}: punchType must be in or out.` }, { status: 400 })
+        }
+        lines.push({ n, date, raw: `${date} ${punchType} ${time}`, punchType, timePart: time })
+      }
+    } else {
+      const date = typeof rawDate === 'string' ? rawDate.trim() : ''
+      if (!DATE_RE.test(date)) {
+        return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+      }
+      const text = typeof rawText === 'string' ? rawText : ''
+      const rawLines = text.split(/\r?\n/)
+      for (let i = 0; i < rawLines.length; i++) {
+        const raw = rawLines[i].trim()
+        if (!raw || raw.startsWith('#')) continue
+        const dir = parseBulkAddLine(raw)
+        if (!dir) {
+          return NextResponse.json(
+            {
+              error: `Line ${i + 1}: expected + or − (in/out) with a time, e.g. "+ 09:00" or "− 17:30". Got: ${raw.slice(0, 80)}`
+            },
+            { status: 400 }
+          )
+        }
+        lines.push({ n: i + 1, date, raw, punchType: dir.punchType, timePart: dir.timePart })
+      }
     }
 
     if (lines.length === 0) {
-      return NextResponse.json({ error: 'Add at least one non-empty line (lines starting with # are ignored).' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Add at least one line (or one entries row).' },
+        { status: 400 }
+      )
     }
     if (lines.length > MAX_LINES) {
       return NextResponse.json({ error: `At most ${MAX_LINES} punch lines per request` }, { status: 400 })
@@ -135,21 +177,12 @@ export async function POST(request: NextRequest) {
     type Parsed = { lineNo: number; raw: string; punchType: 'in' | 'out'; instant: Date }
     const parsed: Parsed[] = []
 
-    for (const { n, raw } of lines) {
-      const dir = parseBulkAddLine(raw)
-      if (!dir) {
-        return NextResponse.json(
-          {
-            error: `Line ${n}: expected + or − (in/out) with a time, e.g. "+ 09:00" or "− 17:30". Got: ${raw.slice(0, 80)}`
-          },
-          { status: 400 }
-        )
-      }
-      const hm = parseTimeOnDate(dir.timePart)
+    for (const { n, date, raw, punchType, timePart } of lines) {
+      const hm = parseTimeOnDate(timePart)
       if (!hm) {
         return NextResponse.json(
           {
-            error: `Line ${n}: could not parse time "${dir.timePart}". Use 24-hour (17:30) or 12-hour with AM/PM (5:30 PM).`
+            error: `Line ${n}: could not parse time "${timePart}". Use 24-hour (17:30) or 12-hour with AM/PM (5:30 PM).`
           },
           { status: 400 }
         )
@@ -158,7 +191,7 @@ export async function POST(request: NextRequest) {
       if (isNaN(instant.getTime())) {
         return NextResponse.json({ error: `Line ${n}: invalid date/time combination` }, { status: 400 })
       }
-      parsed.push({ lineNo: n, raw, punchType: dir.punchType, instant })
+      parsed.push({ lineNo: n, raw, punchType, instant })
     }
 
     const sortedIdx = [...parsed.keys()].sort((a, b) => parsed[a].instant.getTime() - parsed[b].instant.getTime())
