@@ -203,7 +203,7 @@ export default function AppNav() {
       }))
       .filter((g) => g.items.length > 0)
 
-    if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager') {
+    if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)) {
       groups.splice(1, 0, {
         label: 'Insights',
         items: [
