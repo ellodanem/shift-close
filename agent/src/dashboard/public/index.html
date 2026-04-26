@@ -98,6 +98,7 @@
       <h2>Actions</h2>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btnTestDevice">Test Device Connection</button>
+        <button class="btn btn-outline" id="btnFindDeviceIp">Find Device IP</button>
         <button class="btn btn-amber" id="btnSyncStaff">Push Staff to Device</button>
       </div>
       <p class="punch-meta" style="margin-top:12px">Staff are synced to the device automatically on a schedule and when you use <strong>Push Staff to Device</strong>. Punches are <strong>not</strong> sent to the cloud automatically.</p>
@@ -256,6 +257,9 @@
           const errShort = String(s.lastDevicePingError).length > 80 ? String(s.lastDevicePingError).slice(0, 77) + '…' : s.lastDevicePingError
           devSub += ' — ' + errShort
         }
+        if (s.isDiscoveringDevice) {
+          devSub += ' · discovering device IP...'
+        }
         document.getElementById('statDeviceIp').textContent = devSub
         document.getElementById('statUptime').textContent = s.uptime
         document.getElementById('statAttSync').textContent = s.lastAttendanceSync ? fmtTime(s.lastAttendanceSync) : 'Never'
@@ -312,6 +316,28 @@
         ? `<div class="alert alert-success">Device connected successfully</div>`
         : `<div class="alert alert-error">${data.error}</div>`
       loadStatus()
+    })
+
+    document.getElementById('btnFindDeviceIp').addEventListener('click', async () => {
+      const btn = document.getElementById('btnFindDeviceIp')
+      btn.disabled = true; btn.textContent = 'Scanning…'
+      const el = document.getElementById('actionResult')
+      try {
+        const res = await fetch('/api/find-device', { method: 'POST' })
+        const data = await res.json()
+        if (data.ok && data.ip) {
+          el.innerHTML = `<div class="alert alert-success">Found device at ${escapeHtml(data.ip)} (${data.scanned ?? '?'} hosts scanned)</div>`
+          await loadConfig()
+        } else {
+          const reason = data.error ? escapeHtml(data.error) : `No device found (${data.scanned ?? '?'} hosts scanned)`
+          el.innerHTML = `<div class="alert alert-error">${reason}</div>`
+        }
+      } catch (err) {
+        el.innerHTML = `<div class="alert alert-error">Discovery request failed</div>`
+      } finally {
+        btn.disabled = false; btn.textContent = 'Find Device IP'
+        loadStatus()
+      }
     })
 
     let loadedPunches = []

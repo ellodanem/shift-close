@@ -10,7 +10,7 @@ const { syncStaffToDevice } = require('../staffSync')
 const { fetchPunchesFromDevice, pushPunchesToCloud } = require('../attendanceSync')
 const DeviceClient = require('../deviceClient')
 
-function createDashboardServer(config, activityLog, status) {
+function createDashboardServer(config, activityLog, status, actions = {}) {
   const app = express()
   app.use(express.json())
   app.use(express.static(path.join(__dirname, 'public')))
@@ -28,6 +28,7 @@ function createDashboardServer(config, activityLog, status) {
       deviceStatus: status.deviceStatus,
       lastDevicePingAt: status.lastDevicePingAt,
       lastDevicePingError: status.lastDevicePingError,
+      isDiscoveringDevice: status.isDiscoveringDevice === true,
       activity: activityLog.getAll().slice(0, 20),
       uptime: Math.floor(process.uptime() / 60) + ' min'
     })
@@ -72,6 +73,15 @@ function createDashboardServer(config, activityLog, status) {
     status.lastDevicePingAt = new Date().toISOString()
     status.lastDevicePingError = result.ok ? null : String(result.error || '')
     activityLog.add(result.ok ? `Device test OK (${cfg.deviceIp})` : `Device test failed: ${result.error}`)
+    res.json(result)
+  })
+
+  // POST /api/find-device — scan local subnet(s) for a reachable ZKTeco terminal
+  app.post('/api/find-device', async (req, res) => {
+    if (!actions.discoverDeviceIp) {
+      return res.json({ ok: false, error: 'Device discovery not available' })
+    }
+    const result = await actions.discoverDeviceIp()
     res.json(result)
   })
 
