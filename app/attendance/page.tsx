@@ -88,6 +88,13 @@ interface DeviceUser {
   name: string
 }
 
+interface SelectableDevicePunch {
+  key: string
+  deviceUserId: string
+  recordTime: string
+  state?: number
+}
+
 interface DeviceSettings {
   zk_device_ip: string
   zk_device_port: string
@@ -503,6 +510,14 @@ export default function AttendancePage() {
   const [bulkAddRows, setBulkAddRows] = useState<BulkAddPunchRow[]>([])
   const [bulkAddSaving, setBulkAddSaving] = useState(false)
   const [bulkAddError, setBulkAddError] = useState<string | null>(null)
+  const [showSyncPicker, setShowSyncPicker] = useState(false)
+  const [syncPickerLoading, setSyncPickerLoading] = useState(false)
+  const [syncPickerUploading, setSyncPickerUploading] = useState(false)
+  const [syncPickerError, setSyncPickerError] = useState<string | null>(null)
+  const [syncPickerResult, setSyncPickerResult] = useState<string | null>(null)
+  const [devicePunches, setDevicePunches] = useState<SelectableDevicePunch[]>([])
+  const [devicePunchesTotal, setDevicePunchesTotal] = useState<number | null>(null)
+  const [selectedDevicePunchKeys, setSelectedDevicePunchKeys] = useState<Set<string>>(() => new Set())
 
   // --- Current period pay day ---
   const [currentPeriodPayDay, setCurrentPeriodPayDay] = useState<{ date: string; notes: string | null } | null>(null)
@@ -1243,20 +1258,80 @@ export default function AttendancePage() {
     }
   }
 
-  const handleSync = async () => {
+  const loadDevicePunchSelection = useCallback(async () => {
     setSyncing(true)
-    setError(null)
+    setSyncPickerLoading(true)
+    setSyncPickerError(null)
+    setSyncPickerResult(null)
     try {
-      const res = await fetch('/api/attendance/sync', { method: 'POST' })
+      const res = await fetch('/api/attendance/sync/punches?limit=2000', { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok || data.ok === false) {
+        const parts = [data.error, data.hint].filter(Boolean)
+        throw new Error(parts.length ? parts.join('\n\n') : 'Could not load punches from device')
+      }
+      const punches = Array.isArray(data.punches) ? data.punches : []
+      setDevicePunches(punches)
+      setDevicePunchesTotal(
+        typeof data.totalOnDevice === 'number' ? data.totalOnDevice : punches.length
+      )
+      setSelectedDevicePunchKeys(new Set())
+    } catch (err) {
+      setSyncPickerError(err instanceof Error ? err.message : 'Could not load punches from device')
+      setDevicePunches([])
+      setDevicePunchesTotal(null)
+      setSelectedDevicePunchKeys(new Set())
+    } finally {
+      setSyncPickerLoading(false)
+      setSyncing(false)
+    }
+  }, [])
+
+  const openSyncPicker = useCallback(() => {
+    setShowSyncPicker(true)
+    void loadDevicePunchSelection()
+  }, [loadDevicePunchSelection])
+
+  const closeSyncPicker = useCallback(() => {
+    if (syncPickerUploading) return
+    setShowSyncPicker(false)
+    setSyncPickerError(null)
+    setSyncPickerResult(null)
+  }, [syncPickerUploading])
+
+  const handleUploadSelectedPunches = async () => {
+    const payload = devicePunches
+      .filter((p) => selectedDevicePunchKeys.has(p.key))
+      .map((p) => ({ deviceUserId: p.deviceUserId, recordTime: p.recordTime, state: p.state }))
+    if (payload.length === 0) {
+      setSyncPickerError('Select at least one punch.')
+      return
+    }
+
+    setSyncing(true)
+    setSyncPickerUploading(true)
+    setSyncPickerError(null)
+    setSyncPickerResult(null)
+    try {
+      const res = await fetch('/api/attendance/sync/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logs: payload })
+      })
       const data = await res.json()
       if (!res.ok) {
         const parts = [data.error, data.hint].filter(Boolean)
-        throw new Error(parts.length ? parts.join('\n\n') : 'Sync failed')
+        throw new Error(parts.length ? parts.join('\n\n') : 'Upload failed')
       }
+      const total = typeof data.total === 'number' ? data.total : payload.length
+      const synced = typeof data.synced === 'number' ? data.synced : 0
+      setSyncPickerResult(`Accepted ${total} punch${total === 1 ? '' : 'es'}; ${synced} new row${synced === 1 ? '' : 's'} saved.`)
       await refreshAttendanceLogs()
+      setSelectedDevicePunchKeys(new Set())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sync failed')
+      setSyncPickerError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
+      setSyncPickerUploading(false)
       setSyncing(false)
     }
   }
@@ -1407,11 +1482,11 @@ export default function AttendancePage() {
             <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3">
               <div className="flex flex-wrap items-center gap-4">
                 <button
-                  onClick={handleSync}
+                  onClick={openSyncPicker}
                   disabled={syncing}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {syncing ? 'Syncing…' : 'Sync from device'}
+                  {syncing ? 'Working…' : 'Sync from device'}
                 </button>
                 <button
                   type="button"
@@ -1870,6 +1945,136 @@ export default function AttendancePage() {
                 </div>
               </aside>
             </div>
+
+            {showSyncPicker && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="sync-picker-title"
+              >
+                <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-3xl w-full p-5 max-h-[90vh] overflow-y-auto">
+                  <h2 id="sync-picker-title" className="text-lg font-semibold text-gray-900 mb-1">
+                    Sync from device (select punches)
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Load punches from the terminal, choose rows, then upload only the selected punches.
+                  </p>
+                  {syncPickerError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 whitespace-pre-line">
+                      {syncPickerError}
+                    </div>
+                  )}
+                  {syncPickerResult && (
+                    <div className="mb-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 whitespace-pre-line">
+                      {syncPickerResult}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => void loadDevicePunchSelection()}
+                      disabled={syncPickerLoading || syncPickerUploading}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {syncPickerLoading ? 'Loading…' : 'Reload from device'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedDevicePunchKeys(new Set(devicePunches.map((p) => p.key)))
+                      }
+                      disabled={syncPickerLoading || syncPickerUploading || devicePunches.length === 0}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDevicePunchKeys(new Set())}
+                      disabled={syncPickerUploading || selectedDevicePunchKeys.size === 0}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Clear
+                    </button>
+                    <span className="ml-auto text-xs text-gray-500">
+                      {devicePunches.length === 0
+                        ? 'No punches loaded.'
+                        : `Showing ${devicePunches.length} of ${devicePunchesTotal ?? devicePunches.length} punch(es)`}
+                    </span>
+                  </div>
+                  <div className="max-h-[48vh] overflow-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr className="text-left text-gray-700">
+                          <th className="px-3 py-2 font-semibold w-12">Pick</th>
+                          <th className="px-3 py-2 font-semibold">Device user</th>
+                          <th className="px-3 py-2 font-semibold">Punch time</th>
+                          <th className="px-3 py-2 font-semibold">State</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {devicePunches.length === 0 ? (
+                          <tr>
+                            <td className="px-3 py-6 text-center text-gray-500" colSpan={4}>
+                              {syncPickerLoading ? 'Loading punches…' : 'No punches found.'}
+                            </td>
+                          </tr>
+                        ) : (
+                          devicePunches.map((p) => {
+                            const checked = selectedDevicePunchKeys.has(p.key)
+                            return (
+                              <tr key={p.key} className="border-t border-gray-100">
+                                <td className="px-3 py-2 align-top">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) =>
+                                      setSelectedDevicePunchKeys((prev) => {
+                                        const next = new Set(prev)
+                                        if (e.target.checked) next.add(p.key)
+                                        else next.delete(p.key)
+                                        return next
+                                      })
+                                    }
+                                    disabled={syncPickerUploading}
+                                  />
+                                </td>
+                                <td className="px-3 py-2 font-mono text-gray-800">{p.deviceUserId}</td>
+                                <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                                  {new Date(p.recordTime).toLocaleString()}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {typeof p.state === 'number' ? p.state : '—'}
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={closeSyncPicker}
+                      disabled={syncPickerUploading}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleUploadSelectedPunches()}
+                      disabled={syncPickerUploading || syncPickerLoading || selectedDevicePunchKeys.size === 0}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {syncPickerUploading ? 'Uploading…' : `Upload selected (${selectedDevicePunchKeys.size})`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {showBulkAdd && (
               <div
