@@ -1,12 +1,28 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 
 interface ScanRow {
   date: string
   depositScanUrls: string[]
   debitScanUrls: string[]
+  securityScanUrls: string[]
+}
+
+type ScanKind = 'deposit' | 'debit' | 'security'
+
+interface SelectableScan {
+  id: string
+  date: string
+  kind: ScanKind
+  url: string
+  label: string
+}
+
+function buildScanId(date: string, kind: ScanKind, url: string): string {
+  return `${encodeURIComponent(date)}|${kind}|${encodeURIComponent(url)}`
 }
 
 function scanLabelFromUrl(url: string): string {
@@ -58,38 +74,68 @@ function PdfIcon({ className }: { className?: string }) {
   )
 }
 
-function ScanLinkList({ urls, accentClass, label }: { urls: string[]; accentClass: string; label: string }) {
+function ScanLinkList({
+  scans,
+  accentClass,
+  label,
+  allSelected,
+  onToggleAll,
+  selectedIds,
+  onToggleOne,
+  onPreview
+}: {
+  scans: SelectableScan[]
+  accentClass: string
+  label: string
+  allSelected: boolean
+  onToggleAll: () => void
+  selectedIds: Set<string>
+  onToggleOne: (scan: SelectableScan) => void
+  onPreview: (scan: SelectableScan) => void
+}) {
   return (
     <div className={`rounded-lg border border-gray-100 bg-gray-50/80 pl-3 pr-2 py-3 ${accentClass}`}>
-      <div className="mb-2 flex items-center gap-2 pl-0.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">{label}</span>
-        <span className="text-[10px] text-gray-400">({urls.length})</span>
+      <div className="mb-2 flex items-center justify-between gap-2 pl-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">{label}</span>
+          <span className="text-[10px] text-gray-400">({scans.length})</span>
+        </div>
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+        >
+          {allSelected ? 'Clear section' : 'Select section'}
+        </button>
       </div>
       <ul className="space-y-2">
-        {urls.map((url, i) => {
+        {scans.map((scan, i) => {
           const n = i + 1
-          const fileLabel = scanLabelFromUrl(url)
-          const display =
-            fileLabel.length > 56 ? `${fileLabel.slice(0, 53)}…` : fileLabel
+          const display = scan.label.length > 56 ? `${scan.label.slice(0, 53)}…` : scan.label
           return (
-            <li key={`${url}-${i}`}>
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={url}
-                className="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm transition hover:border-gray-300 hover:bg-gray-50 hover:shadow"
-              >
+            <li key={scan.id}>
+              <div className="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm transition hover:border-gray-300 hover:bg-gray-50 hover:shadow">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(scan.id)}
+                  onChange={() => onToggleOne(scan)}
+                  aria-label={`Select ${scan.label}`}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
                 <PdfIcon className="shrink-0 text-red-500 opacity-90" />
                 <span className="min-w-0 flex-1">
                   <span className="font-medium text-gray-900 group-hover:text-blue-700">{display}</span>
                   <span className="mt-0.5 block text-xs text-gray-500">PDF · #{n}</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-blue-600 group-hover:text-blue-700">
-                  Open
-                  <ExternalIcon className="text-blue-500" />
-                </span>
-              </a>
+                <button
+                  type="button"
+                  onClick={() => onPreview(scan)}
+                  title={scan.url}
+                  className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  View
+                </button>
+              </div>
             </li>
           )
         })}
@@ -135,10 +181,19 @@ export default function DepositDebitScansPage() {
   const [rows, setRows] = useState<ScanRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedById, setSelectedById] = useState<Record<string, SelectableScan>>({})
+  const [emailTo, setEmailTo] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [shareMessage, setShareMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [previewScan, setPreviewScan] = useState<SelectableScan | null>(null)
+
+  const selectedIds = useMemo(() => new Set(Object.keys(selectedById)), [selectedById])
+  const selectedScans = useMemo(() => Object.values(selectedById), [selectedById])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setShareMessage(null)
     let startDate: string
     let endDate: string
     if (searchMode === 'single') {
@@ -160,9 +215,11 @@ export default function DepositDebitScansPage() {
       if (!res.ok) throw new Error('Failed to load scans')
       const data = await res.json()
       setRows(Array.isArray(data.rows) ? data.rows : [])
+      setSelectedById({})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
       setRows([])
+      setSelectedById({})
     } finally {
       setLoading(false)
     }
@@ -172,9 +229,84 @@ export default function DepositDebitScansPage() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!previewScan) return
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewScan(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = original
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [previewScan])
+
   const hasAny = rows.some(
-    (r) => (r.depositScanUrls?.length ?? 0) > 0 || (r.debitScanUrls?.length ?? 0) > 0
+    (r) =>
+      (r.depositScanUrls?.length ?? 0) > 0 ||
+      (r.debitScanUrls?.length ?? 0) > 0 ||
+      (r.securityScanUrls?.length ?? 0) > 0
   )
+
+  const upsertSelection = useCallback((scan: SelectableScan) => {
+    setSelectedById((prev) => {
+      if (prev[scan.id]) {
+        const next = { ...prev }
+        delete next[scan.id]
+        return next
+      }
+      return { ...prev, [scan.id]: scan }
+    })
+  }, [])
+
+  const toggleSection = useCallback((scans: SelectableScan[]) => {
+    setSelectedById((prev) => {
+      const allSelected = scans.every((scan) => !!prev[scan.id])
+      const next = { ...prev }
+      if (allSelected) {
+        for (const scan of scans) delete next[scan.id]
+      } else {
+        for (const scan of scans) next[scan.id] = scan
+      }
+      return next
+    })
+  }, [])
+
+  const handleEmailShare = useCallback(async () => {
+    const to = emailTo.trim()
+    if (!to) {
+      setShareMessage({ type: 'error', text: 'Enter one or more email addresses first.' })
+      return
+    }
+    if (selectedScans.length === 0) {
+      setShareMessage({ type: 'error', text: 'Select at least one scan to email.' })
+      return
+    }
+
+    setSendingEmail(true)
+    setShareMessage(null)
+    try {
+      const res = await fetch('/api/insights/scans/share/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, scans: selectedScans })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to send email')
+      }
+      setShareMessage({
+        type: 'ok',
+        text: `Sent ${selectedScans.length} scan${selectedScans.length === 1 ? '' : 's'} to ${to}.`
+      })
+    } catch (e) {
+      setShareMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to send email' })
+    } finally {
+      setSendingEmail(false)
+    }
+  }, [emailTo, selectedScans])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100/80 to-gray-50 p-4 sm:p-6">
@@ -290,6 +422,59 @@ export default function DepositDebitScansPage() {
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
         )}
 
+        <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Email to</label>
+              <input
+                type="text"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="ops@example.com, owner@example.com"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleEmailShare()}
+              disabled={selectedScans.length === 0 || sendingEmail}
+              className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              {sendingEmail ? 'Sending…' : `Email selected (${selectedScans.length})`}
+            </button>
+            <button
+              type="button"
+              disabled
+              title="WhatsApp sharing coming soon"
+              className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-500 cursor-not-allowed"
+            >
+              WhatsApp selected ({selectedScans.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedById({})}
+              disabled={selectedScans.length === 0}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear selection
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Select individual scans below, then send links by email. WhatsApp is shown as a placeholder for now.
+          </p>
+          {shareMessage && (
+            <div
+              className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+                shareMessage.type === 'ok'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border border-red-200 bg-red-50 text-red-800'
+              }`}
+            >
+              {shareMessage.text}
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="mt-8">
             <p className="mb-4 text-sm text-gray-500">Loading scans…</p>
@@ -309,9 +494,28 @@ export default function DepositDebitScansPage() {
         ) : (
           <div className="mt-8 space-y-8">
             {rows.map((row) => {
-              const dep = row.depositScanUrls?.length ? row.depositScanUrls : []
-              const deb = row.debitScanUrls?.length ? row.debitScanUrls : []
-              if (dep.length === 0 && deb.length === 0) return null
+              const dep = (row.depositScanUrls?.length ? row.depositScanUrls : []).map((url) => ({
+                id: buildScanId(row.date, 'deposit', url),
+                date: row.date,
+                kind: 'deposit' as const,
+                url,
+                label: scanLabelFromUrl(url)
+              }))
+              const deb = (row.debitScanUrls?.length ? row.debitScanUrls : []).map((url) => ({
+                id: buildScanId(row.date, 'debit', url),
+                date: row.date,
+                kind: 'debit' as const,
+                url,
+                label: scanLabelFromUrl(url)
+              }))
+              const sec = (row.securityScanUrls?.length ? row.securityScanUrls : []).map((url) => ({
+                id: buildScanId(row.date, 'security', url),
+                date: row.date,
+                kind: 'security' as const,
+                url,
+                label: scanLabelFromUrl(url)
+              }))
+              if (dep.length === 0 && deb.length === 0 && sec.length === 0) return null
               return (
                 <article
                   key={row.date}
@@ -323,10 +527,40 @@ export default function DepositDebitScansPage() {
                   </div>
                   <div className="space-y-4 p-5">
                     {dep.length > 0 && (
-                      <ScanLinkList urls={dep} label="Deposits" accentClass="border-l-4 border-l-emerald-500" />
+                      <ScanLinkList
+                        scans={dep}
+                        label="Deposits"
+                        accentClass="border-l-4 border-l-emerald-500"
+                        allSelected={dep.every((scan) => selectedIds.has(scan.id))}
+                        onToggleAll={() => toggleSection(dep)}
+                        selectedIds={selectedIds}
+                        onToggleOne={upsertSelection}
+                        onPreview={setPreviewScan}
+                      />
                     )}
                     {deb.length > 0 && (
-                      <ScanLinkList urls={deb} label="Debits" accentClass="border-l-4 border-l-amber-500" />
+                      <ScanLinkList
+                        scans={deb}
+                        label="Debits"
+                        accentClass="border-l-4 border-l-amber-500"
+                        allSelected={deb.every((scan) => selectedIds.has(scan.id))}
+                        onToggleAll={() => toggleSection(deb)}
+                        selectedIds={selectedIds}
+                        onToggleOne={upsertSelection}
+                        onPreview={setPreviewScan}
+                      />
+                    )}
+                    {sec.length > 0 && (
+                      <ScanLinkList
+                        scans={sec}
+                        label="Security"
+                        accentClass="border-l-4 border-l-sky-500"
+                        allSelected={sec.every((scan) => selectedIds.has(scan.id))}
+                        onToggleAll={() => toggleSection(sec)}
+                        selectedIds={selectedIds}
+                        onToggleOne={upsertSelection}
+                        onPreview={setPreviewScan}
+                      />
                     )}
                   </div>
                 </article>
@@ -335,6 +569,53 @@ export default function DepositDebitScansPage() {
           </div>
         )}
       </div>
+      {previewScan && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-2 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewScan(null)}
+        >
+          <div
+            className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold text-gray-900">{previewScan.label}</h3>
+                <p className="text-xs text-gray-500">
+                  {previewScan.date} · {previewScan.kind === 'deposit' ? 'Deposit' : previewScan.kind === 'debit' ? 'Debit' : 'Security'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewScan.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Open in new tab
+                  <ExternalIcon className="h-4 w-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewScan(null)}
+                  className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100 p-2 sm:p-3">
+              <iframe
+                src={pdfIframeSrc(previewScan.url)}
+                title={previewScan.label}
+                className="h-full w-full rounded-lg border border-gray-200 bg-white"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

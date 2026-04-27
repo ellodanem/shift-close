@@ -5,7 +5,7 @@ import { canAccessInsightsPages } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
-/** GET ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD — deposit + debit scan URLs grouped by calendar day */
+/** GET ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD — deposit + debit + security scan URLs grouped by calendar day */
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request)
   if (!session) {
@@ -30,15 +30,17 @@ export async function GET(request: NextRequest) {
     select: {
       date: true,
       depositScanUrls: true,
-      debitScanUrls: true
+      debitScanUrls: true,
+      securityScanUrls: true
     }
   })
 
-  const byDay = new Map<string, { deposits: Set<string>; debits: Set<string> }>()
+  const byDay = new Map<string, { deposits: Set<string>; debits: Set<string>; security: Set<string> }>()
 
   for (const s of shifts) {
     let depositUrls: string[] = []
     let debitUrls: string[] = []
+    let securityUrls: string[] = []
     try {
       depositUrls = JSON.parse(s.depositScanUrls || '[]')
       if (!Array.isArray(depositUrls)) depositUrls = []
@@ -51,9 +53,15 @@ export async function GET(request: NextRequest) {
     } catch {
       debitUrls = []
     }
+    try {
+      securityUrls = JSON.parse(s.securityScanUrls || '[]')
+      if (!Array.isArray(securityUrls)) securityUrls = []
+    } catch {
+      securityUrls = []
+    }
 
     if (!byDay.has(s.date)) {
-      byDay.set(s.date, { deposits: new Set(), debits: new Set() })
+      byDay.set(s.date, { deposits: new Set(), debits: new Set(), security: new Set() })
     }
     const bucket = byDay.get(s.date)!
     for (const u of depositUrls) {
@@ -62,15 +70,19 @@ export async function GET(request: NextRequest) {
     for (const u of debitUrls) {
       if (typeof u === 'string' && u.trim()) bucket.debits.add(u.trim())
     }
+    for (const u of securityUrls) {
+      if (typeof u === 'string' && u.trim()) bucket.security.add(u.trim())
+    }
   }
 
   const rows = [...byDay.entries()]
-    .map(([date, { deposits, debits }]) => ({
+    .map(([date, { deposits, debits, security }]) => ({
       date,
       depositScanUrls: [...deposits].sort(),
-      debitScanUrls: [...debits].sort()
+      debitScanUrls: [...debits].sort(),
+      securityScanUrls: [...security].sort()
     }))
-    .filter((r) => r.depositScanUrls.length > 0 || r.debitScanUrls.length > 0)
+    .filter((r) => r.depositScanUrls.length > 0 || r.debitScanUrls.length > 0 || r.securityScanUrls.length > 0)
     .sort((a, b) => b.date.localeCompare(a.date))
 
   return NextResponse.json({ rows })
