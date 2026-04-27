@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { aggregateRangeRevenue } from '@/lib/insights-revenue'
+import { canAccessInsightsPages } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
-
-function canAccessInsights(role: string): boolean {
-  const r = role?.toLowerCase() ?? ''
-  return r === 'stakeholder' || r === 'admin' || r === 'manager'
-}
 
 /** GET ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD — expected revenue from shift closes (same formula as dashboard grand total). */
 export async function GET(request: NextRequest) {
@@ -16,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (!canAccessInsights(session.role)) {
+  if (!canAccessInsightsPages(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

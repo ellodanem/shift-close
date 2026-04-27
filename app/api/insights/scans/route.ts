@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
+import { canAccessInsightsPages } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (session.role !== 'stakeholder' && session.role !== 'admin' && session.role !== 'manager') {
+  if (!canAccessInsightsPages(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
