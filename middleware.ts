@@ -10,6 +10,11 @@ import { verifySessionToken, SESSION_COOKIE } from '@/lib/session'
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
 
+  // Allow static assets in /public (e.g. logos, images, fonts).
+  if (/\.[^/]+$/.test(pathname)) {
+    return NextResponse.next()
+  }
+
   if (pathname.startsWith('/iclock') || pathname.startsWith('/api/attendance/adms')) {
     console.log(`[ADMS] edge ${request.method} ${pathname}${search}`)
   }

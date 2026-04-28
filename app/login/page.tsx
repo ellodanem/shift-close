@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { PasswordField } from '@/app/components/PasswordField'
 import { useAuth } from '@/app/components/AuthContext'
 
@@ -48,7 +49,16 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Shift Close</h1>
+        <Image
+          src="/shift-close-logo.png"
+          alt="Shift Close logo"
+          width={260}
+          height={145}
+          priority
+          unoptimized
+          className="mb-3 h-auto w-64 max-w-full"
+        />
+        <h1 className="sr-only">Shift Close</h1>
         <p className="text-sm text-gray-600 mb-6">Sign in to continue</p>
         {timedOut && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
