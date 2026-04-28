@@ -39,6 +39,11 @@ interface StaffDocument {
   uploadedAt: string
 }
 
+interface PreviewDocument {
+  fileName: string
+  fileUrl: string
+}
+
 interface StaffDayOff {
   id: string
   date: string
@@ -105,6 +110,7 @@ export default function EditStaffPage() {
   const [vacationStart, setVacationStart] = useState('')
   const [vacationEnd, setVacationEnd] = useState('')
   const [savingVacation, setSavingVacation] = useState(false)
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
 
   useEffect(() => {
     // Fetch available roles first
@@ -380,6 +386,9 @@ export default function EditStaffPage() {
       setSavingVacation(false)
     }
   }
+
+  const isPdfFile = (url: string, fileName: string) =>
+    url.toLowerCase().includes('.pdf') || fileName.toLowerCase().endsWith('.pdf')
 
   if (loading) {
     return (
@@ -831,8 +840,10 @@ export default function EditStaffPage() {
                             <div key={doc.id} className="inline-flex items-center gap-1">
                               <a
                                 href={doc.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  setPreviewDocument({ fileName: doc.fileName, fileUrl: doc.fileUrl })
+                                }}
                                 className="text-sm text-rose-700 hover:text-rose-900 underline"
                               >
                                 📄 {doc.fileName}
@@ -1093,6 +1104,57 @@ export default function EditStaffPage() {
                 className="px-4 py-2 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700 disabled:opacity-60"
               >
                 {savingVacation ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sick Leave Document Preview Modal */}
+      {previewDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col shadow-xl">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-base font-semibold text-gray-900 truncate">{previewDocument.fileName}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewDocument(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close preview"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="border border-gray-200 rounded bg-gray-50 flex-1 min-h-[60vh] overflow-hidden">
+              {isPdfFile(previewDocument.fileUrl, previewDocument.fileName) ? (
+                <iframe
+                  src={previewDocument.fileUrl}
+                  title={previewDocument.fileName}
+                  className="w-full h-full min-h-[60vh]"
+                />
+              ) : (
+                <img
+                  src={previewDocument.fileUrl}
+                  alt={previewDocument.fileName}
+                  className="w-full h-full object-contain min-h-[60vh]"
+                />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-3">
+              <a
+                href={previewDocument.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              >
+                Open in new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setPreviewDocument(null)}
+                className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
+              >
+                Close
               </button>
             </div>
           </div>
