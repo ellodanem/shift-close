@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
 import AttendanceSettingsContent from './components/AttendanceSettingsContent'
 import { normalizePublicAppUrl } from '@/lib/public-url'
@@ -438,16 +437,16 @@ function LocalDateTimePicker({
 }
 
 export default function AttendancePage() {
-  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>('logs')
   const [openInstructionId, setOpenInstructionId] = useState<string>('')
 
   useEffect(() => {
-    const tab = searchParams.get('tab')
+    if (typeof window === 'undefined') return
+    const tab = new URLSearchParams(window.location.search).get('tab')
     if (tab === 'settings') {
       setActiveTab('settings')
     }
-  }, [searchParams])
+  }, [])
 
   // --- Logs tab state ---
   const [logs, setLogs] = useState<AttendanceLog[]>([])
