@@ -7,11 +7,12 @@ import { existsSync } from 'fs'
 // GET - List all documents for a staff member
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const documents = await prisma.staffDocument.findMany({
-      where: { staffId: params.id },
+      where: { staffId: id, type: { not: 'sick-leave' } },
       orderBy: { uploadedAt: 'desc' }
     })
     return NextResponse.json(documents)
@@ -24,14 +25,13 @@ export async function GET(
 // POST - Upload a document for a staff member
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const type = formData.get('type') as string // 'sick-leave', 'contract', 'id', 'other'
-    const sickLeaveId = (formData.get('sickLeaveId') as string)?.trim() || null
+    const type = formData.get('type') as string // 'contract', 'id', 'other'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -41,8 +41,11 @@ export async function POST(
       return NextResponse.json({ error: 'Document type is required' }, { status: 400 })
     }
 
-    if (sickLeaveId && type !== 'sick-leave') {
-      return NextResponse.json({ error: 'sickLeaveId is only valid for sick-leave documents' }, { status: 400 })
+    if (type === 'sick-leave') {
+      return NextResponse.json(
+        { error: 'Sick leave documents must be uploaded from the Sick Leave section' },
+        { status: 400 }
+      )
     }
     
     // Verify staff exists
@@ -85,21 +88,10 @@ export async function POST(
     // Generate URL path
     const url = `/uploads/staff/${id}/${filename}`
     
-    // Verify sickLeaveId belongs to this staff if provided
-    if (sickLeaveId) {
-      const sickLeave = await prisma.staffSickLeave.findFirst({
-        where: { id: sickLeaveId, staffId: id }
-      })
-      if (!sickLeave) {
-        return NextResponse.json({ error: 'Sick leave record not found or does not belong to this staff' }, { status: 400 })
-      }
-    }
-
     // Create document record
     const document = await prisma.staffDocument.create({
       data: {
         staffId: id,
-        sickLeaveId: sickLeaveId || undefined,
         type,
         fileName: file.name,
         fileUrl: url
@@ -116,9 +108,10 @@ export async function POST(
 // DELETE - Delete a document
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get('documentId')
     
@@ -137,7 +130,7 @@ export async function DELETE(
     }
     
     // Verify it belongs to this staff member
-    if (document.staffId !== params.id) {
+    if (document.staffId !== id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
     

@@ -5,7 +5,6 @@ import { useState, useRef } from 'react'
 interface StaffDocumentUploadProps {
   staffId: string
   onUploadComplete: () => void
-  sickLeaves?: { id: string; startDate: string; endDate: string }[]
 }
 
 interface FilePreview {
@@ -18,13 +17,12 @@ interface UploadErrorResponse {
   error?: string
 }
 
-export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLeaves = [] }: StaffDocumentUploadProps) {
+export default function StaffDocumentUpload({ staffId, onUploadComplete }: StaffDocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filePreviews, setFilePreviews] = useState<FilePreview[]>([])
   const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [documentType, setDocumentType] = useState<string>('sick-leave')
-  const [sickLeaveId, setSickLeaveId] = useState<string>('')
+  const [documentType, setDocumentType] = useState<string>('contract')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleClick = () => {
@@ -115,9 +113,6 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLea
         const formData = new FormData()
         formData.append('file', filePreview.file)
         formData.append('type', documentType)
-        if (documentType === 'sick-leave' && sickLeaveId) {
-          formData.append('sickLeaveId', sickLeaveId)
-        }
 
         const res = await fetch(`/api/staff/${staffId}/documents`, {
           method: 'POST',
@@ -184,34 +179,14 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLea
           </label>
           <select
             value={documentType}
-            onChange={(e) => { setDocumentType(e.target.value); setSickLeaveId('') }}
+            onChange={(e) => setDocumentType(e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="sick-leave">Sick Leave (doctor&apos;s note)</option>
             <option value="contract">Contract</option>
             <option value="id">ID/Passport</option>
             <option value="other">Other</option>
           </select>
         </div>
-        {documentType === 'sick-leave' && sickLeaves.length > 0 && (
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Link to sick leave
-            </label>
-            <select
-              value={sickLeaveId}
-              onChange={(e) => setSickLeaveId(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— None —</option>
-              {sickLeaves.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.startDate === s.endDate ? s.startDate : `${s.startDate} – ${s.endDate}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
         <button
           type="button"
           onClick={handleClick}

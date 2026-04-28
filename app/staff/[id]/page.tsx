@@ -96,6 +96,7 @@ export default function EditStaffPage() {
   const [sickLeaveDocFile, setSickLeaveDocFile] = useState<File | null>(null)
   const sickLeaveDocInputRef = useRef<HTMLInputElement>(null)
   const [savingSickLeave, setSavingSickLeave] = useState(false)
+  const [uploadingSickLeaveDocId, setUploadingSickLeaveDocId] = useState<string | null>(null)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [showTemplateSelection, setShowTemplateSelection] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<string>('')
@@ -168,6 +169,33 @@ export default function EditStaffPage() {
       }
     } catch (error) {
       console.error('Error fetching sick leave records:', error)
+    }
+  }
+
+  const uploadSickLeaveDocument = async (sickLeaveId: string, file: File) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+    if (!validTypes.includes(file.type)) {
+      throw new Error('Invalid file type. Must be JPEG, PNG, or PDF')
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size must be less than 10MB')
+    }
+
+    const docForm = new FormData()
+    docForm.append('file', file)
+    const res = await fetch(`/api/staff/${id}/sick-leave/${sickLeaveId}/documents`, {
+      method: 'POST',
+      body: docForm
+    })
+    if (!res.ok) {
+      let message = 'Failed to upload sick leave document'
+      try {
+        const data = await res.json()
+        if (data?.error) message = data.error
+      } catch {
+        // Keep fallback message
+      }
+      throw new Error(message)
     }
   }
 
@@ -758,15 +786,8 @@ export default function EditStaffPage() {
                     return
                   }
                   const created = await res.json()
-                  if (sickLeaveDocFile && sickLeaveDocFile.size > 0 && sickLeaveDocFile.size < 10 * 1024 * 1024) {
-                    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
-                    if (validTypes.includes(sickLeaveDocFile.type)) {
-                      const docForm = new FormData()
-                      docForm.append('file', sickLeaveDocFile)
-                      docForm.append('type', 'sick-leave')
-                      docForm.append('sickLeaveId', created.id)
-                      await fetch(`/api/staff/${id}/documents`, { method: 'POST', body: docForm })
-                    }
+                  if (sickLeaveDocFile) {
+                    await uploadSickLeaveDocument(created.id, sickLeaveDocFile)
                   }
                   setSickLeaveStartDate('')
                   setSickLeaveEndDate('')
@@ -805,17 +826,67 @@ export default function EditStaffPage() {
                       <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{rangeLabel}</span>
                       {s.reason && <span className="text-sm text-gray-500 truncate">{s.reason}</span>}
                       {s.documents && s.documents.length > 0 && (
-                        <a
-                          href={s.documents[0].fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-rose-700 hover:text-rose-900 underline"
-                        >
-                          📄 {s.documents[0].fileName}
-                        </a>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {s.documents.map((doc) => (
+                            <div key={doc.id} className="inline-flex items-center gap-1">
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-rose-700 hover:text-rose-900 underline"
+                              >
+                                📄 {doc.fileName}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm('Delete this sick leave document?')) return
+                                  try {
+                                    const res = await fetch(
+                                      `/api/staff/${id}/sick-leave/${s.id}/documents?documentId=${doc.id}`,
+                                      { method: 'DELETE' }
+                                    )
+                                    if (!res.ok) throw new Error('Delete failed')
+                                    fetchSickLeaves()
+                                  } catch {
+                                    alert('Failed to delete sick leave document')
+                                  }
+                                }}
+                                className="text-xs text-red-600 hover:text-red-800"
+                                title="Delete document"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <label className="text-xs text-rose-700 hover:text-rose-900 underline cursor-pointer">
+                        {uploadingSickLeaveDocId === s.id ? 'Uploading…' : 'Add doc'}
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          disabled={uploadingSickLeaveDocId === s.id}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            e.currentTarget.value = ''
+                            if (!file) return
+                            setUploadingSickLeaveDocId(s.id)
+                            try {
+                              await uploadSickLeaveDocument(s.id, file)
+                              fetchSickLeaves()
+                              fetchDocuments()
+                            } catch (err) {
+                              alert(err instanceof Error ? err.message : 'Failed to upload sick leave document')
+                            } finally {
+                              setUploadingSickLeaveDocId(null)
+                            }
+                          }}
+                        />
+                      </label>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[s.status] ?? 'bg-gray-100 text-gray-700'}`}>
                         {s.status}
                       </span>
@@ -860,7 +931,6 @@ export default function EditStaffPage() {
           <StaffDocumentUpload
               staffId={id}
               onUploadComplete={() => { fetchDocuments(); fetchSickLeaves() }}
-              sickLeaves={sickLeaves.map((s) => ({ id: s.id, startDate: s.startDate, endDate: s.endDate }))}
             />
 
           {documents.length > 0 && (
