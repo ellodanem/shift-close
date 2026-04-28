@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
+import AttendanceSettingsContent from './components/AttendanceSettingsContent'
 import { normalizePublicAppUrl } from '@/lib/public-url'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import {
@@ -102,7 +104,7 @@ interface DeviceSettings {
   public_app_url: string
 }
 
-type Tab = 'logs' | 'device' | 'agent' | 'instructions'
+type Tab = 'logs' | 'device' | 'agent' | 'instructions' | 'settings'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
 const ATTENDANCE_LOGS_POLL_MS = 45_000
@@ -436,8 +438,16 @@ function LocalDateTimePicker({
 }
 
 export default function AttendancePage() {
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>('logs')
   const [openInstructionId, setOpenInstructionId] = useState<string>('')
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'settings') {
+      setActiveTab('settings')
+    }
+  }, [searchParams])
 
   // --- Logs tab state ---
   const [logs, setLogs] = useState<AttendanceLog[]>([])
@@ -1436,12 +1446,13 @@ export default function AttendancePage() {
                 <span className="text-amber-900">{formatDateDisplay(currentPeriodPayDay.date + 'T12:00:00')}</span>
               </div>
             )}
-            <Link
-              href="/attendance/settings"
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
               className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded font-semibold hover:bg-gray-50 inline-block text-sm"
             >
               Settings
-            </Link>
+            </button>
             <a
               href="/attendance/pay-period"
               className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
@@ -1458,7 +1469,8 @@ export default function AttendancePage() {
               { id: 'logs' as const, label: 'Attendance Logs' },
               { id: 'device' as const, label: 'Device Management' },
               { id: 'agent' as const, label: 'Windows Agent' },
-              { id: 'instructions' as const, label: 'Instructions' }
+              { id: 'instructions' as const, label: 'Instructions' },
+              { id: 'settings' as const, label: 'Settings' }
             ] as const
           ).map(({ id, label }) => (
             <button
@@ -1576,18 +1588,26 @@ export default function AttendancePage() {
                 <span className="font-medium text-gray-800">not yet extracted</span> (not included in a saved Pay Period Report).
                 Saving a report marks matching punches as extracted; they stay in the database but are hidden here unless you
                 turn on <strong>Show extracted (filed) punches</strong> (admin/manager/operations manager) or enable them under{' '}
-                <Link href="/attendance/settings" className="font-medium text-blue-600 hover:text-blue-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  className="font-medium text-blue-600 hover:text-blue-800"
+                >
                   Attendance settings
-                </Link>
+                </button>
                 . Extracted rows are view-only.
               </p>
             )}
 
             <p className="text-xs text-gray-500 mb-2">
               Expected punches per day (see{' '}
-              <Link href="/attendance/settings" className="font-medium text-blue-600 hover:text-blue-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab('settings')}
+                className="font-medium text-blue-600 hover:text-blue-800"
+              >
                 Attendance settings
-              </Link>
+              </button>
               ) drives &quot;full day&quot; vs &quot;Possible missed&quot;.
             </p>
             <p className="text-xs text-gray-600 mb-4 flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -3134,6 +3154,9 @@ export default function AttendancePage() {
             </div>
           </div>
         )}
+
+        {/* ── SETTINGS TAB ── */}
+        {activeTab === 'settings' && <AttendanceSettingsContent />}
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
@@ -53,10 +54,9 @@ const navConfig = [
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
-      { label: 'Applications', href: '/applications', permission: 'people.applications' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
-      { label: 'Attendance settings', href: '/attendance/settings', permission: 'people.attendance' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
+      { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
   },
   {
@@ -79,12 +79,18 @@ function NavLink({
   return (
     <Link
       href={href}
-      className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+      className={`group relative block rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all ${
         isActive
-          ? 'bg-gray-700 text-white'
-          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+          ? 'bg-slate-700/90 text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]'
+          : 'text-slate-200 hover:bg-slate-700/60 hover:text-white'
       }`}
     >
+      <span
+        aria-hidden
+        className={`absolute left-1.5 top-1/2 h-4 -translate-y-1/2 rounded-full transition-all ${
+          isActive ? 'w-1 bg-cyan-300' : 'w-0.5 bg-slate-500 group-hover:bg-slate-300'
+        }`}
+      />
       {label}
     </Link>
   )
@@ -230,19 +236,27 @@ export default function AppNav() {
   }, [role, canManageUsers])
 
   const sidebar = (
-    <nav className={`flex flex-col h-full min-h-0 bg-gray-800 text-white shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
-      <div className={`border-b border-gray-700 min-h-[57px] flex-shrink-0 flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 py-3 px-2' : 'flex-row justify-between px-4 py-4 gap-2'}`}>
+    <nav className={`flex h-full min-h-0 flex-col bg-slate-900 text-white shadow-lg shadow-slate-950/30 shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-[85vw] max-w-72 lg:w-64'}`}>
+      <div className={`border-b border-slate-700/80 min-h-[64px] flex-shrink-0 flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 py-3 px-2' : 'flex-row justify-between px-4 py-3.5 gap-2'}`}>
         <Link href="/dashboard" className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
           {sidebarCollapsed ? (
             <span className="text-lg font-bold">SC</span>
           ) : (
-            <span className="text-xl font-bold">Shift Close</span>
+            <Image
+              src="/shift-close-logo.png"
+              alt="Shift Close"
+              width={180}
+              height={100}
+              priority
+              unoptimized
+              className="h-auto w-32 max-w-full"
+            />
           )}
         </Link>
         <button
           type="button"
           onClick={toggleSidebar}
-          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors flex-shrink-0"
+          className="flex-shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -258,18 +272,18 @@ export default function AppNav() {
         </button>
       </div>
       {!sidebarCollapsed && todayPayDays.length > 0 && (
-        <div className="flex-shrink-0 px-3 py-2 bg-amber-600/90 text-white text-sm font-medium border-b border-amber-500/50">
+        <div className="flex-shrink-0 border-b border-amber-300/20 bg-amber-500/80 px-3 py-2 text-sm font-semibold text-white">
           <span className="inline-block mr-1">💰</span>
           Today is Pay Day — Accounting will process payments
         </div>
       )}
-      <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 scrollbar-subtle ${sidebarCollapsed ? 'hidden' : ''}`}>
+      <div className={`scrollbar-subtle flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-5 ${sidebarCollapsed ? 'hidden' : ''}`}>
         {filteredNav.map((group) => (
-          <div key={group.label} className="mb-4">
-            <div className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <div key={group.label} className="mb-5">
+            <div className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400/90">
               {group.label}
             </div>
-            <div className="space-y-0.5 px-3">
+            <div className="space-y-1 px-3">
               {group.items.map((item) => (
                 <NavLink
                   key={item.href}
@@ -283,16 +297,16 @@ export default function AppNav() {
         ))}
       </div>
       {!sidebarCollapsed && user && (
-        <div className="flex-shrink-0 border-t border-gray-700 px-3 py-2 text-xs text-gray-400 truncate" title={user.email}>
+        <div className="flex-shrink-0 border-t border-slate-700/80 px-3 py-3 text-xs text-slate-300 truncate" title={user.email}>
           {formatAppUserDisplayName(user)}
-          <span className="block text-[10px] text-gray-500 capitalize">{user.role.replace(/_/g, ' ')}</span>
+          <span className="block text-[10px] text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</span>
         </div>
       )}
-      <div className={`flex-shrink-0 border-t border-gray-700 p-2 flex gap-1 ${sidebarCollapsed ? 'flex-col items-center' : 'justify-between items-center'}`}>
+      <div className={`flex-shrink-0 border-t border-slate-700/80 p-2.5 flex gap-2 ${sidebarCollapsed ? 'flex-col items-center' : 'justify-between items-center'}`}>
         <button
           type="button"
           onClick={() => setShowFeaturesModal(true)}
-          className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          className="rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
           title="View planned features"
           aria-label="View planned features"
         >
@@ -302,8 +316,8 @@ export default function AppNav() {
           <button
             type="button"
             onClick={() => void logout()}
-            className={`rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors ${
-              sidebarCollapsed ? 'p-2' : 'text-xs px-2 py-1'
+            className={`rounded-md text-slate-300 transition-colors hover:bg-slate-700 hover:text-white ${
+              sidebarCollapsed ? 'p-2' : 'text-xs px-2.5 py-1.5'
             }`}
             title="Log out"
             aria-label="Log out"
@@ -332,7 +346,7 @@ export default function AppNav() {
       <button
         type="button"
         onClick={() => setMobileOpen(!mobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-md bg-gray-800 text-white shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 rounded-md bg-slate-900/95 p-2 text-white shadow-lg"
         aria-label="Toggle menu"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -347,7 +361,7 @@ export default function AppNav() {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50"
+          className="lg:hidden fixed inset-0 z-40 bg-black/60"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
