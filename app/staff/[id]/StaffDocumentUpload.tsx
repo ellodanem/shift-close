@@ -14,6 +14,10 @@ interface FilePreview {
   type: 'image' | 'pdf'
 }
 
+interface UploadErrorResponse {
+  error?: string
+}
+
 export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLeaves = [] }: StaffDocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +77,7 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLea
       }
 
       if (isImage) {
+        newPreviews.push(preview)
         imagesToLoad++
         const reader = new FileReader()
         reader.onload = (e) => {
@@ -91,8 +96,6 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLea
           setShowPreviewModal(true)
         }
       }
-
-      newPreviews.push(preview)
     })
 
     if (imagesToLoad === 0) {
@@ -122,7 +125,16 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete, sickLea
         })
 
         if (!res.ok) {
-          throw new Error(`Failed to upload ${filePreview.file.name}`)
+          let message = `Failed to upload ${filePreview.file.name}`
+          try {
+            const data = (await res.json()) as UploadErrorResponse
+            if (data?.error) {
+              message = `${filePreview.file.name}: ${data.error}`
+            }
+          } catch {
+            // Fall back to generic message if response body is not JSON
+          }
+          throw new Error(message)
         }
       }
 
