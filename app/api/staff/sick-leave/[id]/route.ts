@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { unlink } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { deleteStaffDocumentFile } from '@/lib/staff-document-storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,10 +17,7 @@ export async function DELETE(
 
     for (const document of documents) {
       try {
-        const filepath = join(process.cwd(), 'public', document.fileUrl)
-        if (existsSync(filepath)) {
-          await unlink(filepath)
-        }
+        await deleteStaffDocumentFile(document.fileUrl)
       } catch (fileError) {
         console.error('Error deleting sick leave file:', fileError)
       }

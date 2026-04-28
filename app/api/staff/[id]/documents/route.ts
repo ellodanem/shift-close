@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir, unlink } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { deleteStaffDocumentFile, saveStaffDocumentFile } from '@/lib/staff-document-storage'
 
 // GET - List all documents for a staff member
 export async function GET(
@@ -68,25 +66,11 @@ export async function POST(
       return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 })
     }
     
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'staff', id)
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true })
-    }
-    
-    // Generate unique filename
-    const timestamp = Date.now()
-    const extension = file.name.split('.').pop()
-    const filename = `${type}-${timestamp}.${extension}`
-    const filepath = join(uploadsDir, filename)
-    
-    // Save file
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filepath, buffer)
-    
-    // Generate URL path
-    const url = `/uploads/staff/${id}/${filename}`
+    const url = await saveStaffDocumentFile({
+      staffId: id,
+      file,
+      type
+    })
     
     // Create document record
     const document = await prisma.staffDocument.create({
@@ -136,10 +120,7 @@ export async function DELETE(
     
     // Delete physical file
     try {
-      const filepath = join(process.cwd(), 'public', document.fileUrl)
-      if (existsSync(filepath)) {
-        await unlink(filepath)
-      }
+      await deleteStaffDocumentFile(document.fileUrl)
     } catch (fileError) {
       console.error('Error deleting file:', fileError)
       // Continue with DB deletion even if file deletion fails
