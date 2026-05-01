@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ingestAttendanceBatch, type IngestLogLine } from '@/lib/attendance-ingest-shared'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -16,12 +17,7 @@ function isPrivateLanIp(ip: string): boolean {
   return false
 }
 
-/** POST /api/attendance/sync
- * Connects to ZKTeco device, pulls attendance logs, stores in DB.
- * Requires ZK_DEVICE_IP (and optionally ZK_DEVICE_PORT) in env.
- */
 async function getDeviceConfig(): Promise<{ ip: string; port: number }> {
-  // DB settings take priority over environment variables
   const rows = await prisma.appSettings.findMany({
     where: { key: { in: ['zk_device_ip', 'zk_device_port'] } }
   })
@@ -33,6 +29,9 @@ async function getDeviceConfig(): Promise<{ ip: string; port: number }> {
   return { ip, port }
 }
 
+/** POST /api/attendance/sync
+ * Connects to ZKTeco device, pulls attendance logs, stores in DB.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { ip, port } = await getDeviceConfig()
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Vercel cannot reach private LAN IPs — avoid opaque timeout errors
     if (process.env.VERCEL && isPrivateLanIp(ip)) {
       return NextResponse.json(
         {
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const ZKAttendanceClient = require('zk-attendance-sdk')
     const client = new ZKAttendanceClient(ip, port, 5000, 5200)
 
@@ -72,77 +70,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No attendance data from device', synced: 0 }, { status: 500 })
     }
 
-    // Build staff lookup: deviceUserId -> Staff
-    const staff = await prisma.staff.findMany({
-      where: { status: 'active' },
-      select: { id: true, name: true, deviceUserId: true }
-    })
-    const staffByDeviceId = new Map<string | null, { id: string; name: string }>()
-    for (const s of staff) {
-      if (s.deviceUserId) staffByDeviceId.set(s.deviceUserId.trim(), { id: s.id, name: s.name })
-    }
-
-    // Parse and infer in/out: for each user per day, sort by time; odd index = in, even = out
-    const byUserDay = new Map<string, Array<{ deviceUserId: string; recordTime: Date }>>()
-    for (const r of rawLogs) {
-      const deviceUserId = String(r.deviceUserId || r.userId || '').trim()
-      if (!deviceUserId) continue
-      const recordTime = typeof r.recordTime === 'string' ? new Date(r.recordTime) : new Date(r.recordTime)
-      const key = `${deviceUserId}|${recordTime.toISOString().slice(0, 10)}`
-      if (!byUserDay.has(key)) byUserDay.set(key, [])
-      byUserDay.get(key)!.push({ deviceUserId, recordTime })
-    }
-
-    for (const arr of byUserDay.values()) {
-      arr.sort((a, b) => a.recordTime.getTime() - b.recordTime.getTime())
-    }
-
-    let created = 0
+    const receivedAt = new Date()
     const seen = new Set<string>()
+    const logs: IngestLogLine[] = []
 
     for (const r of rawLogs) {
       const deviceUserId = String(r.deviceUserId || r.userId || '').trim()
       if (!deviceUserId) continue
-      const recordTime = typeof r.recordTime === 'string' ? new Date(r.recordTime) : new Date(r.recordTime)
-      const dateKey = recordTime.toISOString().slice(0, 10)
-      const key = `${deviceUserId}|${dateKey}`
-      const dayPunches = byUserDay.get(key) || []
-      const idx = dayPunches.findIndex((p) => Math.abs(p.recordTime.getTime() - recordTime.getTime()) < 1000)
-      const punchType = idx % 2 === 0 ? 'in' : 'out'
-
-      const dedupeKey = `${deviceUserId}|${recordTime.getTime()}`
+      const recordTimeRaw = r.recordTime
+      const recordTime =
+        typeof recordTimeRaw === 'string' ? recordTimeRaw : new Date(recordTimeRaw as Date)
+      const probe =
+        typeof recordTimeRaw === 'string' ? new Date(recordTimeRaw) : new Date(recordTimeRaw as Date)
+      if (Number.isNaN(probe.getTime())) continue
+      const dedupeKey = `${deviceUserId}|${probe.getTime()}`
       if (seen.has(dedupeKey)) continue
       seen.add(dedupeKey)
-
-      // Skip if we already have this punch (avoid duplicates on re-sync)
-      const existing = await prisma.attendanceLog.findFirst({
-        where: {
-          deviceUserId,
-          punchTime: {
-            gte: new Date(recordTime.getTime() - 1000),
-            lte: new Date(recordTime.getTime() + 1000)
-          }
-        }
-      })
-      if (existing) continue
-
-      const staffMatch = staffByDeviceId.get(deviceUserId)
-      const deviceUserName = null // SDK doesn't return name in log; could fetch from getUsers if needed
-
-      await prisma.attendanceLog.create({
-        data: {
-          staffId: staffMatch?.id ?? null,
-          deviceUserId,
-          deviceUserName: staffMatch?.name ?? deviceUserName,
-          punchTime: recordTime,
-          punchType,
-          source: 'zkteco'
-        }
-      })
-      created++
+      logs.push({ deviceUserId, recordTime })
     }
 
-    return NextResponse.json({ synced: created, totalFromDevice: rawLogs.length })
+    const { synced, total, bulk } = await ingestAttendanceBatch({
+      logs,
+      receivedAt,
+      deviceSerial: null,
+      source: 'zkteco',
+      allowLearn: false
+    })
+
+    return NextResponse.json({ synced, totalFromDevice: rawLogs.length, processed: total, bulk })
   } catch (error) {
     console.error('Attendance sync error:', error)
     const msg = error instanceof Error ? error.message : 'Failed to sync from device'

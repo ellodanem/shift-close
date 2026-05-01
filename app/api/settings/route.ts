@@ -10,7 +10,17 @@ const ALLOWED_KEYS = [
   'zk_device_port',
   'agent_secret',
   'zk_adms_enabled',
-  'public_app_url'
+  'public_app_url',
+  'attendance_clock_normalize_apply',
+  'attendance_clock_normalize_learn',
+  'attendance_clock_min_samples',
+  'attendance_clock_delta_spread_max_minutes',
+  'attendance_clock_bulk_line_threshold',
+  'attendance_clock_bulk_time_span_minutes',
+  'attendance_clock_allowed_serials',
+  'attendance_clock_device_serial_for_agent',
+  'attendance_clock_pending_max',
+  'attendance_clock_max_sample_delta_abs_minutes'
 ]
 
 /**

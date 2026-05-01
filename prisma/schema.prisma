@@ -593,6 +593,16 @@ model AttendanceLog {
   /// Set when this row was included in a saved Pay Period Report (“extracted” / filed).
   extractedAt DateTime? @map("extracted_at")
   extractedPayPeriodId String? @map("extracted_pay_period_id")
+  /// Raw device timestamp string from ATTLOG (before normalization), when available.
+  deviceRawTimestamp   String?   @map("device_raw_timestamp")
+  /// ZKTeco serial from ADMS (e.g. source adms:SRN…); optional for LAN/agent paths.
+  deviceSerial           String?   @map("device_serial")
+  /// Server time when the ingest request was accepted (for learning / audit).
+  ingestReceivedAt       DateTime? @map("ingest_received_at")
+  /// Milliseconds added to naive device parse to form punchTime (median drift correction).
+  clockOffsetMsApplied   Int?      @map("clock_offset_ms_applied")
+  /// warmup | learned_offset | apply_disabled | no_serial | parse_fallback
+  clockNormalizeReason   String?   @map("clock_normalize_reason")
 
   staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   extractedPayPeriod PayPeriod? @relation(fields: [extractedPayPeriodId], references: [id], onDelete: Restrict)
@@ -602,7 +612,24 @@ model AttendanceLog {
   @@index([deviceUserId])
   @@index([extractedAt])
   @@index([extractedPayPeriodId])
+  @@index([deviceSerial])
   @@map("attendance_logs")
+}
+
+/// Learned clock drift per ZKTeco serial (ADMS SN). Conservative ADMS-only learning.
+model AttendanceDeviceClock {
+  deviceSerial       String   @id @map("device_serial")
+  /// Add to naive device instant (station-TZ parsed UTC) to get normalized punch instant.
+  offsetMs           Int      @default(0) @map("offset_ms")
+  /// True once minSamples with agreeing spread have committed at least once.
+  isCalibrated       Boolean  @default(false) @map("is_calibrated")
+  /// Rolling delta samples in minutes: (ingestReceivedAt - deviceParsedUtc) / 60000
+  pendingDeltasJson  String   @default("[]") @map("pending_deltas_json")
+  /// Number of samples that produced the current offset (informational).
+  calibrationSamples Int      @default(0) @map("calibration_samples")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("attendance_device_clocks")
 }
 
 /// Manual present / late reason for present–absence tracking (station calendar day)

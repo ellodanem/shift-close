@@ -3,6 +3,15 @@ import {
   deviceUserIdForGrouping,
   deviceUserIdLookupKeys
 } from '@/lib/device-user-id'
+import {
+  detectBulkUpload,
+  getAttendanceClockGlobalSettings,
+  loadStationTz,
+  maybeLearnDeviceClock,
+  normalizePunchUtcForDevice,
+  parseDeviceNaiveTimestampToUtc,
+  serialAllowed
+} from '@/lib/attendance-device-clock'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -41,7 +50,6 @@ function resolveTableParam(request: NextRequest, bodyText: string): string {
     }
   }
 
-  // Some firmware omits table= but sends raw ATTLOG lines: PIN \t YYYY-MM-DD HH:MM:SS \t ...
   const first = bodyText.trim().split(/\r?\n/).find((l) => l.trim()) || ''
   if (lineLooksLikeAttLog(first)) {
     return 'ATTLOG'
@@ -75,6 +83,14 @@ function lookupStaff(staffMap: Map<string, StaffMatch>, rawFromLine: string): St
   return undefined
 }
 
+type ParsedRow = {
+  deviceUserId: string
+  timestampStr: string
+  state: number
+  parsedUtc: Date
+  parseFallback: boolean
+}
+
 export async function zkPushGET(request: NextRequest) {
   const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
   const path = request.nextUrl.pathname
@@ -85,14 +101,14 @@ export async function zkPushGET(request: NextRequest) {
 export async function zkPushPOST(request: NextRequest) {
   const url = request.nextUrl
   const path = url.pathname
-  const sn = url.searchParams.get('SN') || 'unknown'
+  const snRaw = url.searchParams.get('SN') || 'unknown'
+  const sn = snRaw.trim()
 
   try {
     const body = await request.text()
     let table = resolveTableParam(request, body)
     const declaredTable = table
 
-    // Many terminals send table=OPERLOG while the body still contains ATTLOG punch lines.
     if (table !== 'ATTLOG' && bodyHasAttLogLines(body)) {
       console.log(
         `[ADMS] body contains ATTLOG-shaped lines; processing as ATTLOG (declared table=${declaredTable || 'empty'}) SN=${sn}`
@@ -117,6 +133,9 @@ export async function zkPushPOST(request: NextRequest) {
       return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
 
+    const receivedAt = new Date()
+    const [stationTz, clockSettings] = await Promise.all([loadStationTz(), getAttendanceClockGlobalSettings()])
+
     const allStaff = await prisma.staff.findMany({
       where: { status: 'active' },
       select: { id: true, name: true, deviceUserId: true }
@@ -124,11 +143,7 @@ export async function zkPushPOST(request: NextRequest) {
     const staffMap = buildStaffMap(allStaff)
 
     const lines = body.trim().split(/\r?\n/)
-    let created = 0
-
-    const byUserDay = new Map<string, Array<{ deviceUserId: string; punchTime: Date; state: number }>>()
-
-    const parsed: Array<{ deviceUserId: string; punchTime: Date; state: number }> = []
+    const rawParsed: ParsedRow[] = []
 
     for (const line of lines) {
       if (!line.trim()) continue
@@ -139,32 +154,92 @@ export async function zkPushPOST(request: NextRequest) {
 
       if (!deviceUserId || !timestampStr) continue
 
-      const punchTime = new Date(timestampStr)
-      if (isNaN(punchTime.getTime())) continue
+      let parsedUtc = parseDeviceNaiveTimestampToUtc(timestampStr, stationTz)
+      let parseFallback = false
+      if (!parsedUtc) {
+        const d = new Date(timestampStr)
+        if (isNaN(d.getTime())) continue
+        parsedUtc = d
+        parseFallback = true
+      }
 
-      parsed.push({ deviceUserId, punchTime, state })
+      rawParsed.push({ deviceUserId, timestampStr, state, parsedUtc, parseFallback })
+    }
 
-      const dayKey = `${deviceUserIdForGrouping(deviceUserId)}|${punchTime.toISOString().slice(0, 10)}`
+    if (rawParsed.length === 0) {
+      return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+    }
+
+    const bulk = detectBulkUpload(
+      rawParsed.map((r) => r.parsedUtc),
+      clockSettings
+    )
+
+    const eligibleSingleLineLive =
+      rawParsed.length === 1 &&
+      !bulk &&
+      sn !== 'unknown' &&
+      serialAllowed(sn, clockSettings) &&
+      clockSettings.learn
+
+    if (eligibleSingleLineLive) {
+      await maybeLearnDeviceClock({
+        deviceSerial: sn,
+        receivedAt,
+        deviceParsedUtc: rawParsed[0]!.parsedUtc,
+        bulk: false,
+        settings: clockSettings,
+        eligibleSingleLineLive: true
+      })
+    }
+
+    const normalized = await Promise.all(
+      rawParsed.map(async (r) => {
+        const norm = await normalizePunchUtcForDevice({
+          deviceSerial: sn,
+          deviceParsedUtc: r.parsedUtc,
+          settings: clockSettings
+        })
+        let reason = norm.reason
+        if (r.parseFallback) reason = `${reason}_parse_fallback`
+        return {
+          deviceUserId: r.deviceUserId,
+          timestampStr: r.timestampStr,
+          state: r.state,
+          parsedUtc: r.parsedUtc,
+          punchUtc: norm.punchUtc,
+          offsetMs: norm.offsetMsApplied,
+          reason
+        }
+      })
+    )
+
+    const byUserDay = new Map<string, Array<{ deviceUserId: string; punchTime: Date; state: number }>>()
+
+    for (const row of normalized) {
+      const punchTime = row.punchUtc
+      const dayKey = `${deviceUserIdForGrouping(row.deviceUserId)}|${punchTime.toISOString().slice(0, 10)}`
       if (!byUserDay.has(dayKey)) byUserDay.set(dayKey, [])
-      byUserDay.get(dayKey)!.push({ deviceUserId, punchTime, state })
+      byUserDay.get(dayKey)!.push({ deviceUserId: row.deviceUserId, punchTime, state: row.state })
     }
 
     for (const arr of byUserDay.values()) {
       arr.sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
     }
 
-    for (const { deviceUserId, punchTime, state } of parsed) {
+    let created = 0
+    for (const row of normalized) {
+      const { deviceUserId, punchUtc, state, timestampStr, offsetMs, reason } = row
+
       let punchType: string
       if (state === 0 || state === 4) {
         punchType = 'in'
       } else if (state === 1 || state === 5) {
         punchType = 'out'
       } else {
-        const dayKey = `${deviceUserIdForGrouping(deviceUserId)}|${punchTime.toISOString().slice(0, 10)}`
+        const dayKey = `${deviceUserIdForGrouping(deviceUserId)}|${punchUtc.toISOString().slice(0, 10)}`
         const dayPunches = byUserDay.get(dayKey) || []
-        const idx = dayPunches.findIndex(
-          (p) => Math.abs(p.punchTime.getTime() - punchTime.getTime()) < 1000
-        )
+        const idx = dayPunches.findIndex((p) => Math.abs(p.punchTime.getTime() - punchUtc.getTime()) < 1000)
         punchType = idx % 2 === 0 ? 'in' : 'out'
       }
 
@@ -177,8 +252,8 @@ export async function zkPushPOST(request: NextRequest) {
         where: {
           deviceUserId: { in: [...keysForDup] },
           punchTime: {
-            gte: new Date(punchTime.getTime() - 1000),
-            lte: new Date(punchTime.getTime() + 1000)
+            gte: new Date(punchUtc.getTime() - 1000),
+            lte: new Date(punchUtc.getTime() + 1000)
           }
         }
       })
@@ -196,15 +271,22 @@ export async function zkPushPOST(request: NextRequest) {
           staffId: staffMatch?.id ?? null,
           deviceUserId: logDeviceUserId,
           deviceUserName: staffMatch?.name ?? null,
-          punchTime,
+          punchTime: punchUtc,
           punchType,
-          source: `adms:${sn}`
+          source: `adms:${sn}`,
+          deviceRawTimestamp: timestampStr,
+          deviceSerial: sn !== 'unknown' ? sn : null,
+          ingestReceivedAt: receivedAt,
+          clockOffsetMsApplied: offsetMs,
+          clockNormalizeReason: reason
         }
       })
       created++
     }
 
-    console.log(`[ADMS] SN=${sn} processed ${parsed.length} records, created ${created} new`)
+    console.log(
+      `[ADMS] SN=${sn} processed ${normalized.length} records, created ${created} new, bulk=${bulk ? '1' : '0'}`
+    )
     return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
   } catch (error) {
     console.error('[ADMS] Error:', error)

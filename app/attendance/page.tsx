@@ -101,6 +101,16 @@ interface DeviceSettings {
   zk_device_port: string
   /** Canonical HTTPS base URL for ADMS (no trailing slash). Empty = use current browser origin. */
   public_app_url: string
+  attendance_clock_normalize_apply: boolean
+  attendance_clock_normalize_learn: boolean
+  attendance_clock_min_samples: string
+  attendance_clock_delta_spread_max_minutes: string
+  attendance_clock_bulk_line_threshold: string
+  attendance_clock_bulk_time_span_minutes: string
+  attendance_clock_allowed_serials: string
+  attendance_clock_device_serial_for_agent: string
+  attendance_clock_pending_max: string
+  attendance_clock_max_sample_delta_abs_minutes: string
 }
 
 type Tab = 'logs' | 'device' | 'agent' | 'instructions' | 'settings'
@@ -134,6 +144,12 @@ function formatDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function parseSettingBool(v: unknown, fallback: boolean): boolean {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'string') return v === 'true' || v === '1'
+  return fallback
 }
 
 function formatTime(iso: string): string {
@@ -562,7 +578,17 @@ export default function AttendancePage() {
   const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>({
     zk_device_ip: '',
     zk_device_port: '4370',
-    public_app_url: ''
+    public_app_url: '',
+    attendance_clock_normalize_apply: true,
+    attendance_clock_normalize_learn: true,
+    attendance_clock_min_samples: '5',
+    attendance_clock_delta_spread_max_minutes: '20',
+    attendance_clock_bulk_line_threshold: '8',
+    attendance_clock_bulk_time_span_minutes: '120',
+    attendance_clock_allowed_serials: '',
+    attendance_clock_device_serial_for_agent: '',
+    attendance_clock_pending_max: '12',
+    attendance_clock_max_sample_delta_abs_minutes: '1080'
   })
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
@@ -859,13 +885,33 @@ export default function AttendancePage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const res = await fetch('/api/settings?keys=zk_device_ip,zk_device_port,public_app_url')
+        const res = await fetch(
+          '/api/settings?keys=zk_device_ip,zk_device_port,public_app_url,attendance_clock_normalize_apply,attendance_clock_normalize_learn,attendance_clock_min_samples,attendance_clock_delta_spread_max_minutes,attendance_clock_bulk_line_threshold,attendance_clock_bulk_time_span_minutes,attendance_clock_allowed_serials,attendance_clock_device_serial_for_agent,attendance_clock_pending_max,attendance_clock_max_sample_delta_abs_minutes'
+        )
         if (res.ok) {
           const data = await res.json()
           setDeviceSettings({
             zk_device_ip: data.zk_device_ip || '',
             zk_device_port: data.zk_device_port || '4370',
-            public_app_url: data.public_app_url ? normalizePublicAppUrl(data.public_app_url) : ''
+            public_app_url: data.public_app_url ? normalizePublicAppUrl(data.public_app_url) : '',
+            attendance_clock_normalize_apply: parseSettingBool(data.attendance_clock_normalize_apply, true),
+            attendance_clock_normalize_learn: parseSettingBool(data.attendance_clock_normalize_learn, true),
+            attendance_clock_min_samples: String(data.attendance_clock_min_samples || '5'),
+            attendance_clock_delta_spread_max_minutes: String(
+              data.attendance_clock_delta_spread_max_minutes || '20'
+            ),
+            attendance_clock_bulk_line_threshold: String(data.attendance_clock_bulk_line_threshold || '8'),
+            attendance_clock_bulk_time_span_minutes: String(
+              data.attendance_clock_bulk_time_span_minutes || '120'
+            ),
+            attendance_clock_allowed_serials: String(data.attendance_clock_allowed_serials || ''),
+            attendance_clock_device_serial_for_agent: String(
+              data.attendance_clock_device_serial_for_agent || ''
+            ),
+            attendance_clock_pending_max: String(data.attendance_clock_pending_max || '12'),
+            attendance_clock_max_sample_delta_abs_minutes: String(
+              data.attendance_clock_max_sample_delta_abs_minutes || '1080'
+            )
           })
         }
       } catch {}
@@ -2758,6 +2804,155 @@ export default function AttendancePage() {
                 <p className="text-xs text-gray-500 mt-1">
                   Set this to your production hostname after renaming the Vercel project (no hyphens if the keypad cannot type them). Leave blank to use whatever URL you opened in the browser.
                 </p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900">Device clock (ADMS)</h3>
+                <p className="text-xs text-gray-600">
+                  Punches are parsed in the <strong>station time zone</strong> (same as pay-day / EOD email settings). The app learns median drift from{' '}
+                  <strong>single-line, live ADMS</strong> uploads only, then applies that offset per device serial — including after outages (batched lines use the last known offset, not upload time).
+                </p>
+                <label className="flex items-center gap-2 text-sm text-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={deviceSettings.attendance_clock_normalize_apply}
+                    onChange={(e) =>
+                      setDeviceSettings((s) => ({ ...s, attendance_clock_normalize_apply: e.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Apply learned clock offset to stored punch times
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={deviceSettings.attendance_clock_normalize_learn}
+                    onChange={(e) =>
+                      setDeviceSettings((s) => ({ ...s, attendance_clock_normalize_learn: e.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Learn offset from ADMS (single punch per request, not bulk replay)
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Min samples to calibrate</label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={30}
+                      value={deviceSettings.attendance_clock_min_samples}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({ ...s, attendance_clock_min_samples: e.target.value }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Max spread (minutes)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={180}
+                      value={deviceSettings.attendance_clock_delta_spread_max_minutes}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({
+                          ...s,
+                          attendance_clock_delta_spread_max_minutes: e.target.value
+                        }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">Pending deltas must agree within this window.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Bulk line threshold</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={deviceSettings.attendance_clock_bulk_line_threshold}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({ ...s, attendance_clock_bulk_line_threshold: e.target.value }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">At or above this count, do not learn (apply offset only).</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Bulk time span (minutes)</label>
+                    <input
+                      type="number"
+                      min={5}
+                      value={deviceSettings.attendance_clock_bulk_time_span_minutes}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({
+                          ...s,
+                          attendance_clock_bulk_time_span_minutes: e.target.value
+                        }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Pending buffer size</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={50}
+                      value={deviceSettings.attendance_clock_pending_max}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({ ...s, attendance_clock_pending_max: e.target.value }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Ignore sample if |Δ| &gt; (minutes)</label>
+                    <input
+                      type="number"
+                      min={30}
+                      value={deviceSettings.attendance_clock_max_sample_delta_abs_minutes}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({
+                          ...s,
+                          attendance_clock_max_sample_delta_abs_minutes: e.target.value
+                        }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Allowed device serials (optional, comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. SRN5244700175 — empty = all serials"
+                      value={deviceSettings.attendance_clock_allowed_serials}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({ ...s, attendance_clock_allowed_serials: e.target.value }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Device serial for LAN sync / agent (optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Same as ADMS SN — ties LAN uploads to the learned baseline"
+                      value={deviceSettings.attendance_clock_device_serial_for_agent}
+                      onChange={(e) =>
+                        setDeviceSettings((s) => ({
+                          ...s,
+                          attendance_clock_device_serial_for_agent: e.target.value
+                        }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-3 mt-4">
                 <button
