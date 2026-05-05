@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface Vendor {
   id: string
@@ -22,11 +24,23 @@ interface VendorInvoice {
 
 function formatDate(d: string | null) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+  return formatInvoiceDate(d)
+}
+
+function buildAutoTransferDescription(
+  paymentMethod: 'eft' | 'check',
+  invoices: VendorInvoice[],
+  selectedInvoiceIds: Set<string>
+) {
+  if (paymentMethod !== 'eft' || selectedInvoiceIds.size === 0) return ''
+
+  const selectedInvoiceNumbers = invoices
+    .filter((inv) => selectedInvoiceIds.has(inv.id))
+    .map((inv) => inv.invoiceNumber)
+    .filter(Boolean)
+
+  if (selectedInvoiceNumbers.length === 0) return ''
+  return `Total Auto ${selectedInvoiceNumbers.join(' ')}`
 }
 
 export function VendorMakePaymentModal({
@@ -62,7 +76,7 @@ export function VendorMakePaymentModal({
 
   useEffect(() => {
     if (!open) return
-    setPaymentDate(new Date().toISOString().split('T')[0])
+    setPaymentDate(businessTodayYmd())
     setPaymentMethod('eft')
     setBankRef('')
     setTransferDescription('')
@@ -146,6 +160,13 @@ export function VendorMakePaymentModal({
         : null
     void fetchInvoices(selectedVendorId, seed)
   }, [open, selectedVendorId, initialVendorId, initialSelectedCsv])
+
+  useEffect(() => {
+    if (!open) return
+    setTransferDescription(
+      buildAutoTransferDescription(paymentMethod, invoices, selectedInvoiceIds)
+    )
+  }, [open, paymentMethod, invoices, selectedInvoiceIds])
 
   const handleToggleInvoice = (invoiceId: string) => {
     const newSelected = new Set(selectedInvoiceIds)
