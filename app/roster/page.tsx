@@ -1406,7 +1406,7 @@ export default function RosterPage() {
               No staff found. Add staff first, then build the roster.
             </div>
           ) : (
-            <div className="overflow-x-auto overflow-y-visible pb-2 sm:pb-3 rounded-b-lg">
+            <div className="overflow-x-auto overflow-y-visible pb-6 sm:pb-8 rounded-b-lg">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className={weekBannerStyle.bg}>
                   <tr>
