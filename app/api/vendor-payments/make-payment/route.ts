@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+
+function vendorInvoiceTotal(amount: number, vat: number | null) {
+  return roundMoney(amount + (vat ?? 0))
+}
 
 // POST create vendor payment batch (EFT or check)
 export async function POST(request: NextRequest) {
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid paymentDate format (YYYY-MM-DD)' }, { status: 400 })
     }
     const [, year, month, day] = match
-    const paymentDateObj = new Date(Number(year), Number(month) - 1, Number(day))
+    const paymentDateObj = ymdToUtcNoonDate(paymentDate)
 
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } })
     if (!vendor) {
@@ -69,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const totalAmount = roundMoney(
-      invoices.reduce((sum, inv) => sum + roundMoney(inv.amount), 0)
+      invoices.reduce((sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat), 0)
     )
 
     const existingBalance = await prisma.balance.findUnique({
@@ -125,7 +130,7 @@ export async function POST(request: NextRequest) {
           vendorInvoiceId: inv.id,
           batchId: batch.id,
           invoiceNumber: inv.invoiceNumber,
-          amount: roundMoney(inv.amount),
+          amount: vendorInvoiceTotal(inv.amount, inv.vat),
           invoiceDate: inv.invoiceDate,
           vat: inv.vat ?? 0
         }

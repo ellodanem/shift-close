@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { formatAmount } from '@/lib/fuelPayments'
 
 interface VendorInvoice {
   id: string
@@ -95,6 +96,10 @@ export default function EditVendorInvoicePage() {
     }
   }
 
+  const amountNum = Number(formData.amount) || 0
+  const vatNum = Number(formData.vat) || 0
+  const totalPayable = amountNum + vatNum
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -183,6 +188,10 @@ export default function EditVendorInvoicePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+            </div>
+            <div className="text-sm text-gray-600">
+              Total payable (Amount + VAT):{' '}
+              <span className="font-semibold text-gray-900">{formatAmount(totalPayable)}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -30,6 +30,10 @@ function todayYmd() {
   return new Date().toISOString().split('T')[0]
 }
 
+function invoiceTotal(inv: VendorInvoice) {
+  return inv.amount + (inv.vat ?? 0)
+}
+
 function buildAutoTransferDescription(
   paymentMethod: 'eft' | 'check',
   invoices: VendorInvoice[],
@@ -241,7 +245,7 @@ export function VendorMakePaymentModal({
 
   const selectedTotal = invoices
     .filter((inv) => selectedInvoiceIds.has(inv.id))
-    .reduce((sum, inv) => sum + inv.amount, 0)
+    .reduce((sum, inv) => sum + invoiceTotal(inv), 0)
 
   if (!open) return null
 
@@ -455,7 +459,7 @@ export function VendorMakePaymentModal({
                               <td className="py-2">{formatDate(inv.invoiceDate)}</td>
                               <td className="py-2">{formatDate(inv.dueDate)}</td>
                               <td className="py-2 text-right font-medium">
-                                {formatAmount(inv.amount)}
+                                {formatAmount(invoiceTotal(inv))}
                               </td>
                               <td className="py-2 text-right">
                                 {inv.vat != null ? formatAmount(inv.vat) : '—'}
