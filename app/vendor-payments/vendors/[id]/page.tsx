@@ -33,6 +33,8 @@ interface Vendor {
   batches: VendorBatch[]
 }
 
+type BatchFilterType = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
+
 function todayYmd() {
   return new Date().toISOString().split('T')[0]
 }
@@ -55,6 +57,9 @@ export default function VendorDetailPage() {
     notes: ''
   })
   const [batchSearch, setBatchSearch] = useState('')
+  const [activeBatchFilter, setActiveBatchFilter] = useState<BatchFilterType>('all')
+  const [customBatchStartDate, setCustomBatchStartDate] = useState('')
+  const [customBatchEndDate, setCustomBatchEndDate] = useState('')
 
   useEffect(() => {
     fetchVendor()
@@ -80,7 +85,33 @@ export default function VendorDetailPage() {
   const pendingInvoices = vendor?.invoices?.filter((i) => i.status === 'pending') ?? []
   const paidInvoices = vendor?.invoices?.filter((i) => i.status === 'paid') ?? []
   const allBatches = vendor?.batches ?? []
+  const matchesBatchDateFilter = (paymentDate: string) => {
+    const dt = new Date(paymentDate)
+    if (Number.isNaN(dt.getTime())) return false
+    if (activeBatchFilter === 'all') return true
+
+    const now = new Date()
+    const currYear = now.getFullYear()
+    const currMonth = now.getMonth()
+    const year = dt.getFullYear()
+    const month = dt.getMonth()
+
+    if (activeBatchFilter === 'thisMonth') {
+      return year === currYear && month === currMonth
+    }
+    if (activeBatchFilter === 'lastMonth') {
+      const last = new Date(currYear, currMonth - 1, 1)
+      return year === last.getFullYear() && month === last.getMonth()
+    }
+    if (activeBatchFilter === 'custom') {
+      if (!customBatchStartDate || !customBatchEndDate) return true
+      return paymentDate >= customBatchStartDate && paymentDate <= customBatchEndDate
+    }
+    return true
+  }
+
   const filteredBatches = allBatches.filter((batch) => {
+    if (!matchesBatchDateFilter(batch.paymentDate)) return false
     const q = batchSearch.trim().toLowerCase()
     if (!q) return true
 
@@ -316,7 +347,72 @@ export default function VendorDetailPage() {
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Payment Batches</h2>
+            <div className="space-y-3">
+              <h2 className="text-lg font-semibold text-gray-900">Recent Payment Batches</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveBatchFilter('all')}
+                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                    activeBatchFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  All Batches
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveBatchFilter('thisMonth')}
+                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                    activeBatchFilter === 'thisMonth'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveBatchFilter('lastMonth')}
+                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                    activeBatchFilter === 'lastMonth'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  Last Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveBatchFilter('custom')}
+                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                    activeBatchFilter === 'custom'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  Custom Range
+                </button>
+              </div>
+              {activeBatchFilter === 'custom' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={customBatchStartDate}
+                    onChange={(e) => setCustomBatchStartDate(e.target.value)}
+                    className="rounded border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                  <span className="text-xs text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={customBatchEndDate}
+                    onChange={(e) => setCustomBatchEndDate(e.target.value)}
+                    className="rounded border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="mb-1 block text-[11px] font-semibold text-gray-500">
