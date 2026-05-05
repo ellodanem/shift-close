@@ -40,6 +40,10 @@ function todayYmd() {
   return new Date().toISOString().split('T')[0]
 }
 
+function vendorInvoiceTotal(amount: number, vat: number | null) {
+  return amount + (vat ?? 0)
+}
+
 export default function VendorDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -362,7 +366,9 @@ export default function VendorDetailPage() {
                           <td className="py-2">{inv.invoiceNumber}</td>
                           <td>{formatDate(inv.invoiceDate)}</td>
                           <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
-                          <td className="text-right font-medium">{formatAmount(inv.amount)}</td>
+                          <td className="text-right font-medium">
+                            {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                          </td>
                           <td className="text-right">
                             <button
                               onClick={() => openEditInvoiceModal(inv)}
@@ -413,7 +419,9 @@ export default function VendorDetailPage() {
                         <tr key={inv.id} className="border-t border-gray-100">
                           <td className="py-2">{inv.invoiceNumber}</td>
                           <td>{formatDate(inv.invoiceDate)}</td>
-                          <td className="text-right font-medium">{formatAmount(inv.amount)}</td>
+                          <td className="text-right font-medium">
+                            {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
