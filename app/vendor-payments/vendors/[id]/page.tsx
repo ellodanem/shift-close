@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface VendorInvoice {
   id: string
@@ -49,6 +51,7 @@ export default function VendorDetailPage() {
     vat: '',
     notes: ''
   })
+  const [batchSearch, setBatchSearch] = useState('')
 
   useEffect(() => {
     fetchVendor()
@@ -68,17 +71,31 @@ export default function VendorDetailPage() {
     }
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  const formatDate = (d: string) => formatInvoiceDate(d)
   const formatAmount = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
   const pendingInvoices = vendor?.invoices?.filter((i) => i.status === 'pending') ?? []
   const paidInvoices = vendor?.invoices?.filter((i) => i.status === 'paid') ?? []
+  const allBatches = vendor?.batches ?? []
+  const filteredBatches = allBatches.filter((batch) => {
+    const q = batchSearch.trim().toLowerCase()
+    if (!q) return true
+
+    const refMatch = (batch.bankRef || '').toLowerCase().includes(q)
+    const methodMatch = (batch.paymentMethod || '').toLowerCase().includes(q)
+    const amountMatch = formatAmount(batch.totalAmount).toLowerCase().includes(q)
+    const status = batch.paymentMethod === 'check' && !batch.clearedAt ? 'uncashed' : 'cleared'
+    const statusMatch = status.includes(q)
+
+    return refMatch || methodMatch || amountMatch || statusMatch
+  })
+  const batchesTotal = filteredBatches.reduce((sum, batch) => sum + batch.totalAmount, 0)
 
   const openAddInvoiceModal = () => {
     setAddInvoiceForm({
       invoiceNumber: '',
       amount: '',
-      invoiceDate: new Date().toISOString().split('T')[0],
+      invoiceDate: businessTodayYmd(),
       dueDate: '',
       vat: '',
       notes: ''
@@ -295,9 +312,37 @@ export default function VendorDetailPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Payment Batches</h2>
-          {vendor.batches.length === 0 ? (
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Payment Batches</h2>
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-gray-500">
+                  Search (Ref, Method, Amount, Status)
+                </label>
+                <input
+                  type="text"
+                  value={batchSearch}
+                  onChange={(e) => setBatchSearch(e.target.value)}
+                  className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. 19397997 or check"
+                />
+              </div>
+              <div className="text-xs text-gray-600">
+                <div>
+                  <span className="font-semibold">{filteredBatches.length}</span>{' '}
+                  batch{filteredBatches.length !== 1 && 'es'}
+                </div>
+                <div>
+                  Total:{' '}
+                  <span className="font-semibold text-blue-700">{formatAmount(batchesTotal)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {allBatches.length === 0 ? (
             <p className="text-sm text-gray-500">No payment batches yet.</p>
+          ) : filteredBatches.length === 0 ? (
+            <p className="text-sm text-gray-500">No payment batches match your search.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -310,7 +355,7 @@ export default function VendorDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {vendor.batches.map((b) => (
+                {filteredBatches.map((b) => (
                   <tr key={b.id} className="border-t border-gray-100">
                     <td className="py-2">{formatDate(b.paymentDate)}</td>
                     <td className="capitalize">{b.paymentMethod}</td>
