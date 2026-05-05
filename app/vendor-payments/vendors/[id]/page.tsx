@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface VendorInvoice {
@@ -32,6 +31,10 @@ interface Vendor {
   notes: string
   invoices: VendorInvoice[]
   batches: VendorBatch[]
+}
+
+function todayYmd() {
+  return new Date().toISOString().split('T')[0]
 }
 
 export default function VendorDetailPage() {
@@ -95,7 +98,7 @@ export default function VendorDetailPage() {
     setAddInvoiceForm({
       invoiceNumber: '',
       amount: '',
-      invoiceDate: businessTodayYmd(),
+      invoiceDate: todayYmd(),
       dueDate: '',
       vat: '',
       notes: ''

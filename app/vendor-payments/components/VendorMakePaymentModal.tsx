@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
@@ -25,6 +24,10 @@ interface VendorInvoice {
 function formatDate(d: string | null) {
   if (!d) return '—'
   return formatInvoiceDate(d)
+}
+
+function todayYmd() {
+  return new Date().toISOString().split('T')[0]
 }
 
 function buildAutoTransferDescription(
@@ -76,7 +79,7 @@ export function VendorMakePaymentModal({
 
   useEffect(() => {
     if (!open) return
-    setPaymentDate(businessTodayYmd())
+    setPaymentDate(todayYmd())
     setPaymentMethod('eft')
     setBankRef('')
     setTransferDescription('')
