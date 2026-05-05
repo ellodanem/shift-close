@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { addCalendarDaysYmd, businessTodayYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 
@@ -15,9 +16,10 @@ export async function GET(request: NextRequest) {
     }> = []
 
     // Get staff birthdays within the next 7 days
-    const today = new Date()
-    const nextWeek = new Date(today)
-    nextWeek.setDate(today.getDate() + 7)
+    const now = new Date()
+    const todayStr = businessTodayYmd(now)
+    const nextWeekStr = addCalendarDaysYmd(todayStr, 7)
+    const today = ymdToUtcNoonDate(todayStr)
     
     const staff = await prisma.staff.findMany({
       where: {
@@ -39,20 +41,20 @@ export async function GET(request: NextRequest) {
       if (!year || !month || !day) return
       
       // Create this year's birthday
-      const thisYearBirthday = new Date(today.getFullYear(), month - 1, day)
+      const thisYearBirthday = new Date(Date.UTC(today.getUTCFullYear(), month - 1, day, 12, 0, 0, 0))
       
       // If birthday already passed this year, use next year
       if (thisYearBirthday < today) {
-        thisYearBirthday.setFullYear(today.getFullYear() + 1)
+        thisYearBirthday.setUTCFullYear(today.getUTCFullYear() + 1)
       }
       
       // Check if birthday is within the next 7 days
       const daysUntil = Math.ceil((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       
       if (daysUntil >= 0 && daysUntil <= 7) {
-        const y = thisYearBirthday.getFullYear()
-        const m = String(thisYearBirthday.getMonth() + 1).padStart(2, '0')
-        const d = String(thisYearBirthday.getDate()).padStart(2, '0')
+        const y = thisYearBirthday.getUTCFullYear()
+        const m = String(thisYearBirthday.getUTCMonth() + 1).padStart(2, '0')
+        const d = String(thisYearBirthday.getUTCDate()).padStart(2, '0')
         upcoming.push({
           type: 'birthday',
           title: `${member.name}'s Birthday`,
@@ -86,14 +88,6 @@ export async function GET(request: NextRequest) {
     // })
 
     // Pay days within next 7 days
-    const toLocalDateStr = (d: Date) => {
-      const y = d.getFullYear()
-      const m = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      return `${y}-${m}-${day}`
-    }
-    const todayStr = toLocalDateStr(today)
-    const nextWeekStr = toLocalDateStr(nextWeek)
     const payDays = await prisma.payDay.findMany({
       where: {
         date: { gte: todayStr, lte: nextWeekStr }

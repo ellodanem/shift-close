@@ -73,7 +73,6 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
       '/reports',
       '/settings',
       '/customer-accounts',
-      '/account-customers',
       '/roster/templates'
     ]
     if (blockedPrefixes.some((p) => pathname.startsWith(p))) return false
@@ -83,7 +82,6 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (pathname.startsWith('/api/reports/')) return false
     if (pathname.startsWith('/api/settings')) return false
     if (pathname.startsWith('/api/customer-accounts')) return false
-    if (pathname.startsWith('/api/account-customers')) return false
     return true
   }
 

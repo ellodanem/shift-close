@@ -35,7 +35,6 @@ const navConfig = [
       },
       { label: 'Financial Report', href: '/reports/financial', permission: 'financial.report' },
       { label: 'Customer Accounts', href: '/customer-accounts', permission: 'financial.accounts' },
-      { label: 'Account Balances', href: '/account-customers', permission: 'financial.accounts' },
       { label: 'Fuel Payments', href: '/fuel-payments', permission: 'financial.fuel' },
       { label: 'Vendor Payments', href: '/vendor-payments', permission: 'financial.vendor' },
     ],
@@ -104,7 +103,6 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
   if (href === '/reports/financial') return pathname === '/reports/financial'
   if (href === '/customer-accounts') return pathname.startsWith('/customer-accounts')
-  if (href === '/account-customers') return pathname.startsWith('/account-customers')
   if (href === '/fuel-payments') return pathname.startsWith('/fuel-payments')
   if (href === '/vendor-payments') return pathname.startsWith('/vendor-payments')
   if (href === '/reports') return pathname === '/reports'
@@ -145,7 +143,6 @@ function navItemVisibleForRole(href: string, role: string): boolean {
       '/reports',
       '/settings',
       '/customer-accounts',
-      '/account-customers',
       '/roster/templates'
     ]
     return !blocked.some((b) => href.startsWith(b))

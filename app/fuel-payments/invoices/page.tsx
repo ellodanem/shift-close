@@ -278,16 +278,6 @@ export default function InvoicesPage() {
     }
   }
 
-  const handleSimulateSelected = () => {
-    if (selectedInvoiceIds.size === 0) {
-      alert('Please select at least one invoice')
-      return
-    }
-    // Navigate to simulate page with selected invoice IDs
-    const ids = Array.from(selectedInvoiceIds).join(',')
-    router.push(`/fuel-payments/simulate?selected=${ids}`)
-  }
-
   const handleMakePaymentSelected = () => {
     if (selectedInvoiceIds.size === 0) {
       alert('Please select at least one invoice')
@@ -573,16 +563,10 @@ export default function InvoicesPage() {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={handleSimulateSelected}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 text-sm"
-                >
-                  🔍 Simulate Selected
-                </button>
-                <button
                   onClick={handleMakePaymentSelected}
                   className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 text-sm"
                 >
-                  💰 Mark Selected as Paid
+                  💰 Make payment
                 </button>
                 <button
                   onClick={() => setSelectedInvoiceIds(new Set())}

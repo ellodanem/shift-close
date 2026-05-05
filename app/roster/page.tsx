@@ -211,6 +211,9 @@ export default function RosterPage() {
   const [showEditCurrentWeekModal, setShowEditCurrentWeekModal] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
+  const topScrollRef = useRef<HTMLDivElement | null>(null)
+  const topScrollContentRef = useRef<HTMLDivElement | null>(null)
+  const tableScrollRef = useRef<HTMLDivElement | null>(null)
   const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
   const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
@@ -380,6 +383,54 @@ export default function RosterPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [shareMenuOpen])
+
+  useEffect(() => {
+    const topScroller = topScrollRef.current
+    const topContent = topScrollContentRef.current
+    const tableScroller = tableScrollRef.current
+    if (!topScroller || !topContent || !tableScroller) return
+
+    let syncingFromTop = false
+    let syncingFromTable = false
+
+    const syncWidths = () => {
+      const scrollWidth = tableScroller.scrollWidth
+      const clientWidth = tableScroller.clientWidth
+      topContent.style.width = `${scrollWidth}px`
+      topScroller.style.display = scrollWidth > clientWidth ? 'block' : 'none'
+    }
+
+    const onTopScroll = () => {
+      if (syncingFromTable) return
+      syncingFromTop = true
+      tableScroller.scrollLeft = topScroller.scrollLeft
+      syncingFromTop = false
+    }
+
+    const onTableScroll = () => {
+      if (syncingFromTop) return
+      syncingFromTable = true
+      topScroller.scrollLeft = tableScroller.scrollLeft
+      syncingFromTable = false
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncWidths) : null
+    resizeObserver?.observe(tableScroller)
+    if (tableScroller.firstElementChild) resizeObserver?.observe(tableScroller.firstElementChild)
+
+    topScroller.addEventListener('scroll', onTopScroll, { passive: true })
+    tableScroller.addEventListener('scroll', onTableScroll, { passive: true })
+    window.addEventListener('resize', syncWidths)
+    syncWidths()
+
+    return () => {
+      topScroller.removeEventListener('scroll', onTopScroll)
+      tableScroller.removeEventListener('scroll', onTableScroll)
+      window.removeEventListener('resize', syncWidths)
+      resizeObserver?.disconnect()
+    }
+  }, [loading, entries.length, displayStaff.length, templates.length, weekStart])
 
   const getEntryFor = (staffId: string, date: string): RosterEntry | undefined =>
     entries.find((e) => e.staffId === staffId && e.date === date)
@@ -1406,7 +1457,15 @@ export default function RosterPage() {
               No staff found. Add staff first, then build the roster.
             </div>
           ) : (
-            <div className="overflow-x-auto overflow-y-visible pb-6 sm:pb-8 rounded-b-lg">
+            <div className="relative rounded-b-lg">
+              <div
+                ref={topScrollRef}
+                className="sticky top-0 z-20 h-3 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200"
+                aria-hidden="true"
+              >
+                <div ref={topScrollContentRef} className="h-px" />
+              </div>
+              <div ref={tableScrollRef} className="overflow-x-auto overflow-y-visible pb-2 sm:pb-3">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className={weekBannerStyle.bg}>
                   <tr>
@@ -1710,6 +1769,7 @@ export default function RosterPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

@@ -48,7 +48,6 @@ export function isPathBlockedForOperationsManager(pathname: string): boolean {
     '/fuel-payments',
     '/vendor-payments',
     '/customer-accounts',
-    '/account-customers',
     '/reports/financial',
     '/reports/monthly',
     '/reports/daily-financial-summary'
@@ -58,7 +57,6 @@ export function isPathBlockedForOperationsManager(pathname: string): boolean {
   if (pathname.startsWith('/api/fuel-payments')) return true
   if (pathname.startsWith('/api/vendor-payments')) return true
   if (pathname.startsWith('/api/customer-accounts')) return true
-  if (pathname.startsWith('/api/account-customers')) return true
   if (pathname.startsWith('/api/reports/monthly')) return true
   if (pathname.startsWith('/api/reports/daily-financial-summary')) return true
   return false
