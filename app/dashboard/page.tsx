@@ -16,6 +16,7 @@ import {
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 
 type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
 
@@ -814,10 +815,10 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => {
-              const today = new Date()
+              const today = businessTodayYmd()
               setReminderForm({
                 title: '',
-                date: today.toISOString().slice(0, 10),
+                date: today,
                 notes: '',
                 notifyEmail: true,
                 notifyWhatsApp: false,

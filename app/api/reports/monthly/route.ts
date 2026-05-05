@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -17,8 +18,8 @@ export async function GET(request: NextRequest) {
     // Calculate date range for the month
     const monthStart = new Date(targetYear, targetMonth - 1, 1)
     const monthEnd = new Date(targetYear, targetMonth, 0)
-    const startDate = monthStart.toISOString().split('T')[0]
-    const endDate = monthEnd.toISOString().split('T')[0]
+    const startDate = toYmdInBusinessTz(monthStart)
+    const endDate = toYmdInBusinessTz(monthEnd)
 
     // Fetch all shifts for the month
     const shifts = await prisma.shiftClose.findMany({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { markPunchesExtractedForPayPeriod } from '@/lib/attendance-extraction'
 import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
 import { prisma } from '@/lib/prisma'
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
         data: {
           startDate,
           endDate,
-          reportDate: reportDate || new Date().toISOString().slice(0, 10),
+          reportDate: reportDate || businessTodayYmd(),
           entityName: entityName || 'Total Auto Service Station',
           rows: JSON.stringify(rows),
           notes: typeof notes === 'string' ? notes : ''

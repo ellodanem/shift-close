@@ -4,6 +4,7 @@
  * Sends emails and WhatsApp for reminders due for notification today (based on notifyDaysBefore).
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { getPublicAppUrlFromEnv } from '@/lib/public-url'
 import { prisma } from '@/lib/prisma'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
@@ -21,15 +22,11 @@ export async function GET(request: NextRequest) {
     }
 
     const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = businessTodayYmd(today)
 
     // Fetch reminders that could have occurrences in the next 7 days (for "7 days before" notifications)
-    const weekAgo = new Date(today)
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const weekAgoStr = weekAgo.toISOString().split('T')[0]
-    const weekAhead = new Date(today)
-    weekAhead.setDate(weekAhead.getDate() + 7)
-    const weekAheadStr = weekAhead.toISOString().split('T')[0]
+    const weekAgoStr = addCalendarDaysYmd(todayStr, -7)
+    const weekAheadStr = addCalendarDaysYmd(todayStr, 7)
 
     const reminders = await prisma.reminder.findMany({
       where: {

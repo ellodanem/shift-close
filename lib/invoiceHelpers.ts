@@ -1,15 +1,5 @@
 // Helper functions for invoice management
-
-/** Ensure ISO-like strings are parsed as UTC (fixes Vercel/production returning dates without "Z"). */
-function normalizeToUTCString(dateStr: string): string {
-  const s = String(dateStr).trim()
-  if (/Z|[+-]\d{2}:?\d{2}$/.test(s)) return s
-  // Date-only YYYY-MM-DD: leave as-is (ES5 parses as UTC midnight)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  // Date + time (T or space) but no timezone → treat as UTC
-  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(s)) return s + 'Z'
-  return s
-}
+import { normalizeToUtcString, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 
 export interface DueDateStatus {
   status: 'ok' | 'warning' | 'due' | 'overdue'
@@ -25,7 +15,7 @@ export interface DueDateStatus {
  * Uses UTC calendar days so status matches the displayed due date in all timezones.
  */
 export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
-  const due = typeof dueDate === 'string' ? new Date(normalizeToUTCString(dueDate)) : dueDate
+  const due = typeof dueDate === 'string' ? new Date(normalizeToUtcString(dueDate)) : dueDate
   const now = new Date()
 
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
@@ -70,14 +60,7 @@ export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
  * regardless of server or client timezone (avoids off-by-one display bugs).
  */
 export function parseInvoiceDateToUTC(dateStr: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr).trim())
-  if (!match) {
-    return new Date(dateStr)
-  }
-  const year = parseInt(match[1], 10)
-  const month = parseInt(match[2], 10) - 1
-  const day = parseInt(match[3], 10)
-  return new Date(Date.UTC(year, month, day, 12, 0, 0, 0))
+  return ymdToUtcNoonDate(dateStr)
 }
 
 /**
@@ -91,7 +74,7 @@ export function invoiceDateToInputValue(date: Date | string): string {
     if (plainMatch) {
       return date.slice(0, 10)
     }
-    d = new Date(normalizeToUTCString(date))
+    d = new Date(normalizeToUtcString(date))
   } else {
     d = date
   }
@@ -116,7 +99,7 @@ export function formatInvoiceDate(date: Date | string): string {
       const [, year, month, day] = plainMatch
       d = new Date(Number(year), Number(month) - 1, Number(day))
     } else {
-      d = new Date(normalizeToUTCString(date))
+      d = new Date(normalizeToUtcString(date))
       useUTC = true
     }
   } else {

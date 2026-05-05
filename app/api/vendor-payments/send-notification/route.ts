@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 import { prisma } from '@/lib/prisma'
 import { formatAmount } from '@/lib/fuelPayments'
 import { sendMail } from '@/lib/email'
@@ -29,11 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const paymentDateStr = new Date(batch.paymentDate).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    const paymentDateStr = formatInvoiceDate(batch.paymentDate)
 
     const invoiceRows = batch.invoices
       .map(

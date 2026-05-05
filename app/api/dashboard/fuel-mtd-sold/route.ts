@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date()
-    const todayStr = now.toISOString().slice(0, 10)
+    const todayStr = businessTodayYmd(now)
     const firstStr = `${year}-${String(month).padStart(2, '0')}-01`
     const lastOfMonth = new Date(year, month, 0)
     const lastStr = `${year}-${String(month).padStart(2, '0')}-${String(lastOfMonth.getDate()).padStart(2, '0')}`

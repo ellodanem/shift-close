@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -39,14 +40,14 @@ export async function POST(
       return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
     }
 
-    const invDate = new Date(String(invoiceDate))
+    const invDate = parseInvoiceDateToUTC(String(invoiceDate))
     if (isNaN(invDate.getTime())) {
       return NextResponse.json({ error: 'Invalid invoiceDate format' }, { status: 400 })
     }
 
     let dueDateObj: Date | null = null
     if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
-      const d = new Date(String(dueDate))
+      const d = parseInvoiceDateToUTC(String(dueDate))
       if (isNaN(d.getTime())) {
         return NextResponse.json({ error: 'Invalid dueDate format' }, { status: 400 })
       }

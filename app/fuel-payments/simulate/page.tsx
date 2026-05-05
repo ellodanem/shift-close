@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import html2canvas from 'html2canvas'
@@ -33,7 +34,7 @@ function SimulatePaymentPageInner() {
   const searchParams = useSearchParams()
   const [pendingInvoices, setPendingInvoices] = useState<Invoice[]>([])
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
-  const [simulationDate, setSimulationDate] = useState(new Date().toISOString().split('T')[0])
+  const [simulationDate, setSimulationDate] = useState(businessTodayYmd())
   const [loading, setLoading] = useState(true)
   const [simulating, setSimulating] = useState(false)
   const [simulation, setSimulation] = useState<Simulation | null>(null)

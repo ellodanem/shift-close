@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDate } from '@/lib/fuelPayments'
+import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
   id: string
@@ -39,7 +40,7 @@ export default function EditBatchPage() {
         const data = await res.json()
         setBatch(data)
         setFormData({
-          paymentDate: new Date(data.paymentDate).toISOString().split('T')[0],
+          paymentDate: invoiceDateToInputValue(data.paymentDate),
           bankRef: data.bankRef
         })
       } else {
@@ -62,7 +63,7 @@ export default function EditBatchPage() {
     if (!batch) return
 
     const hasChanges =
-      formData.paymentDate !== new Date(batch.paymentDate).toISOString().split('T')[0] ||
+      formData.paymentDate !== invoiceDateToInputValue(batch.paymentDate) ||
       formData.bankRef !== batch.bankRef
 
     if (!hasChanges) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import { FuelMakePaymentModal } from '../components/FuelMakePaymentModal'
@@ -74,7 +75,7 @@ export default function InvoicesPage() {
       invoiceNumber: '',
       amount: '',
       type: 'Fuel',
-      invoiceDate: new Date().toISOString().split('T')[0],
+      invoiceDate: businessTodayYmd(),
       notes: ''
     })
     setShowAddInvoiceModal(true)

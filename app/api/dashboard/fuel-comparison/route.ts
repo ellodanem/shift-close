@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,9 @@ export async function GET() {
 
     // Prior-year dates (same calendar date, 365 days back)
     const priorDates = dates.map(d => {
-      const dt = new Date(d + 'T12:00:00')
+      const dt = ymdToUtcNoonDate(d)
       dt.setFullYear(dt.getFullYear() - 1)
-      return dt.toISOString().slice(0, 10)
+      return toYmdInBusinessTz(dt)
     })
 
     // Current year: from ShiftClose

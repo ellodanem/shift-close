@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface PaidVendorInvoice {
   invoiceNumber: string
@@ -26,11 +27,7 @@ interface VendorBatch {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+  return formatInvoiceDate(d)
 }
 
 const isMobileDevice = () =>

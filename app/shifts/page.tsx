@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import CustomDatePicker from '../days/CustomDatePicker'
+import { businessTodayYmd, toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import {
   getListDisplayOverShort,
   getShiftListOkKind,
@@ -91,7 +92,7 @@ export default function ShiftsPage() {
   }, [])
 
   const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0]
+    return toYmdInBusinessTz(date)
   }
 
   const getStartOfWeek = (date: Date): Date => {
@@ -115,8 +116,7 @@ export default function ShiftsPage() {
   const filteredShifts = useMemo(() => {
     if (activeFilter === 'all') return shifts
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = ymdToUtcNoonDate(businessTodayYmd())
 
     const inRange = (shiftDate: string, start: Date, end: Date) => {
       const startStr = formatDate(start)

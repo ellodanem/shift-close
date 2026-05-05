@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 
@@ -20,7 +21,7 @@ function MakePaymentPageInner() {
   const searchParams = useSearchParams()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState(businessTodayYmd())
   const [bankRef, setBankRef] = useState('')
   const [addToCashbook, setAddToCashbook] = useState(true)
   const [loading, setLoading] = useState(true)

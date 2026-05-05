@@ -4,13 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ShiftType, ShiftCloseInput, ShiftStatus } from '@/lib/types'
 import { calculateShiftClose, getMissingFields, canCloseShift } from '@/lib/calculations'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
 export default function NewShiftPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: businessTodayYmd(),
     shift: '6-1' as ShiftType,
     supervisor: '',
     status: 'closed' as ShiftStatus,
@@ -219,7 +220,7 @@ export default function NewShiftPage() {
     setHasDraft(false)
     // Reset form to defaults
     setFormData({
-      date: new Date().toISOString().split('T')[0],
+      date: businessTodayYmd(),
       shift: '6-1' as ShiftType,
       supervisor: '',
       status: 'closed' as ShiftStatus,

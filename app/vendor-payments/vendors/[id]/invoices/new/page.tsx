@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 
 interface Vendor {
   id: string
@@ -18,7 +19,7 @@ export default function NewVendorInvoicePage() {
   const [formData, setFormData] = useState({
     invoiceNumber: '',
     amount: '',
-    invoiceDate: new Date().toISOString().split('T')[0],
+    invoiceDate: businessTodayYmd(),
     dueDate: '',
     vat: '',
     notes: ''

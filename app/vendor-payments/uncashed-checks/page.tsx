@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface UncashedBatch {
   id: string
@@ -14,11 +15,7 @@ interface UncashedBatch {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+  return formatInvoiceDate(d)
 }
 
 export default function UncashedChecksPage() {

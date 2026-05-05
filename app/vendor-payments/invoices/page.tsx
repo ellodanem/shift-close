@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import { VendorMakePaymentModal } from '../components/VendorMakePaymentModal'
@@ -82,7 +83,7 @@ function VendorInvoicesPageInner() {
       vendorId: vendorFilter,
       invoiceNumber: '',
       amount: '',
-      invoiceDate: new Date().toISOString().split('T')[0],
+      invoiceDate: businessTodayYmd(),
       dueDate: '',
       vat: '',
       notes: ''

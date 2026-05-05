@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -42,14 +43,14 @@ export async function PATCH(
     if (invoiceNumber !== undefined) data.invoiceNumber = String(invoiceNumber).trim()
     if (amount !== undefined) data.amount = Math.round(Number(amount) * 100) / 100
     if (invoiceDate !== undefined) {
-      const d = new Date(String(invoiceDate))
+      const d = parseInvoiceDateToUTC(String(invoiceDate))
       if (!isNaN(d.getTime())) data.invoiceDate = d
     }
     if (dueDate !== undefined) {
       if (dueDate === null || dueDate === '') {
         data.dueDate = null
       } else {
-        const d = new Date(String(dueDate))
+        const d = parseInvoiceDateToUTC(String(dueDate))
         if (!isNaN(d.getTime())) data.dueDate = d
       }
     }

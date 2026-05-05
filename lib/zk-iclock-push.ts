@@ -13,6 +13,7 @@ import {
   serialAllowed
 } from '@/lib/attendance-device-clock'
 import { prisma } from '@/lib/prisma'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 
 /**
  * ZKTeco iClock / ADMS push protocol (HTTPS).
@@ -218,7 +219,7 @@ export async function zkPushPOST(request: NextRequest) {
 
     for (const row of normalized) {
       const punchTime = row.punchUtc
-      const dayKey = `${deviceUserIdForGrouping(row.deviceUserId)}|${punchTime.toISOString().slice(0, 10)}`
+      const dayKey = `${deviceUserIdForGrouping(row.deviceUserId)}|${toYmdInBusinessTz(punchTime)}`
       if (!byUserDay.has(dayKey)) byUserDay.set(dayKey, [])
       byUserDay.get(dayKey)!.push({ deviceUserId: row.deviceUserId, punchTime, state: row.state })
     }
@@ -237,7 +238,7 @@ export async function zkPushPOST(request: NextRequest) {
       } else if (state === 1 || state === 5) {
         punchType = 'out'
       } else {
-        const dayKey = `${deviceUserIdForGrouping(deviceUserId)}|${punchUtc.toISOString().slice(0, 10)}`
+        const dayKey = `${deviceUserIdForGrouping(deviceUserId)}|${toYmdInBusinessTz(punchUtc)}`
         const dayPunches = byUserDay.get(dayKey) || []
         const idx = dayPunches.findIndex((p) => Math.abs(p.punchTime.getTime() - punchUtc.getTime()) < 1000)
         punchType = idx % 2 === 0 ? 'in' : 'out'

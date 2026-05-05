@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { businessTodayYmd, zonedEndExclusiveUtc, zonedStartOfDayUtc } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { getListDisplayOverShort } from '@/lib/calculations'
 import {
@@ -26,8 +27,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const start = new Date(startDate + 'T00:00:00')
-    const end = new Date(endDate + 'T23:59:59.999')
+    const start = zonedStartOfDayUtc(startDate)
+    const endExclusive = zonedEndExclusiveUtc(endDate)
+    const end = new Date(endExclusive.getTime() - 1)
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
@@ -181,7 +183,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const reportDate = new Date().toISOString().slice(0, 10)
+    const reportDate = businessTodayYmd()
 
     return NextResponse.json({
       startDate,

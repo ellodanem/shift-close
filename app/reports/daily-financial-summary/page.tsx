@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { businessTodayYmd, toYmdInBusinessTz } from '@/lib/datetime-policy'
 
 interface DailyFinancialSummary {
   date: string
@@ -73,8 +74,8 @@ export default function DailyFinancialSummaryPage() {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
       return {
-        start: weekStart.toISOString().split('T')[0],
-        end: weekEnd.toISOString().split('T')[0]
+        start: toYmdInBusinessTz(weekStart),
+        end: toYmdInBusinessTz(weekEnd)
       }
     }
 
@@ -85,8 +86,8 @@ export default function DailyFinancialSummaryPage() {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
       return {
-        start: weekStart.toISOString().split('T')[0],
-        end: weekEnd.toISOString().split('T')[0]
+        start: toYmdInBusinessTz(weekStart),
+        end: toYmdInBusinessTz(weekEnd)
       }
     }
 
@@ -94,8 +95,8 @@ export default function DailyFinancialSummaryPage() {
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
       const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
       return {
-        start: monthStart.toISOString().split('T')[0],
-        end: monthEnd.toISOString().split('T')[0]
+        start: toYmdInBusinessTz(monthStart),
+        end: toYmdInBusinessTz(monthEnd)
       }
     }
 
@@ -103,8 +104,8 @@ export default function DailyFinancialSummaryPage() {
       const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
       const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
       return {
-        start: monthStart.toISOString().split('T')[0],
-        end: monthEnd.toISOString().split('T')[0]
+        start: toYmdInBusinessTz(monthStart),
+        end: toYmdInBusinessTz(monthEnd)
       }
     }
 
@@ -245,7 +246,7 @@ export default function DailyFinancialSummaryPage() {
     }
 
     XLSX.utils.book_append_sheet(wb, ws, 'Daily Financial Summary')
-    XLSX.writeFile(wb, `daily-financial-summary-${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `daily-financial-summary-${businessTodayYmd()}.xlsx`)
   }
 
   if (loading) {

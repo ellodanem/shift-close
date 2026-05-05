@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from './DocumentGenerationModal'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 
 interface Staff {
   id: string
@@ -694,7 +695,7 @@ export default function EditStaffPage() {
           ) : (
             <div className="space-y-2">
               {[...dayOffs].sort((a, b) => b.date.localeCompare(a.date)).map(d => {
-                const isPast = d.date < new Date().toISOString().slice(0, 10)
+                const isPast = d.date < businessTodayYmd()
                 const statusColors: Record<string, string> = {
                   approved: 'bg-green-100 text-green-800',
                   denied: 'bg-red-100 text-red-800',
@@ -822,7 +823,7 @@ export default function EditStaffPage() {
           ) : (
             <div className="space-y-2">
               {[...sickLeaves].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(s => {
-                const isPast = s.endDate < new Date().toISOString().slice(0, 10)
+                const isPast = s.endDate < businessTodayYmd()
                 const statusColors: Record<string, string> = {
                   approved: 'bg-green-100 text-green-800',
                   denied: 'bg-red-100 text-red-800',

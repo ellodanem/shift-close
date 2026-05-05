@@ -1,8 +1,8 @@
 import { addMinutes } from 'date-fns'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { addCalendarDaysYmd, BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { deviceUserIdLookupKeys, expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_EOD_TIMEZONE } from '@/lib/eod-email'
 
 export const PRESENT_ABSENCE_ENABLED_KEY = 'attendance_present_absence_enabled'
 export const PRESENT_ABSENCE_GRACE_MINUTES_KEY = 'attendance_grace_minutes'
@@ -11,8 +11,6 @@ export const PRESENT_ABSENCE_NOTIFY_WHATSAPP_KEY = 'attendance_absence_notify_wh
 export const PRESENT_ABSENCE_NOTIFY_EMAIL_RECIPIENTS_KEY = 'attendance_absence_notify_email_recipients'
 export const PRESENT_ABSENCE_NOTIFY_WHATSAPP_NUMBERS_KEY = 'attendance_absence_notify_whatsapp_numbers'
 export const PRESENT_ABSENCE_NOTIFY_LOG_KEY = 'attendance_absence_notify_log'
-
-const EOD_TZ_KEY = 'eod_email_timezone'
 
 export type PresenceStatus = 'pending' | 'present' | 'late' | 'absent' | 'off'
 
@@ -37,8 +35,7 @@ function parseGraceMinutes(v: string | undefined): number {
 }
 
 export async function readStationTimeZone(): Promise<string> {
-  const row = await prisma.appSettings.findUnique({ where: { key: EOD_TZ_KEY } })
-  return row?.value?.trim() || process.env.EOD_EMAIL_TIMEZONE?.trim() || DEFAULT_EOD_TIMEZONE
+  return BUSINESS_TIME_ZONE
 }
 
 export async function getPresentAbsenceSettings(): Promise<PresentAbsenceSettings> {
@@ -68,9 +65,7 @@ export function calendarYmdInTz(instant: Date, tz: string): string {
 }
 
 export function addCalendarYmd(ymd: string, delta: number, tz: string): string {
-  const anchor = fromZonedTime(`${ymd}T12:00:00`, tz)
-  const next = new Date(anchor.getTime() + delta * 24 * 60 * 60 * 1000)
-  return formatInTimeZone(next, tz, 'yyyy-MM-dd')
+  return addCalendarDaysYmd(ymd, delta, tz)
 }
 
 /** Monday YYYY-MM-DD (week starts Monday) for the week containing `ymd` in `tz`. */
@@ -424,7 +419,7 @@ export async function buildPresenceForDate(params: {
   const now = params.now ?? new Date()
   const { dateYmd, tz, graceMinutes } = params
   const { weekStart, scheduled, off, onVacation } = await loadRosterForCalendarYmd(dateYmd, tz)
-  const todayYmd = calendarYmdInTz(now, tz)
+  const todayYmd = tz === BUSINESS_TIME_ZONE ? toYmdInBusinessTz(now) : calendarYmdInTz(now, tz)
   const excluded = buildExcludedStaffIds(off, onVacation)
 
   const uniqueStaffIds = [...new Set(scheduled.map((s) => s.staffId))]

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 
@@ -64,7 +65,7 @@ export function FuelMakePaymentModal({
 
   useEffect(() => {
     if (!open) return
-    setPaymentDate(new Date().toISOString().split('T')[0])
+    setPaymentDate(businessTodayYmd())
     setBankRef('')
     setAddToCashbook(true)
     setProcessing(false)

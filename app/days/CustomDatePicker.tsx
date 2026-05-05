@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 
 interface CustomDatePickerProps {
   selectedDate: string
@@ -33,7 +34,7 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
   }, [selectedDate])
 
   const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0]
+    return toYmdInBusinessTz(date)
   }
 
   const handleDateSelect = (year: number, month: number, day: number) => {

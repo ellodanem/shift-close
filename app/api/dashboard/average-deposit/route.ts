@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { businessTodayYmd, toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -27,11 +28,11 @@ function sumDepositsFromShifts(shifts: { deposits: unknown }[]): number {
 /** MTD through latest shift-close date in the month; average ÷ that day-of-month. Comparisons use same calendar day as last close. */
 export async function GET() {
   try {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = today.getMonth() + 1
+    const todayStr = businessTodayYmd()
+    const today = ymdToUtcNoonDate(todayStr)
+    const year = Number(todayStr.slice(0, 4))
+    const month = Number(todayStr.slice(5, 7))
     const firstStr = `${year}-${String(month).padStart(2, '0')}-01`
-    const todayStr = today.toISOString().slice(0, 10)
     const lastDayOfMonth = new Date(year, month, 0).getDate()
     const lastOfMonthStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`
     const mtdEndCap = todayStr < lastOfMonthStr ? todayStr : lastOfMonthStr
@@ -67,11 +68,10 @@ export async function GET() {
     const daysElapsed = anchorDay
     const avgDepositMTD = daysElapsed > 0 ? totalDepositsMTD / daysElapsed : 0
 
-    const sameDayLastMonth = new Date(year, month - 2, anchorDay)
-    const sameDayLastMonthStr = sameDayLastMonth.toISOString().slice(0, 10)
-
-    const sameDayLastYear = new Date(year - 1, month - 1, anchorDay)
-    const sameDayLastYearStr = sameDayLastYear.toISOString().slice(0, 10)
+    const sameDayLastMonth = new Date(Date.UTC(year, month - 2, anchorDay, 12, 0, 0, 0))
+    const sameDayLastMonthStr = toYmdInBusinessTz(sameDayLastMonth)
+    const sameDayLastYear = new Date(Date.UTC(year - 1, month - 1, anchorDay, 12, 0, 0, 0))
+    const sameDayLastYearStr = toYmdInBusinessTz(sameDayLastYear)
 
     const [lastMonthShifts, lastYearShifts] = await Promise.all([
       prisma.shiftClose.findMany({

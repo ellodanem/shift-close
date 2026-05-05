@@ -1,3 +1,21 @@
 {
-  "extends": ["next/core-web-vitals"]
+  "extends": ["next/core-web-vitals"],
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "CallExpression[callee.property.name='toISOString'] > MemberExpression[property.name='slice']",
+            "message": "Do not derive business dates with toISOString().slice(...). Use datetime-policy helpers."
+          },
+          {
+            "selector": "NewExpression[callee.name='Date'][arguments.length=1] Literal[value=/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/]",
+            "message": "Do not parse date-only strings with new Date('YYYY-MM-DD'). Use datetime-policy helpers."
+          }
+        ]
+      }
+    }
+  ]
 }

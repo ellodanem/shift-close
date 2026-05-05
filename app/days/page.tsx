@@ -6,6 +6,7 @@ import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
@@ -200,7 +201,7 @@ export default function DaysPage() {
 
   // Format date as YYYY-MM-DD
   const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0]
+    return toYmdInBusinessTz(date)
   }
 
   // Filter day reports based on active filter

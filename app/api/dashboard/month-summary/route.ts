@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { getDashboardDisclosedOverShort, getShiftListOkKind } from '@/lib/calculations'
 
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest) {
         const start = new Date(startYear, startMonth - 1, 1)
         const end = new Date(endYear, endMonth, 0) // last day of end month
 
-        startDate = start.toISOString().split('T')[0]
-        endDate = end.toISOString().split('T')[0]
+        startDate = toYmdInBusinessTz(start)
+        endDate = toYmdInBusinessTz(end)
         targetYear = start.getFullYear()
         targetMonth = start.getMonth() + 1
         monthStart = start
@@ -54,8 +55,8 @@ export async function GET(request: NextRequest) {
       // Calculate date range for the month
       monthStart = new Date(targetYear, targetMonth - 1, 1)
       const monthEnd = new Date(targetYear, targetMonth, 0)
-      startDate = monthStart.toISOString().split('T')[0]
-      endDate = monthEnd.toISOString().split('T')[0]
+      startDate = toYmdInBusinessTz(monthStart)
+      endDate = toYmdInBusinessTz(monthEnd)
     }
 
     // Fetch all shifts for the month

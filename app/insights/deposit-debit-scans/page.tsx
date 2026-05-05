@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 
 interface ScanRow {
@@ -168,11 +169,8 @@ function LoadingSkeleton() {
 type SearchMode = 'single' | 'range'
 
 export default function DepositDebitScansPage() {
-  const today = new Date()
-  const todayIso = today.toISOString().slice(0, 10)
-  const start = new Date(today)
-  start.setDate(start.getDate() - 30)
-  const defaultRangeStart = start.toISOString().slice(0, 10)
+  const todayIso = businessTodayYmd()
+  const defaultRangeStart = addCalendarDaysYmd(todayIso, -30)
 
   const [searchMode, setSearchMode] = useState<SearchMode>('single')
   const [singleDate, setSingleDate] = useState(todayIso)

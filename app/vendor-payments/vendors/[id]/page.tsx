@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import { VendorRevertPaymentModal } from '../../components/VendorRevertPaymentModal'
 
 interface VendorInvoice {
   id: string
@@ -57,6 +58,19 @@ export default function VendorDetailPage() {
     notes: ''
   })
   const [batchSearch, setBatchSearch] = useState('')
+  const [showRevertModal, setShowRevertModal] = useState(false)
+  const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false)
+  const [editInvoiceSaving, setEditInvoiceSaving] = useState(false)
+  const [editInvoiceError, setEditInvoiceError] = useState<string | null>(null)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
+  const [editInvoiceForm, setEditInvoiceForm] = useState({
+    invoiceNumber: '',
+    amount: '',
+    invoiceDate: '',
+    dueDate: '',
+    vat: '',
+    notes: ''
+  })
   const [activeBatchFilter, setActiveBatchFilter] = useState<BatchFilterType>('all')
   const [customBatchStartDate, setCustomBatchStartDate] = useState('')
   const [customBatchEndDate, setCustomBatchEndDate] = useState('')
@@ -140,6 +154,62 @@ export default function VendorDetailPage() {
   const closeAddInvoiceModal = () => {
     setShowAddInvoiceModal(false)
     setAddInvoiceSaving(false)
+  }
+
+  const openEditInvoiceModal = (invoice: VendorInvoice) => {
+    setEditingInvoiceId(invoice.id)
+    setEditInvoiceError(null)
+    setEditInvoiceForm({
+      invoiceNumber: invoice.invoiceNumber,
+      amount: String(invoice.amount),
+      invoiceDate: invoice.invoiceDate.slice(0, 10),
+      dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : '',
+      vat: invoice.vat != null ? String(invoice.vat) : '',
+      notes: invoice.notes || ''
+    })
+    setShowEditInvoiceModal(true)
+  }
+
+  const closeEditInvoiceModal = () => {
+    setShowEditInvoiceModal(false)
+    setEditInvoiceSaving(false)
+    setEditInvoiceError(null)
+    setEditingInvoiceId(null)
+  }
+
+  const handleEditInvoiceSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!editingInvoiceId) return
+    setEditInvoiceSaving(true)
+    setEditInvoiceError(null)
+    try {
+      const payload: Record<string, unknown> = {
+        invoiceNumber: editInvoiceForm.invoiceNumber,
+        amount: parseFloat(editInvoiceForm.amount),
+        invoiceDate: editInvoiceForm.invoiceDate,
+        dueDate: editInvoiceForm.dueDate || null,
+        notes: editInvoiceForm.notes
+      }
+      if (editInvoiceForm.vat !== '') payload.vat = parseFloat(editInvoiceForm.vat)
+
+      const res = await fetch(`/api/vendor-payments/invoices/${editingInvoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to update invoice')
+      }
+
+      closeEditInvoiceModal()
+      await fetchVendor()
+    } catch (err) {
+      setEditInvoiceError(err instanceof Error ? err.message : 'Failed to update invoice')
+    } finally {
+      setEditInvoiceSaving(false)
+    }
   }
 
   const handleAddInvoiceSubmit = async (e: FormEvent) => {
@@ -252,6 +322,15 @@ export default function VendorDetailPage() {
                   Make Payment
                 </button>
               )}
+              {paidInvoices.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRevertModal(true)}
+                  className="px-3 py-1.5 bg-orange-600 text-white rounded text-sm font-semibold hover:bg-orange-700"
+                >
+                  Revert Payment
+                </button>
+              )}
               <button
                 onClick={openAddInvoiceModal}
                 className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
@@ -286,7 +365,7 @@ export default function VendorDetailPage() {
                           <td className="text-right font-medium">{formatAmount(inv.amount)}</td>
                           <td className="text-right">
                             <button
-                              onClick={() => router.push(`/vendor-payments/invoices/${inv.id}/edit`)}
+                              onClick={() => openEditInvoiceModal(inv)}
                               className="text-blue-600 hover:text-blue-800 text-sm mr-3"
                             >
                               Edit
@@ -618,6 +697,150 @@ export default function VendorDetailPage() {
           </div>
         </div>
       )}
+
+      {showEditInvoiceModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          aria-hidden={!showEditInvoiceModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-vendor-invoice-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-6">
+              <h2 id="edit-vendor-invoice-title" className="text-3xl font-bold text-gray-900">
+                Edit invoice
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Update the invoice details for {vendor.name}.
+              </p>
+            </div>
+
+            <form onSubmit={handleEditInvoiceSubmit} className="space-y-4">
+              {editInvoiceError && (
+                <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {editInvoiceError}
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Invoice number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editInvoiceForm.invoiceNumber}
+                  onChange={(e) =>
+                    setEditInvoiceForm({ ...editInvoiceForm, invoiceNumber: e.target.value })
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Amount <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={editInvoiceForm.amount}
+                    onChange={(e) =>
+                      setEditInvoiceForm({ ...editInvoiceForm, amount: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    VAT / prepaid tax
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editInvoiceForm.vat}
+                    onChange={(e) =>
+                      setEditInvoiceForm({ ...editInvoiceForm, vat: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Invoice date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editInvoiceForm.invoiceDate}
+                    onChange={(e) =>
+                      setEditInvoiceForm({ ...editInvoiceForm, invoiceDate: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Due date</label>
+                  <input
+                    type="date"
+                    value={editInvoiceForm.dueDate}
+                    onChange={(e) =>
+                      setEditInvoiceForm({ ...editInvoiceForm, dueDate: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+                <textarea
+                  value={editInvoiceForm.notes}
+                  onChange={(e) =>
+                    setEditInvoiceForm({ ...editInvoiceForm, notes: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <button
+                  type="submit"
+                  disabled={editInvoiceSaving}
+                  className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {editInvoiceSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeEditInvoiceModal}
+                  disabled={editInvoiceSaving}
+                  className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <VendorRevertPaymentModal
+        open={showRevertModal}
+        vendorId={id}
+        onClose={() => setShowRevertModal(false)}
+        onSuccess={() => {
+          void fetchVendor()
+        }}
+      />
     </div>
   )
 }

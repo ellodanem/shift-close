@@ -1,4 +1,5 @@
 import type { DayReport } from '@/lib/types'
+import { BUSINESS_TIME_ZONE, toYmdInTz } from '@/lib/datetime-policy'
 import { formatCurrency } from '@/lib/format'
 
 export const EOD_EMAIL_ENABLED_KEY = 'eod_email_enabled'
@@ -6,18 +7,13 @@ export const EOD_EMAIL_RECIPIENTS_KEY = 'eod_email_recipients'
 export const EOD_EMAIL_LAST_SENT_KEY = 'eod_email_last_sent'
 
 /** Default IANA timezone for “yesterday” when computing the report date (St. Lucia). */
-export const DEFAULT_EOD_TIMEZONE = 'America/St_Lucia'
+export const DEFAULT_EOD_TIMEZONE = BUSINESS_TIME_ZONE
 
 /** Report date = previous calendar day in the given timezone (for daily cron after close). */
 export function getReportDateYmd(timeZone: string): string {
   const ms = 24 * 60 * 60 * 1000
   const yesterday = new Date(Date.now() - ms)
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(yesterday)
+  return toYmdInTz(yesterday, timeZone || BUSINESS_TIME_ZONE)
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

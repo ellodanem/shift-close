@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 
 function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -29,8 +30,7 @@ interface RevenuePayload {
 }
 
 export default function ExpectedRevenuePage() {
-  const today = new Date()
-  const todayIso = today.toISOString().slice(0, 10)
+  const todayIso = businessTodayYmd()
 
   /** No preset range — user picks From/To, then Calculate. */
   const [startDate, setStartDate] = useState(todayIso)

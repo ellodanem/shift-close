@@ -1,3 +1,4 @@
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 /**
  * Attendance punch-day status: valid in/out pairing plus count vs expected.
  * - full (green): count matches expected punches/day and pairing is valid
@@ -31,7 +32,7 @@ export function parseExpectedPunchesPerDay(raw: string | null | undefined): numb
 
 /** UTC date YYYY-MM-DD — used by API responses when no client recomputation runs. */
 export function utcCalendarDayKey(punchTime: Date): string {
-  return punchTime.toISOString().slice(0, 10)
+  return toYmdInBusinessTz(punchTime)
 }
 
 /** Local calendar date YYYY-MM-DD (runtime timezone, e.g. browser) — aligns with typical date display. */

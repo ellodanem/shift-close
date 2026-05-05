@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import {
   detectBulkUpload,
   getAttendanceClockGlobalSettings,
@@ -113,7 +114,7 @@ export async function ingestAttendanceBatch(params: {
 
   const byUserDay = new Map<string, Array<{ deviceUserId: string; punchTime: Date; state?: number }>>()
   for (const r of normalized) {
-    const dayKey = `${r.deviceUserId}|${r.punchUtc.toISOString().slice(0, 10)}`
+    const dayKey = `${r.deviceUserId}|${toYmdInBusinessTz(r.punchUtc)}`
     if (!byUserDay.has(dayKey)) byUserDay.set(dayKey, [])
     byUserDay.get(dayKey)!.push({ deviceUserId: r.deviceUserId, punchTime: r.punchUtc, state: r.state })
   }
@@ -131,7 +132,7 @@ export async function ingestAttendanceBatch(params: {
     } else if (state === 1 || state === 5) {
       punchType = 'out'
     } else {
-      const dayKey = `${deviceUserId}|${punchUtc.toISOString().slice(0, 10)}`
+      const dayKey = `${deviceUserId}|${toYmdInBusinessTz(punchUtc)}`
       const dayPunches = byUserDay.get(dayKey) || []
       const idx = dayPunches.findIndex((p) => Math.abs(p.punchTime.getTime() - punchUtc.getTime()) < 1000)
       punchType = idx % 2 === 0 ? 'in' : 'out'
