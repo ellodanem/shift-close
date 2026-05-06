@@ -27,6 +27,15 @@ interface Simulation {
 const isMobileDevice = () =>
   /Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
 
+function calculateDaysPastDue(dueDate: string): number {
+  const due = new Date(dueDate)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+  const diffTime = now.getTime() - due.getTime()
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24))
+}
+
 export function FuelMakePaymentModal({
   open,
   initialSelectedCsv,
@@ -50,6 +59,8 @@ export function FuelMakePaymentModal({
   const [simulation, setSimulation] = useState<Simulation | null>(null)
   const [simulatedKey, setSimulatedKey] = useState('')
   const imageRef = useRef<HTMLDivElement>(null)
+  const [balance, setBalance] = useState<{ availableFunds: number; balanceAfter: number } | null>(null)
+  const [otherUnpaidInvoices, setOtherUnpaidInvoices] = useState<Invoice[]>([])
 
   const fetchInvoices = async () => {
     setLoading(true)
@@ -222,6 +233,41 @@ export function FuelMakePaymentModal({
 
     void ensureSimulation(selectedIds, paymentDate)
   }, [paymentDate, selectedInvoiceIds, simulatedKey, simulating])
+
+  useEffect(() => {
+    if (!simulation) {
+      setOtherUnpaidInvoices([])
+      setBalance(null)
+      return
+    }
+
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch('/api/fuel-payments/balance')
+        if (res.ok) {
+          const data = await res.json()
+          setBalance(data)
+        }
+      } catch (error) {
+        console.error('Error fetching balance:', error)
+      }
+    }
+
+    const fetchOtherUnpaid = async () => {
+      try {
+        const res = await fetch('/api/fuel-payments/invoices?status=pending')
+        if (!res.ok) return
+        const allPending: Invoice[] = await res.json()
+        const simulationInvoiceIds = new Set(simulation.invoices.map((inv) => inv.id))
+        setOtherUnpaidInvoices(allPending.filter((inv) => !simulationInvoiceIds.has(inv.id)))
+      } catch (error) {
+        console.error('Error fetching other unpaid invoices:', error)
+      }
+    }
+
+    void fetchBalance()
+    void fetchOtherUnpaid()
+  }, [simulation])
 
   const generateImage = async (): Promise<string> => {
     if (!imageRef.current || !simulation) throw new Error('Cannot generate image')
@@ -513,24 +559,205 @@ export function FuelMakePaymentModal({
           <div
             ref={imageRef}
             className="fixed -left-[9999px] top-0 w-[800px] bg-white p-8"
-            style={{ fontFamily: 'monospace, Courier, monospace', fontSize: '14px', lineHeight: '1.5', color: '#000000' }}
+            style={{
+              fontFamily: 'monospace, Courier, monospace',
+              fontSize: '14px',
+              lineHeight: '1.5',
+              color: '#000000'
+            }}
           >
             <div style={{ marginBottom: '12px' }}>
               <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '16px' }}>
                 Proposed Payment - {formatInvoiceDate(simulation.simulationDate)}
               </div>
-              {simulation.invoices.map((inv) => (
-                <div key={inv.id} style={{ marginBottom: '4px' }}>
-                  <span style={{ fontWeight: 'bold', display: 'inline-block', width: '70px' }}>{inv.invoiceNumber}</span>
-                  <span style={{ display: 'inline-block', width: '100px', textAlign: 'right' }}>{formatAmount(inv.amount)}</span>
-                  <span style={{ display: 'inline-block', width: '140px', marginLeft: '20px' }}>{`Due ${formatInvoiceDate(inv.dueDate)}`}</span>
-                  <span style={{ display: 'inline-block', width: '80px', marginLeft: '20px' }}>{inv.type}</span>
-                </div>
-              ))}
-              <div style={{ marginTop: '8px', fontWeight: 'bold', marginLeft: '90px' }}>
-                Total: {formatAmount(simulation.totalAmount)}
+
+              {simulation.invoices.map((inv) => {
+                const daysPastDue = calculateDaysPastDue(inv.dueDate)
+                const dpdText = daysPastDue > 0 ? `${daysPastDue} dpd` : ''
+                return (
+                  <div key={inv.id} style={{ marginBottom: '4px' }}>
+                    <span
+                      style={{
+                        fontWeight: 'bold',
+                        display: 'inline-block',
+                        width: '70px'
+                      }}
+                    >
+                      {inv.invoiceNumber}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '100px',
+                        textAlign: 'right'
+                      }}
+                    >
+                      {formatAmount(inv.amount)}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '140px',
+                        marginLeft: '20px'
+                      }}
+                    >
+                      {`Due ${formatInvoiceDate(inv.dueDate)}`}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '80px',
+                        marginLeft: '20px'
+                      }}
+                    >
+                      {inv.type}
+                    </span>
+                    {dpdText && (
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '80px',
+                          marginLeft: '20px',
+                          color: '#666'
+                        }}
+                      >
+                        {dpdText}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+
+              <div style={{ marginTop: '4px', marginBottom: '4px' }}>
+                <span style={{ display: 'inline-block', width: '70px' }} />
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '100px',
+                    textAlign: 'right',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {formatAmount(simulation.totalAmount)}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '140px',
+                    marginLeft: '20px'
+                  }}
+                />
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '80px',
+                    marginLeft: '20px'
+                  }}
+                />
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '80px',
+                    marginLeft: '20px'
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: '#666',
+                  marginTop: '4px',
+                  fontWeight: 'bold',
+                  marginLeft: '190px'
+                }}
+              >
+                planned {formatInvoiceDate(simulation.simulationDate)}
+              </div>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: '#666',
+                  fontWeight: 'bold',
+                  marginLeft: '190px'
+                }}
+              >
+                Ref pending
               </div>
             </div>
+
+            {balance && (
+              <div className="mb-6">
+                <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+                  Balance Information
+                </div>
+                <div>Balance Before (Available): {formatAmount(balance.availableFunds)}</div>
+                <div>Balance After (Available - Planned): {formatAmount(balance.balanceAfter)}</div>
+              </div>
+            )}
+
+            {otherUnpaidInvoices.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+                  Other Unpaid Invoices
+                </div>
+                {otherUnpaidInvoices.map((inv) => {
+                  const daysPastDue = calculateDaysPastDue(inv.dueDate)
+                  const dpdText = daysPastDue > 0 ? `${daysPastDue} dpd` : ''
+                  return (
+                    <div key={inv.id} style={{ marginBottom: '4px' }}>
+                      <span
+                        style={{
+                          fontWeight: 'bold',
+                          display: 'inline-block',
+                          width: '70px'
+                        }}
+                      >
+                        {inv.invoiceNumber}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '100px',
+                          textAlign: 'right'
+                        }}
+                      >
+                        {formatAmount(inv.amount)}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '140px',
+                          marginLeft: '20px'
+                        }}
+                      >
+                        {`Due ${formatInvoiceDate(inv.dueDate)}`}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '80px',
+                          marginLeft: '20px'
+                        }}
+                      >
+                        {inv.type}
+                      </span>
+                      {dpdText && (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: '80px',
+                            marginLeft: '20px',
+                            color: '#666'
+                          }}
+                        >
+                          {dpdText}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
