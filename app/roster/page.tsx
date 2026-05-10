@@ -394,6 +394,11 @@ export default function RosterPage() {
     let syncingFromTable = false
 
     const syncWidths = () => {
+      // Table is `display:none` below md — skip to avoid bogus measurements and layout thrash
+      if (tableScroller.offsetParent === null) {
+        topScroller.style.display = 'none'
+        return
+      }
       const scrollWidth = tableScroller.scrollWidth
       const clientWidth = tableScroller.clientWidth
       topContent.style.width = `${scrollWidth}px`
@@ -1121,19 +1126,19 @@ export default function RosterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Roster</h1>
-            <p className="text-sm text-gray-600 mt-1">
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start mb-4 md:mb-6">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Roster</h1>
+            <p className="text-sm text-gray-600 mt-1 hidden sm:block">
               Weekly staff roster using existing Staff as source of truth.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full md:w-auto shrink-0">
             <a
               href="/staff"
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50 inline-block"
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50 text-sm sm:inline-block"
             >
               Staff
             </a>
@@ -1148,9 +1153,10 @@ export default function RosterPage() {
                 setDayOffSuccess(false)
                 setShowDayOffModal(true)
               }}
-              className="px-4 py-2 bg-amber-500 text-white rounded font-semibold hover:bg-amber-600"
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-amber-500 text-white rounded font-semibold hover:bg-amber-600 text-sm"
             >
-              + Day Off Request
+              <span className="md:hidden">+ Day off</span>
+              <span className="hidden md:inline">+ Day Off Request</span>
             </button>
             <button
               type="button"
@@ -1163,48 +1169,54 @@ export default function RosterPage() {
                 setSickLeaveSuccess(false)
                 setShowSickLeaveModal(true)
               }}
-              className="px-4 py-2 bg-rose-500 text-white rounded font-semibold hover:bg-rose-600"
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-rose-500 text-white rounded font-semibold hover:bg-rose-600 text-sm"
             >
-              + Sick Leave
+              <span className="md:hidden">+ Sick</span>
+              <span className="hidden md:inline">+ Sick Leave</span>
             </button>
             <a
               href="/roster/templates"
-              className="px-4 py-2 bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 inline-block"
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 text-sm sm:inline-block col-span-2 sm:col-span-1"
             >
-              Shift Presets
+              <span className="md:hidden">Shift presets</span>
+              <span className="hidden md:inline">Shift Presets</span>
             </a>
           </div>
         </div>
 
         {/* Week picker and actions */}
-        <div className="mb-4 flex flex-wrap items-center gap-4 justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <button
+              type="button"
               onClick={() => handleChangeWeek(-1)}
-              className="px-3 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
             >
-              ← Previous week
+              <span className="sm:hidden">← Prev week</span>
+              <span className="hidden sm:inline">← Previous week</span>
             </button>
             <button
+              type="button"
               onClick={() => setWeekStart(formatInputDate(getMonday(new Date())))}
-              className="px-3 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
             >
               This week
             </button>
             <button
+              type="button"
               onClick={() => handleChangeWeek(1)}
-              className="px-3 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
             >
               Next week →
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-500">Week starting</label>
+          <div className="flex flex-row flex-wrap items-center gap-2 w-full sm:w-auto">
+            <label className="text-xs font-semibold text-gray-500 shrink-0">Week starting</label>
             <input
               type="date"
               value={weekStart}
               onChange={(e) => setWeekStart(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm"
+              className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1.5 border border-gray-300 rounded text-base sm:text-sm"
             />
           </div>
         </div>
@@ -1215,20 +1227,29 @@ export default function RosterPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className={`px-4 py-2 border-b border-gray-200 flex justify-between items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
-            <span className="text-sm font-semibold">
-              Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div
+            className={`px-3 sm:px-4 py-2 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:justify-between md:items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}
+          >
+            <span className="text-sm font-semibold leading-snug">
+              <span className="md:hidden block">
+                {formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])}
+              </span>
+              <span className="hidden md:inline">
+                Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
+              </span>
               {isViewingCurrentWeek && !isPastWeek && (
-                <span className="ml-2 rounded bg-white/60 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-green-800">
+                <span className="mt-1 md:mt-0 md:ml-2 inline-block rounded bg-white/60 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-green-800">
                   This week
                 </span>
               )}
               {isPastWeek && (
-                <span className="ml-2 font-normal text-gray-600">— Past week (read-only)</span>
+                <span className="mt-1 md:mt-0 md:ml-2 block md:inline font-normal text-gray-600">
+                  Past week (read-only)
+                </span>
               )}
             </span>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-stretch md:items-center gap-2 w-full md:w-auto">
               {canEditRoster && weekPersisted && !rosterLockedEdit && (
                 <>
                   {!editUnlocked ? (
@@ -1236,7 +1257,7 @@ export default function RosterPage() {
                       type="button"
                       onClick={requestEditRoster}
                       disabled={loading || sharing}
-                      className="px-3 py-1.5 border border-blue-600 text-blue-800 rounded text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
+                      className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-blue-600 text-blue-800 rounded text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
                     >
                       Edit roster
                     </button>
@@ -1245,7 +1266,7 @@ export default function RosterPage() {
                       type="button"
                       onClick={() => void discardEditsAndLock()}
                       disabled={loading || sharing}
-                      className="px-3 py-1.5 border border-gray-500 text-gray-800 rounded text-xs font-semibold hover:bg-gray-100 disabled:opacity-60"
+                      className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-gray-500 text-gray-800 rounded text-xs font-semibold hover:bg-gray-100 disabled:opacity-60"
                       title="Reload saved roster and lock editing"
                     >
                       Lock roster
@@ -1257,9 +1278,10 @@ export default function RosterPage() {
                 type="button"
                 onClick={() => setCopyConfirmOpen(true)}
                 disabled={loading || sharing || rosterCellsLocked}
-                className="px-3 py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
+                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
-                Copy previous week
+                <span className="md:hidden">Copy prev week</span>
+                <span className="hidden md:inline">Copy previous week</span>
               </button>
               {copyConfirmOpen && (
                 <>
@@ -1352,25 +1374,26 @@ export default function RosterPage() {
                 </>
               )}
               <button
+                type="button"
                 onClick={handleClearWeek}
                 disabled={loading || sharing || entries.length === 0 || rosterCellsLocked}
-                className="px-3 py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
               >
                 Clear week
               </button>
-              <div className="relative">
+              <div className="relative flex-1 md:flex-none min-w-0">
                 <button
                   type="button"
                   onClick={() => setShareMenuOpen((o) => !o)}
                   disabled={sharing || entries.length === 0}
-                  className="px-3 py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
+                  className="w-full md:w-auto min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
                 >
-                  Share Roster ▼
+                  Share ▼
                 </button>
                 {shareMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => { setShareMenuOpen(false); setSmsSubmenuOpen(false) }} aria-hidden />
-                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[min(100vw-2rem,280px)] md:min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg">
                       <button
                         type="button"
                         onClick={() => { void handleWhatsAppShare(); setShareMenuOpen(false) }}
@@ -1405,7 +1428,7 @@ export default function RosterPage() {
                           <span className="text-xs">{smsSubmenuOpen ? '▲' : '▶'}</span>
                         </button>
                         {smsSubmenuOpen && (
-                          <div className="absolute left-full top-0 ml-1 min-w-[160px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                          <div className="absolute z-30 left-0 right-0 top-full mt-1 md:left-full md:right-auto md:top-0 md:mt-0 md:ml-1 min-w-[160px] max-h-[50vh] overflow-y-auto py-1 bg-white border border-gray-200 rounded shadow-lg">
                             {staffWithMobile.map((s) => (
                               <button
                                 key={s.id}
@@ -1438,11 +1461,11 @@ export default function RosterPage() {
                   </>
                 )}
               </div>
-              <span className="text-[11px] text-gray-500 min-w-[100px] text-right">
+              <span className="text-[11px] text-gray-500 w-full md:w-auto md:min-w-[100px] md:text-right pt-1 md:pt-0 border-t border-black/5 md:border-0">
                 {rosterLockedEdit
                   ? 'Read-only'
                   : rosterCellsLocked
-                    ? 'Locked — click Edit to change'
+                    ? 'Locked — use Edit to change'
                     : saving
                       ? 'Saving…'
                       : 'All changes saved'}
@@ -1457,7 +1480,325 @@ export default function RosterPage() {
               No staff found. Add staff first, then build the roster.
             </div>
           ) : (
-            <div className="relative rounded-b-lg">
+            <>
+              {/* Mobile: one card per staff, full-width day rows (no horizontal table scroll) */}
+              <div className="md:hidden px-2 pb-4 space-y-3">
+                <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                    Coverage by day
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory">
+                    {weekDates.map((date, idx) => {
+                      const counts = countByDayAndShift.get(date)
+                      const ph = publicHolidays.find((h) => h.date === date)
+                      if (!counts) {
+                        return (
+                          <div
+                            key={date}
+                            className="snap-start shrink-0 w-[132px] rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-[11px] text-gray-400"
+                          >
+                            {dayLabels[idx]}
+                          </div>
+                        )
+                      }
+                      const items: { label: string; count: number; color?: string }[] = []
+                      templates.forEach((t) => {
+                        const n = counts.get(t.id) ?? 0
+                        if (n > 0) items.push({ label: t.name, count: n, color: t.color ?? undefined })
+                      })
+                      const offCount = counts.get('off') ?? 0
+                      if (offCount > 0) items.push({ label: 'Off', count: offCount })
+                      return (
+                        <div
+                          key={date}
+                          className={`snap-start shrink-0 w-[132px] rounded-lg border px-2 py-2 ${
+                            ph?.stationClosed
+                              ? 'border-amber-200 bg-amber-50/90'
+                              : ph
+                                ? 'border-indigo-200 bg-indigo-50/80'
+                                : 'border-gray-200 bg-white'
+                          }`}
+                        >
+                          <div className="text-center text-[11px] font-bold text-gray-800">
+                            {dayLabels[idx]}{' '}
+                            <span className="font-normal text-gray-600">{formatDisplayDate(date)}</span>
+                          </div>
+                          {ph && (
+                            <div
+                              className={`text-[10px] mt-0.5 text-center font-semibold leading-tight ${
+                                ph.stationClosed ? 'text-amber-900' : 'text-indigo-800'
+                              }`}
+                            >
+                              {ph.name}
+                            </div>
+                          )}
+                          <div className="mt-1.5 flex flex-wrap justify-center gap-1 text-[10px] text-gray-700">
+                            {items.map(({ label, count, color }) =>
+                              color ? (
+                                <span
+                                  key={label}
+                                  className="inline-flex items-center justify-center rounded px-1.5 py-0.5 font-bold text-sm tabular-nums"
+                                  style={{ backgroundColor: `${color}30`, color }}
+                                >
+                                  {count}
+                                </span>
+                              ) : (
+                                <span key={label} className="tabular-nums">
+                                  Off: {count}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {displayStaff.map((s, index) => (
+                  <div
+                    key={s.id}
+                    className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-visible"
+                  >
+                    <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/90">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {!rosterCellsLocked && (
+                          <div className="flex shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden divide-x divide-gray-200">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStaff(index, 'up')}
+                              disabled={index === 0}
+                              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move up"
+                              aria-label="Move up"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStaff(index, 'down')}
+                              disabled={index === displayStaff.length - 1}
+                              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none"
+                              title="Move down"
+                              aria-label="Move down"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        )}
+                        <div className="font-semibold text-gray-900 truncate text-base">
+                          {s.firstName?.trim() || s.name}
+                        </div>
+                      </div>
+                      {!rosterCellsLocked && (
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            title="Fill entire week"
+                            aria-label="Fill entire week"
+                            onClick={() =>
+                              setFillWeekPopover(
+                                fillWeekPopover?.staffId === s.id
+                                  ? null
+                                  : { staffId: s.id, shiftId: templates[0]?.id ?? '' }
+                              )
+                            }
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-100"
+                          >
+                            <svg
+                              className="w-5 h-5 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </button>
+                          {fillWeekPopover?.staffId === s.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setFillWeekPopover(null)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 w-[min(calc(100vw-2rem),16rem)]">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">Fill entire week</p>
+                                <select
+                                  value={fillWeekPopover.shiftId}
+                                  onChange={(e) =>
+                                    setFillWeekPopover({ ...fillWeekPopover, shiftId: e.target.value })
+                                  }
+                                  className="w-full border border-gray-300 rounded px-2 py-2 text-base mb-2"
+                                >
+                                  <option value="">Off</option>
+                                  {templates.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => fillWeekForStaff(s.id, fillWeekPopover.shiftId || null)}
+                                    className="flex-1 min-h-[44px] px-2 py-2 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
+                                  >
+                                    Apply
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFillWeekPopover(null)}
+                                    className="flex-1 min-h-[44px] px-2 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {weekDates.map((date, idx) => {
+                        const onVacation = isOnVacation(s, date)
+                        const onSickLeave = isOnSickLeave(s.id, date)
+                        const ph = publicHolidays.find((h) => h.date === date)
+                        const stationClosedHoliday = ph?.stationClosed
+                        const dayOffRequest = getDayOffRequestFor(s.id, date)
+                        const parsedDayOffRequest = dayOffRequest
+                          ? parseDayOffRequestReason(dayOffRequest.reason)
+                          : null
+                        const requestedTemplateName =
+                          parsedDayOffRequest?.type === 'shift' && parsedDayOffRequest.shiftTemplateId
+                            ? templates.find((t) => t.id === parsedDayOffRequest.shiftTemplateId)?.name
+                            : null
+                        const entry = getEntryFor(s.id, date)
+                        const blockedScheduledByLeave =
+                          !!entry?.shiftTemplateId &&
+                          (onVacation || onSickLeave || parsedDayOffRequest?.type === 'off')
+                        const template = getTemplateForEntry(entry)
+                        const bgColor = template?.color || undefined
+                        const birthday = isBirthdayOnDate(s, date)
+                        return (
+                          <div
+                            key={date}
+                            className="flex gap-2 px-3 py-2.5 items-start"
+                            style={
+                              onVacation
+                                ? { backgroundColor: '#f3f4f6' }
+                                : onSickLeave
+                                  ? { backgroundColor: '#ffe4e6' }
+                                  : stationClosedHoliday
+                                    ? { backgroundColor: '#fff7ed' }
+                                    : bgColor
+                                      ? { backgroundColor: bgColor }
+                                      : undefined
+                            }
+                          >
+                            <div className="w-[5.25rem] shrink-0 pt-0.5">
+                              <div className="text-xs font-bold text-gray-800">{dayLabels[idx]}</div>
+                              <div className="text-[11px] text-gray-600">{formatDisplayDate(date)}</div>
+                              {ph && !stationClosedHoliday && (
+                                <div className="text-[10px] mt-0.5 font-semibold text-indigo-800 leading-tight">
+                                  {ph.name}
+                                </div>
+                              )}
+                              {stationClosedHoliday && ph && (
+                                <div className="text-[10px] mt-0.5 font-semibold text-amber-900 leading-tight">
+                                  Closed · {ph.name}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {birthday ? (
+                                  <span className="text-sm" title="Birthday" role="img" aria-label="Birthday">
+                                    🎂
+                                  </span>
+                                ) : null}
+                                {parsedDayOffRequest?.type === 'off' ? (
+                                  <span
+                                    className="text-sm"
+                                    title={`Off day request${parsedDayOffRequest.reason ? `: ${parsedDayOffRequest.reason}` : ''}`}
+                                    role="img"
+                                    aria-label="Off day request"
+                                  >
+                                    🙋
+                                  </span>
+                                ) : null}
+                                {parsedDayOffRequest?.type === 'shift' ? (
+                                  <span
+                                    className="text-sm"
+                                    title={`Shift request${requestedTemplateName ? `: ${requestedTemplateName}` : ''}${parsedDayOffRequest.reason ? ` (${parsedDayOffRequest.reason})` : ''}`}
+                                    role="img"
+                                    aria-label="Shift request"
+                                  >
+                                    ⭐
+                                  </span>
+                                ) : null}
+                                {blockedScheduledByLeave ? (
+                                  <span
+                                    className="inline-flex items-center rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700"
+                                    title="Shift assignment exists but is blocked by leave/day-off request"
+                                  >
+                                    Blocked
+                                  </span>
+                                ) : null}
+                              </div>
+                              {onVacation ? (
+                                <span className="text-sm font-medium text-gray-600">Vacation</span>
+                              ) : onSickLeave ? (
+                                <span className="text-sm font-medium text-rose-700">Sick leave</span>
+                              ) : stationClosedHoliday ? (
+                                <div className="text-sm text-amber-900">
+                                  <span className="font-semibold">Station closed</span>
+                                  {ph?.name ? <span className="block text-xs mt-0.5">{ph.name}</span> : null}
+                                </div>
+                              ) : rosterCellsLocked ? (
+                                <span className="text-sm font-medium text-gray-800">
+                                  {ph && !ph.stationClosed ? (
+                                    <>
+                                      <span className="block text-xs text-indigo-700 mb-0.5">{ph.name}</span>
+                                      {template?.name || 'Off'}
+                                    </>
+                                  ) : (
+                                    template?.name || 'Off'
+                                  )}
+                                </span>
+                              ) : (
+                                <select
+                                  value={entry?.shiftTemplateId || ''}
+                                  disabled={onSickLeave || onVacation}
+                                  onChange={(e) =>
+                                    setEntryFor(
+                                      s.id,
+                                      date,
+                                      e.target.value === '' ? null : e.target.value
+                                    )
+                                  }
+                                  className="w-full min-h-[48px] px-2 py-2 border border-gray-300 rounded-lg text-base bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">Off</option>
+                                  {templates.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block relative rounded-b-lg">
               <div
                 ref={topScrollRef}
                 className="sticky top-0 z-20 h-3 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200"
@@ -1771,6 +2112,7 @@ export default function RosterPage() {
               </table>
               </div>
             </div>
+            </>
           )}
         </div>
 
