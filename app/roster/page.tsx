@@ -158,8 +158,6 @@ function formatPrettyDate(isoDate: string): string {
 
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const ROSTER_MOBILE_LAYOUT_KEY = 'rosterMobileLayout'
-
 const isMobileDevice = () =>
   /Android|iPhone|iPad|iPod/i.test(
     typeof navigator !== 'undefined' ? navigator.userAgent : ''
@@ -219,8 +217,6 @@ export default function RosterPage() {
   const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
   const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
-  /** Small screens only: full week table (plan) vs card rows (edit). Persisted in localStorage. */
-  const [mobileRosterLayout, setMobileRosterLayout] = useState<'plan' | 'edit'>('edit')
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -440,24 +436,6 @@ export default function RosterPage() {
       resizeObserver?.disconnect()
     }
   }, [loading, entries.length, displayStaff.length, templates.length, weekStart])
-
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(ROSTER_MOBILE_LAYOUT_KEY)
-      if (v === 'plan' || v === 'edit') setMobileRosterLayout(v)
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  const setMobileRosterLayoutPersist = (layout: 'plan' | 'edit') => {
-    setMobileRosterLayout(layout)
-    try {
-      localStorage.setItem(ROSTER_MOBILE_LAYOUT_KEY, layout)
-    } catch {
-      /* ignore */
-    }
-  }
 
   const getEntryFor = (staffId: string, date: string): RosterEntry | undefined =>
     entries.find((e) => e.staffId === staffId && e.date === date)
@@ -1243,42 +1221,6 @@ export default function RosterPage() {
           </div>
         </div>
 
-        <div className="mb-3 md:hidden px-1">
-          <div
-            className="flex rounded-lg border border-gray-300 bg-gray-100 p-1 gap-1"
-            role="group"
-            aria-label="Roster view on small screens"
-          >
-            <button
-              type="button"
-              aria-pressed={mobileRosterLayout === 'plan'}
-              onClick={() => setMobileRosterLayoutPersist('plan')}
-              className={`flex-1 min-h-[44px] rounded-md px-2 text-sm font-semibold transition-colors ${
-                mobileRosterLayout === 'plan'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Plan (grid)
-            </button>
-            <button
-              type="button"
-              aria-pressed={mobileRosterLayout === 'edit'}
-              onClick={() => setMobileRosterLayoutPersist('edit')}
-              className={`flex-1 min-h-[44px] rounded-md px-2 text-sm font-semibold transition-colors ${
-                mobileRosterLayout === 'edit'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Edit (cards)
-            </button>
-          </div>
-          <p className="mt-1.5 text-[11px] text-gray-500 leading-snug">
-            Plan shows the full week table (scroll sideways). Edit uses larger controls per day.
-          </p>
-        </div>
-
         {error && (
           <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
             {error}
@@ -1540,11 +1482,7 @@ export default function RosterPage() {
           ) : (
             <>
               {/* Mobile: one card per staff, full-width day rows (no horizontal table scroll) */}
-              <div
-                className={`md:hidden px-2 pb-4 space-y-3 ${
-                  mobileRosterLayout === 'plan' ? 'hidden' : ''
-                }`}
-              >
+              <div className="md:hidden px-2 pb-4 space-y-3">
                 <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
                     Coverage by day
@@ -1860,11 +1798,7 @@ export default function RosterPage() {
                 ))}
               </div>
 
-              <div
-                className={`relative rounded-b-lg ${
-                  mobileRosterLayout === 'edit' ? 'hidden md:block' : 'block'
-                }`}
-              >
+              <div className="hidden md:block relative rounded-b-lg">
               <div
                 ref={topScrollRef}
                 className="sticky top-0 z-20 h-3 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200"
