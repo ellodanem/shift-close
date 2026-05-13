@@ -38,6 +38,10 @@ interface VendorInvoiceRow {
 
 type TabType = 'pending' | 'paid'
 
+function vendorInvoiceTotal(amount: number, vat: number | null | undefined) {
+  return amount + (vat ?? 0)
+}
+
 function VendorInvoicesPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -322,7 +326,10 @@ function VendorInvoicesPageInner() {
   }
 
   const selectedRows = invoices.filter((inv) => selectedInvoiceIds.has(inv.id))
-  const selectedTotal = selectedRows.reduce((sum, inv) => sum + inv.amount, 0)
+  const selectedTotal = selectedRows.reduce(
+    (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
+    0
+  )
   const selectedVendorIds = new Set(selectedRows.map((r) => r.vendorId))
 
   const handleMakePaymentSelected = () => {
@@ -614,6 +621,9 @@ function VendorInvoicesPageInner() {
                         VAT
                       </th>
                     )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
                     {activeTab === 'paid' && (
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Payment
@@ -676,6 +686,9 @@ function VendorInvoicesPageInner() {
                             {invoice.vat != null ? formatAmount(invoice.vat) : '—'}
                           </td>
                         )}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          {formatAmount(vendorInvoiceTotal(invoice.amount, invoice.vat))}
+                        </td>
                         {activeTab === 'paid' && invoice.paidInvoice && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             <div>
