@@ -247,6 +247,13 @@ export function VendorMakePaymentModal({
     .filter((inv) => selectedInvoiceIds.has(inv.id))
     .reduce((sum, inv) => sum + invoiceTotal(inv), 0)
 
+  const bankRefMissing = !bankRef.trim()
+  const canSubmitPayment =
+    !!selectedVendorId &&
+    selectedInvoiceIds.size > 0 &&
+    !bankRefMissing &&
+    !processing
+
   if (!open) return null
 
   return (
@@ -355,15 +362,29 @@ export function VendorMakePaymentModal({
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    {paymentMethod === 'check' ? 'Check number' : 'Bank ref'}
+                    {paymentMethod === 'check' ? 'Check number' : 'Bank ref'}{' '}
+                    <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
+                    required
                     value={bankRef}
                     onChange={(e) => setBankRef(e.target.value)}
                     placeholder={paymentMethod === 'check' ? 'e.g. 1234' : 'e.g. 18921926'}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-invalid={bankRefMissing}
+                    className={`w-full rounded-md border px-3 py-2 font-mono focus:outline-none focus:ring-2 ${
+                      bankRefMissing
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-500'
+                    }`}
                   />
+                  {bankRefMissing && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {paymentMethod === 'check'
+                        ? 'Check number is required.'
+                        : 'Bank reference is required.'}
+                    </p>
+                  )}
                 </div>
                 {paymentMethod === 'eft' && (
                   <div className="md:col-span-2">
@@ -483,8 +504,15 @@ export function VendorMakePaymentModal({
                         <button
                           type="button"
                           onClick={() => void handleMakePayment()}
-                          disabled={processing}
-                          className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                          disabled={!canSubmitPayment}
+                          title={
+                            bankRefMissing
+                              ? paymentMethod === 'check'
+                                ? 'Enter a check number to continue'
+                                : 'Enter a bank reference to continue'
+                              : undefined
+                          }
+                          className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70"
                         >
                           {processing ? 'Processing…' : 'Make payment'}
                         </button>
