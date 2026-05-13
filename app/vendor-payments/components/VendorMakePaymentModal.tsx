@@ -439,6 +439,7 @@ export function VendorMakePaymentModal({
                             <th className="pb-2">Due</th>
                             <th className="pb-2 text-right">Amount</th>
                             <th className="pb-2 text-right">VAT</th>
+                            <th className="pb-2 text-right">Total</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -458,11 +459,12 @@ export function VendorMakePaymentModal({
                               <td className="py-2 font-mono">{inv.invoiceNumber}</td>
                               <td className="py-2">{formatDate(inv.invoiceDate)}</td>
                               <td className="py-2">{formatDate(inv.dueDate)}</td>
-                              <td className="py-2 text-right font-medium">
-                                {formatAmount(invoiceTotal(inv))}
-                              </td>
+                              <td className="py-2 text-right">{formatAmount(inv.amount)}</td>
                               <td className="py-2 text-right">
                                 {inv.vat != null ? formatAmount(inv.vat) : '—'}
+                              </td>
+                              <td className="py-2 text-right font-medium">
+                                {formatAmount(invoiceTotal(inv))}
                               </td>
                             </tr>
                           ))}
