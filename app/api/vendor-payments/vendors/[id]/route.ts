@@ -10,7 +10,14 @@ export async function GET(
     const vendor = await prisma.vendor.findUnique({
       where: { id },
       include: {
-        invoices: { orderBy: { invoiceDate: 'desc' } },
+        invoices: {
+          orderBy: { invoiceDate: 'desc' },
+          include: {
+            paidInvoice: {
+              include: { batch: true }
+            }
+          }
+        },
         batches: { orderBy: { paymentDate: 'desc' }, take: 10 }
       }
     })

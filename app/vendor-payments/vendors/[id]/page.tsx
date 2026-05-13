@@ -1,9 +1,19 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 import { VendorRevertPaymentModal } from '../../components/VendorRevertPaymentModal'
+
+interface VendorInvoicePaidBatch {
+  paymentDate: string
+  paymentMethod: string
+  bankRef: string
+}
+
+interface VendorInvoicePaidLink {
+  batch: VendorInvoicePaidBatch
+}
 
 interface VendorInvoice {
   id: string
@@ -14,7 +24,10 @@ interface VendorInvoice {
   vat: number | null
   status: string
   notes: string
+  paidInvoice?: VendorInvoicePaidLink | null
 }
+
+type InvoiceTab = 'pending' | 'paid'
 
 interface VendorBatch {
   id: string
@@ -44,10 +57,23 @@ function vendorInvoiceTotal(amount: number, vat: number | null) {
   return amount + (vat ?? 0)
 }
 
-export default function VendorDetailPage() {
+function VendorDetailPageInner() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const id = params.id as string
+  const activeInvoiceTab: InvoiceTab =
+    searchParams.get('tab') === 'paid' ? 'paid' : 'pending'
+  const setActiveInvoiceTab = (tab: InvoiceTab) => {
+    const next = new URLSearchParams(searchParams.toString())
+    if (tab === 'pending') next.delete('tab')
+    else next.set('tab', tab)
+    const qs = next.toString()
+    router.replace(`/vendor-payments/vendors/${id}${qs ? `?${qs}` : ''}`, {
+      scroll: false
+    })
+  }
+  const [paidSearchQuery, setPaidSearchQuery] = useState('')
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [loading, setLoading] = useState(true)
@@ -100,13 +126,29 @@ export default function VendorDetailPage() {
   const formatDate = (d: string) => formatInvoiceDate(d)
   const formatAmount = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
-  const pendingInvoices = vendor?.invoices?.filter((i) => i.status === 'pending') ?? []
-  const paidInvoices = vendor?.invoices?.filter((i) => i.status === 'paid') ?? []
+  const pendingInvoices = useMemo(
+    () => vendor?.invoices?.filter((i) => i.status === 'pending') ?? [],
+    [vendor?.invoices]
+  )
+  const paidInvoices = useMemo(
+    () => vendor?.invoices?.filter((i) => i.status === 'paid') ?? [],
+    [vendor?.invoices]
+  )
   const pendingTotal = pendingInvoices.reduce(
     (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
     0
   )
-  const paidTotal = paidInvoices.reduce(
+  const paidQuery = paidSearchQuery.trim().toLowerCase()
+  const filteredPaidInvoices = useMemo(() => {
+    if (!paidQuery) return paidInvoices
+    return paidInvoices.filter((inv) => {
+      const num = inv.invoiceNumber.toLowerCase()
+      const ref = inv.paidInvoice?.batch.bankRef?.toLowerCase() ?? ''
+      const method = inv.paidInvoice?.batch.paymentMethod?.toLowerCase() ?? ''
+      return num.includes(paidQuery) || ref.includes(paidQuery) || method.includes(paidQuery)
+    })
+  }, [paidInvoices, paidQuery])
+  const filteredPaidTotal = filteredPaidInvoices.reduce(
     (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
     0
   )
@@ -326,15 +368,16 @@ export default function VendorDetailPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
             <div className="flex gap-2">
-              {pendingInvoices.length > 0 && (
+              {activeInvoiceTab === 'pending' && pendingInvoices.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => router.push(`/vendor-payments/make-payment?vendorId=${id}`)}
                   className="px-3 py-1.5 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
                 >
                   Make Payment
                 </button>
               )}
-              {paidInvoices.length > 0 && (
+              {activeInvoiceTab === 'paid' && paidInvoices.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowRevertModal(true)}
@@ -344,6 +387,7 @@ export default function VendorDetailPage() {
                 </button>
               )}
               <button
+                type="button"
                 onClick={openAddInvoiceModal}
                 className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
               >
@@ -351,115 +395,175 @@ export default function VendorDetailPage() {
               </button>
             </div>
           </div>
-          {vendor.invoices.length === 0 ? (
-            <p className="text-sm text-gray-500">No invoices yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {pendingInvoices.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Pending</h3>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500">
-                        <th className="pb-1">Invoice #</th>
-                        <th className="pb-1">Date</th>
-                        <th className="pb-1">Due</th>
-                        <th className="pb-1 text-right">Amount</th>
-                        <th className="pb-1 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingInvoices.map((inv) => (
-                        <tr key={inv.id} className="border-t border-gray-100">
-                          <td className="py-2">{inv.invoiceNumber}</td>
-                          <td>{formatDate(inv.invoiceDate)}</td>
-                          <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
-                          <td className="text-right font-medium">
-                            {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
-                          </td>
-                          <td className="text-right">
-                            <button
-                              onClick={() => openEditInvoiceModal(inv)}
-                              className="text-blue-600 hover:text-blue-800 text-sm mr-3"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return
-                                try {
-                                  const res = await fetch(`/api/vendor-payments/invoices/${inv.id}`, {
-                                    method: 'DELETE'
-                                  })
-                                  if (res.ok) fetchVendor()
-                                  else {
-                                    const err = await res.json()
-                                    alert(err.error || 'Failed to delete')
-                                  }
-                                } catch {
-                                  alert('Failed to delete invoice')
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-800 text-sm"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-gray-300 bg-gray-50">
-                        <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
-                          Total ({pendingInvoices.length} invoice
-                          {pendingInvoices.length !== 1 ? 's' : ''})
-                        </td>
-                        <td className="text-right text-sm font-semibold text-blue-700">
-                          {formatAmount(pendingTotal)}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-              {paidInvoices.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Paid</h3>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500">
-                        <th className="pb-1">Invoice #</th>
-                        <th className="pb-1">Date</th>
-                        <th className="pb-1 text-right">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paidInvoices.map((inv) => (
-                        <tr key={inv.id} className="border-t border-gray-100">
-                          <td className="py-2">{inv.invoiceNumber}</td>
-                          <td>{formatDate(inv.invoiceDate)}</td>
-                          <td className="text-right font-medium">
-                            {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-gray-300 bg-gray-50">
-                        <td className="py-2 text-sm font-semibold text-gray-700" colSpan={2}>
-                          Total ({paidInvoices.length} invoice
-                          {paidInvoices.length !== 1 ? 's' : ''})
-                        </td>
-                        <td className="text-right text-sm font-semibold text-blue-700">
-                          {formatAmount(paidTotal)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
+
+          <div className="mb-4 flex flex-col gap-3 border-b border-gray-200 md:flex-row md:items-end md:justify-between">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveInvoiceTab('pending')}
+                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+                  activeInvoiceTab === 'pending'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Pending Invoices ({pendingInvoices.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveInvoiceTab('paid')}
+                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+                  activeInvoiceTab === 'paid'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Paid Invoices ({paidInvoices.length})
+              </button>
             </div>
+            {activeInvoiceTab === 'paid' && paidInvoices.length > 0 && (
+              <div className="w-full md:w-64 pb-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Search paid
+                </label>
+                <input
+                  type="text"
+                  value={paidSearchQuery}
+                  onChange={(e) => setPaidSearchQuery(e.target.value)}
+                  placeholder="Invoice #, method, or ref"
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {activeInvoiceTab === 'pending' ? (
+            pendingInvoices.length === 0 ? (
+              <p className="text-sm text-gray-500">No pending invoices.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="pb-1">Invoice #</th>
+                    <th className="pb-1">Date</th>
+                    <th className="pb-1">Due</th>
+                    <th className="pb-1 text-right">Amount</th>
+                    <th className="pb-1 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingInvoices.map((inv) => (
+                    <tr key={inv.id} className="border-t border-gray-100">
+                      <td className="py-2">{inv.invoiceNumber}</td>
+                      <td>{formatDate(inv.invoiceDate)}</td>
+                      <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
+                      <td className="text-right font-medium">
+                        {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                      </td>
+                      <td className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEditInvoiceModal(inv)}
+                          className="text-blue-600 hover:text-blue-800 text-sm mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return
+                            try {
+                              const res = await fetch(`/api/vendor-payments/invoices/${inv.id}`, {
+                                method: 'DELETE'
+                              })
+                              if (res.ok) fetchVendor()
+                              else {
+                                const err = await res.json()
+                                alert(err.error || 'Failed to delete')
+                              }
+                            } catch {
+                              alert('Failed to delete invoice')
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 bg-gray-50">
+                    <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
+                      Total ({pendingInvoices.length} invoice
+                      {pendingInvoices.length !== 1 ? 's' : ''})
+                    </td>
+                    <td className="text-right text-sm font-semibold text-blue-700">
+                      {formatAmount(pendingTotal)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            )
+          ) : paidInvoices.length === 0 ? (
+            <p className="text-sm text-gray-500">No paid invoices yet.</p>
+          ) : filteredPaidInvoices.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              No paid invoices match &quot;{paidSearchQuery}&quot;.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500">
+                  <th className="pb-1">Invoice #</th>
+                  <th className="pb-1">Date</th>
+                  <th className="pb-1">Payment</th>
+                  <th className="pb-1 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPaidInvoices.map((inv) => (
+                  <tr key={inv.id} className="border-t border-gray-100">
+                    <td className="py-2">{inv.invoiceNumber}</td>
+                    <td>{formatDate(inv.invoiceDate)}</td>
+                    <td className="text-sm text-gray-600">
+                      {inv.paidInvoice ? (
+                        <div className="flex flex-col">
+                          <span>{formatDate(inv.paidInvoice.batch.paymentDate)}</span>
+                          <span className="text-xs text-gray-500 font-mono">
+                            {inv.paidInvoice.batch.paymentMethod === 'check' ? 'Check' : 'EFT'}
+                            {' · Ref '}
+                            {inv.paidInvoice.batch.bankRef}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="text-right font-medium">
+                      {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 bg-gray-50">
+                  <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
+                    Total ({filteredPaidInvoices.length} invoice
+                    {filteredPaidInvoices.length !== 1 ? 's' : ''}
+                    {paidQuery && filteredPaidInvoices.length !== paidInvoices.length
+                      ? ` of ${paidInvoices.length}`
+                      : ''}
+                    )
+                  </td>
+                  <td className="text-right text-sm font-semibold text-blue-700">
+                    {formatAmount(filteredPaidTotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           )}
         </div>
 
@@ -881,5 +985,19 @@ export default function VendorDetailPage() {
         }}
       />
     </div>
+  )
+}
+
+export default function VendorDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      }
+    >
+      <VendorDetailPageInner />
+    </Suspense>
   )
 }
