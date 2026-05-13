@@ -668,20 +668,22 @@ function VendorDetailPageInner() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500">
-                  <th className="pb-1">Date</th>
-                  <th className="pb-1">Method</th>
-                  <th className="pb-1">Ref</th>
-                  <th className="pb-1 text-right">Amount</th>
+                  <th className="pb-1 pr-4">Date</th>
+                  <th className="pb-1 pr-4">Method</th>
+                  <th className="pb-1 pr-4">Ref</th>
+                  <th className="pb-1 pr-8 text-right">Amount</th>
                   <th className="pb-1">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBatches.map((b) => (
                   <tr key={b.id} className="border-t border-gray-100">
-                    <td className="py-2">{formatDate(b.paymentDate)}</td>
-                    <td className="capitalize">{b.paymentMethod}</td>
-                    <td>{b.bankRef}</td>
-                    <td className="text-right font-medium">{formatAmount(b.totalAmount)}</td>
+                    <td className="py-2 pr-4">{formatDate(b.paymentDate)}</td>
+                    <td className="pr-4 capitalize">{b.paymentMethod}</td>
+                    <td className="pr-4">{b.bankRef}</td>
+                    <td className="pr-8 text-right font-medium">
+                      {formatAmount(b.totalAmount)}
+                    </td>
                     <td>
                       {b.paymentMethod === 'check' && !b.clearedAt ? (
                         <span className="text-amber-600">Uncashed</span>
