@@ -102,6 +102,14 @@ export default function VendorDetailPage() {
 
   const pendingInvoices = vendor?.invoices?.filter((i) => i.status === 'pending') ?? []
   const paidInvoices = vendor?.invoices?.filter((i) => i.status === 'paid') ?? []
+  const pendingTotal = pendingInvoices.reduce(
+    (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
+    0
+  )
+  const paidTotal = paidInvoices.reduce(
+    (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
+    0
+  )
   const allBatches = vendor?.batches ?? []
   const matchesBatchDateFilter = (paymentDate: string) => {
     const dt = new Date(paymentDate)
@@ -400,6 +408,18 @@ export default function VendorDetailPage() {
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 bg-gray-50">
+                        <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
+                          Total ({pendingInvoices.length} invoice
+                          {pendingInvoices.length !== 1 ? 's' : ''})
+                        </td>
+                        <td className="text-right text-sm font-semibold text-blue-700">
+                          {formatAmount(pendingTotal)}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
@@ -425,6 +445,17 @@ export default function VendorDetailPage() {
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 bg-gray-50">
+                        <td className="py-2 text-sm font-semibold text-gray-700" colSpan={2}>
+                          Total ({paidInvoices.length} invoice
+                          {paidInvoices.length !== 1 ? 's' : ''})
+                        </td>
+                        <td className="text-right text-sm font-semibold text-blue-700">
+                          {formatAmount(paidTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
