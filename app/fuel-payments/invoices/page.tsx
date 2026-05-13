@@ -53,7 +53,13 @@ export default function InvoicesPage() {
   
   // Balance modal state
   const [showBalanceModal, setShowBalanceModal] = useState(false)
-  const [balance, setBalance] = useState<{ availableFunds: number; balanceAfter: number; planned: number } | null>(null)
+  const [balance, setBalance] = useState<{
+    availableFunds: number
+    balanceAfter: number
+    planned: number
+    uncashedChecksTotal: number
+    phantom: number
+  } | null>(null)
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',
     availableFunds: ''
@@ -480,6 +486,36 @@ export default function InvoicesPage() {
             >
               {formatAmount(balance.balanceAfter)}
             </span>
+            {balance.uncashedChecksTotal > 0 && (
+              <>
+                <span className="text-gray-400">|</span>
+                <span
+                  className="font-semibold text-amber-700"
+                  title="Total of vendor checks issued but not yet cleared by the bank"
+                >
+                  Uncashed:
+                </span>
+                <span className="text-amber-700">
+                  {formatAmount(balance.uncashedChecksTotal)}
+                </span>
+                <span className="text-gray-400">|</span>
+                <span
+                  className="font-semibold"
+                  title="Phantom = Available − Uncashed checks. A heads-up of actual spendable funds."
+                >
+                  Phantom:
+                </span>
+                <span
+                  className={
+                    balance.phantom >= 0
+                      ? 'text-green-600 font-semibold'
+                      : 'text-red-600 font-semibold'
+                  }
+                >
+                  {formatAmount(balance.phantom)}
+                </span>
+              </>
+            )}
           </div>
         )}
 

@@ -62,7 +62,24 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json(balance)
+    // Calculate uncashed checks (vendor batches paid by check, not yet cleared).
+    // Vendor and fuel share the same Balance, so uncashed checks affect both.
+    // "Phantom" = availableFunds - uncashed checks (heads-up of real spendable funds).
+    const uncashedChecks = await prisma.vendorPaymentBatch.aggregate({
+      where: {
+        paymentMethod: 'check',
+        clearedAt: null
+      },
+      _sum: { totalAmount: true }
+    })
+    const uncashedChecksTotal = roundMoney(uncashedChecks._sum.totalAmount ?? 0)
+    const phantom = roundMoney(balance.availableFunds - uncashedChecksTotal)
+
+    return NextResponse.json({
+      ...balance,
+      uncashedChecksTotal,
+      phantom
+    })
   } catch (error) {
     console.error('Error fetching balance:', error)
     return NextResponse.json(
