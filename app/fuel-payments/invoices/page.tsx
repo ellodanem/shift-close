@@ -469,26 +469,27 @@ export default function InvoicesPage() {
 
         {/* At-a-glance balance summary */}
         {balance && (
-          <div className="mb-4 inline-flex flex-wrap items-baseline gap-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
-            <span className="font-semibold">Available:</span>
-            <span>{formatAmount(balance.availableFunds)}</span>
-            <span className="text-gray-400">|</span>
-            <span className="font-semibold">Planned:</span>
-            <span>{formatAmount(balance.planned)}</span>
-            <span className="text-gray-400">|</span>
-            <span className="font-semibold">After:</span>
-            <span
-              className={
-                balance.balanceAfter >= 0
-                  ? 'text-green-600 font-semibold'
-                  : 'text-red-600 font-semibold'
-              }
-            >
-              {formatAmount(balance.balanceAfter)}
-            </span>
+          <>
+            <div className="inline-flex flex-wrap items-baseline gap-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
+              <span className="font-semibold">Available:</span>
+              <span>{formatAmount(balance.availableFunds)}</span>
+              <span className="text-gray-400">|</span>
+              <span className="font-semibold">Planned:</span>
+              <span>{formatAmount(balance.planned)}</span>
+              <span className="text-gray-400">|</span>
+              <span className="font-semibold">After:</span>
+              <span
+                className={
+                  balance.balanceAfter >= 0
+                    ? 'text-green-600 font-semibold'
+                    : 'text-red-600 font-semibold'
+                }
+              >
+                {formatAmount(balance.balanceAfter)}
+              </span>
+            </div>
             {balance.uncashedChecksTotal > 0 && (
-              <>
-                <span className="text-gray-400">|</span>
+              <div className="mt-1 mb-4 inline-flex flex-wrap items-baseline gap-3 px-3 text-sm text-gray-700 opacity-30">
                 <span
                   className="font-semibold text-amber-700"
                   title="Total of vendor checks issued but not yet cleared by the bank"
@@ -514,9 +515,10 @@ export default function InvoicesPage() {
                 >
                   {formatAmount(balance.phantom)}
                 </span>
-              </>
+              </div>
             )}
-          </div>
+            {!balance.uncashedChecksTotal && <div className="mb-4" />}
+          </>
         )}
 
         {/* Quick links to C-Store Essentials & Republic Bank */}
