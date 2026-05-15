@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
       firstName: true,
       lastName: true,
       role: true,
-      isSuperAdmin: true
+      isSuperAdmin: true,
+      homePath: true
     }
   })
 

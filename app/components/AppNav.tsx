@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
+import { ATTENDANCE_VIEWER_PATH } from '@/lib/attendance-viewer'
 import {
   formatAppUserDisplayName,
   isOperationsManagerRole,
@@ -53,6 +54,7 @@ const navConfig = [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
+      { label: 'Attendance viewer', href: ATTENDANCE_VIEWER_PATH, permission: 'people.attendanceViewer' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
@@ -114,8 +116,10 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/attendance/settings') {
     return pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')
   }
+  if (href === ATTENDANCE_VIEWER_PATH) return pathname === ATTENDANCE_VIEWER_PATH
   if (href === '/attendance') {
     if (pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')) return false
+    if (pathname === ATTENDANCE_VIEWER_PATH) return false
     return pathname.startsWith('/attendance')
   }
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
@@ -127,6 +131,9 @@ function isPathActive(pathname: string, href: string): boolean {
 
 function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
+  if (href === ATTENDANCE_VIEWER_PATH) {
+    return r === 'admin' || r === 'manager'
+  }
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
     return (

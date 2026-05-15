@@ -37,7 +37,13 @@ function LoginForm() {
       }
       // Session cookie is set on this response; re-fetch /api/auth/me so nav shows user, logout, and role-based links.
       await refresh()
-      router.push(next.startsWith('/') ? next : '/dashboard')
+      const redirectTo =
+        typeof data.redirectTo === 'string' && data.redirectTo.startsWith('/')
+          ? data.redirectTo
+          : next.startsWith('/')
+            ? next
+            : '/dashboard'
+      router.push(redirectTo)
       router.refresh()
     } catch {
       setError('Login failed')

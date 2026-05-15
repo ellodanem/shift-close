@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { SESSION_COOKIE, signSessionToken } from '@/lib/session'
+import { resolvePostLoginPath } from '@/lib/attendance-viewer'
 import { normalizeAppRole } from '@/lib/roles'
 
 export async function POST(request: NextRequest) {
@@ -38,8 +39,15 @@ export async function POST(request: NextRequest) {
       { rememberMe }
     )
 
+    const nextParam = String(body.next ?? '').trim() || null
+    const redirectTo = resolvePostLoginPath(
+      { homePath: user.homePath, role: roleNorm },
+      nextParam
+    )
+
     const res = NextResponse.json({
       ok: true,
+      redirectTo,
       user: {
         id: user.id,
         username: user.username,
@@ -47,7 +55,8 @@ export async function POST(request: NextRequest) {
         firstName: user.firstName,
         lastName: user.lastName,
         role: roleNorm,
-        isSuperAdmin: user.isSuperAdmin
+        isSuperAdmin: user.isSuperAdmin,
+        homePath: user.homePath
       }
     })
 

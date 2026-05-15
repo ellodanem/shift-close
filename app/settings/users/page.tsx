@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { ATTENDANCE_VIEWER_PATH, HOME_PATH_PRESETS } from '@/lib/attendance-viewer'
 import {
   APP_ROLES,
   canManageExistingAppUser,
@@ -19,6 +20,7 @@ interface AppUserRow {
   lastName: string | null
   role: string
   isSuperAdmin: boolean
+  homePath: string | null
   createdAt: string
   updatedAt: string
 }
@@ -45,7 +47,8 @@ export default function SettingsUsersPage() {
     firstName: '',
     lastName: '',
     role: 'stakeholder' as string,
-    password: ''
+    password: '',
+    homePath: ''
   })
 
   const actorRole = authUser?.role ?? ''
@@ -121,11 +124,12 @@ export default function SettingsUsersPage() {
         setError('Invalid role')
         return
       }
-      const body: Record<string, string> = {
+      const body: Record<string, string | null> = {
         email: editForm.email.trim(),
         firstName: editForm.firstName,
         lastName: editForm.lastName,
-        role: roleNorm
+        role: roleNorm,
+        homePath: editForm.homePath.trim() ? editForm.homePath.trim() : null
       }
       if (editForm.password.trim()) body.password = editForm.password
       const res = await fetch(`/api/users/${id}`, {
@@ -264,6 +268,7 @@ export default function SettingsUsersPage() {
                     <th className="text-left px-4 py-2">Username</th>
                     <th className="text-left px-4 py-2">Email</th>
                     <th className="text-left px-4 py-2">Role</th>
+                    <th className="text-left px-4 py-2">After login</th>
                     <th className="text-right px-4 py-2">Actions</th>
                   </tr>
                 </thead>
@@ -281,6 +286,13 @@ export default function SettingsUsersPage() {
                       </td>
                       <td className="px-4 py-2">{u.email}</td>
                       <td className="px-4 py-2 capitalize">{u.role.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-2 text-gray-600 text-xs">
+                        {u.homePath === ATTENDANCE_VIEWER_PATH
+                          ? 'Attendance viewer'
+                          : u.homePath
+                            ? u.homePath
+                            : 'Dashboard'}
+                      </td>
                       <td className="px-4 py-2 text-right">
                         {u.isSuperAdmin ? (
                           <span className="text-gray-400 text-xs">—</span>
@@ -328,6 +340,18 @@ export default function SettingsUsersPage() {
                               className="w-48"
                               inputClassName="w-full border rounded px-2 py-1 text-xs pr-12"
                             />
+                            <select
+                              value={editForm.homePath}
+                              onChange={(e) => setEditForm((f) => ({ ...f, homePath: e.target.value }))}
+                              className="border rounded px-2 py-1 text-xs w-48"
+                              title="Landing page after sign-in"
+                            >
+                              {HOME_PATH_PRESETS.map((o) => (
+                                <option key={o.value || 'default'} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
                             <div className="flex gap-2">
                               <button type="button" className="text-blue-600 text-xs" onClick={() => void saveEdit(u.id)}>
                                 Save
@@ -349,7 +373,8 @@ export default function SettingsUsersPage() {
                                   firstName: u.firstName ?? '',
                                   lastName: u.lastName ?? '',
                                   role: roleForSelect(u.role),
-                                  password: ''
+                                  password: '',
+                                  homePath: u.homePath ?? ''
                                 })
                               }}
                             >

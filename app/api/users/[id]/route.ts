@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
+import { sanitizeHomePath } from '@/lib/attendance-viewer'
 import {
   APP_ROLES,
   canAssignAppRole,
@@ -55,6 +56,18 @@ export async function PATCH(
     if (body.password !== undefined && String(body.password).length > 0) {
       data.passwordHash = await bcrypt.hash(String(body.password), 12)
     }
+    if (body.homePath !== undefined) {
+      const raw = body.homePath === null || body.homePath === '' ? null : String(body.homePath)
+      if (raw === null) {
+        data.homePath = null
+      } else {
+        const safe = sanitizeHomePath(raw)
+        if (!safe) {
+          return NextResponse.json({ error: 'Invalid home path' }, { status: 400 })
+        }
+        data.homePath = safe
+      }
+    }
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'No changes' }, { status: 400 })
@@ -71,6 +84,7 @@ export async function PATCH(
         lastName: true,
         role: true,
         isSuperAdmin: true,
+        homePath: true,
         createdAt: true,
         updatedAt: true
       }

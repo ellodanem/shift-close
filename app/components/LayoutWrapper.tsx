@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
 import { useAuth } from './AuthContext'
+import { ATTENDANCE_VIEWER_PATH } from '@/lib/attendance-viewer'
 import { formatAppUserDisplayName } from '@/lib/roles'
 
 export default function LayoutWrapper({
@@ -17,8 +18,9 @@ export default function LayoutWrapper({
     pathname === '/login' ||
     pathname === '/reset-password' ||
     pathname === '/forgot-password'
+  const isAttendanceViewer = pathname === ATTENDANCE_VIEWER_PATH
 
-  if (isApplyRoute || isAuthRoute) {
+  if (isApplyRoute || isAuthRoute || isAttendanceViewer) {
     return <>{children}</>
   }
 

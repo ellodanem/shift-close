@@ -23,6 +23,8 @@ export interface AuthUser {
   lastName?: string | null
   role: string
   isSuperAdmin: boolean
+  /** Per-user post-login path (e.g. /attendance/viewer). */
+  homePath?: string | null
   /** From session JWT: user checked "Remember me on this device" at sign-in. */
   rememberDevice?: boolean
 }

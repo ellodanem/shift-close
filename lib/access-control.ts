@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { canAccessAttendanceViewer, isAttendanceViewerPath } from '@/lib/attendance-viewer'
 import {
   isFullAccessRole,
   isOperationsManagerRole,
@@ -38,6 +39,10 @@ export function isPublicPath(pathname: string): boolean {
 
 /** After auth: can this role access this pathname (page or API)? */
 export function pathnameAllowedForRole(pathname: string, role: string): boolean {
+  if (isAttendanceViewerPath(pathname)) {
+    return canAccessAttendanceViewer(role)
+  }
+
   if (isFullAccessRole(role)) return true
 
   if (normalizeAppRole(role) === 'stakeholder') {
