@@ -15,8 +15,15 @@ import {
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
+type NavItemConfig = {
+  label: string
+  href: string
+  permission: string
+  children?: NavItemConfig[]
+}
+
 // Nav config - permission-ready for future role-based access
-const navConfig = [
+const navConfig: Array<{ label: string; items: NavItemConfig[] }> = [
   {
     label: 'Operations',
     items: [
@@ -53,8 +60,18 @@ const navConfig = [
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
-      { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
-      { label: 'Attendance viewer', href: ATTENDANCE_VIEWER_PATH, permission: 'people.attendanceViewer' },
+      {
+        label: 'Attendance',
+        href: '/attendance',
+        permission: 'people.attendance',
+        children: [
+          {
+            label: 'Attendance viewer',
+            href: ATTENDANCE_VIEWER_PATH,
+            permission: 'people.attendanceViewer'
+          }
+        ]
+      },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
@@ -71,15 +88,19 @@ function NavLink({
   href,
   label,
   isActive,
+  nested = false,
 }: {
   href: string
   label: string
   isActive: boolean
+  nested?: boolean
 }) {
   return (
     <Link
       href={href}
-      className={`group relative block rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all ${
+      className={`group relative block rounded-lg font-medium transition-all ${
+        nested ? 'ml-3 px-3 py-2 text-xs' : 'px-3.5 py-2.5 text-sm'
+      } ${
         isActive
           ? 'bg-slate-700/90 text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]'
           : 'text-slate-200 hover:bg-slate-700/60 hover:text-white'
@@ -87,13 +108,50 @@ function NavLink({
     >
       <span
         aria-hidden
-        className={`absolute left-1.5 top-1/2 h-4 -translate-y-1/2 rounded-full transition-all ${
-          isActive ? 'w-1 bg-cyan-300' : 'w-0.5 bg-slate-500 group-hover:bg-slate-300'
-        }`}
+        className={`absolute top-1/2 -translate-y-1/2 rounded-full transition-all ${
+          nested ? 'left-2 h-3' : 'left-1.5 h-4'
+        } ${isActive ? 'w-1 bg-cyan-300' : 'w-0.5 bg-slate-500 group-hover:bg-slate-300'}`}
       />
       {label}
     </Link>
   )
+}
+
+function NavItemBlock({ item, pathname }: { item: NavItemConfig; pathname: string }) {
+  return (
+    <div className="space-y-0.5">
+      <NavLink
+        href={item.href}
+        label={item.label}
+        isActive={isPathActive(pathname, item.href)}
+      />
+      {item.children?.map((child) => (
+        <NavLink
+          key={child.href}
+          href={child.href}
+          label={child.label}
+          isActive={isPathActive(pathname, child.href)}
+          nested
+        />
+      ))}
+    </div>
+  )
+}
+
+function filterNavItems(items: NavItemConfig[], role: string): NavItemConfig[] {
+  return items
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter((child) => navItemVisibleForRole(child.href, role))
+    }))
+    .filter(
+      (item) =>
+        navItemVisibleForRole(item.href, role) || (item.children != null && item.children.length > 0)
+    )
+    .map((item) => ({
+      ...item,
+      children: item.children?.length ? item.children : undefined
+    }))
 }
 
 function isPathActive(pathname: string, href: string): boolean {
@@ -208,7 +266,7 @@ export default function AppNav() {
     const groups = navConfig
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => navItemVisibleForRole(item.href, role))
+        items: filterNavItems(group.items, role)
       }))
       .filter((g) => g.items.length > 0)
 
@@ -280,12 +338,7 @@ export default function AppNav() {
             </div>
             <div className="space-y-1 px-3">
               {group.items.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  isActive={isPathActive(pathname, item.href)}
-                />
+                <NavItemBlock key={item.href} item={item} pathname={pathname} />
               ))}
             </div>
           </div>
