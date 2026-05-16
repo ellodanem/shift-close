@@ -10,13 +10,13 @@ import {
   readStationTimeZone,
   type PresenceStatus
 } from '@/lib/present-absence'
-import { isFullAccessRole } from '@/lib/roles'
+import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
 
 /** Canonical route for the read-only mobile attendance dashboard. */
 export const ATTENDANCE_VIEWER_PATH = '/attendance/viewer'
 
 export function canAccessAttendanceViewer(role: string): boolean {
-  return isFullAccessRole(role)
+  return isFullAccessRole(role) || isOperationsManagerRole(role)
 }
 
 export function isAttendanceViewerPath(pathname: string): boolean {

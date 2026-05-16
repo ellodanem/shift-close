@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-/** GET ?date=YYYY-MM-DD — mobile attendance viewer payload (read-only). Admin/manager only. */
+/** GET ?date=YYYY-MM-DD — mobile attendance viewer payload (read-only). Admin, manager, or operations manager. */
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request)
   if (!session) {

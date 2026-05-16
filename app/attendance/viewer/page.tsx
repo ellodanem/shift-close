@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ATTENDANCE_VIEWER_PATH,
+  canAccessAttendanceViewer,
   formatPunchTimeLocal,
   formatViewerDateLabel
 } from '@/lib/attendance-viewer'
@@ -110,7 +111,8 @@ function issueCount(s: SummaryCounts) {
 
 export default function AttendanceViewerPage() {
   const router = useRouter()
-  const { user, loading: authLoading, logout, isFullAccess } = useAuth()
+  const { user, loading: authLoading, logout } = useAuth()
+  const canView = user ? canAccessAttendanceViewer(user.role) : false
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [data, setData] = useState<ViewerPayload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -147,18 +149,18 @@ export default function AttendanceViewerPage() {
       router.replace(`/login?next=${encodeURIComponent(ATTENDANCE_VIEWER_PATH)}`)
       return
     }
-    if (!isFullAccess) {
+    if (!canView) {
       router.replace('/dashboard')
     }
-  }, [authLoading, user, isFullAccess, router])
+  }, [authLoading, user, canView, router])
 
   useEffect(() => {
-    if (!user || !isFullAccess) return
+    if (!user || !canView) return
     void load(selectedDate ?? undefined)
-  }, [user, isFullAccess, selectedDate, load])
+  }, [user, canView, selectedDate, load])
 
   useEffect(() => {
-    if (!user || !isFullAccess || !selectedDate) return
+    if (!user || !canView || !selectedDate) return
     let cancelled = false
     let lastHint = ''
 
@@ -188,7 +190,7 @@ export default function AttendanceViewerPage() {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [user, isFullAccess, selectedDate, load])
+  }, [user, canView, selectedDate, load])
 
   const tz = data?.stationTimeZone ?? ''
   const isToday = data ? data.date === data.todayYmd : false

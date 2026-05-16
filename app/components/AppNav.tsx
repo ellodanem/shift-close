@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
-import { ATTENDANCE_VIEWER_PATH } from '@/lib/attendance-viewer'
+import { ATTENDANCE_VIEWER_PATH, canAccessAttendanceViewer } from '@/lib/attendance-viewer'
 import {
   formatAppUserDisplayName,
   isOperationsManagerRole,
@@ -190,7 +190,7 @@ function isPathActive(pathname: string, href: string): boolean {
 function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
   if (href === ATTENDANCE_VIEWER_PATH) {
-    return r === 'admin' || r === 'manager'
+    return canAccessAttendanceViewer(role)
   }
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
