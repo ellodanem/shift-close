@@ -18,6 +18,8 @@ Send managers this link so login returns to the viewer:
 /login?next=/attendance/viewer
 ```
 
+For phone users, **Manager hub** (`/manager`) is the recommended default home — it links here and to roster mobile.
+
 ## Default page after login (per user)
 
 In **Settings → User accounts**, edit a user and set **After login** to **Attendance viewer**. Only that account is redirected; others keep the dashboard unless they use a `?next=` link.

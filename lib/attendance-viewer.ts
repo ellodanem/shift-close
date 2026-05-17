@@ -26,11 +26,6 @@ export function isAttendanceViewerPath(pathname: string): boolean {
   )
 }
 
-export const HOME_PATH_PRESETS = [
-  { value: '', label: 'Default (Dashboard)' },
-  { value: ATTENDANCE_VIEWER_PATH, label: 'Attendance viewer' }
-] as const
-
 /** Safe internal redirect target; rejects external/open redirects. */
 export function sanitizeHomePath(path: string | null | undefined): string | null {
   if (path == null) return null

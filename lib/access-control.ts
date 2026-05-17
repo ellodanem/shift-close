@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { canAccessAttendanceViewer, isAttendanceViewerPath } from '@/lib/attendance-viewer'
+import { canAccessManagerHub, isManagerHubPath } from '@/lib/manager-hub'
+import { canAccessRosterMobile, isRosterMobilePath } from '@/lib/roster-mobile'
 import {
   isFullAccessRole,
   isOperationsManagerRole,
@@ -41,6 +43,14 @@ export function isPublicPath(pathname: string): boolean {
 export function pathnameAllowedForRole(pathname: string, role: string): boolean {
   if (isAttendanceViewerPath(pathname)) {
     return canAccessAttendanceViewer(role)
+  }
+
+  if (isRosterMobilePath(pathname)) {
+    return canAccessRosterMobile(role)
+  }
+
+  if (isManagerHubPath(pathname)) {
+    return canAccessManagerHub(role)
   }
 
   if (isFullAccessRole(role)) return true

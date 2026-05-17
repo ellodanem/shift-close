@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
 import { useAuth } from './AuthContext'
 import { ATTENDANCE_VIEWER_PATH } from '@/lib/attendance-viewer'
+import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
+import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { formatAppUserDisplayName } from '@/lib/roles'
 
 export default function LayoutWrapper({
@@ -18,9 +20,12 @@ export default function LayoutWrapper({
     pathname === '/login' ||
     pathname === '/reset-password' ||
     pathname === '/forgot-password'
-  const isAttendanceViewer = pathname === ATTENDANCE_VIEWER_PATH
+  const isMinimalMobileShell =
+    pathname === ATTENDANCE_VIEWER_PATH ||
+    pathname === ROSTER_MOBILE_PATH ||
+    pathname === MANAGER_HUB_PATH
 
-  if (isApplyRoute || isAuthRoute || isAttendanceViewer) {
+  if (isApplyRoute || isAuthRoute || isMinimalMobileShell) {
     return <>{children}</>
   }
 

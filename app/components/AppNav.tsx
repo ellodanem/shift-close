@@ -6,6 +6,8 @@ import { useState, useEffect, useMemo } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
 import { ATTENDANCE_VIEWER_PATH, canAccessAttendanceViewer } from '@/lib/attendance-viewer'
+import { MANAGER_HUB_PATH, canAccessManagerHub } from '@/lib/manager-hub'
+import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
 import {
   formatAppUserDisplayName,
   isOperationsManagerRole,
@@ -28,6 +30,7 @@ const navConfig: Array<{ label: string; items: NavItemConfig[] }> = [
     label: 'Operations',
     items: [
       { label: 'Dashboard', href: '/dashboard', permission: 'dashboard' },
+      { label: 'Manager hub', href: MANAGER_HUB_PATH, permission: 'operations.managerHub' },
       { label: 'Shifts', href: '/shifts', permission: 'shifts' },
       { label: 'End of Day', href: '/days', permission: 'days' },
     ],
@@ -59,7 +62,12 @@ const navConfig: Array<{ label: string; items: NavItemConfig[] }> = [
     label: 'People',
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
-      { label: 'Roster', href: '/roster', permission: 'people.roster' },
+      {
+        label: 'Roster',
+        href: '/roster',
+        permission: 'people.roster',
+        children: [{ label: 'Roster (mobile)', href: ROSTER_MOBILE_PATH, permission: 'people.rosterMobile' }]
+      },
       {
         label: 'Attendance',
         href: '/attendance',
@@ -169,12 +177,17 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === '/reports/monthly') return pathname.startsWith('/reports/monthly')
   if (href === '/reports/daily-financial-summary') return pathname.startsWith('/reports/daily-financial-summary')
   if (href === '/staff') return pathname === '/staff' || pathname.startsWith('/staff/')
-  if (href === '/roster') return pathname === '/roster'
+  if (href === '/roster') {
+    if (pathname === ROSTER_MOBILE_PATH) return false
+    return pathname === '/roster'
+  }
   if (href === '/applications') return pathname.startsWith('/applications')
   if (href === '/attendance/settings') {
     return pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')
   }
+  if (href === MANAGER_HUB_PATH) return pathname === MANAGER_HUB_PATH
   if (href === ATTENDANCE_VIEWER_PATH) return pathname === ATTENDANCE_VIEWER_PATH
+  if (href === ROSTER_MOBILE_PATH) return pathname === ROSTER_MOBILE_PATH
   if (href === '/attendance') {
     if (pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')) return false
     if (pathname === ATTENDANCE_VIEWER_PATH) return false
@@ -189,9 +202,9 @@ function isPathActive(pathname: string, href: string): boolean {
 
 function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
-  if (href === ATTENDANCE_VIEWER_PATH) {
-    return canAccessAttendanceViewer(role)
-  }
+  if (href === MANAGER_HUB_PATH) return canAccessManagerHub(role)
+  if (href === ATTENDANCE_VIEWER_PATH) return canAccessAttendanceViewer(role)
+  if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
     return (

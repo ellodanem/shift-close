@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ATTENDANCE_VIEWER_PATH, HOME_PATH_PRESETS } from '@/lib/attendance-viewer'
+import { HOME_PATH_PRESETS } from '@/lib/manager-hub'
 import {
   APP_ROLES,
   canManageExistingAppUser,
@@ -287,11 +287,8 @@ export default function SettingsUsersPage() {
                       <td className="px-4 py-2">{u.email}</td>
                       <td className="px-4 py-2 capitalize">{u.role.replace(/_/g, ' ')}</td>
                       <td className="px-4 py-2 text-gray-600 text-xs">
-                        {u.homePath === ATTENDANCE_VIEWER_PATH
-                          ? 'Attendance viewer'
-                          : u.homePath
-                            ? u.homePath
-                            : 'Dashboard'}
+                        {HOME_PATH_PRESETS.find((p) => p.value === (u.homePath ?? ''))?.label ??
+                          (u.homePath || 'Dashboard')}
                       </td>
                       <td className="px-4 py-2 text-right">
                         {u.isSuperAdmin ? (
