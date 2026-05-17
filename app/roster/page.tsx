@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
+import {
+  countOffDaysForStaffInWeek,
+  ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
+  staffIdsBelowMinOffDays
+} from '@/lib/roster-settings'
 
 interface Staff {
   id: string
@@ -217,6 +222,7 @@ export default function RosterPage() {
   const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
   const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
+  const [minOffDaysPerWeek, setMinOffDaysPerWeek] = useState(ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT)
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -271,9 +277,10 @@ export default function RosterPage() {
   useEffect(() => {
     async function loadStatic() {
       try {
-        const [staffRes, tmplRes] = await Promise.all([
+        const [staffRes, tmplRes, rosterSettingsRes] = await Promise.all([
           fetch('/api/staff'),
-          fetch('/api/roster/templates')
+          fetch('/api/roster/templates'),
+          fetch('/api/roster/settings')
         ])
         if (staffRes.ok) {
           const staffData: Staff[] = await staffRes.json()
@@ -282,6 +289,11 @@ export default function RosterPage() {
         if (tmplRes.ok) {
           const tmplData: ShiftTemplate[] = await tmplRes.json()
           setTemplates(tmplData)
+        }
+        if (rosterSettingsRes.ok) {
+          const settings = await rosterSettingsRes.json()
+          const n = Number(settings.minOffDaysPerWeek)
+          if (Number.isFinite(n)) setMinOffDaysPerWeek(n)
         }
       } catch (err) {
         console.error('Error loading roster static data', err)
@@ -458,6 +470,36 @@ export default function RosterPage() {
     dayOffRequests.find(
       (request) => request.staffId === staffId && request.date === date && request.status !== 'denied'
     )
+
+  const stationClosedDates = useMemo(
+    () => new Set(publicHolidays.filter((h) => h.stationClosed).map((h) => h.date)),
+    [publicHolidays]
+  )
+
+  const staffBelowMinOff = useMemo(
+    () =>
+      staffIdsBelowMinOffDays({
+        displayStaff,
+        weekDates,
+        entries,
+        stationClosedDates,
+        minOffDays: minOffDaysPerWeek,
+        isOnSickLeave
+      }),
+    [displayStaff, weekDates, entries, stationClosedDates, minOffDaysPerWeek, sickLeaves]
+  )
+
+  const staffOffDaysWarningTitle = (staff: Staff): string | undefined => {
+    if (!staffBelowMinOff.has(staff.id) || minOffDaysPerWeek <= 0) return undefined
+    const offDays = countOffDaysForStaffInWeek({
+      staff,
+      weekDates,
+      entries,
+      stationClosedDates,
+      isOnSickLeave
+    })
+    return `${offDays} off day${offDays === 1 ? '' : 's'} this week (minimum ${minOffDaysPerWeek})`
+  }
 
   // Per-day, per-shift running counts (updates as assignments change)
   const countByDayAndShift = useMemo(() => {
@@ -1586,7 +1628,12 @@ export default function RosterPage() {
                             </button>
                           </div>
                         )}
-                        <div className="font-semibold text-gray-900 truncate text-base">
+                        <div
+                          className={`font-semibold truncate text-base ${
+                            staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : 'text-gray-900'
+                          }`}
+                          title={staffOffDaysWarningTitle(s)}
+                        >
                           {s.firstName?.trim() || s.name}
                         </div>
                       </div>
@@ -1910,7 +1957,12 @@ export default function RosterPage() {
                               ↓
                             </button>
                           </div>
-                          <div className="font-medium text-gray-900 min-w-0 break-words">{s.firstName?.trim() || s.name}</div>
+                          <div className={`font-medium min-w-0 break-words ${
+                              staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : 'text-gray-900'
+                            }`}
+                            title={staffOffDaysWarningTitle(s)}
+                          >
+                            {s.firstName?.trim() || s.name}</div>
                         </div>
                         {!rosterCellsLocked && (
                           <div className="relative ml-0 pl-7 sm:pl-8">
@@ -2468,7 +2520,12 @@ export default function RosterPage() {
                 {displayStaff.map((s) => (
                   <tr key={s.id}>
                     <td className="border px-2 py-1 align-top">
-                      <div className="font-medium text-gray-900">{s.firstName?.trim() || s.name}</div>
+                      <div className={`font-medium ${
+                        staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : 'text-gray-900'
+                      }`}
+                      title={staffOffDaysWarningTitle(s)}
+                    >
+                      {s.firstName?.trim() || s.name}</div>
                     </td>
                     {weekDates.map((date) => {
                       const onVacation = isOnVacation(s, date)

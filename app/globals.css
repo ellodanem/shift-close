@@ -52,3 +52,20 @@ input[type="number"] {
 .scrollbar-staff-panel::-webkit-scrollbar-thumb:hover {
   background: rgb(107 114 128);
 }
+
+/* Roster: staff below minimum off days for the week */
+@keyframes roster-off-days-flash {
+  0%,
+  100% {
+    color: rgb(220 38 38);
+  }
+  50% {
+    color: rgb(153 27 27);
+    opacity: 0.75;
+  }
+}
+
+.roster-staff-off-days-warning {
+  animation: roster-off-days-flash 1s ease-in-out infinite;
+  font-weight: 600;
+}

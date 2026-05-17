@@ -71,6 +71,14 @@ export default function SettingsPage() {
       icon: '📅',
       route: '/settings/public-holidays'
     },
+    {
+      id: 'roster',
+      title: 'Roster',
+      description:
+        'Minimum off days per staff per week. Names flash red on the roster when someone has too few off days (save is still allowed).',
+      icon: '📋',
+      route: '/settings/roster'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',
