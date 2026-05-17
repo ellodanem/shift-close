@@ -22,6 +22,9 @@ import {
   ROSTER_DAY_LABELS,
   staffDisplayName,
   weekDatesFromStart,
+  buildCountByDayAndShift,
+  dayShiftCountItems,
+  onShiftCountForDay,
   type RosterEntryClient,
   type RosterStaffClient
 } from '@/lib/roster-week-client'
@@ -96,6 +99,31 @@ export default function RosterMobilePage() {
     () => new Set(publicHolidays.filter((h) => h.stationClosed).map((h) => h.date)),
     [publicHolidays]
   )
+
+  const countByDayAndShift = useMemo(
+    () =>
+      buildCountByDayAndShift({
+        weekDates,
+        entries,
+        displayStaffCount: displayStaff.length,
+        templates
+      }),
+    [weekDates, entries, displayStaff.length, templates]
+  )
+
+  const selectedDayCoverage = useMemo(() => {
+    if (!selectedDate) return { items: [], onShift: 0 }
+    const counts = countByDayAndShift.get(selectedDate)
+    return {
+      items: dayShiftCountItems(counts, templates),
+      onShift: onShiftCountForDay(counts)
+    }
+  }, [selectedDate, countByDayAndShift, templates])
+
+  const selectDay = (ymd: string, switchToDayView = false) => {
+    setSelectedDate(ymd)
+    if (switchToDayView && viewMode !== 'day') switchView('day')
+  }
 
   useEffect(() => {
     setViewMode(readStoredRosterView())
@@ -440,13 +468,13 @@ export default function RosterMobilePage() {
           </button>
         </div>
 
-        {viewMode === 'day' ? (
-        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
-          {weekDates.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setSelectedDate(d)}
+        {viewMode === 'day' || viewMode === 'week' ? (
+          <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
+            {weekDates.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => selectDay(d, true)}
               className={`shrink-0 rounded-xl px-3 py-2 border text-center min-w-[3rem] ${
                 selectedDate === d ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600'
               }`}
@@ -481,6 +509,43 @@ export default function RosterMobilePage() {
             Person
           </button>
         </div>
+
+        {selectedDate && (viewMode === 'day' || viewMode === 'week') ? (
+          <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800 px-3 py-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-sm font-semibold text-slate-100">
+                {weekDayShort(selectedDate)} {selectedDate.slice(8)}/{selectedDate.slice(5, 7)}
+              </p>
+              <p className="text-xs text-slate-400 shrink-0">
+                {selectedDayCoverage.onShift} on shift · {displayStaff.length} staff
+              </p>
+            </div>
+            {selectedDayCoverage.items.length === 0 ? (
+              <p className="text-xs text-slate-500">No shift assignments for this day yet.</p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+                {selectedDayCoverage.items.map((item) => (
+                  <span
+                    key={item.key}
+                    className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold tabular-nums ${
+                      item.key === 'off'
+                        ? 'border-slate-600 bg-slate-900/50 text-slate-400'
+                        : 'border-slate-600 text-slate-100'
+                    }`}
+                    style={
+                      item.color && item.key !== 'off'
+                        ? { backgroundColor: `${item.color}28`, borderLeftColor: item.color, borderLeftWidth: 3 }
+                        : undefined
+                    }
+                  >
+                    {item.label}
+                    <span className="opacity-80">×{item.count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {error ? <p className="text-sm text-red-300 mb-3">{error}</p> : null}
 
@@ -540,8 +605,13 @@ export default function RosterMobilePage() {
                       return (
                         <th
                           key={date}
-                          className="border-b border-slate-700 px-1 py-2 text-center font-semibold text-slate-300 min-w-[3.25rem]"
-                          title={hol?.name}
+                          className={`border-b border-slate-700 px-1 py-2 text-center font-semibold min-w-[3.25rem] cursor-pointer ${
+                            selectedDate === date
+                              ? 'bg-blue-900/40 text-blue-200 ring-1 ring-inset ring-blue-500'
+                              : 'text-slate-300'
+                          }`}
+                          title={hol?.name ? `${hol.name} — tap for counts` : 'Tap for shift counts'}
+                          onClick={() => selectDay(date, true)}
                         >
                           <div>{ROSTER_DAY_LABELS[i]}</div>
                           <div className="text-[10px] text-slate-500">{date.slice(8)}</div>

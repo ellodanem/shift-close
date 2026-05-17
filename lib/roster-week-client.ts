@@ -104,3 +104,65 @@ export function buildFullWeekEntries(params: {
 export function staffDisplayName(s: { name: string; firstName?: string }): string {
   return s.firstName?.trim() || s.name
 }
+
+export interface ShiftTemplateRef {
+  id: string
+  name: string
+  color?: string | null
+}
+
+export interface DayShiftCountItem {
+  key: string
+  label: string
+  count: number
+  color?: string | null
+}
+
+/** Per calendar day: shift template id (or "off") → headcount. Matches desktop /roster logic. */
+export function buildCountByDayAndShift(params: {
+  weekDates: string[]
+  entries: RosterEntryClient[]
+  displayStaffCount: number
+  templates: ShiftTemplateRef[]
+}): Map<string, Map<string, number>> {
+  const { weekDates, entries, displayStaffCount, templates } = params
+  const byDay = new Map<string, Map<string, number>>()
+  for (const date of weekDates) {
+    const dayEntries = entries.filter((e) => e.date === date)
+    const shiftCounts = new Map<string, number>()
+    templates.forEach((t) => shiftCounts.set(t.id, 0))
+    shiftCounts.set('off', 0)
+    for (const e of dayEntries) {
+      const key = e.shiftTemplateId ?? 'off'
+      shiftCounts.set(key, (shiftCounts.get(key) ?? 0) + 1)
+    }
+    const assigned = dayEntries.length
+    shiftCounts.set('off', displayStaffCount - assigned)
+    byDay.set(date, shiftCounts)
+  }
+  return byDay
+}
+
+export function dayShiftCountItems(
+  counts: Map<string, number> | undefined,
+  templates: ShiftTemplateRef[]
+): DayShiftCountItem[] {
+  if (!counts) return []
+  const items: DayShiftCountItem[] = []
+  for (const t of templates) {
+    const n = counts.get(t.id) ?? 0
+    if (n > 0) items.push({ key: t.id, label: t.name, count: n, color: t.color ?? null })
+  }
+  const offCount = counts.get('off') ?? 0
+  if (offCount > 0) items.push({ key: 'off', label: 'Off', count: offCount })
+  return items
+}
+
+export function onShiftCountForDay(counts: Map<string, number> | undefined): number {
+  if (!counts) return 0
+  let total = 0
+  counts.forEach((n, k) => {
+    if (k !== 'off') total += n
+  })
+  return total
+}

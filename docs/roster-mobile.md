@@ -23,6 +23,7 @@
 - Week navigation and day strip
 - **Week** grid (staff × Mon–Sun, swipe sideways) — default view
 - **Day** / **Person** toggles (remembers last choice in `localStorage`)
+- **Day coverage:** tap a date (strip or week header) → chips per shift with counts (matches desktop roster)
 - Assign shift via bottom sheet (including Off)
 - Fill week (per staff)
 - Copy previous week
