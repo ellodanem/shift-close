@@ -122,7 +122,7 @@ export default function RosterMobilePage() {
 
   const selectDay = (ymd: string, switchToDayView = false) => {
     setSelectedDate(ymd)
-    if (switchToDayView && viewMode !== 'day') switchView('day')
+    if (switchToDayView) switchView('day')
   }
 
   useEffect(() => {
@@ -468,14 +468,14 @@ export default function RosterMobilePage() {
           </button>
         </div>
 
-        {viewMode === 'day' || viewMode === 'week' ? (
+        {viewMode === 'day' ? (
           <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
             {weekDates.map((d) => (
               <button
                 key={d}
                 type="button"
-                onClick={() => selectDay(d, true)}
-              className={`shrink-0 rounded-xl px-3 py-2 border text-center min-w-[3rem] ${
+                onClick={() => selectDay(d, false)}
+                className={`shrink-0 rounded-xl px-3 py-2 border text-center min-w-[3rem] ${
                 selectedDate === d ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-600'
               }`}
             >
@@ -510,7 +510,48 @@ export default function RosterMobilePage() {
           </button>
         </div>
 
-        {selectedDate && (viewMode === 'day' || viewMode === 'week') ? (
+        {viewMode === 'week' ? (
+          <div
+            className="mb-3 min-h-[2.75rem] rounded-lg border border-slate-700/80 bg-slate-800/60 px-2 py-1.5 flex items-center"
+            aria-live="polite"
+          >
+            {selectedDate && selectedDayCoverage.items.length > 0 ? (
+              <div className="flex items-center gap-2 w-full min-w-0">
+                <span className="text-[10px] font-semibold text-slate-400 shrink-0 tabular-nums">
+                  {weekDayShort(selectedDate)}
+                </span>
+                <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0">
+                  {selectedDayCoverage.items.map((item) => (
+                    <span
+                      key={item.key}
+                      className={`shrink-0 inline-flex items-center gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold tabular-nums ${
+                        item.key === 'off'
+                          ? 'border-slate-600 bg-slate-900/50 text-slate-400'
+                          : 'border-slate-600 text-slate-100'
+                      }`}
+                      style={
+                        item.color && item.key !== 'off'
+                          ? { backgroundColor: `${item.color}28`, borderLeftColor: item.color, borderLeftWidth: 2 }
+                          : undefined
+                      }
+                    >
+                      {item.label}
+                      <span className="opacity-80">×{item.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : selectedDate ? (
+              <p className="text-[10px] text-slate-500 w-full text-center">
+                {weekDayShort(selectedDate)} — no shift assignments yet
+              </p>
+            ) : (
+              <p className="text-[10px] text-slate-500 w-full text-center">Tap a column for shift counts</p>
+            )}
+          </div>
+        ) : null}
+
+        {viewMode === 'day' && selectedDate ? (
           <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800 px-3 py-3">
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-sm font-semibold text-slate-100">
@@ -591,7 +632,7 @@ export default function RosterMobilePage() {
         ) : viewMode === 'week' ? (
           <div className="rounded-xl border border-slate-700 bg-slate-800 overflow-hidden">
             <p className="text-[11px] text-slate-500 px-3 py-2 border-b border-slate-700">
-              Swipe sideways for all days · tap a cell to edit
+              Swipe for all days · tap name to fill week · tap cell to edit · tap column for counts
             </p>
             <div className="overflow-x-auto">
               <table className="w-max min-w-full border-collapse text-[11px]">
@@ -602,6 +643,7 @@ export default function RosterMobilePage() {
                     </th>
                     {weekDates.map((date, i) => {
                       const hol = holidayForDate(date)
+                      const dayOnShift = onShiftCountForDay(countByDayAndShift.get(date))
                       return (
                         <th
                           key={date}
@@ -610,11 +652,16 @@ export default function RosterMobilePage() {
                               ? 'bg-blue-900/40 text-blue-200 ring-1 ring-inset ring-blue-500'
                               : 'text-slate-300'
                           }`}
-                          title={hol?.name ? `${hol.name} — tap for counts` : 'Tap for shift counts'}
-                          onClick={() => selectDay(date, true)}
+                          title={hol?.name ? `${hol.name} — tap for shift breakdown` : 'Tap for shift breakdown'}
+                          onClick={() => selectDay(date, false)}
                         >
                           <div>{ROSTER_DAY_LABELS[i]}</div>
                           <div className="text-[10px] text-slate-500">{date.slice(8)}</div>
+                          <div className={`text-[10px] font-bold tabular-nums mt-0.5 ${
+                            selectedDate === date ? 'text-blue-300' : 'text-emerald-400/90'
+                          }`}>
+                            {dayOnShift > 0 ? dayOnShift : '—'}
+                          </div>
                         </th>
                       )
                     })}
@@ -624,12 +671,30 @@ export default function RosterMobilePage() {
                   {displayStaff.map((s) => (
                     <tr key={s.id} className="border-b border-slate-700/80 last:border-0">
                       <td
-                        className={`sticky left-0 z-10 bg-slate-800 border-r border-slate-700 px-2 py-1.5 font-medium text-slate-100 whitespace-nowrap max-w-[5rem] truncate ${
+                        className={`sticky left-0 z-10 bg-slate-800 border-r border-slate-700 p-0.5 font-medium text-slate-100 whitespace-nowrap max-w-[5rem] ${
                           staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
                         }`}
-                        title={staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
                       >
-                        {s.firstName?.trim() || s.name.split(' ')[0]}
+                        {canEditRoster && !isPastWeek ? (
+                          <button
+                            type="button"
+                            onClick={() => setFillStaffId(s.id)}
+                            className="w-full min-h-[40px] px-1.5 py-1.5 text-left truncate rounded-md text-blue-200 hover:bg-slate-700/80 active:bg-slate-700"
+                            title={
+                              staffOffDaysWarningTitle(s) ??
+                              `${staffDisplayName(s)} — tap to fill entire week`
+                            }
+                          >
+                            {s.firstName?.trim() || s.name.split(' ')[0]}
+                          </button>
+                        ) : (
+                          <span
+                            className="block px-1.5 py-1.5 truncate"
+                            title={staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
+                          >
+                            {s.firstName?.trim() || s.name.split(' ')[0]}
+                          </span>
+                        )}
                       </td>
                       {weekDates.map((date) => {
                         const entry = getEntryFor(s.id, date)
@@ -742,7 +807,10 @@ export default function RosterMobilePage() {
       {fillStaffId ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={() => setFillStaffId(null)}>
           <div className="bg-slate-800 rounded-t-2xl w-full max-w-lg p-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm text-slate-400 mb-3">Fill entire week</p>
+            <p className="text-sm text-slate-400 mb-1">Fill entire week</p>
+            <p className="text-base font-semibold text-slate-100 mb-3">
+              {staffDisplayName(displayStaff.find((s) => s.id === fillStaffId) ?? { name: 'Staff' })}
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" className="rounded-xl border border-slate-600 py-3" onClick={() => fillWeek(fillStaffId, null)}>
                 Off
