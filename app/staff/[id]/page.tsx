@@ -569,6 +569,48 @@ export default function EditStaffPage() {
               <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
             </div>
 
+            {/* NIC Number */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                NIC Number
+              </label>
+              <input
+                type="text"
+                value={formData.nicNumber}
+                onChange={(e) => setFormData({ ...formData, nicNumber: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="National ID / NIC"
+              />
+            </div>
+
+            {/* Bank */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Bank
+              </label>
+              <input
+                type="text"
+                value={formData.bankName}
+                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. BOSL"
+              />
+            </div>
+
+            {/* Account Number */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Account Number
+              </label>
+              <input
+                type="text"
+                value={formData.accountNumber}
+                onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Bank account number"
+              />
+            </div>
+
             {/* Device User ID (ZKTeco attendance) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

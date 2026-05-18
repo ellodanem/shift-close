@@ -8,6 +8,10 @@ import {
   formatDateRange,
   payPeriodExcelFilename
 } from '@/lib/pay-period-excel'
+import {
+  formatPayPeriodStaffNotesBlock,
+  type StaffPayrollSnapshot
+} from '@/lib/pay-period-staff-notes'
 
 interface PayPeriodRow {
   staffId: string
@@ -104,6 +108,36 @@ function formatShortageDisplay(n: number): string {
   return n > 0 ? `$${n.toFixed(2)}` : ''
 }
 
+function CopyStaffPayrollButton({
+  staffId,
+  staffPayrollById,
+  onCopy
+}: {
+  staffId: string
+  staffPayrollById: Record<string, StaffPayrollSnapshot>
+  onCopy: (block: string) => void
+}) {
+  const snapshot = staffPayrollById[staffId]
+  return (
+    <button
+      type="button"
+      title="Add payroll details to notes"
+      disabled={!snapshot}
+      onClick={() => {
+        if (!snapshot) return
+        onCopy(formatPayPeriodStaffNotesBlock(snapshot))
+      }}
+      className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+      aria-label="Add payroll details to notes"
+    >
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <rect x="9" y="9" width="13" height="13" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+    </button>
+  )
+}
+
 function HoverPreviousValue({
   currentDisplay,
   previousDisplay,
@@ -183,6 +217,35 @@ export default function PayPeriodPage() {
   const [emailSending, setEmailSending] = useState(false)
   /** When set, Save updates this record via PATCH instead of creating a new one. */
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
+  const [staffPayrollById, setStaffPayrollById] = useState<Record<string, StaffPayrollSnapshot>>({})
+
+  const loadStaffPayroll = async (staffIds: string[]) => {
+    const ids = [...new Set(staffIds.filter(Boolean))]
+    if (ids.length === 0) {
+      setStaffPayrollById({})
+      return
+    }
+    try {
+      const res = await fetch('/api/attendance/pay-period/staff-payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffIds: ids })
+      })
+      if (res.ok) {
+        const data = (await res.json()) as Record<string, StaffPayrollSnapshot>
+        setStaffPayrollById(data)
+      }
+    } catch {
+      setStaffPayrollById({})
+    }
+  }
+
+  const appendStaffBlockToNotes = (block: string) => {
+    if (!reportData) return
+    const current = (reportData.notes ?? '').trimEnd()
+    const next = current ? `${current}\n\n${block}` : block
+    setReportData({ ...reportData, notes: next })
+  }
 
   const loadSavedPeriods = async () => {
     try {
@@ -213,6 +276,7 @@ export default function PayPeriodPage() {
       const data: PayPeriodData = await res.json()
       setReportData({ ...data, notes: data.notes ?? '', previousRowsSnapshot: null })
       setEditingSavedId(null)
+      void loadStaffPayroll(data.rows.map((r) => r.staffId))
       setShowModal(true)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to generate')
@@ -280,6 +344,7 @@ export default function PayPeriodPage() {
     })
     setEditingSavedId(p.id)
     setShowConfirm(false)
+    void loadStaffPayroll(rows.map((r) => r.staffId))
     setShowModal(true)
   }
 
@@ -699,7 +764,16 @@ export default function PayPeriodPage() {
                         : undefined
                     return (
                     <tr key={i} className="border-b border-gray-200">
-                      <td className="py-1">{r.staffName}</td>
+                      <td className="py-1">
+                        <span className="inline-flex items-center">
+                          {r.staffName}
+                          <CopyStaffPayrollButton
+                            staffId={r.staffId}
+                            staffPayrollById={staffPayrollById}
+                            onCopy={appendStaffBlockToNotes}
+                          />
+                        </span>
+                      </td>
                       <td className="text-right">
                         <input
                           type="number"
@@ -770,15 +844,21 @@ export default function PayPeriodPage() {
                 <textarea
                   value={reportData.notes ?? ''}
                   onChange={(e) => setReportData({ ...reportData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  rows={8}
+                  spellCheck={false}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono whitespace-pre"
                   placeholder="Internal notes for this pay period…"
                 />
               </div>
 
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => { setShowModal(false); setReportData(null); setEditingSavedId(null) }}
+                  onClick={() => {
+                    setShowModal(false)
+                    setReportData(null)
+                    setEditingSavedId(null)
+                    setStaffPayrollById({})
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded font-medium hover:bg-gray-50"
                 >
                   Close
