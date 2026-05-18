@@ -493,31 +493,39 @@ export function VendorMakePaymentModal({
                       </table>
                     </div>
 
-                    {selectedInvoiceIds.size > 0 && (
-                      <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                        <span className="text-sm text-gray-600">
-                          {selectedInvoiceIds.size} invoice(s) selected · Total:{' '}
-                          <span className="font-semibold text-gray-900">
-                            {formatAmount(selectedTotal)}
+                    <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm text-gray-600">
+                        {selectedInvoiceIds.size > 0 ? (
+                          <>
+                            {selectedInvoiceIds.size} invoice(s) selected · Total:{' '}
+                            <span className="font-semibold text-gray-900">
+                              {formatAmount(selectedTotal)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-amber-600">
+                            Select at least one invoice to continue.
                           </span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void handleMakePayment()}
-                          disabled={!canSubmitPayment}
-                          title={
-                            bankRefMissing
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleMakePayment()}
+                        disabled={!canSubmitPayment}
+                        title={
+                          selectedInvoiceIds.size === 0
+                            ? 'Select at least one invoice to continue'
+                            : bankRefMissing
                               ? paymentMethod === 'check'
                                 ? 'Enter a check number to continue'
                                 : 'Enter a bank reference to continue'
                               : undefined
-                          }
-                          className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70"
-                        >
-                          {processing ? 'Processing…' : 'Make payment'}
-                        </button>
-                      </div>
-                    )}
+                        }
+                        className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70"
+                      >
+                        {processing ? 'Processing…' : 'Make payment'}
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
