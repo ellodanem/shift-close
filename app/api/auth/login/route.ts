@@ -6,6 +6,8 @@ import { SESSION_COOKIE, signSessionToken } from '@/lib/session'
 import { resolvePostLoginPath } from '@/lib/attendance-viewer'
 import { normalizeAppRole } from '@/lib/roles'
 
+const REMEMBER_MAX_AGE_SEC = 60 * 60 * 24 * 30
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -56,7 +58,8 @@ export async function POST(request: NextRequest) {
         lastName: user.lastName,
         role: roleNorm,
         isSuperAdmin: user.isSuperAdmin,
-        homePath: user.homePath
+        homePath: user.homePath,
+        rememberDevice: rememberMe
       }
     })
 
@@ -65,7 +68,12 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      ...(rememberMe ? { maxAge: 60 * 60 * 24 * 30 } : {})
+      ...(rememberMe
+        ? {
+            maxAge: REMEMBER_MAX_AGE_SEC,
+            expires: new Date(Date.now() + REMEMBER_MAX_AGE_SEC * 1000)
+          }
+        : {})
     })
 
     return res

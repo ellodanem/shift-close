@@ -9,6 +9,7 @@ import {
   isSupervisorLike,
   normalizeAppRole
 } from '@/lib/roles'
+import { writeRememberedUsername } from '@/lib/login-device-remember'
 
 /** Sign out automatically after this long with no user activity (mouse, keyboard, scroll, etc.). */
 export const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
@@ -75,6 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const endSession = useCallback(async (reason: 'manual' | 'idle') => {
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
+    if (reason === 'manual') {
+      writeRememberedUsername(null)
+    }
     window.location.href = reason === 'idle' ? '/login?timeout=1' : '/login'
   }, [])
 

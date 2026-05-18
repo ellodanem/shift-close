@@ -1,11 +1,12 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { PasswordField } from '@/app/components/PasswordField'
 import { useAuth } from '@/app/components/AuthContext'
+import { readRememberedUsername, writeRememberedUsername } from '@/lib/login-device-remember'
 
 function LoginForm() {
   const router = useRouter()
@@ -20,6 +21,14 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    const savedUsername = readRememberedUsername()
+    if (savedUsername) {
+      setUsername(savedUsername)
+      setRememberMe(true)
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -27,6 +36,7 @@ function LoginForm() {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, rememberMe })
       })
@@ -35,6 +45,12 @@ function LoginForm() {
         setError(typeof data.error === 'string' ? data.error : 'Login failed')
         return
       }
+      if (rememberMe) {
+        writeRememberedUsername(username)
+      } else {
+        writeRememberedUsername(null)
+      }
+
       // Session cookie is set on this response; re-fetch /api/auth/me so nav shows user, logout, and role-based links.
       await refresh()
       const redirectTo =
