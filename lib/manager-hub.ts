@@ -1,11 +1,22 @@
 import { ATTENDANCE_VIEWER_PATH, canAccessAttendanceViewer } from '@/lib/attendance-viewer'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
+import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
 
-/** Landing page with links to mobile manager tools. */
+/** Launcher for desktop full app and focused mobile manager tools. */
 export const MANAGER_HUB_PATH = '/manager'
 
+export const MANAGER_HUB_DESKTOP_PATH = '/dashboard'
+
+export function canAccessManagerHubDesktop(role: string): boolean {
+  return isFullAccessRole(role) || isOperationsManagerRole(role)
+}
+
 export function canAccessManagerHub(role: string): boolean {
-  return canAccessAttendanceViewer(role) || canAccessRosterMobile(role)
+  return (
+    canAccessManagerHubDesktop(role) ||
+    canAccessAttendanceViewer(role) ||
+    canAccessRosterMobile(role)
+  )
 }
 
 export function isManagerHubPath(pathname: string): boolean {
@@ -14,7 +25,7 @@ export function isManagerHubPath(pathname: string): boolean {
 
 export const HOME_PATH_PRESETS = [
   { value: '', label: 'Default (Dashboard)' },
-  { value: MANAGER_HUB_PATH, label: 'Manager hub (mobile)' },
+  { value: MANAGER_HUB_PATH, label: 'Manager hub' },
   { value: ATTENDANCE_VIEWER_PATH, label: 'Attendance viewer' },
   { value: ROSTER_MOBILE_PATH, label: 'Roster (mobile)' }
 ] as const

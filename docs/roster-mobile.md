@@ -3,7 +3,7 @@
 ## Route
 
 - **Page:** `/roster/mobile`
-- **Hub:** `/manager` (links to attendance viewer and roster mobile)
+- **Hub:** `/manager` (Desktop full app, plus attendance viewer and roster mobile)
 
 ## Access
 
@@ -16,7 +16,7 @@
 ## Sign-in
 
 - Bookmark: `/login?next=/roster/mobile`
-- **Manager hub** (recommended home): Settings → User accounts → **After login** → **Manager hub (mobile)**
+- **Manager hub** (recommended home): Settings → User accounts → **After login** → **Manager hub**
 
 ## v1 features
 
