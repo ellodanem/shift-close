@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { zkPushGET, zkPushPOST } from '@/lib/zk-iclock-push'
+import { zkPushCDATAGET, zkPushPOST } from '@/lib/zk-iclock-push'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
  */
 
 export async function GET(request: NextRequest) {
-  return zkPushGET(request)
+  return zkPushCDATAGET(request)
 }
 
 export async function POST(request: NextRequest) {

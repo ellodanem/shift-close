@@ -13,13 +13,52 @@ import {
   serialAllowed
 } from '@/lib/attendance-device-clock'
 import { prisma } from '@/lib/prisma'
-import { toYmdInBusinessTz } from '@/lib/datetime-policy'
+import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
 
 /**
  * ZKTeco iClock / ADMS push protocol (HTTPS).
  * Standard paths: GET /iclock/getrequest, POST /iclock/cdata?table=ATTLOG
  * Legacy alias: /api/attendance/adms
  */
+
+/**
+ * HTTP GET /iclock/cdata — device "handshake" / options (see open-source ADMS reference).
+ * Returns CRLF option lines; many terminals apply `TimeZone` as minutes **east of UTC**
+ * (e.g. IST +5:30 → 330). `America/St_Lucia` is UTC−4 year-round → default −240.
+ *
+ * Override with `ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES`. Set `ZK_ICLOCK_HANDSHAKE_TIMEZONE=0`
+ * to omit `TimeZone` (previous behavior).
+ */
+function buildIclockCdataHandshakeBody(serial: string): string {
+  const sn = serial.trim() || 'unknown'
+  const opStamp = Math.floor(Date.now() / 1000)
+  const includeTz = process.env.ZK_ICLOCK_HANDSHAKE_TIMEZONE !== '0'
+  const rawTz = process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES
+  let tzMinutes = -240
+  if (rawTz !== undefined && String(rawTz).trim() !== '') {
+    const n = parseInt(String(rawTz).trim(), 10)
+    if (Number.isFinite(n)) tzMinutes = n
+  }
+
+  const parts = [
+    `GET OPTION FROM: ${sn}`,
+    'Stamp=9999',
+    `OpStamp=${opStamp}`,
+    'ErrorDelay=60',
+    'Delay=30',
+    'ResLogDay=18250',
+    'ResLogDelCount=10000',
+    'ResLogCount=50000',
+    'TransTimes=00:00;14:05',
+    'TransInterval=1',
+    'TransFlag=1111000000'
+  ]
+  if (includeTz && Number.isFinite(tzMinutes)) {
+    parts.push(`TimeZone=${tzMinutes}`)
+  }
+  parts.push('Realtime=1', 'Encrypt=0')
+  return parts.join('\r\n') + '\r\n'
+}
 
 /** One ATTLOG line: PIN \\t YYYY-MM-DD HH:MM:SS ... (firmware varies slightly on time format). */
 function lineLooksLikeAttLog(line: string): boolean {
@@ -97,6 +136,19 @@ export async function zkPushGET(request: NextRequest) {
   const path = request.nextUrl.pathname
   console.log(`[ADMS] GET ${path} SN=${sn}`)
   return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+}
+
+/** GET /iclock/cdata — options handshake (not the same as getrequest polling). */
+export async function zkPushCDATAGET(request: NextRequest) {
+  const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
+  const path = request.nextUrl.pathname
+  const body = buildIclockCdataHandshakeBody(sn)
+  const tzMode =
+    process.env.ZK_ICLOCK_HANDSHAKE_TIMEZONE === '0'
+      ? 'omit'
+      : (process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES?.trim() || 'default-240')
+  console.log(`[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} businessTz=${BUSINESS_TIME_ZONE}`)
+  return new NextResponse(body, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }
 
 export async function zkPushPOST(request: NextRequest) {

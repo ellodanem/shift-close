@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
-import { zkPushGET, zkPushPOST } from '@/lib/zk-iclock-push'
+import { zkPushCDATAGET, zkPushPOST } from '@/lib/zk-iclock-push'
 
 export const dynamic = 'force-dynamic'
 
-/** ZKTeco standard: POST attendance and other tables (table=ATTLOG for punches). */
+/** ZKTeco standard: GET options handshake; POST attendance and other tables (table=ATTLOG for punches). */
 export async function GET(request: NextRequest) {
-  return zkPushGET(request)
+  return zkPushCDATAGET(request)
 }
 
 export async function POST(request: NextRequest) {
