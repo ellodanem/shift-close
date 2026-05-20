@@ -67,7 +67,7 @@ export default function ShiftsPage() {
   }, [showCustomPicker])
   
   useEffect(() => {
-    fetch('/api/shifts')
+    fetch('/api/shifts?recentDays=120')
       .then(res => res.json())
       .then(data => {
         // Sort by date desc, and for the same date put 1-9 after 6-1 (since it happens later)

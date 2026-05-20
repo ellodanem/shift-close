@@ -1,86 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateShiftClose, getListDisplayOverShort } from '@/lib/calculations'
+import { calculateShiftClose } from '@/lib/calculations'
+import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
+import { buildShiftsList } from '@/lib/shifts-list'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 
-export async function GET() {
+export const dynamic = 'force-dynamic'
+
+const DEFAULT_RECENT_DAYS = 120
+const MIN_RECENT_DAYS = 30
+const MAX_RECENT_DAYS = 365
+
+export async function GET(request: NextRequest) {
   try {
-    const shifts = await prisma.shiftClose.findMany({
-      orderBy: { date: 'desc' },
-      include: {
-        corrections: true
+    const { searchParams } = new URL(request.url)
+    const all = searchParams.get('all') === '1'
+    let sinceDate: string | undefined
+
+    if (!all) {
+      const raw = Number(searchParams.get('recentDays') ?? DEFAULT_RECENT_DAYS)
+      const days = Number.isFinite(raw)
+        ? Math.min(MAX_RECENT_DAYS, Math.max(MIN_RECENT_DAYS, Math.floor(raw)))
+        : DEFAULT_RECENT_DAYS
+      sinceDate = addCalendarDaysYmd(businessTodayYmd(), -days)
+    }
+
+    const shifts = await buildShiftsList(sinceDate ? { sinceDate } : undefined)
+    return NextResponse.json(shifts, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+        ...(sinceDate ? { 'X-Shifts-Since': sinceDate } : {})
       }
     })
-    
-    // Group shifts by date to check document status per day
-    const shiftsByDate = new Map<string, typeof shifts>()
-    shifts.forEach(shift => {
-      if (!shiftsByDate.has(shift.date)) {
-        shiftsByDate.set(shift.date, [])
-      }
-      shiftsByDate.get(shift.date)!.push(shift)
-    })
-    
-    // Check document status for each day - separate deposit and debit scans
-    const dayDepositScanStatus = new Map<string, boolean>()
-    const dayDebitScanStatus = new Map<string, boolean>()
-    shiftsByDate.forEach((dayShifts, date) => {
-      let hasDepositScans = false
-      let hasDebitScans = false
-      dayShifts.forEach(shift => {
-        try {
-          const depositUrls = shift.depositScanUrls ? JSON.parse(shift.depositScanUrls) : []
-          const debitUrls = shift.debitScanUrls ? JSON.parse(shift.debitScanUrls) : []
-          if (Array.isArray(depositUrls) && depositUrls.length > 0) {
-            hasDepositScans = true
-          }
-          if (Array.isArray(debitUrls) && debitUrls.length > 0) {
-            hasDebitScans = true
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      })
-      dayDepositScanStatus.set(date, hasDepositScans)
-      dayDebitScanStatus.set(date, hasDebitScans)
-    })
-    
-    // Recalculate totalDeposits from deposits field for each shift
-    const shiftsWithRecalculatedDeposits = shifts.map(shift => {
-      let recalculatedTotalDeposits = shift.totalDeposits
-      
-      // If totalDeposits is 0 or null, recalculate from deposits field
-      if (!shift.totalDeposits || shift.totalDeposits === 0) {
-        try {
-          const depositsArray = typeof shift.deposits === 'string' 
-            ? JSON.parse(shift.deposits || '[]') 
-            : (Array.isArray(shift.deposits) ? shift.deposits : [])
-          
-          recalculatedTotalDeposits = depositsArray
-            .filter((d: any) => d !== null && d !== undefined && !Number.isNaN(d) && d > 0)
-            .reduce((sum: number, d: number) => sum + (Number(d) || 0), 0)
-        } catch (err) {
-          console.error('Error recalculating deposits for shift', shift.id, err)
-          // Keep original value if parsing fails
-        }
-      }
-      
-      const netOverShort = getListDisplayOverShort({
-        overShortTotal: shift.overShortTotal,
-        osReviewed: shift.osReviewed
-      })
-      return {
-        ...shift,
-        totalDeposits: recalculatedTotalDeposits,
-        hasDayDepositScans: dayDepositScanStatus.get(shift.date) || false,
-        hasDayDebitScans: dayDebitScanStatus.get(shift.date) || false,
-        netOverShort
-      }
-    })
-    
-    return NextResponse.json(shiftsWithRecalculatedDeposits)
   } catch (error) {
     console.error('Error fetching shifts:', error)
     return NextResponse.json({ error: 'Failed to fetch shifts' }, { status: 500 })

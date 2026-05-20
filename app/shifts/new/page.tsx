@@ -95,7 +95,7 @@ export default function NewShiftPage() {
 
   // Fetch existing shifts to prevent duplicate date+shift combinations
   useEffect(() => {
-    fetch('/api/shifts')
+    fetch('/api/shifts?recentDays=120')
       .then(res => res.json())
       .then(data => {
         // Build a map of date -> shift types that already exist (any status)

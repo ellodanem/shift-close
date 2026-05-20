@@ -176,46 +176,26 @@ function VendorInvoicesPageInner() {
   }
 
   useEffect(() => {
-    const loadVendors = async () => {
+    const loadBootstrap = async () => {
       try {
-        const res = await fetch('/api/vendor-payments/vendors')
+        const res = await fetch('/api/vendor-payments/page-bootstrap')
         if (res.ok) {
-          const data: VendorRef[] = await res.json()
-          setVendors(data)
+          const data = await res.json()
+          setVendors(Array.isArray(data.vendors) ? data.vendors : [])
+          if (typeof data.pendingCount === 'number') setPendingCount(data.pendingCount)
+          if (typeof data.paidCount === 'number') setPaidCount(data.paidCount)
         }
       } catch (e) {
-        console.error('Error fetching vendors', e)
+        console.error('Error fetching vendor payments bootstrap', e)
       }
     }
-    void loadVendors()
+    void loadBootstrap()
+    void fetchBalance()
   }, [])
 
   useEffect(() => {
     void fetchInvoices()
   }, [activeTab, vendorFilter])
-
-  useEffect(() => {
-    const fetchCounts = async () => {
-      try {
-        const [pendingRes, paidRes] = await Promise.all([
-          fetch('/api/vendor-payments/invoices?status=pending'),
-          fetch('/api/vendor-payments/invoices?status=paid')
-        ])
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json()
-          setPendingCount(pendingData.length)
-        }
-        if (paidRes.ok) {
-          const paidData = await paidRes.json()
-          setPaidCount(paidData.length)
-        }
-      } catch (e) {
-        console.error('Error fetching counts', e)
-      }
-    }
-    void fetchCounts()
-    void fetchBalance()
-  }, [])
 
   useEffect(() => {
     if (!copyNotification) return
@@ -265,17 +245,11 @@ function VendorInvoicesPageInner() {
 
   const refreshCounts = async () => {
     try {
-      const [pendingRes, paidRes] = await Promise.all([
-        fetch('/api/vendor-payments/invoices?status=pending'),
-        fetch('/api/vendor-payments/invoices?status=paid')
-      ])
-      if (pendingRes.ok) {
-        const pendingData = await pendingRes.json()
-        setPendingCount(pendingData.length)
-      }
-      if (paidRes.ok) {
-        const paidData = await paidRes.json()
-        setPaidCount(paidData.length)
+      const res = await fetch('/api/vendor-payments/invoices/counts')
+      if (res.ok) {
+        const data = await res.json()
+        if (typeof data.pendingCount === 'number') setPendingCount(data.pendingCount)
+        if (typeof data.paidCount === 'number') setPaidCount(data.paidCount)
       }
     } catch (e) {
       console.error('Error refreshing counts', e)

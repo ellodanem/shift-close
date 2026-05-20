@@ -12,6 +12,7 @@ import {
   parseExpectedPunchesPerDay
 } from '@/lib/attendance-irregularity'
 import { deviceUserIdsMatch } from '@/lib/device-user-id'
+import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
 
@@ -472,6 +473,7 @@ export default function AttendancePage() {
   const loadingRef = useRef(true)
   const syncingRef = useRef(false)
   const syncFingerprintRef = useRef<string | null>(null)
+  const tabHiddenAtRef = useRef<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Server `ATTENDANCE_RAW_LOGS`: show every punch regardless of extraction. */
   const [rawLogsEnvActive, setRawLogsEnvActive] = useState(false)
@@ -697,7 +699,17 @@ export default function AttendancePage() {
   useEffect(() => {
     if (activeTab !== 'logs') return
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void refreshAttendanceLogs()
+      if (document.visibilityState === 'hidden') {
+        tabHiddenAtRef.current = Date.now()
+        return
+      }
+      if (
+        document.visibilityState === 'visible' &&
+        shouldRefetchOnVisibility(tabHiddenAtRef.current)
+      ) {
+        tabHiddenAtRef.current = null
+        void refreshAttendanceLogs()
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)

@@ -263,28 +263,24 @@ export default function RosterPage() {
     [allStaff, weekStart, entries]
   )
 
-  // Load staff and templates once
+  // Load staff, templates, and settings in one request
   useEffect(() => {
     async function loadStatic() {
       try {
-        const [staffRes, tmplRes, rosterSettingsRes] = await Promise.all([
-          fetch('/api/staff'),
-          fetch('/api/roster/templates'),
-          fetch('/api/roster/settings')
-        ])
-        if (staffRes.ok) {
-          const staffData: Staff[] = await staffRes.json()
-          setAllStaff(staffData)
+        const res = await fetch('/api/roster/static-bootstrap')
+        if (!res.ok) {
+          setError('Failed to load staff or shift presets.')
+          return
         }
-        if (tmplRes.ok) {
-          const tmplData: ShiftTemplate[] = await tmplRes.json()
-          setTemplates(tmplData)
+        const data = await res.json()
+        if (Array.isArray(data.staff)) {
+          setAllStaff(data.staff as Staff[])
         }
-        if (rosterSettingsRes.ok) {
-          const settings = await rosterSettingsRes.json()
-          const n = Number(settings.minOffDaysPerWeek)
-          if (Number.isFinite(n)) setMinOffDaysPerWeek(n)
+        if (Array.isArray(data.templates)) {
+          setTemplates(data.templates as ShiftTemplate[])
         }
+        const n = Number(data.minOffDaysPerWeek)
+        if (Number.isFinite(n)) setMinOffDaysPerWeek(n)
       } catch (err) {
         console.error('Error loading roster static data', err)
         setError('Failed to load staff or shift presets.')

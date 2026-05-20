@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ATTENDANCE_VIEWER_PATH,
@@ -10,6 +10,7 @@ import {
   formatViewerDateLabel
 } from '@/lib/attendance-viewer'
 import { useAuth } from '@/app/components/AuthContext'
+import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 interface SummaryCounts {
   present: number
@@ -120,6 +121,7 @@ export default function AttendanceViewerPage() {
   const [feedOpen, setFeedOpen] = useState(true)
   const [punchDetail, setPunchDetail] = useState<PunchRow | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const tabHiddenAtRef = useRef<number | null>(null)
 
   const load = useCallback(async (ymd?: string) => {
     setError(null)
@@ -165,6 +167,7 @@ export default function AttendanceViewerPage() {
     let lastHint = ''
 
     const poll = async () => {
+      if (document.visibilityState !== 'visible') return
       try {
         const res = await fetch('/api/attendance/logs/sync-hint', { cache: 'no-store' })
         const hint = await res.json()
@@ -184,11 +187,27 @@ export default function AttendanceViewerPage() {
       }
     }
 
+    const onVisible = () => {
+      if (document.visibilityState === 'hidden') {
+        tabHiddenAtRef.current = Date.now()
+        return
+      }
+      if (
+        document.visibilityState === 'visible' &&
+        shouldRefetchOnVisibility(tabHiddenAtRef.current)
+      ) {
+        tabHiddenAtRef.current = null
+        void load(selectedDate)
+      }
+    }
+
     const id = window.setInterval(() => void poll(), 120_000)
     void poll()
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       cancelled = true
       window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [user, canView, selectedDate, load])
 

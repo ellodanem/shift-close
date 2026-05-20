@@ -137,16 +137,15 @@ export default function RosterMobilePage() {
   }, [authLoading, user, router])
 
   useEffect(() => {
-    void Promise.all([
-      fetch('/api/staff').then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/roster/templates').then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/roster/settings').then((r) => (r.ok ? r.json() : null))
-    ]).then(([staff, tmpl, settings]) => {
-      setAllStaff(Array.isArray(staff) ? staff : [])
-      setTemplates(Array.isArray(tmpl) ? tmpl : [])
-      const n = Number(settings?.minOffDaysPerWeek)
-      if (Number.isFinite(n)) setMinOffDaysPerWeek(n)
-    })
+    void fetch('/api/roster/static-bootstrap')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        setAllStaff(Array.isArray(data.staff) ? data.staff : [])
+        setTemplates(Array.isArray(data.templates) ? data.templates : [])
+        const n = Number(data.minOffDaysPerWeek)
+        if (Number.isFinite(n)) setMinOffDaysPerWeek(n)
+      })
   }, [])
 
   const loadWeek = useCallback(async () => {
