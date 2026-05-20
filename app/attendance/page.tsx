@@ -511,6 +511,8 @@ export default function AttendancePage() {
   const bulkSelectAllRef = useRef<HTMLInputElement>(null)
 
   const [showAddPunch, setShowAddPunch] = useState(false)
+  /** When set, staff is chosen from the dropdown (All-staff view). */
+  const [addStaffPickId, setAddStaffPickId] = useState('')
   const [addStaffInput, setAddStaffInput] = useState('')
   const [addPunchLocal, setAddPunchLocal] = useState('')
   const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
@@ -531,6 +533,7 @@ export default function AttendancePage() {
 
   /** Many manual punches for one staff across one or many calendar days. */
   const [showBulkAdd, setShowBulkAdd] = useState(false)
+  const [bulkAddStaffPickId, setBulkAddStaffPickId] = useState('')
   const [bulkAddStaffInput, setBulkAddStaffInput] = useState('')
   const [bulkAddRows, setBulkAddRows] = useState<BulkAddPunchRow[]>([])
   const [bulkAddSaving, setBulkAddSaving] = useState(false)
@@ -734,10 +737,21 @@ export default function AttendancePage() {
 
   const staffWithDevice = useMemo(() => allStaff.filter((s) => s.deviceUserId), [allStaff])
 
-  const addPunchResolvedStaff = useMemo(
-    () => (showAddPunch ? resolveStaffForManualPunch(addStaffInput, staffWithDevice) : null),
-    [showAddPunch, addStaffInput, staffWithDevice]
-  )
+  const addPunchResolvedStaff = useMemo(() => {
+    if (!showAddPunch) return null
+    if (addStaffPickId) {
+      return staffWithDevice.find((s) => s.id === addStaffPickId) ?? null
+    }
+    return resolveStaffForManualPunch(addStaffInput, staffWithDevice)
+  }, [showAddPunch, addStaffPickId, addStaffInput, staffWithDevice])
+
+  const bulkAddResolvedStaff = useMemo(() => {
+    if (!showBulkAdd) return null
+    if (bulkAddStaffPickId) {
+      return staffWithDevice.find((s) => s.id === bulkAddStaffPickId) ?? null
+    }
+    return resolveStaffForManualPunch(bulkAddStaffInput, staffWithDevice)
+  }, [showBulkAdd, bulkAddStaffPickId, bulkAddStaffInput, staffWithDevice])
 
   useEffect(() => {
     if (!showAddPunch) {
@@ -1138,10 +1152,8 @@ export default function AttendancePage() {
     setEditingLog(null)
     setShowBulkAdd(false)
     setAddError(null)
-    const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
-    const fallback = staffWithDevice[0]
-    // Show name in the field (device user ID is still accepted when typed — see resolveStaffForManualPunch).
-    setAddStaffInput(fromFilter?.name?.trim() ?? fallback?.name?.trim() ?? '')
+    setAddStaffPickId(staffFilter || '')
+    setAddStaffInput('')
     setAddPunchLocal(nowDatetimeLocalValue())
     setAddPunchType('in')
     setShowAddPunch(true)
@@ -1151,15 +1163,16 @@ export default function AttendancePage() {
     if (addSaving) return
     setShowAddPunch(false)
     setAddError(null)
+    setAddStaffPickId('')
+    setAddStaffInput('')
   }
 
   const openBulkAddPunches = () => {
     setEditingLog(null)
     setShowAddPunch(false)
     setBulkAddError(null)
-    const fromFilter = staffWithDevice.find((s) => s.id === staffFilter)
-    const fallback = staffWithDevice[0]
-    setBulkAddStaffInput(fromFilter?.name?.trim() ?? fallback?.name?.trim() ?? '')
+    setBulkAddStaffPickId(staffFilter || '')
+    setBulkAddStaffInput('')
     setBulkAddRows([createBulkAddRow({ date: formatDate(new Date()) })])
     setShowBulkAdd(true)
   }
@@ -1168,13 +1181,17 @@ export default function AttendancePage() {
     if (bulkAddSaving) return
     setShowBulkAdd(false)
     setBulkAddError(null)
+    setBulkAddStaffPickId('')
+    setBulkAddStaffInput('')
   }
 
   const handleSaveBulkAddPunches = async () => {
-    const staff = resolveStaffForManualPunch(bulkAddStaffInput, staffWithDevice)
+    const staff = bulkAddResolvedStaff
     if (!staff) {
       setBulkAddError(
-        'Enter the device user ID (number from the ZKTeco device), or pick a staff name from the suggestions.'
+        staffFilter
+          ? 'Staff could not be resolved for this filter.'
+          : 'Select a staff member from the list.'
       )
       return
     }
@@ -1225,10 +1242,12 @@ export default function AttendancePage() {
   }
 
   const handleSaveAddPunch = async () => {
-    const staff = resolveStaffForManualPunch(addStaffInput, staffWithDevice)
+    const staff = addPunchResolvedStaff
     if (!staff) {
       setAddError(
-        'Enter the device user ID (number from the ZKTeco device), or pick a staff name from the suggestions.'
+        staffFilter
+          ? 'Staff could not be resolved for this filter.'
+          : 'Select a staff member from the list.'
       )
       return
     }
@@ -2169,24 +2188,39 @@ export default function AttendancePage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="bulk-add-staff">
                         Staff
                       </label>
-                      <input
-                        id="bulk-add-staff"
-                        type="text"
-                        list="bulk-add-staff-datalist"
-                        value={bulkAddStaffInput}
-                        onChange={(e) => setBulkAddStaffInput(e.target.value)}
-                        placeholder="Device user ID or name"
-                        autoComplete="off"
-                        disabled={bulkAddSaving}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
-                      <datalist id="bulk-add-staff-datalist">
-                        {staffWithDevice.map((s) => (
-                          <option key={s.id} value={s.name}>
-                            {`Device user ${s.deviceUserId ?? '—'}`}
-                          </option>
-                        ))}
-                      </datalist>
+                      {staffFilter ? (
+                        <input
+                          id="bulk-add-staff"
+                          type="text"
+                          readOnly
+                          value={
+                            staffWithDevice.find((s) => s.id === staffFilter)?.name ??
+                            bulkAddResolvedStaff?.name ??
+                            ''
+                          }
+                          disabled={bulkAddSaving}
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-900 disabled:opacity-70"
+                        />
+                      ) : (
+                        <select
+                          id="bulk-add-staff"
+                          value={bulkAddStaffPickId}
+                          onChange={(e) => {
+                            setBulkAddStaffPickId(e.target.value)
+                            setBulkAddStaffInput('')
+                          }}
+                          disabled={bulkAddSaving}
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white disabled:opacity-70"
+                        >
+                          <option value="">Select staff…</option>
+                          {activeStaffWithDevice.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                              {s.deviceUserId ? ` (device ${s.deviceUserId})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -2408,25 +2442,42 @@ export default function AttendancePage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="add-punch-staff">
                         Staff
                       </label>
-                      <input
-                        id="add-punch-staff"
-                        type="text"
-                        list="add-punch-staff-datalist"
-                        value={addStaffInput}
-                        onChange={(e) => setAddStaffInput(e.target.value)}
-                        placeholder="Device user ID (e.g. 12)"
-                        autoComplete="off"
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                      />
-                      <datalist id="add-punch-staff-datalist">
-                        {staffWithDevice.map((s) => (
-                          <option key={s.id} value={s.name}>
-                            {`Device user ${s.deviceUserId ?? '—'}`}
-                          </option>
-                        ))}
-                      </datalist>
+                      {staffFilter ? (
+                        <input
+                          id="add-punch-staff"
+                          type="text"
+                          readOnly
+                          value={
+                            staffWithDevice.find((s) => s.id === staffFilter)?.name ??
+                            addPunchResolvedStaff?.name ??
+                            ''
+                          }
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-900"
+                        />
+                      ) : (
+                        <select
+                          id="add-punch-staff"
+                          value={addStaffPickId}
+                          onChange={(e) => {
+                            setAddStaffPickId(e.target.value)
+                            setAddStaffInput('')
+                          }}
+                          disabled={addSaving}
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">Select staff…</option>
+                          {activeStaffWithDevice.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                              {s.deviceUserId ? ` (device ${s.deviceUserId})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <p className="mt-1 text-xs text-gray-500">
-                        Type the device user number, or start typing a name to pick from the list.
+                        {staffFilter
+                          ? 'Punch will be recorded for the staff member selected in the sidebar.'
+                          : 'Choose who missed a clock-in or clock-out.'}
                       </p>
                     </div>
                     <div>
