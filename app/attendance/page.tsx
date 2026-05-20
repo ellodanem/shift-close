@@ -1536,7 +1536,8 @@ export default function AttendancePage() {
         {/* ── LOGS TAB ── */}
         {activeTab === 'logs' && (
           <>
-            <div className="sticky top-11 z-20 bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3 shadow-sm">
+            <div className="sticky top-0 z-30 -mx-6 mb-4 bg-gray-50/95 px-6 pb-1 pt-1 backdrop-blur-sm">
+              <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center gap-4">
                 <button
                   onClick={openSyncPicker}
@@ -1616,6 +1617,7 @@ export default function AttendancePage() {
                     {irregularityCount} irregularit{irregularityCount === 1 ? 'y' : 'ies'} need attention
                   </div>
                 )}
+              </div>
               </div>
             </div>
 

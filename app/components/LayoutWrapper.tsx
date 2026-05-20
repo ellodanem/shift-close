@@ -30,11 +30,11 @@ export default function LayoutWrapper({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50">
       <AppNav />
-      <div className="flex flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
+      <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
         {!loading && user && (
-          <header className="flex h-11 flex-shrink-0 items-center justify-end gap-3 border-b border-gray-200 bg-white px-3 sm:px-4">
+          <header className="flex h-11 shrink-0 items-center justify-end gap-3 border-b border-gray-200 bg-white px-3 sm:px-4">
             <span className="truncate text-sm text-gray-700 max-w-[60vw] sm:max-w-md" title={user.email}>
               {formatAppUserDisplayName(user)}
               <span className="ml-2 text-xs text-gray-500 capitalize hidden sm:inline">
@@ -50,7 +50,7 @@ export default function LayoutWrapper({
             </button>
           </header>
         )}
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="min-h-0 flex-1 min-w-0 overflow-y-auto">{children}</main>
       </div>
     </div>
   )
