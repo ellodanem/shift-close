@@ -24,8 +24,13 @@ type NavItemConfig = {
   children?: NavItemConfig[]
 }
 
+type NavGroupConfig = {
+  label: string
+  items: NavItemConfig[]
+}
+
 // Nav config - permission-ready for future role-based access
-const navConfig: Array<{ label: string; items: NavItemConfig[] }> = [
+const navConfig: NavGroupConfig[] = [
   {
     label: 'Operations',
     items: [
@@ -62,27 +67,22 @@ const navConfig: Array<{ label: string; items: NavItemConfig[] }> = [
     label: 'People',
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
-      {
-        label: 'Roster',
-        href: '/roster',
-        permission: 'people.roster',
-        children: [{ label: 'Roster (mobile)', href: ROSTER_MOBILE_PATH, permission: 'people.rosterMobile' }]
-      },
-      {
-        label: 'Attendance',
-        href: '/attendance',
-        permission: 'people.attendance',
-        children: [
-          {
-            label: 'Attendance viewer',
-            href: ATTENDANCE_VIEWER_PATH,
-            permission: 'people.attendanceViewer'
-          }
-        ]
-      },
+      { label: 'Roster', href: '/roster', permission: 'people.roster' },
+      { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
+  },
+  {
+    label: 'Mobile',
+    items: [
+      { label: 'Roster (mobile)', href: ROSTER_MOBILE_PATH, permission: 'mobile.roster' },
+      {
+        label: 'Attendance viewer',
+        href: ATTENDANCE_VIEWER_PATH,
+        permission: 'mobile.attendanceViewer'
+      }
+    ]
   },
   {
     label: 'Settings',
