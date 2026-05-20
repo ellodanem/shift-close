@@ -361,6 +361,97 @@ export async function loadOverridesForDate(
   return map
 }
 
+/** Overrides for many dates in one query (date → staffId → override). */
+export async function loadOverridesForDates(
+  staffIds: string[],
+  dates: string[]
+): Promise<Map<string, Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>>> {
+  const byDate = new Map<
+    string,
+    Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>
+  >()
+  if (staffIds.length === 0 || dates.length === 0) return byDate
+
+  const rows = await prisma.attendanceDayOverride.findMany({
+    where: { date: { in: dates }, staffId: { in: staffIds } }
+  })
+  for (const r of rows) {
+    if (!byDate.has(r.date)) byDate.set(r.date, new Map())
+    byDate.get(r.date)!.set(r.staffId, {
+      manualPresent: r.manualPresent,
+      lateReason: r.lateReason ?? '',
+      manualAbsent: r.manualAbsent
+    })
+  }
+  return byDate
+}
+
+/** Punch flags for a week range in one attendance_log query (date → staffId → hasPunch). */
+export async function loadPunchFlagsForStaffWeek(
+  staffIds: string[],
+  weekDates: string[],
+  tz: string
+): Promise<Map<string, Map<string, boolean>>> {
+  const byDate = new Map<string, Map<string, boolean>>()
+  for (const d of weekDates) {
+    byDate.set(d, new Map())
+    staffIds.forEach((id) => byDate.get(d)!.set(id, false))
+  }
+  if (staffIds.length === 0 || weekDates.length === 0) return byDate
+
+  const sorted = [...weekDates].sort()
+  const windowStart = fromZonedTime(`${sorted[0]}T00:00:00`, tz)
+  const windowEndExclusive = fromZonedTime(`${addCalendarYmd(sorted[sorted.length - 1]!, 1, tz)}T00:00:00`, tz)
+
+  const staffRows = await prisma.staff.findMany({
+    where: { id: { in: staffIds } },
+    select: { id: true, deviceUserId: true }
+  })
+  const deviceIds = expandDeviceUserIdsForDbMatch(
+    staffRows.map((s) => s.deviceUserId).filter((d): d is string => Boolean(d && d.trim()))
+  )
+
+  const orClause: Array<{ staffId?: { in: string[] }; deviceUserId?: { in: string[] } }> = []
+  if (staffIds.length) orClause.push({ staffId: { in: staffIds } })
+  if (deviceIds.length) orClause.push({ deviceUserId: { in: deviceIds } })
+  if (orClause.length === 0) return byDate
+
+  const logs = await prisma.attendanceLog.findMany({
+    where: {
+      punchTime: { gte: windowStart, lt: windowEndExclusive },
+      OR: orClause
+    },
+    select: { staffId: true, deviceUserId: true, punchTime: true }
+  })
+
+  const deviceToStaff = new Map<string, string>()
+  for (const s of staffRows) {
+    if (!s.deviceUserId?.trim()) continue
+    for (const k of deviceUserIdLookupKeys(s.deviceUserId.trim())) {
+      deviceToStaff.set(k, s.id)
+    }
+  }
+
+  for (const log of logs) {
+    const day = calendarYmdInTz(log.punchTime, tz)
+    const dayMap = byDate.get(day)
+    if (!dayMap) continue
+    if (log.staffId && staffIds.includes(log.staffId)) {
+      dayMap.set(log.staffId, true)
+      continue
+    }
+    for (const k of deviceUserIdLookupKeys(log.deviceUserId)) {
+      const sid = deviceToStaff.get(k)
+      if (sid) {
+        dayMap.set(sid, true)
+        break
+      }
+    }
+  }
+
+  return byDate
+}
+
 export function parseNotifyLog(raw: string | undefined): Record<string, string[]> {
   if (!raw?.trim()) return {}
   try {
@@ -408,6 +499,17 @@ export async function buildPresenceForDate(params: {
   tz: string
   now?: Date
   graceMinutes: number
+  /** Skip roster load when already resolved for this date. */
+  roster?: {
+    weekStart: string
+    scheduled: ScheduledRow[]
+    off: { staffId: string; staffName: string; staffFirstName: string }[]
+    onVacation: { staffId: string; staffName: string; staffFirstName: string }[]
+  }
+  /** Preloaded punch flags for this date (from loadPunchFlagsForStaffWeek). */
+  punchMap?: Map<string, boolean>
+  /** Preloaded overrides for this date (from loadOverridesForDates). */
+  overrideMap?: Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>
 }): Promise<{
   presenceByStaffId: Record<string, PresenceDetail>
   scheduled: ScheduledRow[]
@@ -418,19 +520,24 @@ export async function buildPresenceForDate(params: {
 }> {
   const now = params.now ?? new Date()
   const { dateYmd, tz, graceMinutes } = params
-  const { weekStart, scheduled, off, onVacation } = await loadRosterForCalendarYmd(dateYmd, tz)
+  const { weekStart, scheduled, off, onVacation } = params.roster
+    ? params.roster
+    : await loadRosterForCalendarYmd(dateYmd, tz)
   const todayYmd = tz === BUSINESS_TIME_ZONE ? toYmdInBusinessTz(now) : calendarYmdInTz(now, tz)
   const excluded = buildExcludedStaffIds(off, onVacation)
 
   const uniqueStaffIds = [...new Set(scheduled.map((s) => s.staffId))]
-  const [punchMap, overrideMap, punchExemptRows] = await Promise.all([
-    loadPunchFlagsForStaffOnDate(uniqueStaffIds, dateYmd, tz),
-    loadOverridesForDate(uniqueStaffIds, dateYmd),
-    prisma.staff.findMany({
-      where: { id: { in: uniqueStaffIds } },
-      select: { id: true, punchExempt: true }
-    })
-  ])
+  const punchExemptRows =
+    uniqueStaffIds.length > 0
+      ? await prisma.staff.findMany({
+          where: { id: { in: uniqueStaffIds } },
+          select: { id: true, punchExempt: true }
+        })
+      : []
+  const punchMap =
+    params.punchMap ?? (await loadPunchFlagsForStaffOnDate(uniqueStaffIds, dateYmd, tz))
+  const overrideMap =
+    params.overrideMap ?? (await loadOverridesForDate(uniqueStaffIds, dateYmd))
   const punchExemptById = new Map(punchExemptRows.map((r) => [r.id, r.punchExempt]))
 
   const presenceByStaffId: Record<string, PresenceDetail> = {}

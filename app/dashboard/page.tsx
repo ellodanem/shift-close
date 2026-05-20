@@ -17,6 +17,7 @@ import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
+import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
 
@@ -237,6 +238,7 @@ export default function DashboardPage() {
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const fuelMtdReqId = useRef(0)
+  const tabHiddenAtRef = useRef<number | null>(null)
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
   const [reminderForm, setReminderForm] = useState({
     title: '',
@@ -304,146 +306,6 @@ export default function DashboardPage() {
     }
   }, [showCustomPicker])
 
-  useEffect(() => {
-    if (authLoading) return
-    void fetchSummary()
-    void fetchUpcoming()
-    void fetchRecentPayment()
-  }, [activeFilter, customStartDate, customEndDate, authLoading])
-
-  const refreshTodayRoster = useCallback(async () => {
-    try {
-      const res = await fetch('/api/dashboard/today')
-      if (res.ok) {
-        const data = await res.json()
-        setTodayRoster(data)
-      }
-    } catch (err) {
-      console.error('Error fetching today roster:', err)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (authLoading) return
-    void refreshTodayRoster()
-  }, [authLoading, refreshTodayRoster])
-
-  /** Roster/presence is not realtime; refetch when the tab becomes visible again after a punch. */
-  useEffect(() => {
-    if (authLoading) return
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void refreshTodayRoster()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [authLoading, refreshTodayRoster])
-
-  useEffect(() => {
-    if (authLoading || isSupervisorLike) return
-    fetch('/api/dashboard/fuel-comparison', { cache: 'no-store', credentials: 'same-origin' })
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setFuelComparison(data) })
-      .catch(() => {})
-  }, [authLoading, isSupervisorLike])
-
-  useEffect(() => {
-    if (authLoading || isSupervisorLike) return
-    fetch('/api/dashboard/average-deposit', { cache: 'no-store', credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && typeof data.avgDepositMTD === 'number' && !data.error) setAverageDeposit(data)
-        else setAverageDeposit(null)
-      })
-      .catch(() => setAverageDeposit(null))
-  }, [authLoading, isSupervisorLike])
-
-  // Fetch A/R summary when summary data changes (respects month filter)
-  useEffect(() => {
-    if (isStakeholder || isSupervisorLike) {
-      setArSummary(null)
-      return
-    }
-    if (summary?.year && summary?.month) {
-      fetchArSummary(summary.year, summary.month)
-    } else {
-      setArSummary(null)
-    }
-  }, [summary, isStakeholder, isSupervisorLike])
-
-  // Fetch cashbook summary for the displayed month
-  useEffect(() => {
-    if (isStakeholder || isSupervisorLike) {
-      setCashbookSummary(null)
-      return
-    }
-    if (!summary?.year || !summary?.month) {
-      setCashbookSummary(null)
-      return
-    }
-    const startDate = `${summary.year}-${String(summary.month).padStart(2, '0')}-01`
-    const lastDay = new Date(summary.year, summary.month, 0)
-    const endDate = `${summary.year}-${String(summary.month).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
-    const load = async () => {
-      try {
-        const res = await fetch(
-          `/api/financial/cashbook/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
-        )
-        if (res.ok) {
-          const data = await res.json()
-          setCashbookSummary({
-            totalIncome: data.totalIncome ?? 0,
-            totalExpense: data.totalExpense ?? 0,
-            netIncome: data.netIncome ?? 0,
-            entryCount: data.entryCount ?? 0
-          })
-        } else {
-          setCashbookSummary(null)
-        }
-      } catch {
-        setCashbookSummary(null)
-      }
-    }
-    void load()
-  }, [summary?.year, summary?.month, isStakeholder, isSupervisorLike])
-
-  useEffect(() => {
-    if (!summary?.year || !summary?.month) {
-      setFuelMtdSold(null)
-      setFuelMtdLoadState('idle')
-      return
-    }
-    const rid = ++fuelMtdReqId.current
-    setFuelMtdLoadState('loading')
-    const params = new URLSearchParams({
-      year: String(summary.year),
-      month: String(summary.month)
-    })
-    fetch(`/api/dashboard/fuel-mtd-sold?${params}`, { cache: 'no-store', credentials: 'same-origin' })
-      .then(async (res) => {
-        if (rid !== fuelMtdReqId.current) return
-        if (!res.ok) {
-          setFuelMtdSold(null)
-          return
-        }
-        const data = (await res.json()) as FuelMtdSoldPayload
-        if (rid !== fuelMtdReqId.current) return
-        if (data && typeof data.avgUnleadedPerDay === 'number') {
-          setFuelMtdSold(data)
-        } else {
-          setFuelMtdSold(null)
-        }
-      })
-      .catch(() => {
-        if (rid !== fuelMtdReqId.current) return
-        setFuelMtdSold(null)
-      })
-      .finally(() => {
-        if (rid === fuelMtdReqId.current) {
-          setFuelMtdLoadState('done')
-        }
-      })
-  }, [summary?.year, summary?.month])
-
   const getMonthRange = (
     filter: MonthFilterType
   ): { year: number; month: number } | null => {
@@ -484,76 +346,109 @@ export default function DashboardPage() {
     return null
   }
 
-  const fetchSummary = async () => {
-    setLoading(true)
+  const refreshUpcoming = useCallback(async () => {
     try {
-      let url = '/api/dashboard/month-summary'
+      const res = await fetch('/api/dashboard/upcoming', { cache: 'no-store', credentials: 'same-origin' })
+      if (res.ok) {
+        const data = await res.json()
+        setUpcoming(Array.isArray(data) ? data : [])
+      }
+    } catch (err) {
+      console.error('Error fetching upcoming events:', err)
+    }
+  }, [])
+
+  const refreshTodayRoster = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/today', { cache: 'no-store', credentials: 'same-origin' })
+      if (res.ok) {
+        const data = await res.json()
+        setTodayRoster(data)
+      }
+    } catch (err) {
+      console.error('Error fetching today roster:', err)
+    }
+  }, [])
+
+  const loadDashboardBootstrap = useCallback(async () => {
+    setLoading(true)
+    setFuelMtdLoadState('loading')
+    try {
       const range = getMonthRange(activeFilter)
-      
+      const params = new URLSearchParams()
       if (range) {
-        const params = new URLSearchParams()
-          params.append('year', range.year.toString())
-          params.append('month', range.month.toString())
-        url += `?${params.toString()}`
+        params.set('year', String(range.year))
+        params.set('month', String(range.month))
       }
+      const res = await fetch(`/api/dashboard/bootstrap?${params}`, {
+        cache: 'no-store',
+        credentials: 'same-origin'
+      })
+      if (!res.ok) throw new Error('Failed to load dashboard')
+      const data = await res.json()
 
-      const res = await fetch(url)
-      if (!res.ok) {
-        throw new Error('Failed to fetch summary')
-      }
-      const data: MonthSummary = await res.json()
-      setSummary(data)
+      setSummary(data.summary as MonthSummary)
+      setFuelExpense(typeof data.fuelExpense === 'number' ? data.fuelExpense : null)
+      setUpcoming(Array.isArray(data.upcoming) ? data.upcoming : [])
+      setRecentPayment(data.recentPayment ?? null)
+      setTodayRoster(data.todayRoster ?? null)
 
-      // Keep fuel expense aligned with whatever month the summary resolves to
-      if (data?.year && data?.month && !isStakeholder && !isSupervisorLike) {
-        try {
-          const monthKey = `${data.year}-${String(data.month).padStart(2, '0')}`
-          const fuelRes = await fetch(`/api/fuel-payments/monthly?month=${monthKey}`)
-          if (fuelRes.ok) {
-            const fuelData: FuelExpenseSummary = await fuelRes.json()
-            setFuelExpense(fuelData.grandTotal)
-          } else {
-            setFuelExpense(null)
-          }
-        } catch (error) {
-          console.error('Error fetching monthly fuel expense summary:', error)
-          setFuelExpense(null)
-        }
+      if (Array.isArray(data.fuelComparison)) setFuelComparison(data.fuelComparison)
+      else setFuelComparison([])
+
+      const avg = data.averageDeposit
+      if (avg && typeof avg.avgDepositMTD === 'number' && !avg.error) setAverageDeposit(avg)
+      else setAverageDeposit(null)
+
+      setArSummary(data.arSummary ?? null)
+
+      const cb = data.cashbookSummary
+      if (cb && typeof cb.totalIncome === 'number') {
+        setCashbookSummary({
+          totalIncome: cb.totalIncome ?? 0,
+          totalExpense: cb.totalExpense ?? 0,
+          netIncome: cb.netIncome ?? 0,
+          entryCount: cb.entryCount ?? 0
+        })
       } else {
-        setFuelExpense(null)
+        setCashbookSummary(null)
       }
+
+      const mtd = data.fuelMtdSold as FuelMtdSoldPayload | null | undefined
+      if (mtd && typeof mtd.avgUnleadedPerDay === 'number') setFuelMtdSold(mtd)
+      else setFuelMtdSold(null)
     } catch (error) {
-      console.error('Error fetching dashboard summary:', error)
+      console.error('Error loading dashboard:', error)
     } finally {
       setLoading(false)
+      setFuelMtdLoadState('done')
     }
-  }
+  }, [activeFilter, customStartDate, customEndDate])
 
-  const fetchUpcoming = async () => {
-    try {
-      const res = await fetch('/api/dashboard/upcoming')
-      if (!res.ok) {
-        throw new Error('Failed to fetch upcoming events')
-      }
-      const data = await res.json()
-      setUpcoming(data)
-    } catch (error) {
-      console.error('Error fetching upcoming events:', error)
-    }
-  }
+  useEffect(() => {
+    if (authLoading) return
+    void loadDashboardBootstrap()
+  }, [authLoading, loadDashboardBootstrap])
 
-  const fetchRecentPayment = async () => {
-    try {
-      const res = await fetch('/api/fuel-payments/recent', { cache: 'no-store', credentials: 'same-origin' })
-      if (!res.ok) {
-        throw new Error('Failed to fetch recent fuel payment')
+  /** Roster/presence: refetch today only after tab was hidden ≥3 min (punch may have changed). */
+  useEffect(() => {
+    if (authLoading) return
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        tabHiddenAtRef.current = Date.now()
+        return
       }
-      const data = await res.json()
-      setRecentPayment(data)
-    } catch (error) {
-      console.error('Error fetching recent fuel payment:', error)
+      if (
+        document.visibilityState === 'visible' &&
+        shouldRefetchOnVisibility(tabHiddenAtRef.current)
+      ) {
+        tabHiddenAtRef.current = null
+        void refreshTodayRoster()
+      }
     }
-  }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [authLoading, refreshTodayRoster])
 
   const formatTodayDisplay = (iso: string): string => {
     const d = new Date(iso + 'T12:00:00')
@@ -605,25 +500,6 @@ export default function DashboardPage() {
       case 'pending':
       default:
         return { char: '…', title: 'Before grace or waiting', className: 'text-slate-400' }
-    }
-  }
-
-  const fetchArSummary = async (year: number, month: number) => {
-    try {
-      const res = await fetch(`/api/customer-accounts/monthly?year=${year}&month=${month}`)
-      if (!res.ok) {
-        throw new Error('Failed to fetch A/R summary')
-      }
-      const data = await res.json()
-      // API returns an array, get the first (and should be only) result
-      if (Array.isArray(data) && data.length > 0) {
-        setArSummary(data[0])
-      } else {
-        setArSummary(null)
-      }
-    } catch (error) {
-      console.error('Error fetching A/R summary:', error)
-      setArSummary(null)
     }
   }
 
@@ -901,7 +777,7 @@ export default function DashboardPage() {
                               const res = await fetch(`/api/reminders/${event.reminderId}`, {
                                 method: 'DELETE'
                               })
-                              if (res.ok) fetchUpcoming()
+                              if (res.ok) void refreshUpcoming()
                             } catch (err) {
                               console.error('Failed to delete reminder:', err)
                             }
@@ -921,7 +797,7 @@ export default function DashboardPage() {
                               const res = await fetch(`/api/pay-days/${event.payDayId}`, {
                                 method: 'DELETE'
                               })
-                              if (res.ok) fetchUpcoming()
+                              if (res.ok) void refreshUpcoming()
                             } catch (err) {
                               console.error('Failed to delete pay day:', err)
                             }
@@ -1985,7 +1861,7 @@ export default function DashboardPage() {
                     if (res.ok) {
                       setPayDayModalOpen(false)
                       setPayDayForm({ date: '', notes: '' })
-                      fetchUpcoming()
+                      void refreshUpcoming()
                     } else {
                       const err = await res.json().catch(() => ({}))
                       alert(err.error || 'Failed to add pay day')
@@ -2251,7 +2127,7 @@ export default function DashboardPage() {
                       throw new Error((data as { error?: string }).error || `Failed to create (${res.status})`)
                     }
                     setReminderModalOpen(false)
-                    fetchUpcoming()
+                    void refreshUpcoming()
                   } catch (err) {
                     alert(err instanceof Error ? err.message : 'Failed to create reminder')
                   }

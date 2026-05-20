@@ -6,6 +6,9 @@ import {
   buildPresenceForDate,
   calendarYmdInTz,
   getPresentAbsenceSettings,
+  loadOverridesForDates,
+  loadPunchFlagsForStaffWeek,
+  loadRosterForCalendarYmd,
   mondayOfWeekYmd,
   readStationTimeZone,
   type PresenceStatus
@@ -218,9 +221,21 @@ async function summaryForDate(
   dateYmd: string,
   tz: string,
   graceMinutes: number,
-  options: { includePunches: boolean }
+  options: {
+    includePunches: boolean
+    roster?: Awaited<ReturnType<typeof loadRosterForCalendarYmd>>
+    punchMap?: Map<string, boolean>
+    overrideMap?: Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>
+  }
 ) {
-  const built = await buildPresenceForDate({ dateYmd, tz, graceMinutes })
+  const built = await buildPresenceForDate({
+    dateYmd,
+    tz,
+    graceMinutes,
+    roster: options.roster,
+    punchMap: options.punchMap,
+    overrideMap: options.overrideMap
+  })
   const byStaff = new Map<string, (typeof built.scheduled)[0]>()
   for (const s of built.scheduled) {
     if (!byStaff.has(s.staffId)) byStaff.set(s.staffId, s)
@@ -331,17 +346,44 @@ export async function buildAttendanceViewerSummary(dateYmd: string) {
   const weekStart = mondayOfWeekYmd(dateYmd, tz)
   const weekDayDates = Array.from({ length: 7 }, (_, i) => addCalendarYmd(weekStart, i, tz))
 
+  const rosterEntries = await Promise.all(
+    weekDayDates.map(async (d) => [d, await loadRosterForCalendarYmd(d, tz)] as const)
+  )
+  const rosterByDate = new Map(rosterEntries)
+  const staffIds = [
+    ...new Set(rosterEntries.flatMap(([, r]) => r.scheduled.map((s) => s.staffId)))
+  ]
+
+  const [punchByDate, overrideByDate] = await Promise.all([
+    loadPunchFlagsForStaffWeek(staffIds, weekDayDates, tz),
+    loadOverridesForDates(staffIds, weekDayDates)
+  ])
+
+  const prefetchFor = (d: string) => ({
+    roster: rosterByDate.get(d)!,
+    punchMap: punchByDate.get(d),
+    overrideMap: overrideByDate.get(d)
+  })
+
   const [dayData, ...weekSummaries] = await Promise.all([
-    summaryForDate(dateYmd, tz, settings.graceMinutes, { includePunches: true }),
+    summaryForDate(dateYmd, tz, settings.graceMinutes, {
+      includePunches: true,
+      ...prefetchFor(dateYmd)
+    }),
     ...weekDayDates
       .filter((d) => d !== dateYmd)
-      .map((d) => summaryForDate(d, tz, settings.graceMinutes, { includePunches: false }))
+      .map((d) =>
+        summaryForDate(d, tz, settings.graceMinutes, {
+          includePunches: false,
+          ...prefetchFor(d)
+        })
+      )
   ])
 
   const weekSummaryByDate = new Map<string, (typeof weekSummaries)[0]>()
   weekDayDates
     .filter((d) => d !== dateYmd)
-    .forEach((d, i) => weekSummaryByDate.set(d, weekSummaries[i]))
+    .forEach((d, i) => weekSummaryByDate.set(d, weekSummaries[i]!))
   weekSummaryByDate.set(dateYmd, dayData)
 
   const weekDays: ViewerWeekDay[] = weekDayDates.map((d) => {

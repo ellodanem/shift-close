@@ -12,6 +12,7 @@ import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
+import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
 
@@ -89,10 +90,22 @@ export default function DaysPage() {
     }
   }, [scanPreview])
 
-  // Refetch when user returns to this tab so new shifts show without full reload
+  const tabHiddenAtRef = useRef<number | null>(null)
+
+  // Refetch when user returns after tab was hidden ≥3 min (avoids churn on quick tab switches)
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') fetchDayReports()
+      if (document.visibilityState === 'hidden') {
+        tabHiddenAtRef.current = Date.now()
+        return
+      }
+      if (
+        document.visibilityState === 'visible' &&
+        shouldRefetchOnVisibility(tabHiddenAtRef.current)
+      ) {
+        tabHiddenAtRef.current = null
+        fetchDayReports()
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
