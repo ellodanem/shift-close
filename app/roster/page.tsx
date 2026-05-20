@@ -9,6 +9,7 @@ import {
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
   staffIdsBelowMinOffDays
 } from '@/lib/roster-settings'
+import { displayStaffForWeek, weekStartMondayFromDate } from '@/lib/roster-week-client'
 
 interface Staff {
   id: string
@@ -16,6 +17,8 @@ interface Staff {
   firstName?: string
   status: string
   role: string
+  /** YYYY-MM-DD — roster rows only from this date onward */
+  startDate?: string | null
   vacationStart?: string | null
   vacationEnd?: string | null
   mobileNumber?: string | null
@@ -255,23 +258,10 @@ export default function RosterPage() {
   /** Option A: saved week is read-only until Edit; past weeks / view-only roles always locked. */
   const rosterCellsLocked = rosterLockedEdit || (weekPersisted && !editUnlocked)
 
-  // For locked weeks: show active staff + inactive staff who have entries this week (so past rosters are preserved)
-  const displayStaff = useMemo(() => {
-    const today = formatInputDate(new Date())
-    const weekSunday = addDays(weekStart, 6)
-    const activeForRoster = allStaff.filter(
-      (s) => s.status === 'active' && s.role !== 'manager'
-    )
-    if (today < weekSunday) return activeForRoster
-    const entryStaffIds = new Set(entries.map((e) => e.staffId))
-    const inactiveWithEntries = allStaff.filter(
-      (s) =>
-        s.status !== 'active' &&
-        s.role !== 'manager' &&
-        entryStaffIds.has(s.id)
-    )
-    return [...activeForRoster, ...inactiveWithEntries]
-  }, [allStaff, weekStart, entries])
+  const displayStaff = useMemo(
+    () => displayStaffForWeek(allStaff, weekStart, entries),
+    [allStaff, weekStart, entries]
+  )
 
   // Load staff and templates once
   useEffect(() => {
@@ -616,6 +606,12 @@ export default function RosterPage() {
   const handleChangeWeek = (direction: -1 | 1) => {
     setFillWeekPopover(null)
     setWeekStart((current) => addDays(current, direction * 7))
+  }
+
+  const handleWeekStartPickerChange = (picked: string) => {
+    if (!picked) return
+    setFillWeekPopover(null)
+    setWeekStart(weekStartMondayFromDate(picked))
   }
 
   const handleSave = async (entriesToPersist?: RosterEntry[]) => {
@@ -1257,7 +1253,7 @@ export default function RosterPage() {
             <input
               type="date"
               value={weekStart}
-              onChange={(e) => setWeekStart(e.target.value)}
+              onChange={(e) => handleWeekStartPickerChange(e.target.value)}
               className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1.5 border border-gray-300 rounded text-base sm:text-sm"
             />
           </div>

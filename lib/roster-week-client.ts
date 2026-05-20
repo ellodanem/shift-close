@@ -18,6 +18,8 @@ export interface RosterStaffClient {
   firstName?: string
   status: string
   role: string
+  /** YYYY-MM-DD — staff appear on rosters from this date onward */
+  startDate?: string | null
   vacationStart?: string | null
   vacationEnd?: string | null
 }
@@ -44,6 +46,13 @@ export function addDays(isoDate: string, days: number): string {
   return formatInputDate(date)
 }
 
+/** Map any YYYY-MM-DD (e.g. date-picker value) to that week's Monday for roster lookup. */
+export function weekStartMondayFromDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  if (!y || !m || !d) return isoDate
+  return formatInputDate(getMonday(new Date(y, m - 1, d)))
+}
+
 export function weekDatesFromStart(weekStart: string): string[] {
   return ROSTER_DAY_LABELS.map((_, idx) => addDays(weekStart, idx))
 }
@@ -59,16 +68,35 @@ export function isOnVacation(staff: RosterStaffClient, date: string): boolean {
   return !!(start && end && date >= start && date <= end)
 }
 
+/** True when staff may appear on the roster grid for this calendar week (Mon–Sun). */
+export function staffStartedOnOrBeforeWeek(staff: RosterStaffClient, weekStart: string): boolean {
+  const start = staff.startDate?.trim()
+  if (!start) return true
+  const weekEnd = addDays(weekStart, 6)
+  return start <= weekEnd
+}
+
+function isNonManagerRosterStaff(staff: RosterStaffClient): boolean {
+  return staff.role !== 'manager'
+}
+
 export function displayStaffForWeek(
   allStaff: RosterStaffClient[],
   weekStart: string,
   entries: RosterEntryClient[]
 ): RosterStaffClient[] {
-  const activeForRoster = allStaff.filter((s) => s.status === 'active' && s.role !== 'manager')
+  const rosterStaff = allStaff.filter(
+    (s) => isNonManagerRosterStaff(s) && staffStartedOnOrBeforeWeek(s, weekStart)
+  )
+  const activeForRoster = rosterStaff.filter((s) => s.status === 'active')
   if (!isPastRosterWeek(weekStart)) return activeForRoster
   const entryStaffIds = new Set(entries.map((e) => e.staffId))
   const inactiveWithEntries = allStaff.filter(
-    (s) => s.status !== 'active' && s.role !== 'manager' && entryStaffIds.has(s.id)
+    (s) =>
+      isNonManagerRosterStaff(s) &&
+      s.status !== 'active' &&
+      entryStaffIds.has(s.id) &&
+      staffStartedOnOrBeforeWeek(s, weekStart)
   )
   return [...activeForRoster, ...inactiveWithEntries]
 }
