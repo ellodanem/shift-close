@@ -302,18 +302,14 @@ export default function RosterPage() {
     async function loadWeek() {
       setLoading(true)
       setError(null)
+      const weekEnd = addDays(weekStart, 6)
       try {
-        const res = await fetch(`/api/roster/weeks?weekStart=${weekStart}`)
+        const res = await fetch(
+          `/api/roster/week-bundle?weekStart=${weekStart}&weekEnd=${weekEnd}`
+        )
         if (!res.ok) {
-          if (res.status === 400) {
-            // No week yet is fine – show empty grid
-            setEntries([])
-            setWeekPersisted(false)
-            setEditUnlocked(false)
-          } else {
-            console.error('Failed to fetch roster week', res.status)
-            setError('Failed to load roster for this week.')
-          }
+          console.error('Failed to fetch roster week bundle', res.status)
+          setError('Failed to load roster for this week.')
           return
         }
         const data = await res.json()
@@ -321,6 +317,13 @@ export default function RosterPage() {
         setEntries(loadedEntries)
         setWeekPersisted(!!data.week)
         setEditUnlocked(false)
+        setDayOffRequests(
+          Array.isArray(data.dayOffRequests) ? (data.dayOffRequests as StaffDayOffRequest[]) : []
+        )
+        setSickLeaves(Array.isArray(data.sickLeaves) ? (data.sickLeaves as StaffSickLeave[]) : [])
+        setPublicHolidays(
+          Array.isArray(data.publicHolidays) ? (data.publicHolidays as PublicHolidayRow[]) : []
+        )
       } catch (err) {
         console.error('Error loading roster week', err)
         setError('Failed to load roster for this week.')
@@ -329,34 +332,6 @@ export default function RosterPage() {
       }
     }
     loadWeek()
-  }, [weekStart])
-
-  useEffect(() => {
-    const weekEnd = addDays(weekStart, 6)
-    void Promise.all([
-      fetch(`/api/staff/day-off?startDate=${weekStart}&endDate=${weekEnd}`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows: unknown) =>
-          setDayOffRequests(Array.isArray(rows) ? (rows as StaffDayOffRequest[]) : [])
-        )
-        .catch(() => setDayOffRequests([])),
-      fetch(`/api/staff/sick-leave?startDate=${weekStart}&endDate=${weekEnd}`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows: unknown) =>
-          setSickLeaves(Array.isArray(rows) ? (rows as StaffSickLeave[]) : [])
-        )
-        .catch(() => setSickLeaves([]))
-    ])
-  }, [weekStart])
-
-  useEffect(() => {
-    const weekEnd = addDays(weekStart, 6)
-    void fetch(`/api/public-holidays?from=${weekStart}&to=${weekEnd}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: unknown) =>
-        setPublicHolidays(Array.isArray(data) ? (data as PublicHolidayRow[]) : [])
-      )
-      .catch(() => setPublicHolidays([]))
   }, [weekStart])
 
   useEffect(() => {

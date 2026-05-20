@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   canEditRoster,
   canManageAppUsers,
@@ -15,6 +15,9 @@ import { writeRememberedUsername } from '@/lib/login-device-remember'
 export const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
 
 const ACTIVITY_THROTTLE_MS = 1000
+
+/** Skip repeat /api/auth/me within a session navigation (full page load still fetches once). */
+const AUTH_ME_TTL_MS = 2 * 60 * 1000
 
 export interface AuthUser {
   id: string
@@ -33,7 +36,7 @@ export interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  refresh: () => Promise<void>
+  refresh: (force?: boolean) => Promise<void>
   logout: () => Promise<void>
   canEditRoster: boolean
   canManageUsers: boolean
@@ -48,21 +51,34 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const authMeCacheRef = useRef<{ at: number; user: AuthUser | null } | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force?: boolean) => {
+    if (
+      !force &&
+      authMeCacheRef.current &&
+      Date.now() - authMeCacheRef.current.at < AUTH_ME_TTL_MS
+    ) {
+      setUser(authMeCacheRef.current.user)
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/auth/me', { cache: 'no-store' })
       const data = await res.json()
       const raw = data.user as AuthUser | null | undefined
+      let next: AuthUser | null = null
       if (raw && typeof raw === 'object' && raw.id && raw.username) {
-        setUser({
+        next = {
           ...raw,
           role: normalizeAppRole(raw.role ?? '')
-        })
-      } else {
-        setUser(null)
+        }
       }
+      authMeCacheRef.current = { at: Date.now(), user: next }
+      setUser(next)
     } catch {
+      authMeCacheRef.current = { at: Date.now(), user: null }
       setUser(null)
     } finally {
       setLoading(false)
@@ -75,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const endSession = useCallback(async (reason: 'manual' | 'idle') => {
     await fetch('/api/auth/logout', { method: 'POST' })
+    authMeCacheRef.current = null
     setUser(null)
     if (reason === 'manual') {
       writeRememberedUsername(null)

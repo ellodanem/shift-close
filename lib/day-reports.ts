@@ -2,9 +2,16 @@ import { prisma } from '@/lib/prisma'
 import type { DayReport } from '@/lib/types'
 import { getShiftListOkKind } from '@/lib/calculations'
 
+export type BuildDayReportsOptions = {
+  /** Inclusive minimum shift date (YYYY-MM-DD). Omit for full history. */
+  sinceDate?: string
+}
+
 /** Build End of Day reports (same shape as GET /api/days). */
-export async function buildDayReports(): Promise<DayReport[]> {
+export async function buildDayReports(options?: BuildDayReportsOptions): Promise<DayReport[]> {
+  const sinceDate = options?.sinceDate?.trim()
   const shifts = await prisma.shiftClose.findMany({
+    where: sinceDate ? { date: { gte: sinceDate } } : undefined,
     orderBy: { date: 'desc' },
     include: {
       corrections: true

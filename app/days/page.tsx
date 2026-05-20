@@ -53,7 +53,7 @@ export default function DaysPage() {
   
   const fetchDayReports = () => {
     setLoading(true)
-    fetch('/api/days', { cache: 'no-store' })
+    fetch('/api/days?recentDays=120', { cache: 'no-store' })
       .then(async (res) => {
         const data: unknown = await res.json()
         if (!res.ok || !Array.isArray(data)) {

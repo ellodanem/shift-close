@@ -152,14 +152,21 @@ export default function RosterMobilePage() {
   const loadWeek = useCallback(async () => {
     setLoading(true)
     setError(null)
+    const weekEnd = addDays(weekStart, 6)
     try {
-      const res = await fetch(`/api/roster/weeks?weekStart=${weekStart}`)
+      const res = await fetch(
+        `/api/roster/week-bundle?weekStart=${weekStart}&weekEnd=${weekEnd}`
+      )
       if (!res.ok) {
         setEntries([])
+        setPublicHolidays([])
+        setSickLeaves([])
         return
       }
       const data = await res.json()
       setEntries(data.entries ?? [])
+      setPublicHolidays(Array.isArray(data.publicHolidays) ? data.publicHolidays : [])
+      setSickLeaves(Array.isArray(data.sickLeaves) ? data.sickLeaves : [])
     } catch {
       setError('Failed to load roster')
     } finally {
@@ -170,18 +177,6 @@ export default function RosterMobilePage() {
   useEffect(() => {
     void loadWeek()
   }, [loadWeek])
-
-  useEffect(() => {
-    const weekEnd = addDays(weekStart, 6)
-    void Promise.all([
-      fetch(`/api/public-holidays?from=${weekStart}&to=${weekEnd}`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows) => setPublicHolidays(Array.isArray(rows) ? rows : [])),
-      fetch(`/api/staff/sick-leave?startDate=${weekStart}&endDate=${weekEnd}`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows) => setSickLeaves(Array.isArray(rows) ? rows : []))
-    ])
-  }, [weekStart])
 
   useEffect(() => {
     if (!selectedDate && weekDates.length) {

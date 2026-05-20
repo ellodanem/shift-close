@@ -52,7 +52,7 @@ function LoginForm() {
       }
 
       // Session cookie is set on this response; re-fetch /api/auth/me so nav shows user, logout, and role-based links.
-      await refresh()
+      await refresh(true)
       const redirectTo =
         typeof data.redirectTo === 'string' && data.redirectTo.startsWith('/')
           ? data.redirectTo
