@@ -511,9 +511,10 @@ export default function AttendancePage() {
   const bulkSelectAllRef = useRef<HTMLInputElement>(null)
 
   const [showAddPunch, setShowAddPunch] = useState(false)
-  /** When set, staff is chosen from the dropdown (All-staff view). */
+  /** Bumped when the Add punch modal opens so the staff control remounts with no stale value. */
+  const [addPunchFormKey, setAddPunchFormKey] = useState(0)
+  /** Staff id from the dropdown when viewing All staff. */
   const [addStaffPickId, setAddStaffPickId] = useState('')
-  const [addStaffInput, setAddStaffInput] = useState('')
   const [addPunchLocal, setAddPunchLocal] = useState('')
   const [addPunchType, setAddPunchType] = useState<'in' | 'out'>('in')
   const [addSaving, setAddSaving] = useState(false)
@@ -533,8 +534,8 @@ export default function AttendancePage() {
 
   /** Many manual punches for one staff across one or many calendar days. */
   const [showBulkAdd, setShowBulkAdd] = useState(false)
+  const [bulkAddFormKey, setBulkAddFormKey] = useState(0)
   const [bulkAddStaffPickId, setBulkAddStaffPickId] = useState('')
-  const [bulkAddStaffInput, setBulkAddStaffInput] = useState('')
   const [bulkAddRows, setBulkAddRows] = useState<BulkAddPunchRow[]>([])
   const [bulkAddSaving, setBulkAddSaving] = useState(false)
   const [bulkAddError, setBulkAddError] = useState<string | null>(null)
@@ -739,19 +740,17 @@ export default function AttendancePage() {
 
   const addPunchResolvedStaff = useMemo(() => {
     if (!showAddPunch) return null
-    if (addStaffPickId) {
-      return staffWithDevice.find((s) => s.id === addStaffPickId) ?? null
-    }
-    return resolveStaffForManualPunch(addStaffInput, staffWithDevice)
-  }, [showAddPunch, addStaffPickId, addStaffInput, staffWithDevice])
+    const pickId = staffFilter || addStaffPickId
+    if (!pickId) return null
+    return staffWithDevice.find((s) => s.id === pickId) ?? null
+  }, [showAddPunch, staffFilter, addStaffPickId, staffWithDevice])
 
   const bulkAddResolvedStaff = useMemo(() => {
     if (!showBulkAdd) return null
-    if (bulkAddStaffPickId) {
-      return staffWithDevice.find((s) => s.id === bulkAddStaffPickId) ?? null
-    }
-    return resolveStaffForManualPunch(bulkAddStaffInput, staffWithDevice)
-  }, [showBulkAdd, bulkAddStaffPickId, bulkAddStaffInput, staffWithDevice])
+    const pickId = staffFilter || bulkAddStaffPickId
+    if (!pickId) return null
+    return staffWithDevice.find((s) => s.id === pickId) ?? null
+  }, [showBulkAdd, staffFilter, bulkAddStaffPickId, staffWithDevice])
 
   useEffect(() => {
     if (!showAddPunch) {
@@ -1152,8 +1151,8 @@ export default function AttendancePage() {
     setEditingLog(null)
     setShowBulkAdd(false)
     setAddError(null)
-    setAddStaffPickId(staffFilter || '')
-    setAddStaffInput('')
+    setAddStaffPickId('')
+    setAddPunchFormKey((k) => k + 1)
     setAddPunchLocal(nowDatetimeLocalValue())
     setAddPunchType('in')
     setShowAddPunch(true)
@@ -1164,15 +1163,14 @@ export default function AttendancePage() {
     setShowAddPunch(false)
     setAddError(null)
     setAddStaffPickId('')
-    setAddStaffInput('')
   }
 
   const openBulkAddPunches = () => {
     setEditingLog(null)
     setShowAddPunch(false)
     setBulkAddError(null)
-    setBulkAddStaffPickId(staffFilter || '')
-    setBulkAddStaffInput('')
+    setBulkAddStaffPickId('')
+    setBulkAddFormKey((k) => k + 1)
     setBulkAddRows([createBulkAddRow({ date: formatDate(new Date()) })])
     setShowBulkAdd(true)
   }
@@ -1182,7 +1180,6 @@ export default function AttendancePage() {
     setShowBulkAdd(false)
     setBulkAddError(null)
     setBulkAddStaffPickId('')
-    setBulkAddStaffInput('')
   }
 
   const handleSaveBulkAddPunches = async () => {
@@ -2203,16 +2200,18 @@ export default function AttendancePage() {
                         />
                       ) : (
                         <select
+                          key={`bulk-add-staff-${bulkAddFormKey}`}
                           id="bulk-add-staff"
                           value={bulkAddStaffPickId}
-                          onChange={(e) => {
-                            setBulkAddStaffPickId(e.target.value)
-                            setBulkAddStaffInput('')
-                          }}
+                          onChange={(e) => setBulkAddStaffPickId(e.target.value)}
                           disabled={bulkAddSaving}
+                          required
+                          autoFocus
                           className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white disabled:opacity-70"
                         >
-                          <option value="">Select staff…</option>
+                          <option value="" disabled hidden>
+                            Select staff…
+                          </option>
                           {activeStaffWithDevice.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name}
@@ -2456,16 +2455,18 @@ export default function AttendancePage() {
                         />
                       ) : (
                         <select
+                          key={`add-punch-staff-${addPunchFormKey}`}
                           id="add-punch-staff"
                           value={addStaffPickId}
-                          onChange={(e) => {
-                            setAddStaffPickId(e.target.value)
-                            setAddStaffInput('')
-                          }}
+                          onChange={(e) => setAddStaffPickId(e.target.value)}
                           disabled={addSaving}
+                          required
+                          autoFocus
                           className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white"
                         >
-                          <option value="">Select staff…</option>
+                          <option value="" disabled hidden>
+                            Select staff…
+                          </option>
                           {activeStaffWithDevice.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name}
