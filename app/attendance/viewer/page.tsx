@@ -184,7 +184,7 @@ export default function AttendanceViewerPage() {
       }
     }
 
-    const id = window.setInterval(() => void poll(), 45_000)
+    const id = window.setInterval(() => void poll(), 90_000)
     void poll()
     return () => {
       cancelled = true

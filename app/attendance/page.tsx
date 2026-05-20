@@ -116,7 +116,7 @@ interface DeviceSettings {
 type Tab = 'logs' | 'device' | 'agent' | 'instructions' | 'settings'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
-const ATTENDANCE_LOGS_POLL_MS = 45_000
+const ATTENDANCE_LOGS_POLL_MS = 90_000
 
 async function fetchAttendanceSyncFingerprint(): Promise<string | null> {
   const r = await fetch('/api/attendance/logs/sync-hint', { cache: 'no-store' })
@@ -1536,7 +1536,7 @@ export default function AttendancePage() {
         {/* ── LOGS TAB ── */}
         {activeTab === 'logs' && (
           <>
-            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3">
+            <div className="sticky top-11 z-20 bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3 shadow-sm">
               <div className="flex flex-wrap items-center gap-4">
                 <button
                   onClick={openSyncPicker}

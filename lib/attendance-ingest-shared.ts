@@ -1,3 +1,5 @@
+import { buildStaffDeviceMap, lookupStaffDevice } from '@/lib/attendance-staff-device-map'
+import { insertAttendancePunchesSkippingDuplicates } from '@/lib/attendance-punch-ingest'
 import { prisma } from '@/lib/prisma'
 import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import {
@@ -36,10 +38,7 @@ export async function ingestAttendanceBatch(params: {
     where: { status: 'active' },
     select: { id: true, name: true, deviceUserId: true }
   })
-  const staffMap = new Map<string, { id: string; name: string }>()
-  for (const s of allStaff) {
-    if (s.deviceUserId) staffMap.set(s.deviceUserId.trim(), { id: s.id, name: s.name })
-  }
+  const staffMap = buildStaffDeviceMap(allStaff)
 
   const [stationTz, clockSettings] = await Promise.all([loadStationTz(), getAttendanceClockGlobalSettings()])
   const resolvedSerial =
@@ -122,7 +121,7 @@ export async function ingestAttendanceBatch(params: {
     arr.sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
   }
 
-  let synced = 0
+  const toInsert = []
   for (const r of normalized) {
     const { deviceUserId, punchUtc, state, recordTimeRaw, offsetMs, reason } = r
 
@@ -138,35 +137,24 @@ export async function ingestAttendanceBatch(params: {
       punchType = idx % 2 === 0 ? 'in' : 'out'
     }
 
-    const existing = await prisma.attendanceLog.findFirst({
-      where: {
-        deviceUserId,
-        punchTime: {
-          gte: new Date(punchUtc.getTime() - 1000),
-          lte: new Date(punchUtc.getTime() + 1000)
-        }
-      }
+    const staffMatch = lookupStaffDevice(staffMap, deviceUserId)
+    const logDeviceUserId = staffMatch?.deviceUserId ?? deviceUserId
+    toInsert.push({
+      staffId: staffMatch?.id ?? null,
+      deviceUserId: logDeviceUserId,
+      deviceUserName: staffMatch?.name ?? null,
+      punchTime: punchUtc,
+      punchType,
+      source,
+      deviceRawTimestamp: recordTimeRaw.slice(0, 80),
+      deviceSerial: resolvedSerial.length > 0 && resolvedSerial !== 'unknown' ? resolvedSerial : null,
+      ingestReceivedAt: receivedAt,
+      clockOffsetMsApplied: offsetMs,
+      clockNormalizeReason: reason
     })
-    if (existing) continue
-
-    const staffMatch = staffMap.get(deviceUserId)
-    await prisma.attendanceLog.create({
-      data: {
-        staffId: staffMatch?.id ?? null,
-        deviceUserId,
-        deviceUserName: staffMatch?.name ?? null,
-        punchTime: punchUtc,
-        punchType,
-        source,
-        deviceRawTimestamp: recordTimeRaw.slice(0, 80),
-        deviceSerial: resolvedSerial.length > 0 && resolvedSerial !== 'unknown' ? resolvedSerial : null,
-        ingestReceivedAt: receivedAt,
-        clockOffsetMsApplied: offsetMs,
-        clockNormalizeReason: reason
-      }
-    })
-    synced++
   }
+
+  const { created: synced } = await insertAttendancePunchesSkippingDuplicates(toInsert)
 
   return { synced, total: normalized.length, bulk }
 }

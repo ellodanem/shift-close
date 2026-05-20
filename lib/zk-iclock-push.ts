@@ -12,6 +12,8 @@ import {
   parseDeviceNaiveTimestampToUtc,
   serialAllowed
 } from '@/lib/attendance-device-clock'
+import { buildStaffDeviceMap, lookupStaffDevice } from '@/lib/attendance-staff-device-map'
+import { insertAttendancePunchesSkippingDuplicates } from '@/lib/attendance-punch-ingest'
 import { prisma } from '@/lib/prisma'
 import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
 
@@ -98,31 +100,6 @@ function resolveTableParam(request: NextRequest, bodyText: string): string {
   return ''
 }
 
-type StaffMatch = { id: string; name: string; deviceUserId: string }
-
-function buildStaffMap(
-  allStaff: Array<{ id: string; name: string; deviceUserId: string | null }>
-): Map<string, StaffMatch> {
-  const staffMap = new Map<string, StaffMatch>()
-  for (const s of allStaff) {
-    if (!s.deviceUserId?.trim()) continue
-    const canon = s.deviceUserId.trim()
-    const payload: StaffMatch = { id: s.id, name: s.name, deviceUserId: canon }
-    for (const k of deviceUserIdLookupKeys(canon)) {
-      staffMap.set(k, payload)
-    }
-  }
-  return staffMap
-}
-
-function lookupStaff(staffMap: Map<string, StaffMatch>, rawFromLine: string): StaffMatch | undefined {
-  for (const k of deviceUserIdLookupKeys(rawFromLine)) {
-    const m = staffMap.get(k)
-    if (m) return m
-  }
-  return undefined
-}
-
 type ParsedRow = {
   deviceUserId: string
   timestampStr: string
@@ -193,7 +170,7 @@ export async function zkPushPOST(request: NextRequest) {
       where: { status: 'active' },
       select: { id: true, name: true, deviceUserId: true }
     })
-    const staffMap = buildStaffMap(allStaff)
+    const staffMap = buildStaffDeviceMap(allStaff)
 
     const lines = body.trim().split(/\r?\n/)
     const rawParsed: ParsedRow[] = []
@@ -280,7 +257,7 @@ export async function zkPushPOST(request: NextRequest) {
       arr.sort((a, b) => a.punchTime.getTime() - b.punchTime.getTime())
     }
 
-    let created = 0
+    const toInsert = []
     for (const row of normalized) {
       const { deviceUserId, punchUtc, state, timestampStr, offsetMs, reason } = row
 
@@ -296,49 +273,34 @@ export async function zkPushPOST(request: NextRequest) {
         punchType = idx % 2 === 0 ? 'in' : 'out'
       }
 
-      const staffMatch = lookupStaff(staffMap, deviceUserId)
-      const keysForDup = new Set([
-        ...deviceUserIdLookupKeys(deviceUserId),
-        ...(staffMatch ? deviceUserIdLookupKeys(staffMatch.deviceUserId) : [])
-      ])
-      const existing = await prisma.attendanceLog.findFirst({
-        where: {
-          deviceUserId: { in: [...keysForDup] },
-          punchTime: {
-            gte: new Date(punchUtc.getTime() - 1000),
-            lte: new Date(punchUtc.getTime() + 1000)
-          }
-        }
-      })
-      if (existing) continue
-
+      const staffMatch = lookupStaffDevice(staffMap, deviceUserId)
       const logDeviceUserId = staffMatch?.deviceUserId ?? deviceUserId.trim()
       if (!staffMatch) {
+        const keysForDup = deviceUserIdLookupKeys(deviceUserId)
         console.log(
-          `[ADMS] unmapped device user id (no active staff match for normalized keys ${JSON.stringify([...keysForDup])}) SN=${sn}`
+          `[ADMS] unmapped device user id (no active staff match for normalized keys ${JSON.stringify(keysForDup)}) SN=${sn}`
         )
       }
 
-      await prisma.attendanceLog.create({
-        data: {
-          staffId: staffMatch?.id ?? null,
-          deviceUserId: logDeviceUserId,
-          deviceUserName: staffMatch?.name ?? null,
-          punchTime: punchUtc,
-          punchType,
-          source: `adms:${sn}`,
-          deviceRawTimestamp: timestampStr,
-          deviceSerial: sn !== 'unknown' ? sn : null,
-          ingestReceivedAt: receivedAt,
-          clockOffsetMsApplied: offsetMs,
-          clockNormalizeReason: reason
-        }
+      toInsert.push({
+        staffId: staffMatch?.id ?? null,
+        deviceUserId: logDeviceUserId,
+        deviceUserName: staffMatch?.name ?? null,
+        punchTime: punchUtc,
+        punchType,
+        source: `adms:${sn}`,
+        deviceRawTimestamp: timestampStr,
+        deviceSerial: sn !== 'unknown' ? sn : null,
+        ingestReceivedAt: receivedAt,
+        clockOffsetMsApplied: offsetMs,
+        clockNormalizeReason: reason
       })
-      created++
     }
 
+    const { created, skipped } = await insertAttendancePunchesSkippingDuplicates(toInsert)
+
     console.log(
-      `[ADMS] SN=${sn} processed ${normalized.length} records, created ${created} new, bulk=${bulk ? '1' : '0'}`
+      `[ADMS] SN=${sn} processed ${normalized.length} records, created ${created} new, skipped ${skipped}, bulk=${bulk ? '1' : '0'}`
     )
     return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
   } catch (error) {

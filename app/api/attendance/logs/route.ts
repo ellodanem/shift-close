@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client'
 import { fromZonedTime } from 'date-fns-tz'
 import { NextRequest, NextResponse } from 'next/server'
 import { expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
+import { currentBiweeklyPeriodBounds } from '@/lib/current-pay-period'
+import { addCalendarDaysYmd } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { addCalendarYmd, readStationTimeZone } from '@/lib/present-absence'
 import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
@@ -9,6 +11,9 @@ import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
+
+/** Max rows returned when the client does not pass an explicit date range (safety cap). */
+const DEFAULT_LOGS_TAKE = 8000
 
 /** POST /api/attendance/logs — add a manual punch (missed clock-in/out). Body: staffId, punchTime (ISO), punchType in|out */
 export async function POST(request: NextRequest) {
@@ -98,8 +103,19 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
+    const explicitStart = searchParams.get('startDate')
+    const explicitEnd = searchParams.get('endDate')
+    let startDate = explicitStart
+    let endDate = explicitEnd
+    const rawMode = attendanceRawLogsEnv()
+    let appliedDefaultWindow = false
+
+    if (!rawMode && !startDate && !endDate) {
+      appliedDefaultWindow = true
+      const { periodStart, periodEnd } = currentBiweeklyPeriodBounds()
+      startDate = addCalendarDaysYmd(periodStart, -7)
+      endDate = periodEnd
+    }
     const staffId = searchParams.get('staffId')
     const includeExtractedParam =
       searchParams.get('includeExtracted') === '1' || searchParams.get('includeArchived') === '1'
@@ -182,13 +198,17 @@ export async function GET(request: NextRequest) {
     const logs = await prisma.attendanceLog.findMany({
       where,
       include: { staff: { select: { id: true, name: true } } },
-      orderBy: { punchTime: 'asc' }
+      orderBy: { punchTime: 'asc' },
+      ...(rawMode ? {} : { take: DEFAULT_LOGS_TAKE })
     })
 
     return NextResponse.json({
       logs,
       extractedHidden: hideExtracted,
-      rawLogsMode: attendanceRawLogsEnv()
+      rawLogsMode: rawMode,
+      ...(appliedDefaultWindow && startDate && endDate
+        ? { defaultWindow: { startDate, endDate } }
+        : {})
     })
   } catch (error) {
     console.error('Error fetching attendance logs:', error)
