@@ -10,7 +10,6 @@ interface DocumentGenerationModalProps {
 }
 
 export default function DocumentGenerationModal({
-  staffId,
   staffName,
   onClose,
   onGenerate
@@ -42,7 +41,9 @@ export default function DocumentGenerationModal({
             ✕
           </button>
         </div>
-        <p className="text-sm text-gray-600 mb-4">Select a document template for <strong>{staffName}</strong>:</p>
+        <p className="text-sm text-gray-600 mb-4">
+          Select a document template for <strong>{staffName}</strong>:
+        </p>
         <div className="space-y-2 mb-4">
           {templates.map((template) => (
             <button
@@ -78,4 +79,3 @@ export default function DocumentGenerationModal({
     </div>
   )
 }
-

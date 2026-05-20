@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
-import DocumentGenerationModal from './DocumentGenerationModal'
+import DocumentGenerationModal from '../DocumentGenerationModal'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 
 interface Staff {
