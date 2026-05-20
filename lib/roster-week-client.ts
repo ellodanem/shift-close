@@ -20,6 +20,8 @@ export interface RosterStaffClient {
   role: string
   /** YYYY-MM-DD — staff appear on rosters from this date onward */
   startDate?: string | null
+  mobileNumber?: string | null
+  dateOfBirth?: string | null
   vacationStart?: string | null
   vacationEnd?: string | null
 }
