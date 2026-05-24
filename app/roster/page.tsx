@@ -208,6 +208,12 @@ export default function RosterPage() {
   const [sickLeaveReason, setSickLeaveReason] = useState('')
   const [savingSickLeave, setSavingSickLeave] = useState(false)
   const [sickLeaveSuccess, setSickLeaveSuccess] = useState(false)
+  const [showVacationModal, setShowVacationModal] = useState(false)
+  const [vacationStaffId, setVacationStaffId] = useState('')
+  const [vacationStartDate, setVacationStartDate] = useState('')
+  const [vacationEndDate, setVacationEndDate] = useState('')
+  const [savingVacation, setSavingVacation] = useState(false)
+  const [vacationSuccess, setVacationSuccess] = useState(false)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [whatsappStaffWithMobile, setWhatsappStaffWithMobile] = useState<Staff[]>([])
   const [whatsappStaffWithoutMobile, setWhatsappStaffWithoutMobile] = useState<Staff[]>([])
@@ -1134,6 +1140,88 @@ export default function RosterPage() {
     }
   }
 
+  const vacationStaff = useMemo(
+    () => allStaff.find((s) => s.id === vacationStaffId),
+    [allStaff, vacationStaffId]
+  )
+
+  const hasExistingVacation = !!(
+    vacationStaff?.vacationStart?.trim() && vacationStaff?.vacationEnd?.trim()
+  )
+
+  const handleVacationStaffChange = (staffId: string) => {
+    setVacationStaffId(staffId)
+    const staff = allStaff.find((s) => s.id === staffId)
+    if (staff?.vacationStart && staff?.vacationEnd) {
+      setVacationStartDate(staff.vacationStart)
+      setVacationEndDate(staff.vacationEnd)
+    }
+  }
+
+  const handleSaveVacation = async () => {
+    if (!vacationStaffId || !vacationStartDate.trim() || !vacationEndDate.trim()) return
+    if (vacationEndDate < vacationStartDate) {
+      alert('End date must be on or after start date')
+      return
+    }
+    setSavingVacation(true)
+    try {
+      const start = vacationStartDate.trim()
+      const end = vacationEndDate.trim()
+      const res = await fetch(`/api/staff/${vacationStaffId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vacationStart: start, vacationEnd: end })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || 'Failed to save vacation')
+      }
+      setAllStaff((prev) =>
+        prev.map((s) =>
+          s.id === vacationStaffId ? { ...s, vacationStart: start, vacationEnd: end } : s
+        )
+      )
+      setVacationSuccess(true)
+      setTimeout(() => setVacationSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error saving vacation', err)
+      alert(err instanceof Error ? err.message : 'Failed to save vacation')
+    } finally {
+      setSavingVacation(false)
+    }
+  }
+
+  const handleClearVacation = async () => {
+    if (!vacationStaffId) return
+    setSavingVacation(true)
+    try {
+      const res = await fetch(`/api/staff/${vacationStaffId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vacationStart: null, vacationEnd: null })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || 'Failed to clear vacation')
+      }
+      setAllStaff((prev) =>
+        prev.map((s) =>
+          s.id === vacationStaffId ? { ...s, vacationStart: null, vacationEnd: null } : s
+        )
+      )
+      setVacationStartDate('')
+      setVacationEndDate('')
+      setVacationSuccess(true)
+      setTimeout(() => setVacationSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error clearing vacation', err)
+      alert(err instanceof Error ? err.message : 'Failed to clear vacation')
+    } finally {
+      setSavingVacation(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -1182,6 +1270,23 @@ export default function RosterPage() {
             >
               <span className="md:hidden">+ Sick</span>
               <span className="hidden md:inline">+ Sick Leave</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const defaultStaff = allStaff.find((s) => s.status === 'active' && s.role !== 'manager')
+                const today = formatInputDate(new Date())
+                const staffId = defaultStaff?.id ?? ''
+                setVacationStaffId(staffId)
+                setVacationStartDate(defaultStaff?.vacationStart || today)
+                setVacationEndDate(defaultStaff?.vacationEnd || today)
+                setVacationSuccess(false)
+                setShowVacationModal(true)
+              }}
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-violet-500 text-white rounded font-semibold hover:bg-violet-600 text-sm"
+            >
+              <span className="md:hidden">+ Vacation</span>
+              <span className="hidden md:inline">+ Vacation</span>
             </button>
             <a
               href="/roster/templates"
@@ -2256,6 +2361,133 @@ export default function RosterPage() {
                   className="px-4 py-2 bg-amber-500 text-white rounded text-sm font-semibold hover:bg-amber-600 disabled:opacity-60"
                 >
                   {savingDayOff ? 'Saving…' : 'Save Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Vacation Modal */}
+        {showVacationModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowVacationModal(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="vacation-modal-title"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 id="vacation-modal-title" className="text-lg font-semibold text-gray-900">
+                  Vacation
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowVacationModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Staff on vacation cannot be scheduled in the roster during this period.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
+                  <select
+                    value={vacationStaffId}
+                    onChange={(e) => handleVacationStaffChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  >
+                    <option value="">— Select staff —</option>
+                    {allStaff
+                      .filter((s) => s.status === 'active' && s.role !== 'manager')
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.firstName?.trim() || s.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={vacationStartDate}
+                      onChange={(e) => setVacationStartDate(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={vacationEndDate}
+                      onChange={(e) => setVacationEndDate(e.target.value)}
+                      min={vacationStartDate}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                </div>
+
+                {vacationStaffId && (
+                  <p className="text-xs text-gray-500">
+                    <a
+                      href={`/staff/${vacationStaffId}`}
+                      className="text-violet-600 hover:text-violet-800 font-medium"
+                    >
+                      Open staff profile
+                    </a>
+                    {' '}for full details and documents.
+                  </p>
+                )}
+
+                {vacationSuccess && (
+                  <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                    Vacation saved successfully.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-end mt-5">
+                {hasExistingVacation && (
+                  <button
+                    type="button"
+                    onClick={() => void handleClearVacation()}
+                    disabled={!vacationStaffId || savingVacation}
+                    className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded text-sm font-medium hover:bg-red-100 disabled:opacity-60 mr-auto"
+                  >
+                    Clear vacation
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowVacationModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveVacation()}
+                  disabled={
+                    !vacationStaffId ||
+                    !vacationStartDate ||
+                    !vacationEndDate ||
+                    savingVacation ||
+                    vacationEndDate < vacationStartDate
+                  }
+                  className="px-4 py-2 bg-violet-500 text-white rounded text-sm font-semibold hover:bg-violet-600 disabled:opacity-60"
+                >
+                  {savingVacation ? 'Saving…' : 'Save Vacation'}
                 </button>
               </div>
             </div>
