@@ -69,3 +69,32 @@ input[type="number"] {
   animation: roster-off-days-flash 1s ease-in-out infinite;
   font-weight: 600;
 }
+
+/* Sticky top bar on roster desktop table */
+.roster-top-x-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.55) transparent;
+}
+.roster-top-x-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.roster-top-x-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.roster-top-x-scroll::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.55);
+  border-radius: 4px;
+}
+.roster-top-x-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.75);
+}
+
+/* Desktop roster grid: pan horizontally via the sticky top bar only */
+.roster-table-x-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.roster-table-x-scroll::-webkit-scrollbar {
+  height: 0;
+}

@@ -1815,12 +1815,12 @@ export default function RosterPage() {
               <div className="hidden md:block relative rounded-b-lg">
               <div
                 ref={topScrollRef}
-                className="sticky top-0 z-20 h-3 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200"
+                className="sticky top-0 z-20 h-4 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200 roster-top-x-scroll"
                 aria-hidden="true"
               >
                 <div ref={topScrollContentRef} className="h-px" />
               </div>
-              <div ref={tableScrollRef} className="overflow-x-auto overflow-y-visible pb-2 sm:pb-3">
+              <div ref={tableScrollRef} className="roster-table-x-scroll">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className={weekBannerStyle.bg}>
                   <tr>
