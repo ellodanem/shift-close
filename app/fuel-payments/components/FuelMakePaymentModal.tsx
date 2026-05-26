@@ -532,9 +532,10 @@ export function FuelMakePaymentModal({
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          <span className="text-sm text-gray-700">
-            {selectedInvoiceIds.size} selected · Total:{' '}
-            <span className="font-semibold text-gray-900">{formatAmount(selectedTotal)}</span>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-gray-700">
+            <span>{selectedInvoiceIds.size} selected</span>
+            <span className="font-semibold text-gray-800">Total:</span>
+            <span className="text-lg font-bold text-gray-950">{formatAmount(selectedTotal)}</span>
           </span>
           <div className="flex gap-3">
             <button

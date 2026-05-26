@@ -494,11 +494,12 @@ export function VendorMakePaymentModal({
                     </div>
 
                     <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="text-sm text-gray-600">
+                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-gray-600">
                         {selectedInvoiceIds.size > 0 ? (
                           <>
-                            {selectedInvoiceIds.size} invoice(s) selected · Total:{' '}
-                            <span className="font-semibold text-gray-900">
+                            <span>{selectedInvoiceIds.size} invoice(s) selected</span>
+                            <span className="font-semibold text-gray-800">Total:</span>
+                            <span className="text-lg font-bold text-gray-950">
                               {formatAmount(selectedTotal)}
                             </span>
                           </>
