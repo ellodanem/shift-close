@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ATTENDANCE_VIEWER_PATH,
+  ATTENDANCE_VIEWER_PAY_PERIOD_PATH,
   canAccessAttendanceViewer,
   formatPunchTimeLocal,
   formatViewerDateLabel
@@ -239,6 +240,12 @@ export default function AttendanceViewerPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={ATTENDANCE_VIEWER_PAY_PERIOD_PATH}
+              className="text-xs font-medium text-slate-200 hover:text-white px-2 py-1 rounded-md hover:bg-slate-800 border border-slate-600"
+            >
+              PPR
+            </Link>
             <Link
               href="/dashboard"
               className="text-xs font-medium text-blue-300 hover:text-blue-200 px-2 py-1 rounded-md hover:bg-slate-800"

@@ -18,6 +18,9 @@ import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
 /** Canonical route for the read-only mobile attendance dashboard. */
 export const ATTENDANCE_VIEWER_PATH = '/attendance/viewer'
 
+/** Mobile pay period reports — saved periods only; same send/print/excel as desktop. */
+export const ATTENDANCE_VIEWER_PAY_PERIOD_PATH = '/attendance/viewer/pay-period'
+
 export function canAccessAttendanceViewer(role: string): boolean {
   return isFullAccessRole(role) || isOperationsManagerRole(role)
 }
@@ -25,6 +28,7 @@ export function canAccessAttendanceViewer(role: string): boolean {
 export function isAttendanceViewerPath(pathname: string): boolean {
   return (
     pathname === ATTENDANCE_VIEWER_PATH ||
+    pathname === ATTENDANCE_VIEWER_PAY_PERIOD_PATH ||
     pathname.startsWith('/api/attendance/viewer-summary')
   )
 }

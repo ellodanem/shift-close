@@ -12,7 +12,12 @@ import {
   formatPayPeriodStaffNotesBlock,
   type StaffPayrollSnapshot
 } from '@/lib/pay-period-staff-notes'
-import { payPeriodReportDefaultTo } from '@/lib/pay-period-email'
+import {
+  buildPayPeriodEmailHtml,
+  formatSavedPayPeriodDateRange,
+  payPeriodReportDefaultTo
+} from '@/lib/pay-period-email'
+import { printPayPeriodReport } from '@/lib/pay-period-print'
 
 interface PayPeriodRow {
   staffId: string
@@ -48,42 +53,6 @@ interface SavedPayPeriod {
   createdAt: string
   updatedAt: string
   emailSentAt: string | null
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-/** Same wording as the saved-period row (for email subject). */
-function formatSavedRowDateRange(start: string, end: string): string {
-  return `${formatDateDisplay(start)} \u2013 ${formatDateDisplay(end)}`
-}
-
-function buildPayPeriodEmailHtml(data: PayPeriodData): string {
-  const rows = data.rows
-  const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
-  const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
-  return `
-        <h2>Summary Report</h2>
-        <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
-        <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
-        <p><strong>${data.entityName}</strong></p>
-        ${(data.notes ?? '').trim() ? `<p style="white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</p>` : ''}
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-          <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
-          ${rows
-            .map(
-              (r) =>
-                `<tr><td>${r.staffName}</td><td>${r.transTtl.toFixed(2)}</td><td>${r.vacation}</td><td>${r.sickLeaveDays ?? 0}</td><td>${r.sickLeaveRanges ?? ''}</td><td>${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`
-            )
-            .join('')}
-          <tr><td><strong>Total</strong></td><td><strong>${totalTrans.toFixed(1)}</strong></td><td></td><td><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td></td><td><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
-        </table>
-      `
 }
 
 function parsePreviousRows(raw: string | null | undefined): PayPeriodRow[] | null {
@@ -349,62 +318,7 @@ export default function PayPeriodPage() {
   }
 
   const handlePrint = (data: PayPeriodData) => {
-    const printWin = window.open('', '_blank')
-    if (!printWin) return
-    const rows = data.rows
-    const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
-    const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head><title>Summary Report</title></head>
-        <body style="font-family: system-ui; padding: 24px;">
-          <h1 style="text-align: center; margin-bottom: 24px;">Summary Report</h1>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-            <span>Report Date: ${formatDateDisplay(data.reportDate)}</span>
-            <span>Date Range: ${formatDateRange(data.startDate, data.endDate)}</span>
-          </div>
-          <div style="font-weight: bold; margin-bottom: 16px;">${data.entityName}</div>
-          ${(data.notes ?? '').trim() ? `<div style="margin-bottom: 16px; white-space: pre-wrap;">${escapeHtml(data.notes ?? '')}</div>` : ''}
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="border-bottom: 2px solid #000;">
-                <th style="text-align: left; padding: 8px;">Staff</th>
-                <th style="text-align: right; padding: 8px;">Trans Ttl</th>
-                <th style="text-align: center; padding: 8px;">Vacation</th>
-                <th style="text-align: right; padding: 8px;">Sick Days</th>
-                <th style="text-align: left; padding: 8px;">Sick Leave</th>
-                <th style="text-align: right; padding: 8px;">Shortage</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(r => `
-                <tr style="border-bottom: 1px solid #ddd;">
-                  <td style="padding: 8px;">${r.staffName}</td>
-                  <td style="text-align: right; padding: 8px;">${r.transTtl.toFixed(2)}</td>
-                  <td style="text-align: center; padding: 8px;">${r.vacation || ''}</td>
-                  <td style="text-align: right; padding: 8px;">${r.sickLeaveDays ?? 0}</td>
-                  <td style="text-align: left; padding: 8px;">${r.sickLeaveRanges ?? ''}</td>
-                  <td style="text-align: right; padding: 8px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
-                </tr>
-              `).join('')}
-              <tr style="border-top: 2px solid #000; font-weight: bold;">
-                <td style="padding: 8px;">Total</td>
-                <td style="text-align: right; padding: 8px;">${totalTrans.toFixed(1)}</td>
-                <td style="padding: 8px;"></td>
-                <td style="text-align: right; padding: 8px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
-                <td style="padding: 8px;"></td>
-                <td style="text-align: right; padding: 8px;">${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</td>
-              </tr>
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `
-    printWin.document.write(html)
-    printWin.document.close()
-    printWin.focus()
-    setTimeout(() => { printWin.print(); printWin.close() }, 250)
+    printPayPeriodReport(data)
   }
 
   const handleDownloadExcel = (data: PayPeriodData) => {
@@ -424,7 +338,7 @@ export default function PayPeriodPage() {
       return
     }
     setEmailTo(payPeriodReportDefaultTo())
-    setEmailSubject(formatSavedRowDateRange(data.startDate, data.endDate))
+    setEmailSubject(formatSavedPayPeriodDateRange(data.startDate, data.endDate))
     setEmailHtml(buildPayPeriodEmailHtml(data))
     setEmailModalData(data)
   }
@@ -541,7 +455,7 @@ export default function PayPeriodPage() {
                     className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     <span className="font-medium flex flex-wrap items-center gap-2">
-                      {formatSavedRowDateRange(p.startDate, p.endDate)}
+                      {formatSavedPayPeriodDateRange(p.startDate, p.endDate)}
                       {p.emailSentAt && (
                         <span className="text-xs font-normal px-2 py-0.5 rounded bg-green-100 text-green-800">
                           Emailed
