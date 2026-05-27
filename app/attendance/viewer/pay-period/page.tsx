@@ -43,6 +43,9 @@ function formatShortage(n: number): string {
   return n > 0 ? `$${n.toFixed(2)}` : ''
 }
 
+const pprActionBtn =
+  'min-h-[44px] w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-colors active:scale-[0.98]'
+
 export default function MobilePayPeriodPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
@@ -240,32 +243,32 @@ export default function MobilePayPeriodPage() {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 mt-3">
+                    <div className="grid grid-cols-2 gap-3 mt-4">
                       <button
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : p.id)}
-                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-slate-700 text-slate-200 hover:bg-slate-600"
+                        className={`${pprActionBtn} bg-slate-700 text-slate-200 hover:bg-slate-600`}
                       >
                         {expanded ? 'Hide' : 'View'}
                       </button>
                       <button
                         type="button"
                         onClick={() => printPayPeriodReport(data)}
-                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-blue-900/50 text-blue-200 hover:bg-blue-900"
+                        className={`${pprActionBtn} bg-blue-900/50 text-blue-200 hover:bg-blue-900`}
                       >
                         Print
                       </button>
                       <button
                         type="button"
                         onClick={() => downloadPayPeriodExcel(data)}
-                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60"
+                        className={`${pprActionBtn} bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60`}
                       >
                         Excel
                       </button>
                       <button
                         type="button"
                         onClick={() => openEmailModal(data)}
-                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-900/50 text-indigo-200 hover:bg-indigo-900"
+                        className={`${pprActionBtn} bg-indigo-900/50 text-indigo-200 hover:bg-indigo-900`}
                       >
                         Email
                       </button>
