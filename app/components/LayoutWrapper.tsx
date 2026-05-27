@@ -3,7 +3,10 @@
 import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
 import { useAuth } from './AuthContext'
-import { ATTENDANCE_VIEWER_PATH } from '@/lib/attendance-viewer'
+import {
+  ATTENDANCE_VIEWER_PATH,
+  ATTENDANCE_VIEWER_PAY_PERIOD_PATH
+} from '@/lib/attendance-viewer'
 import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { formatAppUserDisplayName } from '@/lib/roles'
@@ -22,6 +25,7 @@ export default function LayoutWrapper({
     pathname === '/forgot-password'
   const isMinimalMobileShell =
     pathname === ATTENDANCE_VIEWER_PATH ||
+    pathname === ATTENDANCE_VIEWER_PAY_PERIOD_PATH ||
     pathname === ROSTER_MOBILE_PATH ||
     pathname === MANAGER_HUB_PATH
 
