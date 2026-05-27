@@ -12,6 +12,7 @@ import {
   formatPayPeriodStaffNotesBlock,
   type StaffPayrollSnapshot
 } from '@/lib/pay-period-staff-notes'
+import { payPeriodReportDefaultTo } from '@/lib/pay-period-email'
 
 interface PayPeriodRow {
   staffId: string
@@ -213,7 +214,6 @@ export default function PayPeriodPage() {
   const [emailTo, setEmailTo] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
   const [emailHtml, setEmailHtml] = useState('')
-  const [emailPrefillLoading, setEmailPrefillLoading] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   /** When set, Save updates this record via PATCH instead of creating a new one. */
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
@@ -418,25 +418,15 @@ export default function PayPeriodPage() {
     setEmailHtml('')
   }
 
-  const openPayPeriodEmailModal = async (data: PayPeriodData) => {
+  const openPayPeriodEmailModal = (data: PayPeriodData) => {
     if (!data.id) {
       alert('Save this pay period first, then use Email from the saved list.')
       return
     }
-    setEmailPrefillLoading(true)
-    try {
-      const recipientsRes = await fetch('/api/email-recipients')
-      const list = recipientsRes.ok ? await recipientsRes.json() : []
-      const primary = Array.isArray(list) && list.length > 0 ? list[0] : null
-      setEmailTo(primary?.email?.trim() ?? '')
-      setEmailSubject(formatSavedRowDateRange(data.startDate, data.endDate))
-      setEmailHtml(buildPayPeriodEmailHtml(data))
-      setEmailModalData(data)
-    } catch {
-      alert('Could not load email recipients.')
-    } finally {
-      setEmailPrefillLoading(false)
-    }
+    setEmailTo(payPeriodReportDefaultTo())
+    setEmailSubject(formatSavedRowDateRange(data.startDate, data.endDate))
+    setEmailHtml(buildPayPeriodEmailHtml(data))
+    setEmailModalData(data)
   }
 
   const sendPayPeriodEmailFromModal = async () => {
@@ -585,11 +575,10 @@ export default function PayPeriodPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void openPayPeriodEmailModal(data)}
-                        disabled={emailPrefillLoading}
-                        className="px-3 py-1 text-sm bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200 disabled:opacity-60"
+                        onClick={() => openPayPeriodEmailModal(data)}
+                        className="px-3 py-1 text-sm bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200"
                       >
-                        {emailPrefillLoading ? '…' : 'Email'}
+                        Email
                       </button>
                       <button
                         disabled
@@ -923,7 +912,7 @@ export default function PayPeriodPage() {
               </p>
               {!emailTo.trim() && (
                 <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
-                  No default recipient is set. Add one under Settings → Email recipients, or type an address below.
+                  Enter one or more recipient addresses below (comma-separated for multiple).
                 </p>
               )}
               <div className="space-y-4">
@@ -933,11 +922,11 @@ export default function PayPeriodPage() {
                   </label>
                   <input
                     id="pay-period-email-to"
-                    type="email"
+                    type="text"
                     value={emailTo}
                     onChange={(e) => setEmailTo(e.target.value)}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    placeholder="accounting@example.com"
+                    placeholder={payPeriodReportDefaultTo()}
                     autoComplete="email"
                   />
                 </div>
