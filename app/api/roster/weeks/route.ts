@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { canEditRoster } from '@/lib/roles'
 import { getStationClosedDates } from '@/lib/public-holidays'
+import {
+  formatInputDate,
+  isRosterDayLocked,
+  mergeEntriesRespectingDayLock,
+  rosterEntryKey
+} from '@/lib/roster-week-client'
 
 // Roster week API: load and save weekly assignments
 export const dynamic = 'force-dynamic'
@@ -70,10 +76,47 @@ export async function POST(request: NextRequest) {
     }
 
     const safeEntries = Array.isArray(entries) ? entries : []
+    const today = formatInputDate(new Date())
 
-    const distinctDates = [...new Set(safeEntries.map((e) => e.date))]
+    const existingWeek = await prisma.rosterWeek.findFirst({
+      where: { weekStart },
+      include: { entries: true }
+    })
+    const existingEntries = existingWeek?.entries ?? []
+
+    const mergedEntries = mergeEntriesRespectingDayLock({
+      weekStart,
+      incoming: safeEntries.map((e) => ({
+        staffId: e.staffId,
+        date: e.date,
+        shiftTemplateId: e.shiftTemplateId ?? null,
+        position: e.position ?? null,
+        notes: e.notes ?? ''
+      })),
+      serverSnapshot: existingEntries,
+      today
+    })
+
+    for (const entry of safeEntries) {
+      if (!isRosterDayLocked(entry.date, weekStart, today)) continue
+      const key = rosterEntryKey(entry.staffId, entry.date)
+      const prior = existingEntries.find((e) => rosterEntryKey(e.staffId, e.date) === key)
+      const merged = mergedEntries.find((e) => rosterEntryKey(e.staffId, e.date) === key)
+      if (!prior || !merged) continue
+      const sameShift = (prior.shiftTemplateId ?? null) === (merged.shiftTemplateId ?? null)
+      const samePosition = (prior.position ?? null) === (merged.position ?? null)
+      const sameNotes = (prior.notes ?? '') === (merged.notes ?? '')
+      if (!sameShift || !samePosition || !sameNotes) {
+        return NextResponse.json(
+          { error: `Cannot change roster for ${entry.date}: that day is locked.` },
+          { status: 400 }
+        )
+      }
+    }
+
+    const distinctDates = [...new Set(mergedEntries.map((e) => e.date))]
     const stationClosedDates = await getStationClosedDates(prisma, distinctDates)
-    const activeShiftEntries = safeEntries.filter((e) => !!e.shiftTemplateId)
+    const activeShiftEntries = mergedEntries.filter((e) => !!e.shiftTemplateId)
     const shiftStaffIds = [...new Set(activeShiftEntries.map((e) => e.staffId))]
     const minDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a < b ? a : b)) : null
     const maxDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a > b ? a : b)) : null
@@ -97,7 +140,7 @@ export async function POST(request: NextRequest) {
         : Promise.resolve([])
     ])
     const staffById = new Map(staffRows.map((s) => [s.id, s]))
-    for (const entry of safeEntries) {
+    for (const entry of mergedEntries) {
       if (entry.shiftTemplateId && stationClosedDates.has(entry.date)) {
         return NextResponse.json(
           {
@@ -139,17 +182,12 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Emulate upsert by weekStart (unique) using findFirst + update/create
-      const existing = await tx.rosterWeek.findFirst({
-        where: { weekStart }
-      })
-
-      const week = existing
+      const savedWeek = existingWeek
         ? await tx.rosterWeek.update({
-            where: { id: existing.id },
+            where: { id: existingWeek.id },
             data: {
-              status: status || existing.status || 'draft',
-              notes: notes ?? existing.notes ?? ''
+              status: status || existingWeek.status || 'draft',
+              notes: notes ?? existingWeek.notes ?? ''
             }
           })
         : await tx.rosterWeek.create({
@@ -161,13 +199,13 @@ export async function POST(request: NextRequest) {
           })
 
       await tx.rosterEntry.deleteMany({
-        where: { rosterWeekId: week.id }
+        where: { rosterWeekId: savedWeek.id }
       })
 
-      if (safeEntries.length > 0) {
+      if (mergedEntries.length > 0) {
         await tx.rosterEntry.createMany({
-          data: safeEntries.map((entry) => ({
-            rosterWeekId: week.id,
+          data: mergedEntries.map((entry) => ({
+            rosterWeekId: savedWeek.id,
             staffId: entry.staffId,
             date: entry.date,
             shiftTemplateId: entry.shiftTemplateId || null,
@@ -177,7 +215,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      return { weekId: week.id, count: safeEntries.length }
+      return { weekId: savedWeek.id, count: mergedEntries.length }
     })
 
     return NextResponse.json(result)

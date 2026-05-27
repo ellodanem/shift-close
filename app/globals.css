@@ -89,10 +89,11 @@ input[type="number"] {
   background: rgba(107, 114, 128, 0.75);
 }
 
-/* Desktop roster grid: pan horizontally via the sticky top bar only */
+/* Desktop roster grid: pan horizontally via the sticky top bar only.
+   overflow-y: clip keeps vertical sticky headers relative to <main>, not this box. */
 .roster-table-x-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: clip;
   scrollbar-width: none;
 }
 .roster-table-x-scroll::-webkit-scrollbar {

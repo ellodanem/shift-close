@@ -59,9 +59,106 @@ export function weekDatesFromStart(weekStart: string): string[] {
   return ROSTER_DAY_LABELS.map((_, idx) => addDays(weekStart, idx))
 }
 
-export function isPastRosterWeek(weekStart: string): boolean {
-  const today = formatInputDate(new Date())
+export function isPastRosterWeek(weekStart: string, today = formatInputDate(new Date())): boolean {
   return today >= addDays(weekStart, 6)
+}
+
+export function currentWeekMonday(today = formatInputDate(new Date())): string {
+  const [y, m, d] = today.split('-').map(Number)
+  return formatInputDate(getMonday(new Date(y, (m ?? 1) - 1, d ?? 1)))
+}
+
+export function isCurrentRosterWeek(weekStart: string, today = formatInputDate(new Date())): boolean {
+  return weekStart === currentWeekMonday(today)
+}
+
+/** Calendar day is read-only on the active week once the day has started (date ≤ today). */
+export function isRosterDayLocked(
+  date: string,
+  weekStart: string,
+  today = formatInputDate(new Date())
+): boolean {
+  if (isPastRosterWeek(weekStart, today)) return true
+  if (!isCurrentRosterWeek(weekStart, today)) return false
+  return date <= today
+}
+
+export function rosterEntryKey(staffId: string, date: string): string {
+  return `${staffId}|${date}`
+}
+
+export function previousWeekReferenceDate(date: string): string {
+  return addDays(date, -7)
+}
+
+export function formatRosterDisplayDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-')
+  if (!y || !m || !d) return isoDate
+  return `${d}-${m}-${y.slice(2)}`
+}
+
+export function previousWeekShiftLabel(
+  entry: RosterEntryClient | undefined,
+  templateNameById: Map<string, string>
+): string {
+  if (!entry) return 'Not scheduled'
+  if (!entry.shiftTemplateId) return 'Off'
+  return templateNameById.get(entry.shiftTemplateId) ?? 'Shift'
+}
+
+export function previousWeekTooltip(
+  cellDate: string,
+  entry: RosterEntryClient | undefined,
+  templateNameById: Map<string, string>
+): string {
+  const prevDate = previousWeekReferenceDate(cellDate)
+  const label = previousWeekShiftLabel(entry, templateNameById)
+  return `Last week (${formatRosterDisplayDate(prevDate)}): ${label}`
+}
+
+/** Keep locked calendar days from server snapshot when saving the current week. */
+export function mergeEntriesRespectingDayLock(params: {
+  weekStart: string
+  incoming: Array<{
+    staffId: string
+    date: string
+    shiftTemplateId: string | null
+    position: string | null
+    notes: string
+  }>
+  serverSnapshot: RosterEntryClient[]
+  today?: string
+}): Array<{
+  staffId: string
+  date: string
+  shiftTemplateId: string | null
+  position: string | null
+  notes: string
+}> {
+  const { weekStart, incoming, serverSnapshot, today = formatInputDate(new Date()) } = params
+  const serverByKey = new Map(
+    serverSnapshot.map((e) => [
+      rosterEntryKey(e.staffId, e.date),
+      {
+        staffId: e.staffId,
+        date: e.date,
+        shiftTemplateId: e.shiftTemplateId ?? null,
+        position: e.position ?? null,
+        notes: e.notes ?? ''
+      }
+    ])
+  )
+  return incoming.map((row) => {
+    if (!isRosterDayLocked(row.date, weekStart, today)) return row
+    const locked = serverByKey.get(rosterEntryKey(row.staffId, row.date))
+    if (locked) return locked
+    return {
+      ...row,
+      shiftTemplateId: null,
+      position: null,
+      notes: ''
+    }
+  })
 }
 
 export function isOnVacation(staff: RosterStaffClient, date: string): boolean {

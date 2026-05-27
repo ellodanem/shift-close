@@ -9,7 +9,15 @@ import {
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
   staffIdsBelowMinOffDays
 } from '@/lib/roster-settings'
-import { displayStaffForWeek, weekStartMondayFromDate } from '@/lib/roster-week-client'
+import {
+  displayStaffForWeek,
+  isRosterDayLocked,
+  mergeEntriesRespectingDayLock,
+  previousWeekReferenceDate,
+  previousWeekTooltip,
+  rosterEntryKey,
+  weekStartMondayFromDate
+} from '@/lib/roster-week-client'
 
 interface Staff {
   id: string
@@ -185,6 +193,8 @@ export default function RosterPage() {
     formatInputDate(getMonday(new Date()))
   )
   const [entries, setEntries] = useState<RosterEntry[]>([])
+  const [previousWeekEntries, setPreviousWeekEntries] = useState<RosterEntry[]>([])
+  const serverEntriesRef = useRef<RosterEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -218,16 +228,15 @@ export default function RosterPage() {
   const [whatsappStaffWithMobile, setWhatsappStaffWithMobile] = useState<Staff[]>([])
   const [whatsappStaffWithoutMobile, setWhatsappStaffWithoutMobile] = useState<Staff[]>([])
   const [whatsappStep, setWhatsappStep] = useState<'warning' | 'confirm'>('warning')
-  /** True once this week has been saved to the server (Option A: grid locks until Edit). */
-  const [weekPersisted, setWeekPersisted] = useState(false)
-  /** User clicked Edit — editing allowed for this week. */
-  const [editUnlocked, setEditUnlocked] = useState(false)
-  const [showEditCurrentWeekModal, setShowEditCurrentWeekModal] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const imageRef = useRef<HTMLDivElement | null>(null)
+  const rosterBannerRef = useRef<HTMLDivElement | null>(null)
   const topScrollRef = useRef<HTMLDivElement | null>(null)
   const topScrollContentRef = useRef<HTMLDivElement | null>(null)
+  const headerScrollRef = useRef<HTMLDivElement | null>(null)
   const tableScrollRef = useRef<HTMLDivElement | null>(null)
+  /** Height of the week banner — sticky table header sits directly below it in <main>. */
+  const [rosterStickyOffsets, setRosterStickyOffsets] = useState({ banner: 0 })
   const [publicHolidays, setPublicHolidays] = useState<PublicHolidayRow[]>([])
   const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
@@ -236,6 +245,18 @@ export default function RosterPage() {
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
     [weekStart]
+  )
+
+  const rosterTableColGroup = useMemo(
+    () => (
+      <colgroup>
+        <col className="w-[7.5rem]" />
+        {weekDates.map((date) => (
+          <col key={date} />
+        ))}
+      </colgroup>
+    ),
+    [weekDates]
   )
 
   // Week banner colour: past/locked = grey, current (editable Mon–Sat) = light green, future = light blue
@@ -261,8 +282,34 @@ export default function RosterPage() {
   const isViewingCurrentWeek =
     weekStart === formatInputDate(getMonday(new Date()))
 
-  /** Option A: saved week is read-only until Edit; past weeks / view-only roles always locked. */
-  const rosterCellsLocked = rosterLockedEdit || (weekPersisted && !editUnlocked)
+  const todayIso = useMemo(() => formatInputDate(new Date()), [])
+
+  const isCellLocked = (date: string): boolean =>
+    rosterLockedEdit || isRosterDayLocked(date, weekStart, todayIso)
+
+  const lockedDaysInWeek = useMemo(
+    () => weekDates.filter((date) => isRosterDayLocked(date, weekStart, todayIso)),
+    [weekDates, weekStart, todayIso]
+  )
+
+  const templateNameById = useMemo(
+    () => new Map(templates.map((t) => [t.id, t.name])),
+    [templates]
+  )
+
+  const previousWeekEntryByKey = useMemo(() => {
+    const map = new Map<string, RosterEntry>()
+    for (const entry of previousWeekEntries) {
+      map.set(rosterEntryKey(entry.staffId, entry.date), entry)
+    }
+    return map
+  }, [previousWeekEntries])
+
+  const getLastWeekTooltip = (staffId: string, date: string): string => {
+    const prevDate = previousWeekReferenceDate(date)
+    const prev = previousWeekEntryByKey.get(rosterEntryKey(staffId, prevDate))
+    return previousWeekTooltip(date, prev, templateNameById)
+  }
 
   const displayStaff = useMemo(
     () => displayStaffForWeek(allStaff, weekStart, entries),
@@ -317,8 +364,12 @@ export default function RosterPage() {
         const data = await res.json()
         const loadedEntries: RosterEntry[] = data.entries || []
         setEntries(loadedEntries)
-        setWeekPersisted(!!data.week)
-        setEditUnlocked(false)
+        serverEntriesRef.current = loadedEntries
+        setPreviousWeekEntries(
+          Array.isArray(data.previousWeekEntries)
+            ? (data.previousWeekEntries as RosterEntry[])
+            : []
+        )
         setDayOffRequests(
           Array.isArray(data.dayOffRequests) ? (data.dayOffRequests as StaffDayOffRequest[]) : []
         )
@@ -346,15 +397,6 @@ export default function RosterPage() {
   }, [copyConfirmOpen])
 
   useEffect(() => {
-    if (!showEditCurrentWeekModal) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowEditCurrentWeekModal(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [showEditCurrentWeekModal])
-
-  useEffect(() => {
     if (!shareMenuOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setShareMenuOpen(false); setSmsSubmenuOpen(false) }
@@ -363,40 +405,64 @@ export default function RosterPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [shareMenuOpen])
 
+  const updateRosterStickyOffsets = () => {
+    const bannerH = rosterBannerRef.current?.offsetHeight ?? 0
+    setRosterStickyOffsets({ banner: bannerH })
+  }
+
+  useEffect(() => {
+    const banner = rosterBannerRef.current
+    if (!banner) return
+    const run = () => updateRosterStickyOffsets()
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(run) : null
+    resizeObserver?.observe(banner)
+    window.addEventListener('resize', run)
+    run()
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', run)
+    }
+  }, [loading, weekStart, rosterLockedEdit, saving, shareMenuOpen, copyConfirmOpen])
+
   useEffect(() => {
     const topScroller = topScrollRef.current
     const topContent = topScrollContentRef.current
+    const headerScroller = headerScrollRef.current
     const tableScroller = tableScrollRef.current
     if (!topScroller || !topContent || !tableScroller) return
 
-    let syncingFromTop = false
-    let syncingFromTable = false
+    let syncing = false
 
     const syncWidths = () => {
       // Table is `display:none` below md — skip to avoid bogus measurements and layout thrash
       if (tableScroller.offsetParent === null) {
         topScroller.style.display = 'none'
+        updateRosterStickyOffsets()
         return
       }
       const scrollWidth = tableScroller.scrollWidth
       const clientWidth = tableScroller.clientWidth
       topContent.style.width = `${scrollWidth}px`
       topScroller.style.display = scrollWidth > clientWidth ? 'block' : 'none'
+      updateRosterStickyOffsets()
     }
 
-    const onTopScroll = () => {
-      if (syncingFromTable) return
-      syncingFromTop = true
-      tableScroller.scrollLeft = topScroller.scrollLeft
-      syncingFromTop = false
+    const syncScrollLeft = (source: HTMLDivElement, left: number) => {
+      if (syncing) return
+      syncing = true
+      if (source !== topScroller) topScroller.scrollLeft = left
+      if (headerScroller && source !== headerScroller) headerScroller.scrollLeft = left
+      if (source !== tableScroller) tableScroller.scrollLeft = left
+      syncing = false
     }
 
-    const onTableScroll = () => {
-      if (syncingFromTop) return
-      syncingFromTable = true
-      topScroller.scrollLeft = tableScroller.scrollLeft
-      syncingFromTable = false
+    const onTopScroll = () => syncScrollLeft(topScroller, topScroller.scrollLeft)
+    const onHeaderScroll = () => {
+      if (!headerScroller) return
+      syncScrollLeft(headerScroller, headerScroller.scrollLeft)
     }
+    const onTableScroll = () => syncScrollLeft(tableScroller, tableScroller.scrollLeft)
 
     const resizeObserver =
       typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncWidths) : null
@@ -404,12 +470,14 @@ export default function RosterPage() {
     if (tableScroller.firstElementChild) resizeObserver?.observe(tableScroller.firstElementChild)
 
     topScroller.addEventListener('scroll', onTopScroll, { passive: true })
+    headerScroller?.addEventListener('scroll', onHeaderScroll, { passive: true })
     tableScroller.addEventListener('scroll', onTableScroll, { passive: true })
     window.addEventListener('resize', syncWidths)
     syncWidths()
 
     return () => {
       topScroller.removeEventListener('scroll', onTopScroll)
+      headerScroller?.removeEventListener('scroll', onHeaderScroll)
       tableScroller.removeEventListener('scroll', onTableScroll)
       window.removeEventListener('resize', syncWidths)
       resizeObserver?.disconnect()
@@ -488,7 +556,7 @@ export default function RosterPage() {
   }, [entries, weekDates, displayStaff.length, templates])
 
   const handleMoveStaff = async (index: number, direction: 'up' | 'down') => {
-    if (rosterCellsLocked) return
+    if (rosterLockedEdit) return
     const newIndex = direction === 'up' ? index - 1 : index + 1
     if (newIndex < 0 || newIndex >= displayStaff.length) return
     const reordered = [...displayStaff]
@@ -519,7 +587,7 @@ export default function RosterPage() {
   }
 
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
-    if (rosterCellsLocked) return
+    if (isCellLocked(date)) return
     const staff = allStaff.find((s) => s.id === staffId)
     if (staff && isOnVacation(staff, date)) return
     if (isOnSickLeave(staffId, date)) return
@@ -558,11 +626,12 @@ export default function RosterPage() {
   }
 
   const fillWeekForStaff = (staffId: string, shiftTemplateId: string | null) => {
-    if (rosterCellsLocked) return
+    if (rosterLockedEdit) return
     const staff = allStaff.find((s) => s.id === staffId)
     setEntries((prev) => {
       let next = [...prev]
       for (const date of weekDates) {
+        if (isCellLocked(date)) continue
         if (staff && isOnVacation(staff, date)) continue
         if (isOnSickLeave(staffId, date)) continue
         if (publicHolidays.some((h) => h.date === date && h.stationClosed)) continue
@@ -593,7 +662,7 @@ export default function RosterPage() {
 
   const handleSave = async (entriesToPersist?: RosterEntry[]) => {
     if (!canEditRoster) return
-    if (rosterCellsLocked) return
+    if (rosterLockedEdit) return
     const today = formatInputDate(new Date())
     const weekSunday = addDays(weekStart, 6)
     if (today >= weekSunday) return // Weeks lock on Sunday
@@ -602,19 +671,24 @@ export default function RosterPage() {
     try {
       const snapshot = entriesToPersist ?? entries
       // Build full roster (displayStaff × weekDates) so "Off" days are persisted for dashboard "Who's off"
-      const entriesToSave = displayStaff.flatMap((s) =>
-        weekDates.map((date) => {
-          const entry = snapshot.find((e) => e.staffId === s.id && e.date === date)
-          const stationClosedDay = publicHolidays.some((h) => h.date === date && h.stationClosed)
-          return {
-            staffId: s.id,
-            date,
-            shiftTemplateId: stationClosedDay ? null : entry?.shiftTemplateId ?? null,
-            position: entry?.position ?? null,
-            notes: entry?.notes ?? ''
-          }
-        })
-      )
+      const entriesToSave = mergeEntriesRespectingDayLock({
+        weekStart,
+        incoming: displayStaff.flatMap((s) =>
+          weekDates.map((date) => {
+            const entry = snapshot.find((e) => e.staffId === s.id && e.date === date)
+            const stationClosedDay = publicHolidays.some((h) => h.date === date && h.stationClosed)
+            return {
+              staffId: s.id,
+              date,
+              shiftTemplateId: stationClosedDay ? null : entry?.shiftTemplateId ?? null,
+              position: entry?.position ?? null,
+              notes: entry?.notes ?? ''
+            }
+          })
+        ),
+        serverSnapshot: serverEntriesRef.current,
+        today: todayIso
+      })
       const res = await fetch('/api/roster/weeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -628,9 +702,13 @@ export default function RosterPage() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to save roster')
       }
-      setWeekPersisted(true)
-      // Stay in edit mode until "Lock roster" or changing weeks — do not lock after each auto-save.
-      setEditUnlocked(true)
+      serverEntriesRef.current = entriesToSave.map((e) => ({
+        staffId: e.staffId,
+        date: e.date,
+        shiftTemplateId: e.shiftTemplateId,
+        position: e.position,
+        notes: e.notes
+      }))
     } catch (err) {
       console.error('Error saving roster', err)
       setError(err instanceof Error ? err.message : 'Failed to save roster')
@@ -663,7 +741,7 @@ export default function RosterPage() {
   }
 
   const handleCopyPreviousWeek = async () => {
-    if (rosterCellsLocked) return
+    if (rosterLockedEdit) return
     const prevWeekStart = addDays(weekStart, -7)
     setLoading(true)
     setError(null)
@@ -700,13 +778,52 @@ export default function RosterPage() {
           (staff ? isOnVacation(staff, e.date) : false) || isOnSickLeave(e.staffId, e.date)
         return (closed || blockedByLeave) ? { ...e, shiftTemplateId: null } : e
       })
+      const copiedByKey = new Map(
+        newEntriesStripped.map((e) => [rosterEntryKey(e.staffId, e.date), e])
+      )
+      const mergedAfterCopy = displayStaff.flatMap((s) =>
+        weekDates.map((date) => {
+          const key = rosterEntryKey(s.id, date)
+          if (isRosterDayLocked(date, weekStart, todayIso)) {
+            const kept =
+              entries.find((e) => e.staffId === s.id && e.date === date) ??
+              serverEntriesRef.current.find((e) => e.staffId === s.id && e.date === date)
+            if (kept) {
+              return {
+                staffId: s.id,
+                date,
+                shiftTemplateId: kept.shiftTemplateId ?? null,
+                position: kept.position ?? null,
+                notes: kept.notes ?? ''
+              }
+            }
+            return {
+              staffId: s.id,
+              date,
+              shiftTemplateId: null,
+              position: null,
+              notes: ''
+            }
+          }
+          const copied = copiedByKey.get(key)
+          if (copied) return copied
+          const existing = entries.find((e) => e.staffId === s.id && e.date === date)
+          return {
+            staffId: s.id,
+            date,
+            shiftTemplateId: existing?.shiftTemplateId ?? null,
+            position: existing?.position ?? null,
+            notes: existing?.notes ?? ''
+          }
+        })
+      )
       const saveRes = await fetch('/api/roster/weeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           weekStart,
           status: 'draft',
-          entries: newEntriesStripped
+          entries: mergedAfterCopy
         })
       })
       if (!saveRes.ok) {
@@ -714,15 +831,17 @@ export default function RosterPage() {
         throw new Error(err.error || 'Failed to save roster')
       }
       setEntries(
-        newEntriesStripped.map((e) => ({
+        mergedAfterCopy.map((e) => ({
           ...e,
           rosterWeekId: undefined,
           id: undefined
         }))
       )
-      setWeekPersisted(true)
-      setEditUnlocked(true)
-      alert(`Copied ${newEntries.length} shift(s) from previous week.`)
+      serverEntriesRef.current = mergedAfterCopy
+      const copiedCount = newEntriesStripped.filter(
+        (e) => !isRosterDayLocked(e.date, weekStart, todayIso)
+      ).length
+      alert(`Copied ${copiedCount} shift(s) from previous week.`)
     } catch (err) {
       console.error('Error copying previous week', err)
       setError(err instanceof Error ? err.message : 'Failed to copy previous week')
@@ -732,7 +851,7 @@ export default function RosterPage() {
   }
 
   const handleClearWeek = async () => {
-    if (rosterCellsLocked) return
+    if (rosterLockedEdit) return
     if (entries.length === 0) {
       alert('This week already has no shifts.')
       return
@@ -758,46 +877,12 @@ export default function RosterPage() {
         throw new Error(err.error || 'Failed to clear roster')
       }
       setEntries([])
-      setEditUnlocked(true)
+      serverEntriesRef.current = []
     } catch (err) {
       console.error('Error clearing week', err)
       setError(err instanceof Error ? err.message : 'Failed to clear week')
     } finally {
       setSaving(false)
-    }
-  }
-
-  /** Discard local edits and reload from server; lock the grid again (Option A). */
-  const discardEditsAndLock = async () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = null
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/roster/weeks?weekStart=${weekStart}`)
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error((data as { error?: string }).error || 'Failed to reload roster')
-      }
-      setEntries(data.entries || [])
-      setWeekPersisted(!!data.week)
-      setEditUnlocked(false)
-    } catch (err) {
-      console.error('Error reloading roster', err)
-      setError(err instanceof Error ? err.message : 'Failed to reload roster')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const requestEditRoster = () => {
-    if (rosterLockedEdit || !weekPersisted || editUnlocked) return
-    if (isViewingCurrentWeek) {
-      setShowEditCurrentWeekModal(true)
-    } else {
-      setEditUnlocked(true)
     }
   }
 
@@ -1341,9 +1426,10 @@ export default function RosterPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-visible">
           <div
-            className={`px-3 sm:px-4 py-2 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:justify-between md:items-center ${weekBannerStyle.bg} ${weekBannerStyle.text}`}
+            ref={rosterBannerRef}
+            className={`sticky top-0 z-30 px-3 sm:px-4 py-2 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:justify-between md:items-center shadow-sm ${weekBannerStyle.bg} ${weekBannerStyle.text}`}
           >
             <span className="text-sm font-semibold leading-snug">
               <span className="md:hidden block">
@@ -1364,34 +1450,10 @@ export default function RosterPage() {
               )}
             </span>
             <div className="flex flex-wrap items-stretch md:items-center gap-2 w-full md:w-auto">
-              {canEditRoster && weekPersisted && !rosterLockedEdit && (
-                <>
-                  {!editUnlocked ? (
-                    <button
-                      type="button"
-                      onClick={requestEditRoster}
-                      disabled={loading || sharing}
-                      className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-blue-600 text-blue-800 rounded text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
-                    >
-                      Edit roster
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void discardEditsAndLock()}
-                      disabled={loading || sharing}
-                      className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-gray-500 text-gray-800 rounded text-xs font-semibold hover:bg-gray-100 disabled:opacity-60"
-                      title="Reload saved roster and lock editing"
-                    >
-                      Lock roster
-                    </button>
-                  )}
-                </>
-              )}
               <button
                 type="button"
                 onClick={() => setCopyConfirmOpen(true)}
-                disabled={loading || sharing || rosterCellsLocked}
+                disabled={loading || sharing || rosterLockedEdit}
                 className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
               >
                 <span className="md:hidden">Copy prev week</span>
@@ -1440,57 +1502,10 @@ export default function RosterPage() {
                   </div>
                 </>
               )}
-              {showEditCurrentWeekModal && (
-                <>
-                  <div
-                    className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                    onClick={() => setShowEditCurrentWeekModal(false)}
-                    aria-hidden="true"
-                  >
-                    <div
-                      className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
-                      onClick={(e) => e.stopPropagation()}
-                      role="dialog"
-                      aria-modal="true"
-                      aria-labelledby="edit-current-week-title"
-                    >
-                      <h3 id="edit-current-week-title" className="text-lg font-semibold text-gray-900 mb-2">
-                        Edit this week&apos;s roster?
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        You are editing the <strong>current calendar week</strong> (Mon–Sun). Changes save automatically
-                        and apply to the live schedule shown on the dashboard and in shared rosters.
-                      </p>
-                      <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
-                        Double-check the week dates in the header before you change shifts.
-                      </p>
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setShowEditCurrentWeekModal(false)}
-                          className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowEditCurrentWeekModal(false)
-                            setEditUnlocked(true)
-                          }}
-                          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                        >
-                          Continue editing
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
               <button
                 type="button"
                 onClick={handleClearWeek}
-                disabled={loading || sharing || entries.length === 0 || rosterCellsLocked}
+                disabled={loading || sharing || entries.length === 0 || rosterLockedEdit}
                 className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
               >
                 Clear week
@@ -1575,11 +1590,13 @@ export default function RosterPage() {
                   </>
                 )}
               </div>
-              <span className="text-[11px] text-gray-500 w-full md:w-auto md:min-w-[100px] md:text-right pt-1 md:pt-0 border-t border-black/5 md:border-0">
+              <span className="text-[11px] text-gray-500 w-full md:w-auto md:min-w-[140px] md:text-right pt-1 md:pt-0 border-t border-black/5 md:border-0">
                 {rosterLockedEdit
                   ? 'Read-only'
-                  : rosterCellsLocked
-                    ? 'Locked — use Edit to change'
+                  : lockedDaysInWeek.length > 0 && isViewingCurrentWeek
+                    ? saving
+                      ? 'Saving…'
+                      : `Past days locked · ${weekDates.length - lockedDaysInWeek.length} day${weekDates.length - lockedDaysInWeek.length === 1 ? '' : 's'} editable`
                     : saving
                       ? 'Saving…'
                       : 'All changes saved'}
@@ -1597,7 +1614,10 @@ export default function RosterPage() {
             <>
               {/* Mobile: one card per staff, full-width day rows (no horizontal table scroll) */}
               <div className="md:hidden px-2 pb-4 space-y-3">
-                <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2">
+                <div
+                  className="sticky z-20 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm"
+                  style={{ top: rosterStickyOffsets.banner }}
+                >
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
                     Coverage by day
                   </div>
@@ -1676,7 +1696,7 @@ export default function RosterPage() {
                   >
                     <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/90">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {!rosterCellsLocked && (
+                        {!rosterLockedEdit && (
                           <div className="flex shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden divide-x divide-gray-200">
                             <button
                               type="button"
@@ -1709,7 +1729,7 @@ export default function RosterPage() {
                           {s.firstName?.trim() || s.name}
                         </div>
                       </div>
-                      {!rosterCellsLocked && (
+                      {!rosterLockedEdit && (
                         <div className="relative shrink-0">
                           <button
                             type="button"
@@ -1801,10 +1821,13 @@ export default function RosterPage() {
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
+                        const cellLocked = isCellLocked(date)
+                        const lastWeekHint = getLastWeekTooltip(s.id, date)
                         return (
                           <div
                             key={date}
                             className="flex gap-2 px-3 py-2.5 items-start"
+                            title={lastWeekHint}
                             style={
                               onVacation
                                 ? { backgroundColor: '#f3f4f6' }
@@ -1876,7 +1899,7 @@ export default function RosterPage() {
                                   <span className="font-semibold">Station closed</span>
                                   {ph?.name ? <span className="block text-xs mt-0.5">{ph.name}</span> : null}
                                 </div>
-                              ) : rosterCellsLocked ? (
+                              ) : cellLocked ? (
                                 <span className="text-sm font-medium text-gray-800">
                                   {ph && !ph.stationClosed ? (
                                     <>
@@ -1919,36 +1942,50 @@ export default function RosterPage() {
 
               <div className="hidden md:block relative rounded-b-lg">
               <div
-                ref={topScrollRef}
-                className="sticky top-0 z-20 h-4 overflow-x-auto overflow-y-hidden bg-white/95 border-b border-gray-200 roster-top-x-scroll"
-                aria-hidden="true"
+                className="sticky z-30 bg-white shadow-sm border-b border-gray-200"
+                style={{ top: rosterStickyOffsets.banner }}
               >
-                <div ref={topScrollContentRef} className="h-px" />
-              </div>
-              <div ref={tableScrollRef} className="roster-table-x-scroll">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className={weekBannerStyle.bg}>
+                <div
+                  ref={topScrollRef}
+                  className="h-4 overflow-x-auto overflow-y-hidden bg-white roster-top-x-scroll"
+                  aria-hidden="true"
+                >
+                  <div ref={topScrollContentRef} className="h-px" />
+                </div>
+                <div ref={headerScrollRef} className="roster-table-x-scroll overflow-x-auto">
+                  <table className="min-w-full w-full table-fixed border-separate border-spacing-0 text-sm">
+                    {rosterTableColGroup}
+                    <thead className={weekBannerStyle.bg}>
                   <tr>
-                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider align-top ${weekBannerStyle.text}`}>
+                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider align-top ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
                       Staff
                     </th>
                     {weekDates.map((date, idx) => {
                       const ph = publicHolidays.find((h) => h.date === date)
+                      const dayLocked = isRosterDayLocked(date, weekStart, todayIso)
                       return (
                         <th
                           key={date}
                           className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${
                             ph?.stationClosed
-                              ? 'bg-amber-100/90 text-amber-950'
+                              ? 'bg-amber-100 text-amber-950'
                               : ph
-                                ? 'bg-indigo-50/90 text-indigo-950'
-                                : weekBannerStyle.text
+                                ? 'bg-indigo-50 text-indigo-950'
+                                : dayLocked
+                                  ? 'bg-gray-200 text-gray-700'
+                                  : `${weekBannerStyle.bg} ${weekBannerStyle.text}`
                           }`}
+                          title={dayLocked ? 'This day is locked' : undefined}
                         >
                           <div>{dayLabels[idx]}</div>
                           <div className="text-[11px] opacity-80">
                             {formatDisplayDate(date)}
                           </div>
+                          {dayLocked && (
+                            <div className="text-[9px] mt-0.5 font-semibold normal-case opacity-80">
+                              Locked
+                            </div>
+                          )}
                           {ph && (
                             <div
                               className={`text-[10px] mt-0.5 font-semibold normal-case leading-tight ${
@@ -1962,16 +1999,19 @@ export default function RosterPage() {
                       )
                     })}
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {/* Running count row: per-day shift totals */}
-                  <tr className="bg-gray-50/80 border-b border-gray-200">
-                    <td className="px-4 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">
+                  {/* Running count row: per-day shift totals (sticky with day headers) */}
+                  <tr className="border-b border-gray-200">
+                    <th
+                      scope="row"
+                      className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom bg-gray-50"
+                    >
                       Count
-                    </td>
+                    </th>
                     {weekDates.map((date) => {
                       const counts = countByDayAndShift.get(date)
-                      if (!counts) return <td key={date} className="px-1 py-1" />
+                      if (!counts) {
+                        return <th key={date} scope="col" className="px-1 py-1 bg-gray-50" />
+                      }
                       const items: { label: string; count: number; color?: string }[] = []
                       templates.forEach((t) => {
                         const n = counts.get(t.id) ?? 0
@@ -1980,7 +2020,7 @@ export default function RosterPage() {
                       const offCount = counts.get('off') ?? 0
                       if (offCount > 0) items.push({ label: 'Off', count: offCount })
                       return (
-                        <td key={date} className="px-1 py-1.5 text-center align-bottom">
+                        <th key={date} scope="col" className="px-1 py-1.5 text-center align-bottom bg-gray-50">
                           <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 items-baseline text-[10px] text-gray-600">
                             {items.map(({ label, count, color }) =>
                               color ? (
@@ -1998,10 +2038,18 @@ export default function RosterPage() {
                               )
                             )}
                           </div>
-                        </td>
+                        </th>
                       )
                     })}
                   </tr>
+                    </thead>
+                  </table>
+                </div>
+              </div>
+              <div ref={tableScrollRef} className="roster-table-x-scroll overflow-x-auto">
+                <table className="min-w-full w-full table-fixed border-separate border-spacing-0 text-sm">
+                  {rosterTableColGroup}
+                  <tbody className="bg-white divide-y divide-gray-200">
                   {displayStaff.map((s, index) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-2 py-2 align-top text-xs sm:text-sm min-w-[7.5rem]">
@@ -2011,7 +2059,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'up')}
-                              disabled={index === 0 || rosterCellsLocked}
+                              disabled={index === 0 || rosterLockedEdit}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move up"
                               aria-label="Move up"
@@ -2021,7 +2069,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'down')}
-                              disabled={index === displayStaff.length - 1 || rosterCellsLocked}
+                              disabled={index === displayStaff.length - 1 || rosterLockedEdit}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move down"
                               aria-label="Move down"
@@ -2036,7 +2084,7 @@ export default function RosterPage() {
                           >
                             {s.firstName?.trim() || s.name}</div>
                         </div>
-                        {!rosterCellsLocked && (
+                        {!rosterLockedEdit && (
                           <div className="relative ml-0 pl-7 sm:pl-8">
                             <button
                               type="button"
@@ -2128,10 +2176,13 @@ export default function RosterPage() {
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
+                        const cellLocked = isCellLocked(date)
+                        const lastWeekHint = getLastWeekTooltip(s.id, date)
                         return (
                           <td
                             key={date}
                             className="px-1 py-1 text-center align-middle"
+                            title={lastWeekHint}
                             style={
                               onVacation
                                 ? { backgroundColor: '#f3f4f6' }
@@ -2194,7 +2245,7 @@ export default function RosterPage() {
                                   </div>
                                   <div className="text-[10px] text-amber-800 leading-tight mt-0.5">{ph?.name}</div>
                                 </div>
-                              ) : rosterCellsLocked ? (
+                              ) : cellLocked ? (
                                 <span className="text-xs font-medium text-gray-700">
                                   {ph && !ph.stationClosed ? (
                                     <>
@@ -2232,8 +2283,8 @@ export default function RosterPage() {
                       })}
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
               </div>
             </div>
             </>
