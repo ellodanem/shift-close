@@ -23,6 +23,8 @@ import {
   type PayPeriodExcelRow
 } from '@/lib/pay-period-excel'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
+import { parsePayPeriodPreviousRows } from '@/lib/pay-period-rows'
+import MobilePayPeriodEdit, { type MobileEditDraft } from './MobilePayPeriodEdit'
 
 interface SavedPayPeriod {
   id: string
@@ -31,6 +33,7 @@ interface SavedPayPeriod {
   reportDate: string
   entityName: string
   rows: string
+  rowsBeforeLastEdit?: string | null
   notes: string
   createdAt: string
   updatedAt: string
@@ -61,6 +64,7 @@ export default function MobilePayPeriodPage() {
   const [emailHtml, setEmailHtml] = useState('')
   const [emailSending, setEmailSending] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<MobileEditDraft | null>(null)
 
   const loadSavedPeriods = useCallback(async () => {
     setError(null)
@@ -94,6 +98,21 @@ export default function MobilePayPeriodPage() {
     if (!user || !canView) return
     void loadSavedPeriods()
   }, [user, canView, loadSavedPeriods])
+
+  const startEdit = (p: SavedPayPeriod) => {
+    setStatusMessage(null)
+    const rows = JSON.parse(p.rows) as PayPeriodExcelRow[]
+    setEditDraft({
+      id: p.id,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      reportDate: p.reportDate,
+      entityName: p.entityName,
+      rows,
+      notes: p.notes ?? '',
+      previousRowsSnapshot: parsePayPeriodPreviousRows(p.rowsBeforeLastEdit)
+    })
+  }
 
   const toPayPeriodData = (p: SavedPayPeriod): PayPeriodData => ({
     id: p.id,
@@ -164,6 +183,20 @@ export default function MobilePayPeriodPage() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <p className="text-sm text-slate-300">Loading…</p>
       </div>
+    )
+  }
+
+  if (editDraft) {
+    return (
+      <MobilePayPeriodEdit
+        draft={editDraft}
+        onCancel={() => setEditDraft(null)}
+        onSaved={async () => {
+          setEditDraft(null)
+          await loadSavedPeriods()
+          setStatusMessage('Pay period updated.')
+        }}
+      />
     )
   }
 
@@ -271,6 +304,13 @@ export default function MobilePayPeriodPage() {
                         className={`${pprActionBtn} bg-indigo-900/50 text-indigo-200 hover:bg-indigo-900`}
                       >
                         Email
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        className={`${pprActionBtn} col-span-2 bg-amber-900/45 text-amber-100 border border-amber-700/50 hover:bg-amber-900/65`}
+                      >
+                        Edit
                       </button>
                     </div>
                   </div>
