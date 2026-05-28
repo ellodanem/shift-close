@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
@@ -203,7 +204,33 @@ export default function RosterPage() {
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const [smsSubmenuOpen, setSmsSubmenuOpen] = useState(false)
   const shareTriggerRef = useRef<HTMLButtonElement>(null)
-  const shareMenuPos = useDropdownFixedPosition(shareMenuOpen, 'right', shareTriggerRef)
+  const shareMenuRef = useRef<HTMLDivElement>(null)
+  const shareMenuPos = useDropdownFixedPosition(shareMenuOpen, 'left', shareTriggerRef)
+  const [shareMenuLeft, setShareMenuLeft] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (!shareMenuOpen || shareMenuPos?.left == null || !shareTriggerRef.current) {
+      setShareMenuLeft(null)
+      return
+    }
+    const run = () => {
+      const trigger = shareTriggerRef.current!.getBoundingClientRect()
+      const menuW = shareMenuRef.current?.offsetWidth ?? 0
+      const pad = 8
+      let left = trigger.left
+      if (menuW > 0 && left + menuW > window.innerWidth - pad) {
+        left = Math.max(pad, window.innerWidth - menuW - pad)
+      }
+      setShareMenuLeft(left)
+    }
+    run()
+    window.addEventListener('resize', run)
+    window.addEventListener('scroll', run, true)
+    return () => {
+      window.removeEventListener('resize', run)
+      window.removeEventListener('scroll', run, true)
+    }
+  }, [shareMenuOpen, shareMenuPos])
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const [showDayOffModal, setShowDayOffModal] = useState(false)
@@ -1513,7 +1540,7 @@ export default function RosterPage() {
               >
                 Clear week
               </button>
-              <div className="flex flex-1 justify-end md:flex-none min-w-0">
+              <div className="flex flex-1 justify-end md:flex-none md:shrink-0 min-w-0">
                 <button
                   ref={shareTriggerRef}
                   type="button"
@@ -1523,17 +1550,21 @@ export default function RosterPage() {
                 >
                   Share ▼
                 </button>
-                {shareMenuOpen && shareMenuPos && (
+                {shareMenuOpen &&
+                  shareMenuPos &&
+                  typeof document !== 'undefined' &&
+                  createPortal(
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => { setShareMenuOpen(false); setSmsSubmenuOpen(false) }} aria-hidden />
                     <div
+                      ref={shareMenuRef}
                       style={{
                         position: 'fixed',
                         top: shareMenuPos.top,
-                        right: shareMenuPos.right,
+                        left: shareMenuLeft ?? shareMenuPos.left ?? 0,
                         zIndex: 50
                       }}
-                      className="min-w-[min(100vw-2rem,280px)] md:min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg"
+                      className="w-max max-w-[min(100vw-1rem,280px)] py-1 bg-white border border-gray-200 rounded shadow-lg"
                     >
                       <button
                         type="button"
@@ -1599,7 +1630,8 @@ export default function RosterPage() {
                         Print
                       </button>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
               <span className="text-[11px] text-gray-500 w-full md:w-auto md:min-w-[140px] md:text-right pt-1 md:pt-0 border-t border-black/5 md:border-0">
