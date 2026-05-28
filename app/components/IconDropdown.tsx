@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 type Align = 'left' | 'right'
 
 /** Fixed placement so lists are not clipped by overflow-x-auto / overflow-hidden ancestors. */
-function useDropdownFixedPosition(
+export function useDropdownFixedPosition(
   open: boolean,
   align: Align,
   triggerRef: RefObject<HTMLButtonElement | null>

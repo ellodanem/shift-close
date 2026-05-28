@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
+import { useDropdownFixedPosition } from '@/app/components/IconDropdown'
 import {
   countOffDaysForStaffInWeek,
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
@@ -201,6 +202,8 @@ export default function RosterPage() {
   const [sharing, setSharing] = useState(false)
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const [smsSubmenuOpen, setSmsSubmenuOpen] = useState(false)
+  const shareTriggerRef = useRef<HTMLButtonElement>(null)
+  const shareMenuPos = useDropdownFixedPosition(shareMenuOpen, 'right', shareTriggerRef)
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false)
   const [fillWeekPopover, setFillWeekPopover] = useState<{ staffId: string; shiftId: string } | null>(null)
   const [showDayOffModal, setShowDayOffModal] = useState(false)
@@ -1510,8 +1513,9 @@ export default function RosterPage() {
               >
                 Clear week
               </button>
-              <div className="relative flex-1 md:flex-none min-w-0">
+              <div className="flex flex-1 justify-end md:flex-none min-w-0">
                 <button
+                  ref={shareTriggerRef}
                   type="button"
                   onClick={() => setShareMenuOpen((o) => !o)}
                   disabled={sharing || entries.length === 0}
@@ -1519,10 +1523,18 @@ export default function RosterPage() {
                 >
                   Share ▼
                 </button>
-                {shareMenuOpen && (
+                {shareMenuOpen && shareMenuPos && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => { setShareMenuOpen(false); setSmsSubmenuOpen(false) }} aria-hidden />
-                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[min(100vw-2rem,280px)] md:min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg">
+                    <div className="fixed inset-0 z-40" onClick={() => { setShareMenuOpen(false); setSmsSubmenuOpen(false) }} aria-hidden />
+                    <div
+                      style={{
+                        position: 'fixed',
+                        top: shareMenuPos.top,
+                        right: shareMenuPos.right,
+                        zIndex: 50
+                      }}
+                      className="min-w-[min(100vw-2rem,280px)] md:min-w-[200px] py-1 bg-white border border-gray-200 rounded shadow-lg"
+                    >
                       <button
                         type="button"
                         onClick={() => { void handleWhatsAppShare(); setShareMenuOpen(false) }}
