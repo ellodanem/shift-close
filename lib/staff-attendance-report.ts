@@ -205,14 +205,23 @@ export async function buildStaffAttendanceReport(params: {
     throw new Error('Staff not found')
   }
 
-  const staffName = staff.firstName?.trim() || staff.name
+  const {
+    name: staffFullName,
+    firstName,
+    deviceUserId,
+    punchExempt,
+    vacationStart,
+    vacationEnd
+  } = staff
+
+  const staffName = firstName?.trim() || staffFullName
   const todayYmd = businessTodayYmd()
 
   const windowStart = zonedStartOfDayUtc(startDate, tz)
   const windowEndExclusive = zonedEndExclusiveUtc(endDate, tz)
 
-  const devKeys = staff.deviceUserId?.trim()
-    ? expandDeviceUserIdsForDbMatch([staff.deviceUserId])
+  const devKeys = deviceUserId?.trim()
+    ? expandDeviceUserIdsForDbMatch([deviceUserId])
     : []
 
   const logOr: Array<{ staffId: string } | { deviceUserId: { in: string[] } }> = [{ staffId }]
@@ -280,7 +289,7 @@ export async function buildStaffAttendanceReport(params: {
   const dayOffByDate = new Map(dayOffs.map((d) => [d.date, d.reason ?? 'Day off']))
 
   function excusedNoteFor(ymd: string): string | null {
-    if (isDateInVacation(ymd, staff.vacationStart, staff.vacationEnd)) return 'Vacation'
+    if (isDateInVacation(ymd, vacationStart, vacationEnd)) return 'Vacation'
     for (const sl of sickLeaves) {
       if (sl.startDate <= ymd && sl.endDate >= ymd) return 'Sick leave'
     }
@@ -293,7 +302,7 @@ export async function buildStaffAttendanceReport(params: {
 
   const punchesByDate = new Map<string, typeof logs>()
   for (const log of logs) {
-    if (!logBelongsToStaff(log, staffId, staff.deviceUserId)) continue
+    if (!logBelongsToStaff(log, staffId, deviceUserId)) continue
     const day = ymdInZone(log.punchTime, tz)
     if (!punchesByDate.has(day)) punchesByDate.set(day, [])
     punchesByDate.get(day)!.push(log)
@@ -323,15 +332,15 @@ export async function buildStaffAttendanceReport(params: {
       hasPunch,
       manualPresent: ov?.manualPresent === true,
       manualAbsent: ov?.manualAbsent === true,
-      punchExempt: staff.punchExempt
+      punchExempt
     })
 
     const punchSeq = countedLogs.map((l) => ({ punchTime: l.punchTime, punchType: l.punchType }))
-    const hours = staff.punchExempt ? 0 : hoursFromPunchSequence(punchSeq)
+    const hours = punchExempt ? 0 : hoursFromPunchSequence(punchSeq)
     periodTotalHours += hours
 
     let punchQuality: StaffAttendancePunchQuality | null = null
-    if (countedLogs.length > 0 && !staff.punchExempt) {
+    if (countedLogs.length > 0 && !punchExempt) {
       const forIrreg: PunchForIrregularity[] = countedLogs.map((l) => ({
         id: l.id,
         staffId,
@@ -384,7 +393,7 @@ export async function buildStaffAttendanceReport(params: {
   return {
     staffId,
     staffName,
-    punchExempt: staff.punchExempt,
+    punchExempt,
     startDate,
     endDate,
     periodLabel,
