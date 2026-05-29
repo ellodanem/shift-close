@@ -1522,13 +1522,19 @@ export default function AttendancePage() {
             <button
               type="button"
               onClick={() => setActiveTab('settings')}
-              className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded font-semibold hover:bg-gray-50 inline-block text-sm"
+              className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded font-semibold hover:bg-gray-50 inline-block text-sm shrink-0"
             >
               Settings
             </button>
             <a
+              href="/attendance/staff-report"
+              className="px-4 py-2 border border-indigo-600 bg-white text-indigo-800 rounded font-semibold hover:bg-indigo-50 inline-block text-sm shrink-0"
+            >
+              Attendance report
+            </a>
+            <a
               href="/attendance/pay-period"
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block"
+              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block text-sm shrink-0"
             >
               Pay Period Report
             </a>

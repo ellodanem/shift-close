@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -560,7 +561,17 @@ export default function PayPeriodPage() {
                     const prevRanges = prev ? (prev.sickLeaveRanges ?? '').trim() : null
                     return (
                     <tr key={i} className="border-b border-gray-200">
-                      <td className="py-1">{r.staffName}</td>
+                      <td className="py-1">
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          {r.staffName}
+                          <Link
+                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(displayData.startDate)}&endDate=${encodeURIComponent(displayData.endDate)}`}
+                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                          >
+                            Daily
+                          </Link>
+                        </span>
+                      </td>
                       <td className="text-right align-top">
                         <HoverPreviousValue
                           currentDisplay={r.transTtl.toFixed(2)}
@@ -668,13 +679,20 @@ export default function PayPeriodPage() {
                     return (
                     <tr key={i} className="border-b border-gray-200">
                       <td className="py-1">
-                        <span className="inline-flex items-center">
+                        <span className="inline-flex flex-wrap items-center gap-1">
                           {r.staffName}
                           <CopyStaffPayrollButton
                             staffId={r.staffId}
                             staffPayrollById={staffPayrollById}
                             onCopy={appendStaffBlockToNotes}
                           />
+                          <Link
+                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(reportData.startDate)}&endDate=${encodeURIComponent(reportData.endDate)}`}
+                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                            title="Daily punches and hours for this period"
+                          >
+                            Daily
+                          </Link>
                         </span>
                       </td>
                       <td className="text-right">

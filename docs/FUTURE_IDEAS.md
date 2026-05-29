@@ -53,6 +53,21 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ---
 
-## 3. Adding more ideas
+## 3. Individual staff attendance report — later
+
+**Shipped (MVP + polish):** `/attendance/staff-report` — one staff, date range, daily Present/Absent (plus Excused/Off/Pending where applicable), clock times, daily hours, period total, print. Links from Attendance logs (staff filter) and Pay Period rows.
+
+**Later (not in MVP):**
+
+- **Late arrival** status (first punch vs roster shift start + grace) — distinct from live “no punch yet” late.
+- **Email on demand** — send report PDF/HTML to staff or manager.
+- **Staff self-service** — employee login to view own report (no app login for staff today).
+- **Excel export** — same row layout as on-screen table.
+- **Saved report snapshots** — freeze a copy when answering a dispute.
+- **“Only days with issues”** filter — absent + irregular punches only.
+
+---
+
+## 4. Adding more ideas
 
 Use short subsections with **Goal**, **Rough behavior**, and **Open decisions**. Link to PRDs or issues when they exist.
