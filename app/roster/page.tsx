@@ -13,12 +13,15 @@ import {
 } from '@/lib/roster-settings'
 import {
   displayStaffForWeek,
+  isGhostRosterStaff,
   isRosterDayLocked,
   mergeEntriesRespectingDayLock,
   previousWeekReferenceDate,
   previousWeekTooltip,
   rosterEntryKey,
-  weekStartMondayFromDate
+  weekStartMondayFromDate,
+  buildCountByDayAndShift,
+  GHOST_ROSTER_STAFF_TITLE
 } from '@/lib/roster-week-client'
 
 interface Staff {
@@ -346,6 +349,11 @@ export default function RosterPage() {
     [allStaff, weekStart, entries]
   )
 
+  const displayStaffIds = useMemo(
+    () => new Set(displayStaff.map((s) => s.id)),
+    [displayStaff]
+  )
+
   // Load staff, templates, and settings in one request
   useEffect(() => {
     async function loadStatic() {
@@ -544,7 +552,7 @@ export default function RosterPage() {
   const staffBelowMinOff = useMemo(
     () =>
       staffIdsBelowMinOffDays({
-        displayStaff,
+        displayStaff: displayStaff.filter((s) => !isGhostRosterStaff(s)),
         weekDates,
         entries,
         stationClosedDates,
@@ -567,28 +575,24 @@ export default function RosterPage() {
   }
 
   // Per-day, per-shift running counts (updates as assignments change)
-  const countByDayAndShift = useMemo(() => {
-    const byDay = new Map<string, Map<string, number>>()
-    weekDates.forEach((date) => {
-      const dayEntries = entries.filter((e) => e.date === date)
-      const shiftCounts = new Map<string, number>()
-      templates.forEach((t) => shiftCounts.set(t.id, 0))
-      shiftCounts.set('off', 0)
-      dayEntries.forEach((e) => {
-        const key = e.shiftTemplateId ?? 'off'
-        shiftCounts.set(key, (shiftCounts.get(key) ?? 0) + 1)
-      })
-      const assigned = dayEntries.length
-      shiftCounts.set('off', displayStaff.length - assigned)
-      byDay.set(date, shiftCounts)
-    })
-    return byDay
-  }, [entries, weekDates, displayStaff.length, templates])
+  const countByDayAndShift = useMemo(
+    () =>
+      buildCountByDayAndShift({
+        weekDates,
+        entries,
+        displayStaffIds,
+        templates
+      }),
+    [entries, weekDates, displayStaffIds, templates]
+  )
 
   const handleMoveStaff = async (index: number, direction: 'up' | 'down') => {
     if (rosterLockedEdit) return
+    const staffAtIndex = displayStaff[index]
+    if (!staffAtIndex || isGhostRosterStaff(staffAtIndex)) return
     const newIndex = direction === 'up' ? index - 1 : index + 1
     if (newIndex < 0 || newIndex >= displayStaff.length) return
+    if (isGhostRosterStaff(displayStaff[newIndex])) return
     const reordered = [...displayStaff]
     const a = reordered[index]
     const b = reordered[newIndex]
@@ -619,6 +623,7 @@ export default function RosterPage() {
   const setEntryFor = (staffId: string, date: string, shiftTemplateId: string | null) => {
     if (isCellLocked(date)) return
     const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isGhostRosterStaff(staff)) return
     if (staff && isOnVacation(staff, date)) return
     if (isOnSickLeave(staffId, date)) return
     if (publicHolidays.some((h) => h.date === date && h.stationClosed)) return
@@ -658,6 +663,7 @@ export default function RosterPage() {
   const fillWeekForStaff = (staffId: string, shiftTemplateId: string | null) => {
     if (rosterLockedEdit) return
     const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isGhostRosterStaff(staff)) return
     setEntries((prev) => {
       let next = [...prev]
       for (const date of weekDates) {
@@ -757,7 +763,7 @@ export default function RosterPage() {
     lines.push('Format: Staff – Mon..Sun (per-day shift name or Off)')
     lines.push('------------------------------------------------------')
 
-    displayStaff.forEach((s) => {
+    displayStaff.filter((s) => !isGhostRosterStaff(s)).forEach((s) => {
       const dayStrings = weekDates.map((date) => {
         const entry = getEntryFor(s.id, date)
         if (!entry?.shiftTemplateId) return 'Off'
@@ -787,8 +793,12 @@ export default function RosterPage() {
         alert('Previous week has no shifts to copy.')
         return
       }
+      const activeStaffIds = new Set(
+        allStaff.filter((s) => s.status === 'active').map((s) => s.id)
+      )
       const prevWeekDates = dayLabels.map((_, i) => addDays(prevWeekStart, i))
       const newEntries = prevEntries
+        .filter((e) => activeStaffIds.has(e.staffId))
         .map((e) => {
           const idx = prevWeekDates.indexOf(e.date)
           if (idx === -1) return null
@@ -1039,8 +1049,12 @@ export default function RosterPage() {
       alert('There are no shifts saved for this week yet. Save the roster first.')
       return
     }
-    const withMobile = displayStaff.filter((s) => s.mobileNumber && mobileDigits(s.mobileNumber!))
-    const withoutMobile = displayStaff.filter((s) => !s.mobileNumber || !mobileDigits(s.mobileNumber!))
+    const withMobile = displayStaff.filter(
+      (s) => !isGhostRosterStaff(s) && s.mobileNumber && mobileDigits(s.mobileNumber!)
+    )
+    const withoutMobile = displayStaff.filter(
+      (s) => !isGhostRosterStaff(s) && (!s.mobileNumber || !mobileDigits(s.mobileNumber!))
+    )
     setWhatsappStaffWithMobile(withMobile)
     setWhatsappStaffWithoutMobile(withoutMobile)
     setWhatsappStep(withoutMobile.length > 0 ? 'warning' : 'confirm')
@@ -1173,7 +1187,10 @@ export default function RosterPage() {
   }
 
   const staffWithMobile = useMemo(
-    () => displayStaff.filter((s) => s.mobileNumber && mobileDigits(s.mobileNumber!)),
+    () =>
+      displayStaff.filter(
+        (s) => !isGhostRosterStaff(s) && s.mobileNumber && mobileDigits(s.mobileNumber!)
+      ),
     [displayStaff]
   )
 
@@ -1733,14 +1750,18 @@ export default function RosterPage() {
                   </div>
                 </div>
 
-                {displayStaff.map((s, index) => (
+                {displayStaff.map((s, index) => {
+                  const ghost = isGhostRosterStaff(s)
+                  return (
                   <div
                     key={s.id}
-                    className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-visible"
+                    className={`rounded-xl border shadow-sm overflow-visible ${
+                      ghost ? 'border-gray-200 bg-gray-50/80 opacity-80' : 'border-gray-200 bg-white'
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/90">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {!rosterLockedEdit && (
+                        {!rosterLockedEdit && !ghost && (
                           <div className="flex shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden divide-x divide-gray-200">
                             <button
                               type="button"
@@ -1765,15 +1786,24 @@ export default function RosterPage() {
                           </div>
                         )}
                         <div
-                          className={`font-semibold truncate text-base ${
-                            staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : 'text-gray-900'
+                          className={`font-semibold truncate text-base flex items-center gap-1 min-w-0 ${
+                            ghost
+                              ? 'text-gray-500'
+                              : staffBelowMinOff.has(s.id)
+                                ? 'roster-staff-off-days-warning'
+                                : 'text-gray-900'
                           }`}
-                          title={staffOffDaysWarningTitle(s)}
+                          title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s)}
                         >
-                          {s.firstName?.trim() || s.name}
+                          {ghost ? (
+                            <span className="shrink-0 text-sm" role="img" aria-label="Inactive staff">
+                              👻
+                            </span>
+                          ) : null}
+                          <span className="truncate">{s.firstName?.trim() || s.name}</span>
                         </div>
                       </div>
-                      {!rosterLockedEdit && (
+                      {!rosterLockedEdit && !ghost && (
                         <div className="relative shrink-0">
                           <button
                             type="button"
@@ -1865,7 +1895,7 @@ export default function RosterPage() {
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
-                        const cellLocked = isCellLocked(date)
+                        const cellLocked = isCellLocked(date) || ghost
                         const lastWeekHint = getLastWeekTooltip(s.id, date)
                         return (
                           <div
@@ -1981,7 +2011,7 @@ export default function RosterPage() {
                       })}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
 
               <div className="hidden md:block relative rounded-b-lg">
@@ -2094,8 +2124,10 @@ export default function RosterPage() {
                 <table className="min-w-full w-full table-fixed border-separate border-spacing-0 text-sm">
                   {rosterTableColGroup}
                   <tbody className="bg-white divide-y divide-gray-200">
-                  {displayStaff.map((s, index) => (
-                    <tr key={s.id} className="hover:bg-gray-50">
+                  {displayStaff.map((s, index) => {
+                    const ghost = isGhostRosterStaff(s)
+                    return (
+                    <tr key={s.id} className={ghost ? 'bg-gray-50/80 opacity-80' : 'hover:bg-gray-50'}>
                       <td className="px-2 py-2 align-top text-xs sm:text-sm min-w-[7.5rem]">
                         <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1">
@@ -2103,7 +2135,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'up')}
-                              disabled={index === 0 || rosterLockedEdit}
+                              disabled={index === 0 || rosterLockedEdit || ghost}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move up"
                               aria-label="Move up"
@@ -2113,7 +2145,7 @@ export default function RosterPage() {
                             <button
                               type="button"
                               onClick={() => handleMoveStaff(index, 'down')}
-                              disabled={index === displayStaff.length - 1 || rosterLockedEdit}
+                              disabled={index === displayStaff.length - 1 || rosterLockedEdit || ghost}
                               className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none"
                               title="Move down"
                               aria-label="Move down"
@@ -2121,14 +2153,24 @@ export default function RosterPage() {
                               ↓
                             </button>
                           </div>
-                          <div className={`font-medium min-w-0 break-words ${
-                              staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : 'text-gray-900'
+                          <div className={`font-medium min-w-0 break-words flex items-center gap-1 ${
+                              ghost
+                                ? 'text-gray-500'
+                                : staffBelowMinOff.has(s.id)
+                                  ? 'roster-staff-off-days-warning'
+                                  : 'text-gray-900'
                             }`}
-                            title={staffOffDaysWarningTitle(s)}
+                            title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s)}
                           >
-                            {s.firstName?.trim() || s.name}</div>
+                            {ghost ? (
+                              <span className="shrink-0 text-sm" role="img" aria-label="Inactive staff">
+                                👻
+                              </span>
+                            ) : null}
+                            <span>{s.firstName?.trim() || s.name}</span>
+                          </div>
                         </div>
-                        {!rosterLockedEdit && (
+                        {!rosterLockedEdit && !ghost && (
                           <div className="relative ml-0 pl-7 sm:pl-8">
                             <button
                               type="button"
@@ -2220,7 +2262,7 @@ export default function RosterPage() {
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
-                        const cellLocked = isCellLocked(date)
+                        const cellLocked = isCellLocked(date) || ghost
                         const lastWeekHint = getLastWeekTooltip(s.id, date)
                         return (
                           <td
@@ -2326,7 +2368,7 @@ export default function RosterPage() {
                         )
                       })}
                     </tr>
-                  ))}
+                  )})}
                   </tbody>
                 </table>
               </div>

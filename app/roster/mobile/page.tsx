@@ -17,6 +17,7 @@ import {
   displayStaffForWeek,
   formatInputDate,
   getMonday,
+  isGhostRosterStaff,
   isOnVacation,
   isPastRosterWeek,
   ROSTER_DAY_LABELS,
@@ -25,6 +26,7 @@ import {
   buildCountByDayAndShift,
   dayShiftCountItems,
   onShiftCountForDay,
+  GHOST_ROSTER_STAFF_TITLE,
   type RosterEntryClient,
   type RosterStaffClient
 } from '@/lib/roster-week-client'
@@ -95,6 +97,10 @@ export default function RosterMobilePage() {
     () => displayStaffForWeek(allStaff, weekStart, entries),
     [allStaff, weekStart, entries]
   )
+  const displayStaffIds = useMemo(
+    () => new Set(displayStaff.map((s) => s.id)),
+    [displayStaff]
+  )
   const stationClosedDates = useMemo(
     () => new Set(publicHolidays.filter((h) => h.stationClosed).map((h) => h.date)),
     [publicHolidays]
@@ -105,10 +111,10 @@ export default function RosterMobilePage() {
       buildCountByDayAndShift({
         weekDates,
         entries,
-        displayStaffCount: displayStaff.length,
+        displayStaffIds,
         templates
       }),
-    [weekDates, entries, displayStaff.length, templates]
+    [weekDates, entries, displayStaffIds, templates]
   )
 
   const selectedDayCoverage = useMemo(() => {
@@ -192,7 +198,7 @@ export default function RosterMobilePage() {
   const staffBelowMinOff = useMemo(
     () =>
       staffIdsBelowMinOffDays({
-        displayStaff,
+        displayStaff: displayStaff.filter((s) => !isGhostRosterStaff(s)),
         weekDates,
         entries,
         stationClosedDates,
@@ -216,6 +222,7 @@ export default function RosterMobilePage() {
 
   const cellBlocked = (staffId: string, date: string) => {
     const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isGhostRosterStaff(staff)) return 'Inactive'
     if (staff && isOnVacation(staff, date)) return 'Vacation'
     if (isOnSickLeave(staffId, date)) return 'Sick leave'
     if (stationClosedDates.has(date)) return 'Station closed'
@@ -273,6 +280,8 @@ export default function RosterMobilePage() {
 
   const setShift = (staffId: string, date: string, shiftTemplateId: string | null) => {
     if (readOnly || cellBlocked(staffId, date)) return
+    const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isGhostRosterStaff(staff)) return
     setEntries((prev) => {
       const existing = prev.find((e) => e.staffId === staffId && e.date === date)
       const next = existing
@@ -286,6 +295,8 @@ export default function RosterMobilePage() {
 
   const fillWeek = (staffId: string, shiftTemplateId: string | null) => {
     if (readOnly) return
+    const staff = allStaff.find((s) => s.id === staffId)
+    if (staff && isGhostRosterStaff(staff)) return
     setEntries((prev) => {
       let next = [...prev]
       for (const date of weekDates) {
@@ -318,15 +329,19 @@ export default function RosterMobilePage() {
         alert('Previous week has no shifts to copy.')
         return
       }
+      const activeStaffIds = new Set(
+        allStaff.filter((s) => s.status === 'active').map((s) => s.id)
+      )
       const prevDates = weekDatesFromStart(prevStart)
       const mapped = new Map<string, string | null>()
       for (const e of prevEntries) {
+        if (!activeStaffIds.has(e.staffId)) continue
         const idx = prevDates.indexOf(e.date)
         if (idx === -1) continue
         mapped.set(`${e.staffId}:${weekDates[idx]}`, e.shiftTemplateId ?? null)
       }
       let next = [...entries]
-      for (const s of displayStaff) {
+      for (const s of displayStaff.filter((staff) => !isGhostRosterStaff(staff))) {
         for (const date of weekDates) {
           const key = `${s.id}:${date}`
           if (!mapped.has(key)) continue
@@ -596,18 +611,29 @@ export default function RosterMobilePage() {
             ) : null}
             <ul className="space-y-2">
               {displayStaff.map((s) => {
+                const ghost = isGhostRosterStaff(s)
                 const entry = getEntryFor(s.id, selectedDate)
                 const block = cellBlocked(s.id, selectedDate)
                 return (
-                  <li key={s.id} className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-3">
+                  <li
+                    key={s.id}
+                    className={`rounded-xl border px-3 py-3 ${
+                      ghost ? 'border-gray-600 bg-slate-800/60 opacity-80' : 'border-slate-700 bg-slate-800'
+                    }`}
+                  >
                     <div className="flex justify-between gap-2 items-center">
                       <p
-                        className={`font-medium ${
-                          staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
+                        className={`font-medium flex items-center gap-1 min-w-0 ${
+                          ghost ? 'text-gray-400' : staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
                         }`}
-                        title={staffOffDaysWarningTitle(s)}
+                        title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s)}
                       >
-                        {staffDisplayName(s)}
+                        {ghost ? (
+                          <span className="shrink-0 text-sm" role="img" aria-label="Inactive staff">
+                            👻
+                          </span>
+                        ) : null}
+                        <span className="truncate">{staffDisplayName(s)}</span>
                       </p>
                       <button
                         type="button"
@@ -662,14 +688,16 @@ export default function RosterMobilePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayStaff.map((s) => (
-                    <tr key={s.id} className="border-b border-slate-700/80 last:border-0">
+                  {displayStaff.map((s) => {
+                    const ghost = isGhostRosterStaff(s)
+                    return (
+                    <tr key={s.id} className={`border-b border-slate-700/80 last:border-0 ${ghost ? 'opacity-75' : ''}`}>
                       <td
-                        className={`sticky left-0 z-10 bg-slate-800 border-r border-slate-700 p-0.5 font-medium text-slate-100 whitespace-nowrap max-w-[5rem] ${
-                          staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
-                        }`}
+                        className={`sticky left-0 z-10 border-r border-slate-700 p-0.5 font-medium whitespace-nowrap max-w-[5rem] ${
+                          ghost ? 'bg-slate-800/60 text-gray-400' : 'bg-slate-800 text-slate-100'
+                        } ${staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''}`}
                       >
-                        {canEditRoster && !isPastWeek ? (
+                        {canEditRoster && !isPastWeek && !ghost ? (
                           <button
                             type="button"
                             onClick={() => setFillStaffId(s.id)}
@@ -683,9 +711,14 @@ export default function RosterMobilePage() {
                           </button>
                         ) : (
                           <span
-                            className="block px-1.5 py-1.5 truncate"
-                            title={staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
+                            className="flex items-center gap-0.5 px-1.5 py-1.5 truncate"
+                            title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
                           >
+                            {ghost ? (
+                              <span className="shrink-0 text-[10px]" role="img" aria-label="Inactive staff">
+                                👻
+                              </span>
+                            ) : null}
                             {s.firstName?.trim() || s.name.split(' ')[0]}
                           </span>
                         )}
@@ -714,25 +747,37 @@ export default function RosterMobilePage() {
                         )
                       })}
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
           </div>
         ) : (
           <ul className="space-y-3">
-            {displayStaff.map((s) => (
-              <li key={s.id} className="rounded-xl border border-slate-700 bg-slate-800 p-3">
+            {displayStaff.map((s) => {
+              const ghost = isGhostRosterStaff(s)
+              return (
+              <li
+                key={s.id}
+                className={`rounded-xl border p-3 ${
+                  ghost ? 'border-gray-600 bg-slate-800/60 opacity-80' : 'border-slate-700 bg-slate-800'
+                }`}
+              >
                 <div className="flex justify-between items-center mb-2">
                   <p
-                    className={`font-medium ${
-                      staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
+                    className={`font-medium flex items-center gap-1 min-w-0 ${
+                      ghost ? 'text-gray-400' : staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''
                     }`}
-                    title={staffOffDaysWarningTitle(s)}
+                    title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s)}
                   >
-                    {staffDisplayName(s)}
+                    {ghost ? (
+                      <span className="shrink-0 text-sm" role="img" aria-label="Inactive staff">
+                        👻
+                      </span>
+                    ) : null}
+                    <span className="truncate">{staffDisplayName(s)}</span>
                   </p>
-                  {canEditRoster && !isPastWeek ? (
+                  {canEditRoster && !isPastWeek && !ghost ? (
                     <button
                       type="button"
                       className="text-xs text-blue-300"
@@ -762,7 +807,7 @@ export default function RosterMobilePage() {
                   })}
                 </div>
               </li>
-            ))}
+            )})}
           </ul>
         )}
       </main>

@@ -179,6 +179,28 @@ function isNonManagerRosterStaff(staff: RosterStaffClient): boolean {
   return staff.role !== 'manager'
 }
 
+/** Inactive staff still shown on a week they were scheduled for (read-only "ghost" rows). */
+export function isGhostRosterStaff(staff: RosterStaffClient): boolean {
+  return staff.status !== 'active'
+}
+
+export const GHOST_ROSTER_STAFF_TITLE = 'Inactive — scheduled before leaving'
+
+export function inactiveRosterStaffWithWeekEntries(
+  allStaff: RosterStaffClient[],
+  weekStart: string,
+  entries: RosterEntryClient[]
+): RosterStaffClient[] {
+  const entryStaffIds = new Set(entries.map((e) => e.staffId))
+  return allStaff.filter(
+    (s) =>
+      isNonManagerRosterStaff(s) &&
+      isGhostRosterStaff(s) &&
+      entryStaffIds.has(s.id) &&
+      staffStartedOnOrBeforeWeek(s, weekStart)
+  )
+}
+
 export function displayStaffForWeek(
   allStaff: RosterStaffClient[],
   weekStart: string,
@@ -188,15 +210,7 @@ export function displayStaffForWeek(
     (s) => isNonManagerRosterStaff(s) && staffStartedOnOrBeforeWeek(s, weekStart)
   )
   const activeForRoster = rosterStaff.filter((s) => s.status === 'active')
-  if (!isPastRosterWeek(weekStart)) return activeForRoster
-  const entryStaffIds = new Set(entries.map((e) => e.staffId))
-  const inactiveWithEntries = allStaff.filter(
-    (s) =>
-      isNonManagerRosterStaff(s) &&
-      s.status !== 'active' &&
-      entryStaffIds.has(s.id) &&
-      staffStartedOnOrBeforeWeek(s, weekStart)
-  )
+  const inactiveWithEntries = inactiveRosterStaffWithWeekEntries(allStaff, weekStart, entries)
   return [...activeForRoster, ...inactiveWithEntries]
 }
 
@@ -249,13 +263,16 @@ export interface DayShiftCountItem {
 export function buildCountByDayAndShift(params: {
   weekDates: string[]
   entries: RosterEntryClient[]
-  displayStaffCount: number
+  displayStaffIds: Set<string> | string[]
   templates: ShiftTemplateRef[]
 }): Map<string, Map<string, number>> {
-  const { weekDates, entries, displayStaffCount, templates } = params
+  const { weekDates, entries, displayStaffIds, templates } = params
+  const staffIds =
+    displayStaffIds instanceof Set ? displayStaffIds : new Set(displayStaffIds)
+  const displayStaffCount = staffIds.size
   const byDay = new Map<string, Map<string, number>>()
   for (const date of weekDates) {
-    const dayEntries = entries.filter((e) => e.date === date)
+    const dayEntries = entries.filter((e) => e.date === date && staffIds.has(e.staffId))
     const shiftCounts = new Map<string, number>()
     templates.forEach((t) => shiftCounts.set(t.id, 0))
     shiftCounts.set('off', 0)
@@ -264,7 +281,7 @@ export function buildCountByDayAndShift(params: {
       shiftCounts.set(key, (shiftCounts.get(key) ?? 0) + 1)
     }
     const assigned = dayEntries.length
-    shiftCounts.set('off', displayStaffCount - assigned)
+    shiftCounts.set('off', Math.max(0, displayStaffCount - assigned))
     byDay.set(date, shiftCounts)
   }
   return byDay
