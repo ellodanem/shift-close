@@ -270,7 +270,8 @@ export function deriveAddressFromFormData(formData: Record<string, string> | str
       : formData
   if (!data || typeof data !== 'object') return null
 
-  const addressKeys = ['address', 'home_address', 'mailing_address', 'street_address', 'residential_address']
+  // Deftform often uses f0/f1/f2 for first name, last name, address on the default application form
+  const addressKeys = ['address', 'f2', 'home_address', 'mailing_address', 'street_address', 'residential_address']
   for (const k of addressKeys) {
     const v = data[k]
     if (typeof v === 'string' && v.trim()) return v.trim()
