@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 
 interface Application {
   id: string
@@ -185,7 +186,7 @@ export default function ApplicationDetailPage() {
               </div>
               <div className="h-[600px] bg-gray-100">
                 <iframe
-                  src={pdfFullUrl}
+                  src={pdfIframeSrc(pdfFullUrl)}
                   title="Application PDF"
                   className="w-full h-full"
                   onLoad={markViewed}

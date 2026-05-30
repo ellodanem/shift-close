@@ -72,6 +72,10 @@ export function isCurrentRosterWeek(weekStart: string, today = formatInputDate(n
   return weekStart === currentWeekMonday(today)
 }
 
+export function isFutureRosterWeek(weekStart: string, today = formatInputDate(new Date())): boolean {
+  return weekStart > currentWeekMonday(today)
+}
+
 /** Calendar day is read-only on the active week once the day has started (date ≤ today). */
 export function isRosterDayLocked(
   date: string,
@@ -204,12 +208,17 @@ export function inactiveRosterStaffWithWeekEntries(
 export function displayStaffForWeek(
   allStaff: RosterStaffClient[],
   weekStart: string,
-  entries: RosterEntryClient[]
+  entries: RosterEntryClient[],
+  today = formatInputDate(new Date())
 ): RosterStaffClient[] {
   const rosterStaff = allStaff.filter(
     (s) => isNonManagerRosterStaff(s) && staffStartedOnOrBeforeWeek(s, weekStart)
   )
   const activeForRoster = rosterStaff.filter((s) => s.status === 'active')
+  // Ghost rows only apply to current/past weeks — advance rosters drop inactive staff.
+  if (isFutureRosterWeek(weekStart, today)) {
+    return activeForRoster
+  }
   const inactiveWithEntries = inactiveRosterStaffWithWeekEntries(allStaff, weekStart, entries)
   return [...activeForRoster, ...inactiveWithEntries]
 }
@@ -250,6 +259,26 @@ export interface ShiftTemplateRef {
   id: string
   name: string
   color?: string | null
+}
+
+/** Blank cell — unassigned or blocked (matches mobile week grid + share image). */
+export const ROSTER_UNASSIGNED_LABEL = '—'
+
+/** Week grid / share image label: blank when blocked or not yet scheduled; Off when explicitly off. */
+export function rosterCellLabel(params: {
+  entry?: RosterEntryClient
+  block?: string | null
+  templateName?: string | null
+}): string {
+  const { entry, block, templateName } = params
+  if (block) return ROSTER_UNASSIGNED_LABEL
+  if (!entry) return ROSTER_UNASSIGNED_LABEL
+  if (!entry.shiftTemplateId) return 'Off'
+  return templateName ?? 'Shift'
+}
+
+export function rosterCellLabelCompact(label: string, maxLen = 8): string {
+  return label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label
 }
 
 export interface DayShiftCountItem {

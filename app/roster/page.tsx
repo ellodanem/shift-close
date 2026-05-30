@@ -21,7 +21,8 @@ import {
   rosterEntryKey,
   weekStartMondayFromDate,
   buildCountByDayAndShift,
-  GHOST_ROSTER_STAFF_TITLE
+  GHOST_ROSTER_STAFF_TITLE,
+  rosterCellLabel
 } from '@/lib/roster-week-client'
 
 interface Staff {
@@ -574,6 +575,23 @@ export default function RosterPage() {
     return `${offDays} off day${offDays === 1 ? '' : 's'} this week (minimum ${minOffDaysPerWeek})`
   }
 
+  const shareCellBlock = (staff: Staff, date: string): string | null => {
+    if (isGhostRosterStaff(staff)) return 'Inactive'
+    if (isOnVacation(staff, date)) return 'Vacation'
+    if (isOnSickLeave(staff.id, date)) return 'Sick leave'
+    if (stationClosedDates.has(date)) return 'Station closed'
+    return null
+  }
+
+  const shareCellLabel = (staff: Staff, date: string) => {
+    const entry = getEntryFor(staff.id, date)
+    return rosterCellLabel({
+      entry,
+      block: shareCellBlock(staff, date),
+      templateName: getTemplateForEntry(entry)?.name ?? null
+    })
+  }
+
   // Per-day, per-shift running counts (updates as assignments change)
   const countByDayAndShift = useMemo(
     () =>
@@ -755,7 +773,6 @@ export default function RosterPage() {
 
   const buildRosterText = () => {
     if (displayStaff.length === 0) return 'No staff in this roster.'
-    const templateMap = new Map(templates.map((t) => [t.id, t.name]))
 
     const lines: string[] = []
     lines.push(`Roster for week starting ${weekStart} (through ${weekDates[6]})`)
@@ -764,11 +781,7 @@ export default function RosterPage() {
     lines.push('------------------------------------------------------')
 
     displayStaff.filter((s) => !isGhostRosterStaff(s)).forEach((s) => {
-      const dayStrings = weekDates.map((date) => {
-        const entry = getEntryFor(s.id, date)
-        if (!entry?.shiftTemplateId) return 'Off'
-        return templateMap.get(entry.shiftTemplateId) || 'Shift'
-      })
+      const dayStrings = weekDates.map((date) => shareCellLabel(s, date))
       const displayName = s.firstName?.trim() || s.name
       lines.push(`${displayName}: ${dayStrings.join(' | ')}`)
     })
@@ -2853,7 +2866,9 @@ export default function RosterPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayStaff.map((s) => (
+                {displayStaff
+                  .filter((s) => !isGhostRosterStaff(s))
+                  .map((s) => (
                   <tr key={s.id}>
                     <td className="border px-2 py-1 align-top">
                       <div className={`font-medium ${
@@ -2864,10 +2879,10 @@ export default function RosterPage() {
                       {s.firstName?.trim() || s.name}</div>
                     </td>
                     {weekDates.map((date) => {
-                      const onVacation = isOnVacation(s, date)
                       const entry = getEntryFor(s.id, date)
+                      const label = shareCellLabel(s, date)
                       const tmpl = getTemplateForEntry(entry)
-                      const label = onVacation ? 'Vacation' : (tmpl?.name || 'Off')
+                      const onVacation = isOnVacation(s, date)
                       const bg = onVacation ? '#f3f4f6' : (tmpl?.color || '#f9fafb')
                       const birthday = isBirthdayOnDate(s, date)
                       return (

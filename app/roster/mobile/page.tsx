@@ -27,6 +27,8 @@ import {
   dayShiftCountItems,
   onShiftCountForDay,
   GHOST_ROSTER_STAFF_TITLE,
+  rosterCellLabel,
+  rosterCellLabelCompact,
   type RosterEntryClient,
   type RosterStaffClient
 } from '@/lib/roster-week-client'
@@ -235,16 +237,18 @@ export default function RosterMobilePage() {
   const templateForEntry = (entry?: RosterEntryClient) =>
     entry?.shiftTemplateId ? templates.find((t) => t.id === entry.shiftTemplateId) : null
 
-  const templateLabel = (entry?: RosterEntryClient) => {
-    if (!entry?.shiftTemplateId) return 'Off'
-    return templateForEntry(entry)?.name ?? 'Shift'
-  }
+  const weekCellLabel = (entry?: RosterEntryClient, block?: string | null) =>
+    rosterCellLabel({
+      entry,
+      block,
+      templateName: templateForEntry(entry)?.name ?? null
+    })
 
-  const compactCellLabel = (entry?: RosterEntryClient, block?: string | null) => {
-    if (block) return '—'
-    const name = templateLabel(entry)
-    return name.length > 8 ? `${name.slice(0, 7)}…` : name
-  }
+  const compactCellLabel = (entry?: RosterEntryClient, block?: string | null) =>
+    rosterCellLabelCompact(weekCellLabel(entry, block))
+
+  const dayCellLabel = (entry?: RosterEntryClient, block?: string | null) =>
+    block ?? weekCellLabel(entry, block)
 
   const handleSave = async (snapshot: RosterEntryClient[]) => {
     if (readOnly) return
@@ -641,7 +645,7 @@ export default function RosterMobilePage() {
                         onClick={() => setPicker({ staffId: s.id, date: selectedDate })}
                         className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm min-h-[44px] disabled:opacity-50"
                       >
-                        {block ?? templateLabel(entry)}
+                        {dayCellLabel(entry, block)}
                       </button>
                     </div>
                   </li>
@@ -732,7 +736,7 @@ export default function RosterMobilePage() {
                             <button
                               type="button"
                               disabled={!!block || readOnly}
-                              title={block ?? templateLabel(entry)}
+                              title={block ?? weekCellLabel(entry, block)}
                               onClick={() => setPicker({ staffId: s.id, date })}
                               className="w-full min-w-[3.25rem] min-h-[40px] rounded-md border border-slate-600/80 px-0.5 py-1 text-center font-medium disabled:opacity-50"
                               style={{
@@ -800,7 +804,7 @@ export default function RosterMobilePage() {
                           onClick={() => setPicker({ staffId: s.id, date })}
                           className="flex-1 text-left rounded-md border border-slate-600 px-2 py-2 min-h-[44px] disabled:opacity-50"
                         >
-                          {block ?? templateLabel(entry)}
+                          {dayCellLabel(entry, block)}
                         </button>
                       </div>
                     )
@@ -901,7 +905,9 @@ export default function RosterMobilePage() {
               </tr>
             </thead>
             <tbody>
-              {displayStaff.map((s) => (
+              {displayStaff
+                .filter((s) => !isGhostRosterStaff(s))
+                .map((s) => (
                 <tr key={s.id}>
                   <td
                     className={`border border-gray-300 px-1 whitespace-nowrap ${
@@ -911,11 +917,15 @@ export default function RosterMobilePage() {
                   >
                     {staffDisplayName(s)}
                   </td>
-                  {weekDates.map((date) => (
-                    <td key={date} className="border border-gray-300 px-1">
-                      {templateLabel(getEntryFor(s.id, date))}
-                    </td>
-                  ))}
+                  {weekDates.map((date) => {
+                    const entry = getEntryFor(s.id, date)
+                    const block = cellBlocked(s.id, date)
+                    return (
+                      <td key={date} className="border border-gray-300 px-1">
+                        {weekCellLabel(entry, block)}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>

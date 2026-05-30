@@ -4,6 +4,7 @@ import { getSessionFromRequest } from '@/lib/session'
 import { redactStaffRecord } from '@/lib/staff-redact'
 import { canViewStaffSensitiveFields } from '@/lib/roles'
 import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
+import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
 
 export async function GET(
   request: NextRequest,
@@ -111,10 +112,19 @@ export async function PATCH(
       }
     }
 
+    const prior =
+      status === 'inactive'
+        ? await prisma.staff.findUnique({ where: { id: params.id }, select: { status: true } })
+        : null
+
     const staff = await prisma.staff.update({
       where: { id: params.id },
       data: data as any
     })
+
+    if (status === 'inactive' && prior?.status !== 'inactive') {
+      await purgeInactiveStaffFutureRosterEntries(prisma, params.id)
+    }
 
     return NextResponse.json(
       canViewStaffSensitiveFields(appRole) ? staff : redactStaffRecord(staff, appRole)

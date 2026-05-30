@@ -5,10 +5,12 @@ import { canEditRoster } from '@/lib/roles'
 import { getStationClosedDates } from '@/lib/public-holidays'
 import {
   formatInputDate,
+  isFutureRosterWeek,
   isRosterDayLocked,
   mergeEntriesRespectingDayLock,
   rosterEntryKey
 } from '@/lib/roster-week-client'
+import { filterEntriesExcludingInactiveStaff } from '@/lib/roster-inactive-staff'
 
 // Roster week API: load and save weekly assignments
 export const dynamic = 'force-dynamic'
@@ -97,11 +99,15 @@ export async function POST(request: NextRequest) {
       today
     })
 
+    const entriesAfterInactiveFilter = isFutureRosterWeek(weekStart, today)
+      ? await filterEntriesExcludingInactiveStaff(prisma, mergedEntries)
+      : mergedEntries
+
     for (const entry of safeEntries) {
       if (!isRosterDayLocked(entry.date, weekStart, today)) continue
       const key = rosterEntryKey(entry.staffId, entry.date)
       const prior = existingEntries.find((e) => rosterEntryKey(e.staffId, e.date) === key)
-      const merged = mergedEntries.find((e) => rosterEntryKey(e.staffId, e.date) === key)
+      const merged = entriesAfterInactiveFilter.find((e) => rosterEntryKey(e.staffId, e.date) === key)
       if (!prior || !merged) continue
       const sameShift = (prior.shiftTemplateId ?? null) === (merged.shiftTemplateId ?? null)
       const samePosition = (prior.position ?? null) === (merged.position ?? null)
@@ -114,9 +120,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const distinctDates = [...new Set(mergedEntries.map((e) => e.date))]
+    const distinctDates = [...new Set(entriesAfterInactiveFilter.map((e) => e.date))]
     const stationClosedDates = await getStationClosedDates(prisma, distinctDates)
-    const activeShiftEntries = mergedEntries.filter((e) => !!e.shiftTemplateId)
+    const activeShiftEntries = entriesAfterInactiveFilter.filter((e) => !!e.shiftTemplateId)
     const shiftStaffIds = [...new Set(activeShiftEntries.map((e) => e.staffId))]
     const minDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a < b ? a : b)) : null
     const maxDate = distinctDates.length > 0 ? distinctDates.reduce((a, b) => (a > b ? a : b)) : null
@@ -140,7 +146,7 @@ export async function POST(request: NextRequest) {
         : Promise.resolve([])
     ])
     const staffById = new Map(staffRows.map((s) => [s.id, s]))
-    for (const entry of mergedEntries) {
+    for (const entry of entriesAfterInactiveFilter) {
       if (entry.shiftTemplateId && stationClosedDates.has(entry.date)) {
         return NextResponse.json(
           {
@@ -202,9 +208,9 @@ export async function POST(request: NextRequest) {
         where: { rosterWeekId: savedWeek.id }
       })
 
-      if (mergedEntries.length > 0) {
+      if (entriesAfterInactiveFilter.length > 0) {
         await tx.rosterEntry.createMany({
-          data: mergedEntries.map((entry) => ({
+          data: entriesAfterInactiveFilter.map((entry) => ({
             rosterWeekId: savedWeek.id,
             staffId: entry.staffId,
             date: entry.date,
@@ -215,7 +221,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      return { weekId: savedWeek.id, count: mergedEntries.length }
+      return { weekId: savedWeek.id, count: entriesAfterInactiveFilter.length }
     })
 
     return NextResponse.json(result)

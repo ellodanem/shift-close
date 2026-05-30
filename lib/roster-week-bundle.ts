@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { addDays } from '@/lib/roster-week-client'
+import { addDays, isFutureRosterWeek, formatInputDate } from '@/lib/roster-week-client'
 
 /** One server pass for roster grid: week entries + day-off + sick leave + holidays + prior week. */
 export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) {
@@ -33,9 +33,33 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
     })
   ])
 
+  let entries = week?.entries ?? []
+
+  // Advance rosters may still list staff who were later inactivated — drop them on load.
+  if (week && isFutureRosterWeek(weekStart, formatInputDate(new Date())) && entries.length > 0) {
+    const entryStaffIds = [...new Set(entries.map((e) => e.staffId))]
+    const inactiveIds = new Set(
+      (
+        await prisma.staff.findMany({
+          where: { id: { in: entryStaffIds }, status: 'inactive' },
+          select: { id: true }
+        })
+      ).map((s) => s.id)
+    )
+    if (inactiveIds.size > 0) {
+      await prisma.rosterEntry.deleteMany({
+        where: {
+          rosterWeekId: week.id,
+          staffId: { in: [...inactiveIds] }
+        }
+      })
+      entries = entries.filter((e) => !inactiveIds.has(e.staffId))
+    }
+  }
+
   return {
     week,
-    entries: week?.entries ?? [],
+    entries,
     previousWeekStart,
     previousWeekEntries: previousWeek?.entries ?? [],
     dayOffRequests,
