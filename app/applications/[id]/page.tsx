@@ -194,6 +194,22 @@ export default function ApplicationDetailPage() {
               </div>
             </div>
 
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Form Data</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                {Object.entries(formData).map(([k, v]) => {
+                  if (!v || k === 'coverLetter') return null
+                  const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
+                  return (
+                    <div key={k} className="min-w-0">
+                      <dt className="text-gray-500 font-medium mb-0.5">{label}</dt>
+                      <dd className="text-gray-900 break-words">{String(v)}</dd>
+                    </div>
+                  )
+                })}
+              </dl>
+            </div>
+
             {app.resumeUrl && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">CV / Resume</h3>
@@ -248,22 +264,6 @@ export default function ApplicationDetailPage() {
                 rows={4}
                 placeholder="Add notes…"
               />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Form Data</h3>
-              <dl className="text-xs space-y-1">
-                {Object.entries(formData).map(([k, v]) => {
-                  if (!v || k === 'coverLetter') return null
-                  const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
-                  return (
-                    <div key={k} className="flex gap-2">
-                      <dt className="text-gray-500 shrink-0">{label}:</dt>
-                      <dd className="text-gray-800 truncate">{String(v)}</dd>
-                    </div>
-                  )
-                })}
-              </dl>
             </div>
           </div>
         </div>
