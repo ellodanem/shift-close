@@ -7,6 +7,7 @@ interface Application {
   id: string
   applicantName: string
   applicantEmail: string | null
+  applicantAddress: string | null
   pdfUrl: string
   resumeUrl: string | null
   submittedAt: string
@@ -183,7 +184,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Applications</h1>
           <div className="flex gap-2">
@@ -345,6 +346,7 @@ export default function ApplicationsPage() {
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Applicant</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Address</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Position</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Submitted</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase"># Apps</th>
@@ -368,6 +370,15 @@ export default function ApplicationsPage() {
                       <div className="font-medium text-gray-900">{app.applicantName}</div>
                       {app.applicantEmail && (
                         <div className="text-xs text-gray-500">{app.applicantEmail}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-[14rem]">
+                      {app.applicantAddress ? (
+                        <span className="line-clamp-2" title={app.applicantAddress}>
+                          {app.applicantAddress}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{app.form.position}</td>

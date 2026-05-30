@@ -254,3 +254,33 @@ export function deriveNameFromFormData(formData: Record<string, string> | string
   if (values.length === 1) return values[0].trim()
   return null
 }
+
+/** Derive display address from stored formData */
+export function deriveAddressFromFormData(formData: Record<string, string> | string | null): string | null {
+  if (!formData) return null
+  const data =
+    typeof formData === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(formData) as Record<string, string>
+          } catch {
+            return null
+          }
+        })()
+      : formData
+  if (!data || typeof data !== 'object') return null
+
+  const addressKeys = ['address', 'home_address', 'mailing_address', 'street_address', 'residential_address']
+  for (const k of addressKeys) {
+    const v = data[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+
+  for (const [k, v] of Object.entries(data)) {
+    const keyLower = k.toLowerCase()
+    if (keyLower.includes('address') && !keyLower.includes('email') && typeof v === 'string' && v.trim()) {
+      return v.trim()
+    }
+  }
+  return null
+}

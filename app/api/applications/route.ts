@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { deriveNameFromFormData } from '@/lib/deftform'
+import { deriveAddressFromFormData, deriveNameFromFormData } from '@/lib/deftform'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       const displayName = (app.applicantName === 'Unknown' && app.formData)
         ? (deriveNameFromFormData(app.formData) ?? app.applicantName)
         : app.applicantName
-      return { ...app, applicantName: displayName }
+      const applicantAddress = deriveAddressFromFormData(app.formData)
+      return { ...app, applicantName: displayName, applicantAddress }
     })
 
     // Compute application count per person (by email or name)
