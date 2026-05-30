@@ -45,6 +45,9 @@ export default function ApplicationsPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [diagnostic, setDiagnostic] = useState<{ forms: { id: string; name: string }[]; responseCount?: number; configuredFormId?: string; sampleResponse?: unknown } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkStatus, setBulkStatus] = useState<string>('')
+  const [bulkUpdating, setBulkUpdating] = useState(false)
 
   useEffect(() => {
     fetch('/api/applicant-forms/seed', { method: 'POST' }).catch(() => {})
@@ -57,7 +60,51 @@ export default function ApplicationsPage() {
       .then(setApplications)
       .catch(() => setApplications([]))
       .finally(() => setLoading(false))
+    setSelectedIds(new Set())
   }, [statusFilter])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (prev.size === applications.length) return new Set()
+      return new Set(applications.map((a) => a.id))
+    })
+  }
+
+  const handleBulkStatusChange = async () => {
+    if (!bulkStatus || selectedIds.size === 0) return
+    setBulkUpdating(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const res = await fetch('/api/applications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status: bulkStatus })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSyncMessage(data.error || 'Bulk status update failed')
+        return
+      }
+      const url = statusFilter ? `/api/applications?status=${statusFilter}` : '/api/applications'
+      const apps = await fetch(url).then((r) => r.json())
+      setApplications(apps)
+      setSelectedIds(new Set())
+      setBulkStatus('')
+    } catch {
+      setSyncMessage('Bulk status update failed')
+    } finally {
+      setBulkUpdating(false)
+    }
+  }
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', {
     month: 'short',
@@ -199,6 +246,39 @@ export default function ApplicationsPage() {
           ))}
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <span className="text-sm font-medium text-gray-700">
+              {selectedIds.size} selected
+            </span>
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              className="px-3 py-1.5 rounded border border-gray-300 text-sm text-gray-700 bg-white"
+            >
+              <option value="">Change status to…</option>
+              {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleBulkStatusChange}
+              disabled={!bulkStatus || bulkUpdating}
+              className="px-4 py-1.5 rounded bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bulkUpdating ? 'Updating…' : 'Apply'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {applications.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
             <p className="text-gray-500">No applications yet.</p>
@@ -208,6 +288,18 @@ export default function ApplicationsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      checked={applications.length > 0 && selectedIds.size === applications.length}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < applications.length
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Applicant</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Position</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Submitted</th>
@@ -218,7 +310,16 @@ export default function ApplicationsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-gray-50">
+                  <tr key={app.id} className={`hover:bg-gray-50 ${selectedIds.has(app.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${app.applicantName}`}
+                        checked={selectedIds.has(app.id)}
+                        onChange={() => toggleSelect(app.id)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{app.applicantName}</div>
                       {app.applicantEmail && (

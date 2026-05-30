@@ -54,3 +54,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch applications' }, { status: 500 })
   }
 }
+
+const VALID_STATUSES = ['new', 'viewed', 'printed', 'contacted', 'not_qualified', 'interview_set', 'no_show', 'hired']
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { ids, status } = body as { ids?: unknown; status?: unknown }
+
+    if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
+      return NextResponse.json({ error: 'ids must be a non-empty array of strings' }, { status: 400 })
+    }
+    if (typeof status !== 'string' || !VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+
+    const now = new Date()
+    const updateData: Record<string, unknown> = { status }
+    if (status === 'viewed') updateData.viewedAt = now
+    if (status === 'printed') updateData.printedAt = now
+    if (status === 'contacted') updateData.contactedAt = now
+
+    const result = await prisma.applicantApplication.updateMany({
+      where: { id: { in: ids as string[] } },
+      data: updateData
+    })
+
+    return NextResponse.json({ updated: result.count })
+  } catch (error) {
+    console.error('Error bulk updating applications:', error)
+    return NextResponse.json({ error: 'Failed to update applications' }, { status: 500 })
+  }
+}
