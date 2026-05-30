@@ -12,12 +12,17 @@ import {
   staffIdsBelowMinOffDays
 } from '@/lib/roster-settings'
 import {
+  activeCountStaffIds,
   displayStaffForWeek,
+  ghostShiftCountsByDay as computeGhostShiftCountsByDay,
+  ghostStaffInWeek,
   isGhostRosterStaff,
   isRosterDayLocked,
   mergeEntriesRespectingDayLock,
   previousWeekReferenceDate,
   previousWeekTooltip,
+  rosterCountDayTooltip,
+  rosterCountGhostFootnote,
   rosterEntryKey,
   weekStartMondayFromDate,
   buildCountByDayAndShift,
@@ -350,9 +355,25 @@ export default function RosterPage() {
     [allStaff, weekStart, entries]
   )
 
-  const displayStaffIds = useMemo(
-    () => new Set(displayStaff.map((s) => s.id)),
-    [displayStaff]
+  const countStaffIds = useMemo(() => activeCountStaffIds(displayStaff), [displayStaff])
+
+  const ghostStaff = useMemo(() => ghostStaffInWeek(displayStaff), [displayStaff])
+
+  const ghostStaffIds = useMemo(() => new Set(ghostStaff.map((s) => s.id)), [ghostStaff])
+
+  const ghostShiftCountByDay = useMemo(
+    () =>
+      computeGhostShiftCountsByDay({
+        weekDates,
+        entries,
+        ghostStaffIds
+      }),
+    [weekDates, entries, ghostStaffIds]
+  )
+
+  const countGhostFootnote = useMemo(
+    () => rosterCountGhostFootnote(ghostStaff.length),
+    [ghostStaff.length]
   )
 
   // Load staff, templates, and settings in one request
@@ -598,10 +619,10 @@ export default function RosterPage() {
       buildCountByDayAndShift({
         weekDates,
         entries,
-        displayStaffIds,
+        displayStaffIds: countStaffIds,
         templates
       }),
-    [entries, weekDates, displayStaffIds, templates]
+    [entries, weekDates, countStaffIds, templates]
   )
 
   const handleMoveStaff = async (index: number, direction: 'up' | 'down') => {
@@ -1694,6 +1715,11 @@ export default function RosterPage() {
                 >
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
                     Coverage by day
+                    {countGhostFootnote ? (
+                      <span className="block mt-0.5 text-[10px] font-normal normal-case text-gray-400">
+                        Active only · {countGhostFootnote}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory">
                     {weekDates.map((date, idx) => {
@@ -1716,9 +1742,11 @@ export default function RosterPage() {
                       })
                       const offCount = counts.get('off') ?? 0
                       if (offCount > 0) items.push({ label: 'Off', count: offCount })
+                      const dayTooltip = rosterCountDayTooltip(ghostShiftCountByDay.get(date) ?? 0)
                       return (
                         <div
                           key={date}
+                          title={dayTooltip}
                           className={`snap-start shrink-0 w-[132px] rounded-lg border px-2 py-2 ${
                             ph?.stationClosed
                               ? 'border-amber-200 bg-amber-50/90'
@@ -2093,6 +2121,11 @@ export default function RosterPage() {
                       className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom bg-gray-50"
                     >
                       Count
+                      {countGhostFootnote ? (
+                        <div className="text-[9px] font-normal normal-case text-gray-400 mt-0.5 leading-tight">
+                          Active only · {countGhostFootnote}
+                        </div>
+                      ) : null}
                     </th>
                     {weekDates.map((date) => {
                       const counts = countByDayAndShift.get(date)
@@ -2106,8 +2139,14 @@ export default function RosterPage() {
                       })
                       const offCount = counts.get('off') ?? 0
                       if (offCount > 0) items.push({ label: 'Off', count: offCount })
+                      const dayTooltip = rosterCountDayTooltip(ghostShiftCountByDay.get(date) ?? 0)
                       return (
-                        <th key={date} scope="col" className="px-1 py-1.5 text-center align-bottom bg-gray-50">
+                        <th
+                          key={date}
+                          scope="col"
+                          title={dayTooltip}
+                          className="px-1 py-1.5 text-center align-bottom bg-gray-50"
+                        >
                           <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 items-baseline text-[10px] text-gray-600">
                             {items.map(({ label, count, color }) =>
                               color ? (

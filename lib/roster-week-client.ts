@@ -288,6 +288,52 @@ export interface DayShiftCountItem {
   color?: string | null
 }
 
+/** Staff IDs used for coverage COUNT — active roster members only (excludes inactive ghosts). */
+export function activeCountStaffIds(displayStaff: RosterStaffClient[]): Set<string> {
+  return new Set(displayStaff.filter((s) => !isGhostRosterStaff(s)).map((s) => s.id))
+}
+
+/** Inactive ghost staff visible on the current/past-week grid (for COUNT footnote / tooltip). */
+export function ghostStaffInWeek(displayStaff: RosterStaffClient[]): RosterStaffClient[] {
+  return displayStaff.filter((s) => isGhostRosterStaff(s))
+}
+
+/** Per-day headcount of inactive staff on a shift (excluded from main COUNT). */
+export function ghostShiftCountsByDay(params: {
+  weekDates: string[]
+  entries: RosterEntryClient[]
+  ghostStaffIds: Set<string> | string[]
+}): Map<string, number> {
+  const { weekDates, entries, ghostStaffIds } = params
+  const ghostIds =
+    ghostStaffIds instanceof Set ? ghostStaffIds : new Set(ghostStaffIds)
+  const byDay = new Map<string, number>()
+  for (const date of weekDates) {
+    let n = 0
+    for (const e of entries) {
+      if (e.date === date && ghostIds.has(e.staffId) && e.shiftTemplateId) n++
+    }
+    byDay.set(date, n)
+  }
+  return byDay
+}
+
+export const ROSTER_COUNT_ACTIVE_ONLY_NOTE = 'Counts active staff only'
+
+export function rosterCountGhostFootnote(ghostCount: number): string | null {
+  if (ghostCount <= 0) return null
+  return `${ghostCount} inactive not counted`
+}
+
+export function rosterCountDayTooltip(ghostScheduledOnDay: number): string | undefined {
+  if (ghostScheduledOnDay <= 0) return undefined
+  const day =
+    ghostScheduledOnDay === 1
+      ? '1 inactive scheduled this day (not counted)'
+      : `${ghostScheduledOnDay} inactive scheduled this day (not counted)`
+  return `${ROSTER_COUNT_ACTIVE_ONLY_NOTE}. ${day}.`
+}
+
 /** Per calendar day: shift template id (or "off") → headcount. Matches desktop /roster logic. */
 export function buildCountByDayAndShift(params: {
   weekDates: string[]

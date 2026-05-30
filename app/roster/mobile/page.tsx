@@ -13,14 +13,19 @@ import {
 } from '@/lib/roster-mobile'
 import {
   addDays,
+  activeCountStaffIds,
   buildFullWeekEntries,
   displayStaffForWeek,
   formatInputDate,
   getMonday,
+  ghostShiftCountsByDay as computeGhostShiftCountsByDay,
+  ghostStaffInWeek,
   isGhostRosterStaff,
   isOnVacation,
   isPastRosterWeek,
   ROSTER_DAY_LABELS,
+  rosterCountDayTooltip,
+  rosterCountGhostFootnote,
   staffDisplayName,
   weekDatesFromStart,
   buildCountByDayAndShift,
@@ -99,9 +104,21 @@ export default function RosterMobilePage() {
     () => displayStaffForWeek(allStaff, weekStart, entries),
     [allStaff, weekStart, entries]
   )
-  const displayStaffIds = useMemo(
-    () => new Set(displayStaff.map((s) => s.id)),
-    [displayStaff]
+  const countStaffIds = useMemo(() => activeCountStaffIds(displayStaff), [displayStaff])
+  const ghostStaff = useMemo(() => ghostStaffInWeek(displayStaff), [displayStaff])
+  const ghostStaffIds = useMemo(() => new Set(ghostStaff.map((s) => s.id)), [ghostStaff])
+  const ghostShiftCountByDay = useMemo(
+    () =>
+      computeGhostShiftCountsByDay({
+        weekDates,
+        entries,
+        ghostStaffIds
+      }),
+    [weekDates, entries, ghostStaffIds]
+  )
+  const countGhostFootnote = useMemo(
+    () => rosterCountGhostFootnote(ghostStaff.length),
+    [ghostStaff.length]
   )
   const stationClosedDates = useMemo(
     () => new Set(publicHolidays.filter((h) => h.stationClosed).map((h) => h.date)),
@@ -113,10 +130,10 @@ export default function RosterMobilePage() {
       buildCountByDayAndShift({
         weekDates,
         entries,
-        displayStaffIds,
+        displayStaffIds: countStaffIds,
         templates
       }),
-    [weekDates, entries, displayStaffIds, templates]
+    [weekDates, entries, countStaffIds, templates]
   )
 
   const selectedDayCoverage = useMemo(() => {
@@ -525,11 +542,19 @@ export default function RosterMobilePage() {
 
         {viewMode === 'week' ? (
           <div
-            className="mb-3 min-h-[2.75rem] rounded-lg border border-slate-700/80 bg-slate-800/60 px-2 py-1.5 flex items-center"
+            className="mb-3 min-h-[2.75rem] rounded-lg border border-slate-700/80 bg-slate-800/60 px-2 py-1.5 flex flex-col justify-center gap-0.5"
             aria-live="polite"
           >
+            {countGhostFootnote ? (
+              <p className="text-[9px] text-slate-500 w-full text-center">
+                Active only · {countGhostFootnote}
+              </p>
+            ) : null}
             {selectedDate && selectedDayCoverage.items.length > 0 ? (
-              <div className="flex items-center gap-2 w-full min-w-0">
+              <div
+                className="flex items-center gap-2 w-full min-w-0"
+                title={rosterCountDayTooltip(ghostShiftCountByDay.get(selectedDate) ?? 0)}
+              >
                 <span className="text-[10px] font-semibold text-slate-400 shrink-0 tabular-nums">
                   {weekDayShort(selectedDate)}
                 </span>
@@ -565,13 +590,17 @@ export default function RosterMobilePage() {
         ) : null}
 
         {viewMode === 'day' && selectedDate ? (
-          <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800 px-3 py-3">
+          <div
+            className="mb-4 rounded-xl border border-slate-700 bg-slate-800 px-3 py-3"
+            title={rosterCountDayTooltip(ghostShiftCountByDay.get(selectedDate) ?? 0)}
+          >
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-sm font-semibold text-slate-100">
                 {weekDayShort(selectedDate)} {selectedDate.slice(8)}/{selectedDate.slice(5, 7)}
               </p>
               <p className="text-xs text-slate-400 shrink-0">
-                {selectedDayCoverage.onShift} on shift · {displayStaff.length} staff
+                {selectedDayCoverage.onShift} on shift · {countStaffIds.size} staff
+                {countGhostFootnote ? ` (${countGhostFootnote})` : ''}
               </p>
             </div>
             {selectedDayCoverage.items.length === 0 ? (
@@ -668,6 +697,13 @@ export default function RosterMobilePage() {
                     {weekDates.map((date, i) => {
                       const hol = holidayForDate(date)
                       const dayOnShift = onShiftCountForDay(countByDayAndShift.get(date))
+                      const ghostDayNote = rosterCountDayTooltip(ghostShiftCountByDay.get(date) ?? 0)
+                      const columnTitle = [
+                        hol?.name ? `${hol.name} — tap for shift breakdown` : 'Tap for shift breakdown',
+                        ghostDayNote
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
                       return (
                         <th
                           key={date}
@@ -676,7 +712,7 @@ export default function RosterMobilePage() {
                               ? 'bg-blue-900/40 text-blue-200 ring-1 ring-inset ring-blue-500'
                               : 'text-slate-300'
                           }`}
-                          title={hol?.name ? `${hol.name} — tap for shift breakdown` : 'Tap for shift breakdown'}
+                          title={columnTitle}
                           onClick={() => selectDay(date, false)}
                         >
                           <div>{ROSTER_DAY_LABELS[i]}</div>
