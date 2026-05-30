@@ -37,6 +37,14 @@ const STATUS_ICONS: Record<string, string> = {
   hired: '✅'
 }
 
+const ARCHIVED_FILTER = '__archived__'
+
+const buildListUrl = (filter: string) => {
+  if (filter === ARCHIVED_FILTER) return '/api/applications?archived=1'
+  if (filter) return `/api/applications?status=${filter}`
+  return '/api/applications'
+}
+
 export default function ApplicationsPage() {
   const router = useRouter()
   const [applications, setApplications] = useState<Application[]>([])
@@ -54,14 +62,15 @@ export default function ApplicationsPage() {
   }, [])
 
   useEffect(() => {
-    const url = statusFilter ? `/api/applications?status=${statusFilter}` : '/api/applications'
-    fetch(url)
+    fetch(buildListUrl(statusFilter))
       .then((res) => res.json())
       .then(setApplications)
       .catch(() => setApplications([]))
       .finally(() => setLoading(false))
     setSelectedIds(new Set())
   }, [statusFilter])
+
+  const viewingArchived = statusFilter === ARCHIVED_FILTER
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -79,32 +88,39 @@ export default function ApplicationsPage() {
     })
   }
 
-  const handleBulkStatusChange = async () => {
-    if (!bulkStatus || selectedIds.size === 0) return
+  const applyBulkUpdate = async (payload: Record<string, unknown>, errorMsg: string) => {
+    if (selectedIds.size === 0) return
     setBulkUpdating(true)
     try {
       const ids = Array.from(selectedIds)
       const res = await fetch('/api/applications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, status: bulkStatus })
+        body: JSON.stringify({ ids, ...payload })
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setSyncMessage(data.error || 'Bulk status update failed')
+        setSyncMessage(data.error || errorMsg)
         return
       }
-      const url = statusFilter ? `/api/applications?status=${statusFilter}` : '/api/applications'
-      const apps = await fetch(url).then((r) => r.json())
+      const apps = await fetch(buildListUrl(statusFilter)).then((r) => r.json())
       setApplications(apps)
       setSelectedIds(new Set())
       setBulkStatus('')
     } catch {
-      setSyncMessage('Bulk status update failed')
+      setSyncMessage(errorMsg)
     } finally {
       setBulkUpdating(false)
     }
   }
+
+  const handleBulkStatusChange = () => {
+    if (!bulkStatus) return
+    applyBulkUpdate({ status: bulkStatus }, 'Bulk status update failed')
+  }
+
+  const handleBulkArchive = (archived: boolean) =>
+    applyBulkUpdate({ archived }, archived ? 'Archive failed' : 'Unarchive failed')
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', {
     month: 'short',
@@ -148,8 +164,7 @@ export default function ApplicationsPage() {
       if (data.total !== undefined) msg += ` (${data.total} total in Deftform)`
       if (data.errorCount > 0) msg += `. ${data.errorCount} error(s): ${(data.errors || []).join('; ')}`
       setSyncMessage(msg)
-      const url = statusFilter ? `/api/applications?status=${statusFilter}` : '/api/applications'
-      const apps = await fetch(url).then((r) => r.json())
+      const apps = await fetch(buildListUrl(statusFilter)).then((r) => r.json())
       setApplications(apps)
     } catch {
       setSyncMessage('Sync failed')
@@ -244,6 +259,12 @@ export default function ApplicationsPage() {
               {STATUS_ICONS[value]} {label}
             </button>
           ))}
+          <button
+            onClick={() => setStatusFilter(ARCHIVED_FILTER)}
+            className={`px-3 py-1.5 rounded text-sm font-medium ml-auto ${viewingArchived ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+          >
+            🗄 Archived
+          </button>
         </div>
 
         {selectedIds.size > 0 && (
@@ -251,24 +272,47 @@ export default function ApplicationsPage() {
             <span className="text-sm font-medium text-gray-700">
               {selectedIds.size} selected
             </span>
-            <select
-              value={bulkStatus}
-              onChange={(e) => setBulkStatus(e.target.value)}
-              className="px-3 py-1.5 rounded border border-gray-300 text-sm text-gray-700 bg-white"
-            >
-              <option value="">Change status to…</option>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleBulkStatusChange}
-              disabled={!bulkStatus || bulkUpdating}
-              className="px-4 py-1.5 rounded bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {bulkUpdating ? 'Updating…' : 'Apply'}
-            </button>
+            {!viewingArchived && (
+              <>
+                <select
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value)}
+                  className="px-3 py-1.5 rounded border border-gray-300 text-sm text-gray-700 bg-white"
+                >
+                  <option value="">Change status to…</option>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleBulkStatusChange}
+                  disabled={!bulkStatus || bulkUpdating}
+                  className="px-4 py-1.5 rounded bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkUpdating ? 'Updating…' : 'Apply'}
+                </button>
+              </>
+            )}
+            {viewingArchived ? (
+              <button
+                type="button"
+                onClick={() => handleBulkArchive(false)}
+                disabled={bulkUpdating}
+                className="px-4 py-1.5 rounded bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkUpdating ? 'Working…' : '🗄 Unarchive'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleBulkArchive(true)}
+                disabled={bulkUpdating}
+                className="px-4 py-1.5 rounded bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkUpdating ? 'Working…' : '🗄 Archive'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setSelectedIds(new Set())}
@@ -281,7 +325,7 @@ export default function ApplicationsPage() {
 
         {applications.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <p className="text-gray-500">No applications yet.</p>
+            <p className="text-gray-500">{viewingArchived ? 'No archived applications.' : 'No applications yet.'}</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

@@ -78,13 +78,15 @@ export async function PATCH(
       viewedAt,
       printedAt,
       contactedAt,
-      notes
+      notes,
+      archived
     } = body as {
       status?: string
       viewedAt?: string | null
       printedAt?: string | null
       contactedAt?: string | null
       notes?: string | null
+      archived?: boolean
     }
 
     const validStatuses = ['new', 'viewed', 'printed', 'contacted', 'not_qualified', 'interview_set', 'no_show', 'hired']
@@ -98,6 +100,7 @@ export async function PATCH(
     if (printedAt !== undefined) updateData.printedAt = printedAt ? new Date(printedAt) : null
     if (contactedAt !== undefined) updateData.contactedAt = contactedAt ? new Date(contactedAt) : null
     if (notes !== undefined) updateData.notes = notes
+    if (archived !== undefined) updateData.archivedAt = archived ? new Date() : null
 
     const application = await prisma.applicantApplication.update({
       where: { id },

@@ -9,11 +9,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const formId = searchParams.get('formId')
+    const archivedParam = searchParams.get('archived')
+    const archivedOnly = archivedParam === '1' || archivedParam === 'true'
 
     const applications = await prisma.applicantApplication.findMany({
       where: {
         ...(status ? { status } : {}),
-        ...(formId ? { formId } : {})
+        ...(formId ? { formId } : {}),
+        ...(archivedOnly ? { NOT: { archivedAt: null } } : { archivedAt: null })
       },
       include: {
         form: { select: { id: true, name: true, slug: true, position: true } }
@@ -60,20 +63,35 @@ const VALID_STATUSES = ['new', 'viewed', 'printed', 'contacted', 'not_qualified'
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { ids, status } = body as { ids?: unknown; status?: unknown }
+    const { ids, status, archived } = body as { ids?: unknown; status?: unknown; archived?: unknown }
 
     if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
       return NextResponse.json({ error: 'ids must be a non-empty array of strings' }, { status: 400 })
     }
-    if (typeof status !== 'string' || !VALID_STATUSES.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+
+    const updateData: Record<string, unknown> = {}
+
+    if (status !== undefined) {
+      if (typeof status !== 'string' || !VALID_STATUSES.includes(status)) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+      }
+      const now = new Date()
+      updateData.status = status
+      if (status === 'viewed') updateData.viewedAt = now
+      if (status === 'printed') updateData.printedAt = now
+      if (status === 'contacted') updateData.contactedAt = now
     }
 
-    const now = new Date()
-    const updateData: Record<string, unknown> = { status }
-    if (status === 'viewed') updateData.viewedAt = now
-    if (status === 'printed') updateData.printedAt = now
-    if (status === 'contacted') updateData.contactedAt = now
+    if (archived !== undefined) {
+      if (typeof archived !== 'boolean') {
+        return NextResponse.json({ error: 'archived must be a boolean' }, { status: 400 })
+      }
+      updateData.archivedAt = archived ? new Date() : null
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'Nothing to update: provide status or archived' }, { status: 400 })
+    }
 
     const result = await prisma.applicantApplication.updateMany({
       where: { id: { in: ids as string[] } },

@@ -896,6 +896,7 @@ model ApplicantApplication {
   viewedAt       DateTime? @map("viewed_at")
   printedAt      DateTime? @map("printed_at")
   contactedAt    DateTime? @map("contacted_at")
+  archivedAt     DateTime? @map("archived_at")
 
   notes          String?  @default("")
 
@@ -905,6 +906,7 @@ model ApplicantApplication {
   @@index([applicantName])
   @@index([formId, status])
   @@index([submittedAt])
+  @@index([archivedAt])
   @@map("applicant_applications")
 }
 

@@ -15,6 +15,7 @@ interface Application {
   viewedAt: string | null
   printedAt: string | null
   contactedAt: string | null
+  archivedAt: string | null
   notes: string | null
   applicationCount: number
   form: { id: string; name: string; slug: string; position: string }
@@ -75,6 +76,24 @@ export default function ApplicationDetailPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
+      })
+      const updated = await res.json()
+      setApp(updated)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleArchive = async () => {
+    if (!app) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/applications/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: !app.archivedAt })
       })
       const updated = await res.json()
       setApp(updated)
@@ -204,6 +223,18 @@ export default function ApplicationDetailPage() {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={toggleArchive}
+                disabled={saving}
+                className="mt-3 w-full text-left px-3 py-2 rounded text-sm border border-gray-200 text-gray-700 hover:bg-gray-100"
+              >
+                {app.archivedAt ? '🗄 Unarchive' : '🗄 Archive'}
+              </button>
+              {app.archivedAt && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Archived {new Date(app.archivedAt).toLocaleString()}
+                </p>
+              )}
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
