@@ -37,9 +37,37 @@ interface VendorInvoiceRow {
 }
 
 type TabType = 'pending' | 'paid'
+type MonthFilterType = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
 
 function vendorInvoiceTotal(amount: number, vat: number | null | undefined) {
   return amount + (vat ?? 0)
+}
+
+function monthParamForFilter(filter: MonthFilterType, customMonth: string): string | null {
+  if (filter === 'all') return null
+  if (filter === 'custom') return customMonth || null
+
+  const todayYmd = businessTodayYmd()
+  const [year, month] = todayYmd.split('-').map(Number)
+
+  if (filter === 'thisMonth') {
+    return `${year}-${String(month).padStart(2, '0')}`
+  }
+  if (filter === 'lastMonth') {
+    const last = new Date(Date.UTC(year, month - 2, 1))
+    return `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, '0')}`
+  }
+  return null
+}
+
+function monthFilterLabel(filter: MonthFilterType, customMonth: string): string | null {
+  const param = monthParamForFilter(filter, customMonth)
+  if (!param) return null
+  return new Date(`${param}-01T12:00:00Z`).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  })
 }
 
 function VendorInvoicesPageInner() {
@@ -51,7 +79,8 @@ function VendorInvoicesPageInner() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [vendorFilter, setVendorFilter] = useState<string>('')
-  const [monthFilter, setMonthFilter] = useState<string>('')
+  const [monthFilter, setMonthFilter] = useState<MonthFilterType>('all')
+  const [customMonth, setCustomMonth] = useState('')
 
   const [vendors, setVendors] = useState<VendorRef[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -196,7 +225,7 @@ function VendorInvoicesPageInner() {
 
   useEffect(() => {
     void fetchInvoices()
-  }, [activeTab, vendorFilter, monthFilter])
+  }, [activeTab, vendorFilter, monthFilter, customMonth])
 
   useEffect(() => {
     if (!copyNotification) return
@@ -206,7 +235,7 @@ function VendorInvoicesPageInner() {
 
   useEffect(() => {
     setSelectedInvoiceIds(new Set())
-  }, [activeTab, vendorFilter, monthFilter])
+  }, [activeTab, vendorFilter, monthFilter, customMonth])
 
   const fetchBalance = async () => {
     try {
@@ -230,7 +259,8 @@ function VendorInvoicesPageInner() {
       const status = activeTab === 'paid' ? 'paid' : 'pending'
       const q = new URLSearchParams({ status })
       if (vendorFilter) q.set('vendorId', vendorFilter)
-      if (monthFilter) q.set('month', monthFilter)
+      const monthParam = monthParamForFilter(monthFilter, customMonth)
+      if (monthParam) q.set('month', monthParam)
       const res = await fetch(`/api/vendor-payments/invoices?${q}`)
       if (res.ok) {
         const data = await res.json()
@@ -433,7 +463,7 @@ function VendorInvoicesPageInner() {
           </div>
         )}
 
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
+        <div className="mb-4 flex flex-col gap-3">
           <div className="w-full md:w-72">
             <label className="block text-xs font-medium text-gray-500 mb-1">
               Vendor
@@ -451,26 +481,77 @@ function VendorInvoicesPageInner() {
               ))}
             </select>
           </div>
-          <div className="w-full md:w-48">
+
+          <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">
               Invoice month
             </label>
-            <input
-              type="month"
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('all')
+                  setCustomMonth('')
+                }}
+                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                  monthFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('thisMonth')
+                  setCustomMonth('')
+                }}
+                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                  monthFilter === 'thisMonth'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('lastMonth')
+                  setCustomMonth('')
+                }}
+                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                  monthFilter === 'lastMonth'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Last Month
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMonthFilter('custom')}
+                  className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                    monthFilter === 'custom'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Custom
+                </button>
+                {monthFilter === 'custom' && (
+                  <input
+                    type="month"
+                    value={customMonth}
+                    onChange={(e) => setCustomMonth(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
+              </div>
+            </div>
           </div>
-          {monthFilter && (
-            <button
-              type="button"
-              onClick={() => setMonthFilter('')}
-              className="text-sm text-gray-600 hover:text-gray-900 underline md:mb-2"
-            >
-              Clear month
-            </button>
-          )}
         </div>
 
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
@@ -560,8 +641,8 @@ function VendorInvoicesPageInner() {
             <p className="text-gray-600 mb-4">
               No {activeTab === 'paid' ? 'paid' : 'pending'} invoices
               {vendorFilter ? ' for this vendor' : ''}
-              {monthFilter
-                ? ` in ${new Date(`${monthFilter}-01T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`
+              {monthFilterLabel(monthFilter, customMonth)
+                ? ` in ${monthFilterLabel(monthFilter, customMonth)}`
                 : ''}
               .
             </p>
