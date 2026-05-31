@@ -4,7 +4,7 @@ import { addDays, isFutureRosterWeek, formatInputDate } from '@/lib/roster-week-
 /** One server pass for roster grid: week entries + day-off + sick leave + holidays + prior week. */
 export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) {
   const previousWeekStart = addDays(weekStart, -7)
-  const [week, previousWeek, dayOffRequests, sickLeaves, publicHolidays] = await Promise.all([
+  const [week, previousWeek, dayOffRequests, sickLeaves, callOuts, publicHolidays] = await Promise.all([
     prisma.rosterWeek.findFirst({
       where: { weekStart },
       include: { entries: true }
@@ -23,6 +23,15 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
         endDate: { gte: weekStart }
       },
       orderBy: { startDate: 'asc' }
+    }),
+    prisma.staffCallOut.findMany({
+      where: { date: { gte: weekStart, lte: weekEnd } },
+      include: {
+        recordedBy: {
+          select: { id: true, username: true, firstName: true, lastName: true }
+        }
+      },
+      orderBy: [{ date: 'asc' }, { staffId: 'asc' }]
     }),
     prisma.publicHoliday.findMany({
       where: {
@@ -64,6 +73,7 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
     previousWeekEntries: previousWeek?.entries ?? [],
     dayOffRequests,
     sickLeaves,
+    callOuts,
     publicHolidays
   }
 }

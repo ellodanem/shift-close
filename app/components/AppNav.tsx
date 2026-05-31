@@ -69,6 +69,7 @@ const navConfig: NavGroupConfig[] = [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
+      { label: 'Call outs', href: '/call-outs', permission: 'people.attendance' },
       { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
@@ -188,6 +189,7 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === MANAGER_HUB_PATH) return pathname === MANAGER_HUB_PATH
   if (href === ATTENDANCE_VIEWER_PATH) return pathname === ATTENDANCE_VIEWER_PATH
   if (href === ROSTER_MOBILE_PATH) return pathname === ROSTER_MOBILE_PATH
+  if (href === '/call-outs') return pathname === '/call-outs'
   if (href === '/attendance') {
     if (pathname === '/attendance/settings' || pathname.startsWith('/attendance/settings/')) return false
     if (pathname === ATTENDANCE_VIEWER_PATH) return false

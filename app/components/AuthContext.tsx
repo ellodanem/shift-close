@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { canLogCallOut } from '@/lib/call-outs'
 import {
   canEditRoster,
   canManageAppUsers,
@@ -44,6 +45,7 @@ interface AuthContextValue {
   isFullAccess: boolean
   isStakeholder: boolean
   isSupervisorLike: boolean
+  canLogCallOut: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -153,7 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canViewStaffSensitive: canViewStaffSensitiveFields(role),
     isFullAccess: isFullAccessRole(role),
     isStakeholder: normalizeAppRole(role) === 'stakeholder',
-    isSupervisorLike: isSupervisorLike(role)
+    isSupervisorLike: isSupervisorLike(role),
+    canLogCallOut: canLogCallOut(role)
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

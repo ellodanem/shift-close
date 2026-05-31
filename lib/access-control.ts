@@ -56,6 +56,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
   if (isFullAccessRole(role)) return true
 
   if (normalizeAppRole(role) === 'stakeholder') {
+    if (pathname.startsWith('/call-outs') || pathname.startsWith('/api/call-outs')) return false
     if (pathname.startsWith('/api/')) {
       return (
         pathname.startsWith('/api/auth/') ||

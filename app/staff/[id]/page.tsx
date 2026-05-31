@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from '../DocumentGenerationModal'
@@ -61,6 +62,14 @@ interface StaffSickLeave {
   documents?: { id: string; fileName: string; fileUrl: string }[]
 }
 
+interface StaffCallOut {
+  id: string
+  date: string
+  calledAt: string
+  notes: string
+  recordedByLabel?: string | null
+}
+
 export default function EditStaffPage() {
   const router = useRouter()
   const params = useParams()
@@ -95,6 +104,7 @@ export default function EditStaffPage() {
   const [dayOffDate, setDayOffDate] = useState('')
   const [dayOffReason, setDayOffReason] = useState('')
   const [savingDayOff, setSavingDayOff] = useState(false)
+  const [callOuts, setCallOuts] = useState<StaffCallOut[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
   const [sickLeaveStartDate, setSickLeaveStartDate] = useState('')
   const [sickLeaveEndDate, setSickLeaveEndDate] = useState('')
@@ -131,6 +141,7 @@ export default function EditStaffPage() {
     
     fetchDocuments()
     fetchDayOffs()
+    fetchCallOuts()
     fetchSickLeaves()
     
     // Check if generate parameter is in URL - show template selection modal instead of auto-generating
@@ -166,6 +177,23 @@ export default function EditStaffPage() {
       console.error('Error fetching day off records:', error)
     }
   }
+
+  const fetchCallOuts = async () => {
+    try {
+      const res = await fetch(`/api/staff/${id}/call-out`)
+      if (res.ok) {
+        const data: StaffCallOut[] = await res.json()
+        setCallOuts(data)
+      }
+    } catch (error) {
+      console.error('Error fetching call outs:', error)
+    }
+  }
+
+  const sickLeaveCoversDate = (date: string) =>
+    sickLeaves.some(
+      (sl) => sl.status !== 'denied' && sl.startDate <= date && sl.endDate >= date
+    )
 
   const fetchSickLeaves = async () => {
     try {
@@ -677,6 +705,57 @@ export default function EditStaffPage() {
             </button>
           </div>
         </form>
+
+        {/* Call outs */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-gray-700">Call outs</h2>
+            <Link href="/call-outs" className="text-sm font-medium text-teal-700 hover:text-teal-900">
+              Log on call outs page →
+            </Link>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Phone log only — does not change hours. Sick leave on the same day is shown separately.
+          </p>
+          {callOuts.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No call outs recorded.</p>
+          ) : (
+            <div className="space-y-2">
+              {[...callOuts].map((c) => {
+                const overlap = sickLeaveCoversDate(c.date)
+                return (
+                  <div
+                    key={c.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded border border-teal-100 bg-teal-50/50"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-gray-900">{c.date}</span>
+                      <span className="text-sm text-gray-500 ml-2">
+                        {new Date(c.calledAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      {c.notes ? (
+                        <span className="text-sm text-gray-600 block truncate">{c.notes}</span>
+                      ) : null}
+                      {c.recordedByLabel ? (
+                        <span className="text-xs text-gray-400 block">Logged by {c.recordedByLabel}</span>
+                      ) : null}
+                    </div>
+                    {overlap ? (
+                      <span className="text-[10px] font-semibold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
+                        + sick leave
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Day Off Requests Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">

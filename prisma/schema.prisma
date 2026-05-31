@@ -38,6 +38,7 @@ model Staff {
   staffRole      StaffRole?    @relation(fields: [roleId], references: [id])
   dayOffs        StaffDayOff[]
   sickLeaves     StaffSickLeave[]
+  callOuts       StaffCallOut[]
   attendanceDayOverrides AttendanceDayOverride[]
 
   @@map("staff")
@@ -87,6 +88,25 @@ model StaffSickLeave {
   documents StaffDocument[]
 
   @@map("staff_sick_leave")
+}
+
+// Phone call-out log (operational; does not affect pay period hours)
+model StaffCallOut {
+  id               String   @id @default(cuid())
+  staffId          String   @map("staff_id")
+  date             String   // YYYY-MM-DD work date affected
+  calledAt         DateTime @map("called_at")
+  notes            String   @default("")
+  recordedByUserId String?  @map("recorded_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  recordedBy AppUser? @relation(fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([staffId, date], name: "staff_call_out_staff_date")
+  @@index([date])
+  @@map("staff_call_outs")
 }
 
 model ShiftClose {
@@ -927,7 +947,8 @@ model AppUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  resetTokens PasswordResetToken[]
+  resetTokens      PasswordResetToken[]
+  callOutsRecorded StaffCallOut[]
 
   @@map("app_users")
 }
