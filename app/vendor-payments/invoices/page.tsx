@@ -51,6 +51,7 @@ function VendorInvoicesPageInner() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [vendorFilter, setVendorFilter] = useState<string>('')
+  const [monthFilter, setMonthFilter] = useState<string>('')
 
   const [vendors, setVendors] = useState<VendorRef[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -195,7 +196,7 @@ function VendorInvoicesPageInner() {
 
   useEffect(() => {
     void fetchInvoices()
-  }, [activeTab, vendorFilter])
+  }, [activeTab, vendorFilter, monthFilter])
 
   useEffect(() => {
     if (!copyNotification) return
@@ -205,7 +206,7 @@ function VendorInvoicesPageInner() {
 
   useEffect(() => {
     setSelectedInvoiceIds(new Set())
-  }, [activeTab, vendorFilter])
+  }, [activeTab, vendorFilter, monthFilter])
 
   const fetchBalance = async () => {
     try {
@@ -229,6 +230,7 @@ function VendorInvoicesPageInner() {
       const status = activeTab === 'paid' ? 'paid' : 'pending'
       const q = new URLSearchParams({ status })
       if (vendorFilter) q.set('vendorId', vendorFilter)
+      if (monthFilter) q.set('month', monthFilter)
       const res = await fetch(`/api/vendor-payments/invoices?${q}`)
       if (res.ok) {
         const data = await res.json()
@@ -431,7 +433,7 @@ function VendorInvoicesPageInner() {
           </div>
         )}
 
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
           <div className="w-full md:w-72">
             <label className="block text-xs font-medium text-gray-500 mb-1">
               Vendor
@@ -449,6 +451,26 @@ function VendorInvoicesPageInner() {
               ))}
             </select>
           </div>
+          <div className="w-full md:w-48">
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Invoice month
+            </label>
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {monthFilter && (
+            <button
+              type="button"
+              onClick={() => setMonthFilter('')}
+              className="text-sm text-gray-600 hover:text-gray-900 underline md:mb-2"
+            >
+              Clear month
+            </button>
+          )}
         </div>
 
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
@@ -537,7 +559,11 @@ function VendorInvoicesPageInner() {
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <p className="text-gray-600 mb-4">
               No {activeTab === 'paid' ? 'paid' : 'pending'} invoices
-              {vendorFilter ? ' for this vendor' : ''}.
+              {vendorFilter ? ' for this vendor' : ''}
+              {monthFilter
+                ? ` in ${new Date(`${monthFilter}-01T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`
+                : ''}
+              .
             </p>
             {activeTab === 'pending' && (
               <button

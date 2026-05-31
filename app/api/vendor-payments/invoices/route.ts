@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status') // 'pending' | 'paid' | null (all)
     const vendorId = searchParams.get('vendorId')
+    const month = searchParams.get('month') // YYYY-MM
 
     const where: Prisma.VendorInvoiceWhereInput = {}
     if (status) {
@@ -17,6 +18,15 @@ export async function GET(request: NextRequest) {
     }
     if (vendorId) {
       where.vendorId = vendorId
+    }
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [yearStr, monthStr] = month.split('-')
+      const year = parseInt(yearStr, 10)
+      const monthIndex = parseInt(monthStr, 10) - 1
+      where.invoiceDate = {
+        gte: new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0)),
+        lt: new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0))
+      }
     }
 
     const invoices = await prisma.vendorInvoice.findMany({
