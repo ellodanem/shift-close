@@ -745,6 +745,7 @@ model CashbookEntry {
 
   // Optional links into other modules for reconciliation (not required)
   shiftId              String?  // If this row is related to a ShiftClose
+  depositLineIndex     Int?     @map("deposit_line_index") // Index in ShiftClose.deposits JSON when auto-synced
   paymentBatchId       String?  // If related to a fuel PaymentBatch
   vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
 
@@ -753,6 +754,7 @@ model CashbookEntry {
 
   allocations CashbookAllocation[]
 
+  @@unique([shiftId, depositLineIndex], name: "cashbook_entries_shift_deposit_line")
   @@index([date])
   @@map("cashbook_entries")
 }

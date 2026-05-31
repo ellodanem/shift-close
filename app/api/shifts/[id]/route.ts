@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { notifyManagersShiftReopened } from '@/lib/notify-shift-reopen'
+import {
+  shouldSyncDepositsAfterShiftUpdate,
+  syncShiftDepositsToCashbook
+} from '@/lib/cashbook-deposit-sync'
 
 export async function GET(
   request: NextRequest,
@@ -311,6 +315,14 @@ export async function PATCH(
       updateData.status === 'reopened' &&
       ['closed', 'reviewed'].includes(existingShift.status)
 
+    const depositsChanged = changes.some((c) => c.field === 'deposits')
+    const nextStatus = String(updateData.status ?? existingShift.status)
+    const willSyncDeposits = shouldSyncDepositsAfterShiftUpdate(
+      existingShift.status,
+      nextStatus,
+      depositsChanged || 'deposits' in updateData
+    )
+
     const shift = await prisma.shiftClose.update({
       where: { id },
       data: updateData,
@@ -333,6 +345,14 @@ export async function PATCH(
         date: shift.date,
         shift: shift.shift
       })
+    }
+
+    if (willSyncDeposits) {
+      try {
+        await syncShiftDepositsToCashbook(shift.id)
+      } catch (cashbookErr) {
+        console.error('Failed to sync shift deposits to cashbook:', cashbookErr)
+      }
     }
     
     // Recalculate totalDeposits from deposits field if it's 0 or null (for display)

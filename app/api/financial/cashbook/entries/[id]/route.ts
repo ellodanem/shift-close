@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { syncCashbookEntryToShiftDeposit } from '@/lib/cashbook-deposit-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,6 +97,11 @@ export async function PATCH(
     if (categoryId !== undefined) updateAllocations.categoryId = categoryId
     if (amount !== undefined) updateAllocations.amount = amount
 
+    const existing = await prisma.cashbookEntry.findUnique({
+      where: { id },
+      select: { shiftId: true, depositLineIndex: true }
+    })
+
     const entry = await prisma.cashbookEntry.update({
       where: { id },
       data: {
@@ -116,6 +122,19 @@ export async function PATCH(
         }
       }
     })
+
+    if (
+      existing?.shiftId &&
+      existing.depositLineIndex !== null &&
+      typeof amt === 'number' &&
+      amt > 0
+    ) {
+      try {
+        await syncCashbookEntryToShiftDeposit(id, amt)
+      } catch (syncErr) {
+        console.error('Failed to sync cashbook deposit to shift:', syncErr)
+      }
+    }
 
     return NextResponse.json(entry)
   } catch (error) {

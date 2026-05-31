@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateShiftClose } from '@/lib/calculations'
 import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { buildShiftsList } from '@/lib/shifts-list'
+import { syncShiftDepositsToCashbook } from '@/lib/cashbook-deposit-sync'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -187,6 +188,14 @@ export async function POST(request: NextRequest) {
     const updatedShift = await prisma.shiftClose.findUnique({
       where: { id: shift.id }
     })
+
+    if (updatedShift?.status === 'closed') {
+      try {
+        await syncShiftDepositsToCashbook(updatedShift.id)
+      } catch (cashbookErr) {
+        console.error('Failed to sync shift deposits to cashbook:', cashbookErr)
+      }
+    }
     
     return NextResponse.json(updatedShift)
   } catch (error: any) {

@@ -66,6 +66,18 @@ Context and decisions from development sessions. Use this to recover context if 
 
 ---
 
+## Shift deposits → Cashbook income (implemented)
+
+- On shift **close** (create or status → closed/reviewed) and when **deposits** change on closed/reviewed/reopened shifts: one cashbook **income** row per deposit line (`shiftId` + `depositLineIndex`).
+- Category **Deposit**, description **Deposit** (matches accountant sheet).
+- **Drafts** do not write to cashbook.
+- Deleting a cashbook row **unlinks** only (shift deposits unchanged); re-sync when shift deposit lines change again.
+- Editing amount in cashbook updates the matching shift deposit line.
+- Neon: `scripts/neon-apply-cashbook-deposit-line-index.sql`
+- Historical backfill: not included (optional later).
+
+---
+
 ## Reminders (partially implemented)
 
 ### Schema
