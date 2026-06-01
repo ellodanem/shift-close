@@ -13,38 +13,16 @@ import {
   type CalledAtParts
 } from '@/lib/call-outs'
 import { addCalendarDaysYmd, businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
+import type { TimeOffCallOutRow, TimeOffSickLeaveRow } from '@/lib/time-off-bundle'
+import { TIME_OFF_MAX_RANGE_DAYS, validateTimeOffDateRange } from '@/lib/time-off-range'
+import { useTimeOff } from '../TimeOffProvider'
 import { staffDisplayLabel } from './staff-label'
 import { TimeOffDayHeading, TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
-
-interface CallOutRow {
-  id: string
-  staffId: string
-  staffName: string
-  staffFirstName?: string
-  date: string
-  calledAt: string
-  notes: string
-  recordedByLabel?: string | null
-}
-
-interface StaffOption {
-  id: string
-  name: string
-  firstName?: string
-  lastName?: string
-  status: string
-}
-
-interface SickLeaveRow {
-  id: string
-  staffId: string
-  startDate: string
-  endDate: string
-  status: string
-}
+import TruncatedNotice from './TruncatedNotice'
 
 type ListFilter = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
 
+/** Default "All" filter span (within server max range). */
 const ALL_MAX_DAYS = 120
 
 type CallOutsTabProps = {
@@ -104,7 +82,7 @@ function resolveCallOutListRange(
   }
 }
 
-function callOutMatchesSearch(row: CallOutRow, query: string): boolean {
+function callOutMatchesSearch(row: TimeOffCallOutRow, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
   const label = staffDisplayLabel(row).toLowerCase()
@@ -127,6 +105,7 @@ function pillClass(active: boolean): string {
 
 export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   const { canLogCallOut } = useAuth()
+  const { staffOptions, staffLoading, staffError, fetchBundle, invalidateBundles } = useTimeOff()
   const today = businessTodayYmd()
   const initialDay = useMemo(() => {
     if (!initialDate) return today
@@ -138,9 +117,9 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   const [customEnd, setCustomEnd] = useState('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [rows, setRows] = useState<CallOutRow[]>([])
-  const [sickLeaves, setSickLeaves] = useState<SickLeaveRow[]>([])
-  const [staffList, setStaffList] = useState<StaffOption[]>([])
+  const [rows, setRows] = useState<TimeOffCallOutRow[]>([])
+  const [sickLeaves, setSickLeaves] = useState<TimeOffSickLeaveRow[]>([])
+  const [truncated, setTruncated] = useState({ dayOffs: false, sickLeaves: false, callOuts: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -156,41 +135,34 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   )
 
   const activeStaff = useMemo(
-    () => staffList.filter((s) => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name)),
-    [staffList]
+    () => [...staffOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [staffOptions]
   )
 
   const load = useCallback(
-    async (rangeOverride?: { start: string; end: string }) => {
+    async (rangeOverride?: { start: string; end: string }, force = false) => {
       const start = rangeOverride?.start ?? listRange.start
       const end = rangeOverride?.end ?? listRange.end
+      const rangeCheck = validateTimeOffDateRange(start, end, TIME_OFF_MAX_RANGE_DAYS)
+      if ('error' in rangeCheck) {
+        setError(rangeCheck.error)
+        setLoading(false)
+        return
+      }
       setLoading(true)
       setError(null)
       try {
-        const [coRes, staffRes, sickRes] = await Promise.all([
-          fetch(`/api/call-outs?startDate=${start}&endDate=${end}`),
-          fetch('/api/staff'),
-          fetch(`/api/staff/sick-leave?startDate=${start}&endDate=${end}`)
-        ])
-        if (!coRes.ok) throw new Error('Failed to load call outs')
-        setRows(await coRes.json())
-        if (staffRes.ok) {
-          const staff = (await staffRes.json()) as StaffOption[]
-          setStaffList(staff)
-        }
-        if (sickRes.ok) {
-          const sick = (await sickRes.json()) as SickLeaveRow[]
-          setSickLeaves(Array.isArray(sick) ? sick : [])
-        } else {
-          setSickLeaves([])
-        }
+        const bundle = await fetchBundle(rangeCheck.startDate, rangeCheck.endDate, { force })
+        setRows(bundle.callOuts)
+        setSickLeaves(bundle.sickLeaves)
+        setTruncated(bundle.truncated)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
         setLoading(false)
       }
     },
-    [listRange.start, listRange.end]
+    [listRange.start, listRange.end, fetchBundle]
   )
 
   useEffect(() => {
@@ -223,7 +195,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   )
 
   const groupedByDay = useMemo(() => {
-    const byDate = new Map<string, CallOutRow[]>()
+    const byDate = new Map<string, TimeOffCallOutRow[]>()
     for (const r of filteredRows) {
       const dayRows = byDate.get(r.date) ?? []
       dayRows.push(r)
@@ -234,7 +206,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
       .map(([date, dayRows]) => ({ date, rows: dayRows }))
   }, [filteredRows])
 
-  const sickOverlap = (row: CallOutRow) =>
+  const sickOverlap = (row: TimeOffCallOutRow) =>
     sickLeaves.some((sl) => sl.staffId === row.staffId && sickLeaveCoversDate(sl, row.date))
 
   const ensureSavedDateVisible = (workDate: string): { start: string; end: string } => {
@@ -273,7 +245,8 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
       setLogNotes('')
       setLogCalledAtParts(defaultCalledAtPartsNow())
       const range = ensureSavedDateVisible(logDate)
-      await load(range)
+      invalidateBundles()
+      await load(range, true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
     } finally {
@@ -286,7 +259,8 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     try {
       const res = await fetch(`/api/call-outs/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
-      await load()
+      invalidateBundles()
+      await load(undefined, true)
     } catch {
       alert('Failed to delete')
     }
@@ -294,7 +268,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
 
   const rangeLabel = listRange.label
 
-  const renderDayTable = (dayRows: CallOutRow[]) => (
+  const renderDayTable = (dayRows: TimeOffCallOutRow[]) => (
     <table className="min-w-full text-sm">
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -499,7 +473,9 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
 
       {listToolbar}
 
-      {loading ? (
+      {staffError ? <p className="text-sm text-red-600 mb-4">{staffError}</p> : null}
+
+      {loading || staffLoading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
@@ -518,6 +494,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         </p>
       ) : (
         <div className="space-y-6">
+          <TruncatedNotice truncated={truncated} />
           <TimeOffListHeading count={filteredRows.length}>Call outs</TimeOffListHeading>
           {groupedByDay.map(({ date, rows: dayRows }) => (
             <section key={date}>

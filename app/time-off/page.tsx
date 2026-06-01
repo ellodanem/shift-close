@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import CallOutsTab from './components/CallOutsTab'
 import SickLeaveTab from './components/SickLeaveTab'
 import VacationDayOffTab from './components/VacationDayOffTab'
+import { TimeOffProvider } from './TimeOffProvider'
 
 export type TimeOffTab = 'vacation-day-off' | 'sick-leave' | 'call-outs'
 
@@ -87,7 +88,9 @@ export default function TimeOffPage() {
         </div>
       }
     >
-      <TimeOffPageContent />
+      <TimeOffProvider>
+        <TimeOffPageContent />
+      </TimeOffProvider>
     </Suspense>
   )
 }

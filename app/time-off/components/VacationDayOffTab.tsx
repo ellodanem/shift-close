@@ -2,42 +2,13 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { businessTodayYmd } from '@/lib/datetime-policy'
+import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
+import type { TimeOffDayOffRow, TimeOffVacationRow } from '@/lib/time-off-bundle'
+import { validateTimeOffDateRange } from '@/lib/time-off-range'
+import { useTimeOff } from '../TimeOffProvider'
 import { staffDisplayLabel } from './staff-label'
 import { TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
-
-interface StaffOption {
-  id: string
-  name: string
-  firstName?: string
-  lastName?: string
-  status: string
-  vacationStart?: string | null
-  vacationEnd?: string | null
-}
-
-interface DayOffRow {
-  id: string
-  staffId: string
-  staffName: string
-  staffFirstName?: string
-  date: string
-  reason?: string | null
-  status: string
-}
-
-function addDaysYmd(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T12:00:00`)
-  d.setDate(d.getDate() + days)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
-  return aStart <= bEnd && aEnd >= bStart
-}
+import TruncatedNotice from './TruncatedNotice'
 
 const statusColors: Record<string, string> = {
   approved: 'bg-green-100 text-green-800',
@@ -46,12 +17,14 @@ const statusColors: Record<string, string> = {
 }
 
 export default function VacationDayOffTab() {
+  const { staffOptions, staffLoading, staffError, fetchBundle, invalidateBundles } = useTimeOff()
   const today = businessTodayYmd()
-  const [rangeStart, setRangeStart] = useState(() => addDaysYmd(today, -14))
-  const [rangeEnd, setRangeEnd] = useState(() => addDaysYmd(today, 60))
+  const [rangeStart, setRangeStart] = useState(() => addCalendarDaysYmd(today, -14))
+  const [rangeEnd, setRangeEnd] = useState(() => addCalendarDaysYmd(today, 60))
 
-  const [staffList, setStaffList] = useState<StaffOption[]>([])
-  const [dayOffs, setDayOffs] = useState<DayOffRow[]>([])
+  const [vacations, setVacations] = useState<TimeOffVacationRow[]>([])
+  const [dayOffs, setDayOffs] = useState<TimeOffDayOffRow[]>([])
+  const [truncated, setTruncated] = useState({ dayOffs: false, sickLeaves: false, callOuts: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,46 +39,33 @@ export default function VacationDayOffTab() {
   const [savingDayOff, setSavingDayOff] = useState(false)
 
   const activeStaff = useMemo(
-    () => staffList.filter((s) => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name)),
-    [staffList]
+    () => [...staffOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [staffOptions]
   )
 
-  const vacations = useMemo(() => {
-    return activeStaff
-      .filter(
-        (s) =>
-          s.vacationStart &&
-          s.vacationEnd &&
-          rangesOverlap(s.vacationStart, s.vacationEnd, rangeStart, rangeEnd)
-      )
-      .map((s) => ({
-        staffId: s.id,
-        staffName: s.name,
-        staffFirstName: s.firstName,
-        vacationStart: s.vacationStart!,
-        vacationEnd: s.vacationEnd!
-      }))
-      .sort((a, b) => a.vacationStart.localeCompare(b.vacationStart))
-  }, [activeStaff, rangeStart, rangeEnd])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [staffRes, dayOffRes] = await Promise.all([
-        fetch('/api/staff'),
-        fetch(`/api/staff/day-off?startDate=${rangeStart}&endDate=${rangeEnd}`)
-      ])
-      if (!staffRes.ok) throw new Error('Failed to load staff')
-      setStaffList(await staffRes.json())
-      if (!dayOffRes.ok) throw new Error('Failed to load day off records')
-      setDayOffs(await dayOffRes.json())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
-    } finally {
-      setLoading(false)
-    }
-  }, [rangeStart, rangeEnd])
+  const load = useCallback(
+    async (force = false) => {
+      const rangeCheck = validateTimeOffDateRange(rangeStart, rangeEnd)
+      if ('error' in rangeCheck) {
+        setError(rangeCheck.error)
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const bundle = await fetchBundle(rangeCheck.startDate, rangeCheck.endDate, { force })
+        setVacations(bundle.vacations)
+        setDayOffs(bundle.dayOffs)
+        setTruncated(bundle.truncated)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [rangeStart, rangeEnd, fetchBundle]
+  )
 
   useEffect(() => {
     void load()
@@ -131,7 +91,8 @@ export default function VacationDayOffTab() {
       setVacStaffId('')
       setVacStart('')
       setVacEnd('')
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save vacation')
     } finally {
@@ -149,7 +110,8 @@ export default function VacationDayOffTab() {
         body: JSON.stringify({ vacationStart: null, vacationEnd: null })
       })
       if (!res.ok) throw new Error('Failed to clear vacation')
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to clear vacation')
     } finally {
@@ -169,7 +131,8 @@ export default function VacationDayOffTab() {
       if (!res.ok) throw new Error('Failed to save day off')
       setDayOffDate('')
       setDayOffReason('')
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save day off')
     } finally {
@@ -182,7 +145,8 @@ export default function VacationDayOffTab() {
     try {
       const res = await fetch(`/api/staff/day-off/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch {
       alert('Failed to delete')
     }
@@ -221,7 +185,7 @@ export default function VacationDayOffTab() {
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void load(true)}
           className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
           Refresh
@@ -330,12 +294,15 @@ export default function VacationDayOffTab() {
         </div>
       </div>
 
-      {loading ? (
+      {staffError ? <p className="text-sm text-red-600 mb-4">{staffError}</p> : null}
+
+      {loading || staffLoading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <div className="space-y-6">
+          <TruncatedNotice truncated={truncated} />
           <section>
             <TimeOffListHeading count={vacations.length}>Vacation periods</TimeOffListHeading>
             {vacations.length === 0 ? (

@@ -2,38 +2,13 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { businessTodayYmd } from '@/lib/datetime-policy'
+import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
+import type { TimeOffSickLeaveRow } from '@/lib/time-off-bundle'
+import { validateTimeOffDateRange } from '@/lib/time-off-range'
+import { useTimeOff } from '../TimeOffProvider'
 import { staffDisplayLabel } from './staff-label'
 import { TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
-
-interface StaffOption {
-  id: string
-  name: string
-  firstName?: string
-  lastName?: string
-  status: string
-}
-
-interface SickLeaveRow {
-  id: string
-  staffId: string
-  staffName: string
-  staffFirstName?: string
-  startDate: string
-  endDate: string
-  reason?: string | null
-  status: string
-  documents?: { id: string; fileName: string; fileUrl: string }[]
-}
-
-function addDaysYmd(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T12:00:00`)
-  d.setDate(d.getDate() + days)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+import TruncatedNotice from './TruncatedNotice'
 
 /** Inclusive calendar days from start through end (YYYY-MM-DD). */
 function sickLeaveInclusiveDays(startYmd: string, endYmd: string): number {
@@ -49,12 +24,13 @@ const statusColors: Record<string, string> = {
 }
 
 export default function SickLeaveTab() {
+  const { staffOptions, staffLoading, staffError, fetchBundle, invalidateBundles } = useTimeOff()
   const today = businessTodayYmd()
-  const [rangeStart, setRangeStart] = useState(() => addDaysYmd(today, -30))
-  const [rangeEnd, setRangeEnd] = useState(() => addDaysYmd(today, 30))
+  const [rangeStart, setRangeStart] = useState(() => addCalendarDaysYmd(today, -30))
+  const [rangeEnd, setRangeEnd] = useState(() => addCalendarDaysYmd(today, 30))
 
-  const [staffList, setStaffList] = useState<StaffOption[]>([])
-  const [rows, setRows] = useState<SickLeaveRow[]>([])
+  const [rows, setRows] = useState<TimeOffSickLeaveRow[]>([])
+  const [truncated, setTruncated] = useState({ dayOffs: false, sickLeaves: false, callOuts: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,28 +43,35 @@ export default function SickLeaveTab() {
   const [saving, setSaving] = useState(false)
 
   const activeStaff = useMemo(
-    () => staffList.filter((s) => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name)),
-    [staffList]
+    () => [...staffOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [staffOptions]
   )
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [staffRes, sickRes] = await Promise.all([
-        fetch('/api/staff'),
-        fetch(`/api/staff/sick-leave?startDate=${rangeStart}&endDate=${rangeEnd}`)
-      ])
-      if (!staffRes.ok) throw new Error('Failed to load staff')
-      setStaffList(await staffRes.json())
-      if (!sickRes.ok) throw new Error('Failed to load sick leave')
-      setRows(await sickRes.json())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
-    } finally {
-      setLoading(false)
-    }
-  }, [rangeStart, rangeEnd])
+  const load = useCallback(
+    async (force = false) => {
+      const rangeCheck = validateTimeOffDateRange(rangeStart, rangeEnd)
+      if ('error' in rangeCheck) {
+        setError(rangeCheck.error)
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const bundle = await fetchBundle(rangeCheck.startDate, rangeCheck.endDate, {
+          includeSickDocuments: true,
+          force
+        })
+        setRows(bundle.sickLeaves)
+        setTruncated(bundle.truncated)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [rangeStart, rangeEnd, fetchBundle]
+  )
 
   useEffect(() => {
     void load()
@@ -145,7 +128,8 @@ export default function SickLeaveTab() {
       setReason('')
       setDocFile(null)
       if (docInputRef.current) docInputRef.current.value = ''
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save sick leave')
     } finally {
@@ -158,7 +142,8 @@ export default function SickLeaveTab() {
     try {
       const res = await fetch(`/api/staff/sick-leave/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
-      await load()
+      invalidateBundles()
+      await load(true)
     } catch {
       alert('Failed to delete')
     }
@@ -197,7 +182,7 @@ export default function SickLeaveTab() {
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void load(true)}
           className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
           Refresh
@@ -278,12 +263,15 @@ export default function SickLeaveTab() {
         </div>
       </div>
 
-      {loading ? (
+      {staffError ? <p className="text-sm text-red-600 mb-4">{staffError}</p> : null}
+
+      {loading || staffLoading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <>
+          <TruncatedNotice truncated={truncated} />
           <TimeOffListHeading count={rows.length}>Sick leave</TimeOffListHeading>
           {rows.length === 0 ? (
             <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">

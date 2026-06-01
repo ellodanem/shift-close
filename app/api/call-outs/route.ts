@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizeCallOutDate } from '@/lib/call-outs'
 import { formatAppUserDisplayName } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
+import { TIME_OFF_LIST_ROW_CAP, validateTimeOffDateRange } from '@/lib/time-off-range'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,15 +10,14 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const startDate = normalizeCallOutDate(searchParams.get('startDate') ?? '')
-    const endDate = normalizeCallOutDate(searchParams.get('endDate') ?? '')
-
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        { error: 'startDate and endDate (YYYY-MM-DD) are required' },
-        { status: 400 }
-      )
+    const range = validateTimeOffDateRange(
+      searchParams.get('startDate'),
+      searchParams.get('endDate')
+    )
+    if ('error' in range) {
+      return NextResponse.json({ error: range.error }, { status: range.status })
     }
+    const { startDate, endDate } = range
 
     const rows = await prisma.staffCallOut.findMany({
       where: { date: { gte: startDate, lte: endDate } },
@@ -27,7 +27,8 @@ export async function GET(request: NextRequest) {
           select: { id: true, username: true, firstName: true, lastName: true }
         }
       },
-      orderBy: [{ date: 'desc' }, { calledAt: 'desc' }]
+      orderBy: [{ date: 'desc' }, { calledAt: 'desc' }],
+      take: TIME_OFF_LIST_ROW_CAP
     })
 
     return NextResponse.json(

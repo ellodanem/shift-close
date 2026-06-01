@@ -1,34 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { TIME_OFF_LIST_ROW_CAP, validateTimeOffDateRange } from '@/lib/time-off-range'
 
 export const dynamic = 'force-dynamic'
 
-// List all sick-leave records in a date range (used by roster)
+// List sick-leave records in a date range (prefer GET /api/time-off/bundle for the Time Off page).
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
-
-    const where: {
-      endDate?: { gte: string }
-      startDate?: { lte: string }
-    } = {}
-
-    if (startDate) {
-      where.endDate = { gte: startDate }
-    }
-    if (endDate) {
-      where.startDate = { lte: endDate }
+    const range = validateTimeOffDateRange(
+      searchParams.get('startDate'),
+      searchParams.get('endDate')
+    )
+    if ('error' in range) {
+      return NextResponse.json({ error: range.error }, { status: range.status })
     }
 
     const records = await prisma.staffSickLeave.findMany({
-      where,
+      where: {
+        startDate: { lte: range.endDate },
+        endDate: { gte: range.startDate }
+      },
       include: {
         staff: { select: { id: true, name: true, firstName: true, lastName: true } },
         documents: { select: { id: true, fileName: true, fileUrl: true } }
       },
-      orderBy: [{ startDate: 'desc' }, { staffId: 'asc' }]
+      orderBy: [{ startDate: 'desc' }, { staffId: 'asc' }],
+      take: TIME_OFF_LIST_ROW_CAP
     })
 
     return NextResponse.json(
