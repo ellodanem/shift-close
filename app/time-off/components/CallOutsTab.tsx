@@ -12,7 +12,7 @@ import {
   sickLeaveCoversDate,
   type CalledAtParts
 } from '@/lib/call-outs'
-import { businessTodayYmd } from '@/lib/datetime-policy'
+import { addCalendarDaysYmd, businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
 import { staffDisplayLabel } from './staff-label'
 
 interface CallOutRow {
@@ -42,8 +42,25 @@ interface SickLeaveRow {
   status: string
 }
 
+const DEFAULT_RANGE_DAYS = 90
+
 type CallOutsTabProps = {
   initialDate?: string | null
+}
+
+function callOutMatchesSearch(row: CallOutRow, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const label = staffDisplayLabel(row).toLowerCase()
+  const fullName = row.staffName.toLowerCase()
+  const first = row.staffFirstName?.trim().toLowerCase() ?? ''
+  const notes = row.notes?.trim().toLowerCase() ?? ''
+  return (
+    label.includes(q) ||
+    fullName.includes(q) ||
+    (first.length > 0 && first.includes(q)) ||
+    notes.includes(q)
+  )
 }
 
 export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
@@ -54,7 +71,18 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     return normalizeCallOutDate(initialDate) ?? today
   }, [initialDate, today])
 
-  const [filterDate, setFilterDate] = useState(initialDay)
+  const defaultRangeStart = useMemo(() => addCalendarDaysYmd(today, -DEFAULT_RANGE_DAYS), [today])
+  const defaultRangeEnd = today
+
+  const [rangeStart, setRangeStart] = useState(() => {
+    if (initialDay < defaultRangeStart) return initialDay
+    return defaultRangeStart
+  })
+  const [rangeEnd, setRangeEnd] = useState(() => {
+    if (initialDay > defaultRangeEnd) return initialDay
+    return defaultRangeEnd
+  })
+  const [searchQuery, setSearchQuery] = useState('')
   const [rows, setRows] = useState<CallOutRow[]>([])
   const [sickLeaves, setSickLeaves] = useState<SickLeaveRow[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
@@ -72,14 +100,16 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     [staffList]
   )
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (rangeOverride?: { start: string; end: string }) => {
+    const start = rangeOverride?.start ?? rangeStart
+    const end = rangeOverride?.end ?? rangeEnd
     setLoading(true)
     setError(null)
     try {
-      const [coRes, staffRes, bundleRes] = await Promise.all([
-        fetch(`/api/call-outs?startDate=${filterDate}&endDate=${filterDate}`),
+      const [coRes, staffRes, sickRes] = await Promise.all([
+        fetch(`/api/call-outs?startDate=${start}&endDate=${end}`),
         fetch('/api/staff'),
-        fetch(`/api/roster/week-bundle?weekStart=${filterDate}&weekEnd=${filterDate}`)
+        fetch(`/api/staff/sick-leave?startDate=${start}&endDate=${end}`)
       ])
       if (!coRes.ok) throw new Error('Failed to load call outs')
       setRows(await coRes.json())
@@ -87,25 +117,43 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         const staff = (await staffRes.json()) as StaffOption[]
         setStaffList(staff)
       }
-      if (bundleRes.ok) {
-        const bundle = await bundleRes.json()
-        setSickLeaves(Array.isArray(bundle.sickLeaves) ? bundle.sickLeaves : [])
+      if (sickRes.ok) {
+        const sick = (await sickRes.json()) as SickLeaveRow[]
+        setSickLeaves(Array.isArray(sick) ? sick : [])
+      } else {
+        setSickLeaves([])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
-  }, [filterDate])
+  }, [rangeStart, rangeEnd])
 
   useEffect(() => {
-    setFilterDate(initialDay)
     setLogDate(initialDay)
   }, [initialDay])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const filteredRows = useMemo(
+    () => rows.filter((r) => callOutMatchesSearch(r, searchQuery)),
+    [rows, searchQuery]
+  )
+
+  const groupedByDay = useMemo(() => {
+    const byDate = new Map<string, CallOutRow[]>()
+    for (const r of filteredRows) {
+      const dayRows = byDate.get(r.date) ?? []
+      dayRows.push(r)
+      byDate.set(r.date, dayRows)
+    }
+    return [...byDate.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, dayRows]) => ({ date, rows: dayRows }))
+  }, [filteredRows])
 
   const sickOverlap = (row: CallOutRow) =>
     sickLeaves.some((sl) => sl.staffId === row.staffId && sickLeaveCoversDate(sl, row.date))
@@ -131,8 +179,11 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
       }
       setLogNotes('')
       setLogCalledAtParts(defaultCalledAtPartsNow())
-      if (logDate === filterDate) await load()
-      else setFilterDate(logDate)
+      const nextStart = logDate < rangeStart ? logDate : rangeStart
+      const nextEnd = logDate > rangeEnd ? logDate : rangeEnd
+      if (nextStart !== rangeStart) setRangeStart(nextStart)
+      if (nextEnd !== rangeEnd) setRangeEnd(nextEnd)
+      await load({ start: nextStart, end: nextEnd })
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
     } finally {
@@ -151,6 +202,69 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     }
   }
 
+  const rangeLabel = `${formatDateOnlyForDisplay(rangeStart)} – ${formatDateOnlyForDisplay(rangeEnd)}`
+
+  const renderDayTable = (dayRows: CallOutRow[]) => (
+    <table className="min-w-full text-sm">
+      <thead>
+        <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <th className="px-4 py-3">Staff</th>
+          <th className="px-4 py-3">Called</th>
+          <th className="px-4 py-3">Note</th>
+          <th className="px-4 py-3">Logged by</th>
+          {canLogCallOut ? <th className="px-4 py-3 w-16" /> : null}
+        </tr>
+      </thead>
+      <tbody>
+        {dayRows.map((r) => {
+          const overlap = sickOverlap(r)
+          return (
+            <tr key={r.id} className="border-b border-gray-100 last:border-0">
+              <td className="px-4 py-2.5 font-medium text-gray-900">
+                {staffDisplayLabel(r)}
+                {overlap ? (
+                  <span
+                    className="ml-2 text-[10px] font-semibold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded"
+                    title="Sick leave also covers this day"
+                  >
+                    + sick
+                  </span>
+                ) : null}
+              </td>
+              <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+                {formatCalledAtLocal(r.calledAt)}
+              </td>
+              <td
+                className="px-4 py-2.5 text-gray-600 max-w-xs truncate"
+                title={buildCallOutTooltip({
+                  calledAt: r.calledAt,
+                  notes: r.notes,
+                  recordedByLabel: r.recordedByLabel,
+                  sickLeaveOverlap: overlap
+                })}
+              >
+                {r.notes || '—'}
+              </td>
+              <td className="px-4 py-2.5 text-gray-500">{r.recordedByLabel || '—'}</td>
+              {canLogCallOut ? (
+                <td className="px-4 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(r.id)}
+                    className="text-gray-400 hover:text-red-600 text-lg leading-none"
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                </td>
+              ) : null}
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+
   return (
     <div>
       <p className="text-sm text-gray-600 mb-4">
@@ -158,25 +272,50 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         period — shown on the roster. Sick leave entered later can overlap the same dates.
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 mb-6">
+      <div className="flex flex-wrap items-end gap-4 mb-4">
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            Day
+            From
           </label>
           <input
             type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
+            value={rangeStart}
+            onChange={(e) => setRangeStart(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+            To
+          </label>
+          <input
+            type="date"
+            value={rangeEnd}
+            min={rangeStart}
+            onChange={(e) => setRangeEnd(e.target.value)}
             className="rounded border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void load(undefined)}
           className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
           Refresh
         </button>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+          Search
+        </label>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Staff name or note…"
+          className="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
+        />
       </div>
 
       {canLogCallOut ? (
@@ -245,68 +384,24 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         <p className="text-sm text-red-600">{error}</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
-          No call outs for {filterDate}.
+          No call outs from {rangeLabel}.
+        </p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
+          No call outs matching &ldquo;{searchQuery.trim()}&rdquo; in {rangeLabel}.
         </p>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">Staff</th>
-                <th className="px-4 py-3">Called</th>
-                <th className="px-4 py-3">Note</th>
-                <th className="px-4 py-3">Logged by</th>
-                {canLogCallOut ? <th className="px-4 py-3 w-16" /> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const overlap = sickOverlap(r)
-                return (
-                  <tr key={r.id} className="border-b border-gray-100">
-                    <td className="px-4 py-2.5 font-medium text-gray-900">
-                      {staffDisplayLabel(r)}
-                      {overlap ? (
-                        <span
-                          className="ml-2 text-[10px] font-semibold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded"
-                          title="Sick leave also covers this day"
-                        >
-                          + sick
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
-                      {formatCalledAtLocal(r.calledAt)}
-                    </td>
-                    <td
-                      className="px-4 py-2.5 text-gray-600 max-w-xs truncate"
-                      title={buildCallOutTooltip({
-                        calledAt: r.calledAt,
-                        notes: r.notes,
-                        recordedByLabel: r.recordedByLabel,
-                        sickLeaveOverlap: overlap
-                      })}
-                    >
-                      {r.notes || '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-500">{r.recordedByLabel || '—'}</td>
-                    {canLogCallOut ? (
-                      <td className="px-4 py-2.5">
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(r.id)}
-                          className="text-gray-400 hover:text-red-600 text-lg leading-none"
-                          title="Remove"
-                        >
-                          ×
-                        </button>
-                      </td>
-                    ) : null}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {groupedByDay.map(({ date, rows: dayRows }) => (
+            <section key={date}>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 px-0.5">
+                {formatDateOnlyForDisplay(date)}
+              </h3>
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                {renderDayTable(dayRows)}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>
