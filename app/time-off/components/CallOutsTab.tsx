@@ -14,6 +14,7 @@ import {
 } from '@/lib/call-outs'
 import { addCalendarDaysYmd, businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
 import { staffDisplayLabel } from './staff-label'
+import { TimeOffDayHeading, TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
 
 interface CallOutRow {
   id: string
@@ -42,10 +43,65 @@ interface SickLeaveRow {
   status: string
 }
 
-const DEFAULT_RANGE_DAYS = 90
+type ListFilter = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
+
+const ALL_MAX_DAYS = 120
 
 type CallOutsTabProps = {
   initialDate?: string | null
+}
+
+function monthStartYmd(ymd: string): string {
+  return `${ymd.slice(0, 7)}-01`
+}
+
+function monthEndYmdFromMonthStart(monthStart: string): string {
+  const [y, m] = monthStart.split('-').map((x) => parseInt(x, 10))
+  const nextMonth =
+    m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  return addCalendarDaysYmd(nextMonth, -1)
+}
+
+function getThisMonthRange(today: string): { start: string; end: string } {
+  const start = monthStartYmd(today)
+  return { start, end: monthEndYmdFromMonthStart(start) }
+}
+
+function getLastMonthRange(today: string): { start: string; end: string } {
+  const thisStart = monthStartYmd(today)
+  const end = addCalendarDaysYmd(thisStart, -1)
+  return { start: monthStartYmd(end), end }
+}
+
+function resolveCallOutListRange(
+  filter: ListFilter,
+  today: string,
+  customStart: string,
+  customEnd: string
+): { start: string; end: string; label: string } {
+  if (filter === 'all') {
+    return {
+      start: addCalendarDaysYmd(today, -ALL_MAX_DAYS),
+      end: today,
+      label: 'the last 120 days'
+    }
+  }
+  if (filter === 'thisMonth') {
+    const { start, end } = getThisMonthRange(today)
+    return { start, end, label: 'this month' }
+  }
+  if (filter === 'lastMonth') {
+    const { start, end } = getLastMonthRange(today)
+    return { start, end, label: 'last month' }
+  }
+  const start = customStart.trim() || addCalendarDaysYmd(today, -30)
+  const endRaw = customEnd.trim() || today
+  const end = endRaw < start ? start : endRaw
+  return {
+    start,
+    end,
+    label: `${formatDateOnlyForDisplay(start)} – ${formatDateOnlyForDisplay(end)}`
+  }
 }
 
 function callOutMatchesSearch(row: CallOutRow, query: string): boolean {
@@ -63,6 +119,12 @@ function callOutMatchesSearch(row: CallOutRow, query: string): boolean {
   )
 }
 
+function pillClass(active: boolean): string {
+  return `px-4 py-2 rounded font-semibold text-sm transition-colors ${
+    active ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+  }`
+}
+
 export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   const { canLogCallOut } = useAuth()
   const today = businessTodayYmd()
@@ -71,17 +133,10 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     return normalizeCallOutDate(initialDate) ?? today
   }, [initialDate, today])
 
-  const defaultRangeStart = useMemo(() => addCalendarDaysYmd(today, -DEFAULT_RANGE_DAYS), [today])
-  const defaultRangeEnd = today
-
-  const [rangeStart, setRangeStart] = useState(() => {
-    if (initialDay < defaultRangeStart) return initialDay
-    return defaultRangeStart
-  })
-  const [rangeEnd, setRangeEnd] = useState(() => {
-    if (initialDay > defaultRangeEnd) return initialDay
-    return defaultRangeEnd
-  })
+  const [activeFilter, setActiveFilter] = useState<ListFilter>('thisMonth')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [rows, setRows] = useState<CallOutRow[]>([])
   const [sickLeaves, setSickLeaves] = useState<SickLeaveRow[]>([])
@@ -95,48 +150,72 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   const [logCalledAtParts, setLogCalledAtParts] = useState<CalledAtParts>(defaultCalledAtPartsNow())
   const [saving, setSaving] = useState(false)
 
+  const listRange = useMemo(
+    () => resolveCallOutListRange(activeFilter, today, customStart, customEnd),
+    [activeFilter, today, customStart, customEnd]
+  )
+
   const activeStaff = useMemo(
     () => staffList.filter((s) => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name)),
     [staffList]
   )
 
-  const load = useCallback(async (rangeOverride?: { start: string; end: string }) => {
-    const start = rangeOverride?.start ?? rangeStart
-    const end = rangeOverride?.end ?? rangeEnd
-    setLoading(true)
-    setError(null)
-    try {
-      const [coRes, staffRes, sickRes] = await Promise.all([
-        fetch(`/api/call-outs?startDate=${start}&endDate=${end}`),
-        fetch('/api/staff'),
-        fetch(`/api/staff/sick-leave?startDate=${start}&endDate=${end}`)
-      ])
-      if (!coRes.ok) throw new Error('Failed to load call outs')
-      setRows(await coRes.json())
-      if (staffRes.ok) {
-        const staff = (await staffRes.json()) as StaffOption[]
-        setStaffList(staff)
+  const load = useCallback(
+    async (rangeOverride?: { start: string; end: string }) => {
+      const start = rangeOverride?.start ?? listRange.start
+      const end = rangeOverride?.end ?? listRange.end
+      setLoading(true)
+      setError(null)
+      try {
+        const [coRes, staffRes, sickRes] = await Promise.all([
+          fetch(`/api/call-outs?startDate=${start}&endDate=${end}`),
+          fetch('/api/staff'),
+          fetch(`/api/staff/sick-leave?startDate=${start}&endDate=${end}`)
+        ])
+        if (!coRes.ok) throw new Error('Failed to load call outs')
+        setRows(await coRes.json())
+        if (staffRes.ok) {
+          const staff = (await staffRes.json()) as StaffOption[]
+          setStaffList(staff)
+        }
+        if (sickRes.ok) {
+          const sick = (await sickRes.json()) as SickLeaveRow[]
+          setSickLeaves(Array.isArray(sick) ? sick : [])
+        } else {
+          setSickLeaves([])
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        setLoading(false)
       }
-      if (sickRes.ok) {
-        const sick = (await sickRes.json()) as SickLeaveRow[]
-        setSickLeaves(Array.isArray(sick) ? sick : [])
-      } else {
-        setSickLeaves([])
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
-    } finally {
-      setLoading(false)
+    },
+    [listRange.start, listRange.end]
+  )
+
+  useEffect(() => {
+    if (!initialDate) return
+    const normalized = normalizeCallOutDate(initialDate)
+    if (!normalized) return
+    const { start, end } = getThisMonthRange(today)
+    if (normalized < start || normalized > end) {
+      setActiveFilter('custom')
+      setShowCustomPicker(true)
+      setCustomStart(normalized)
+      setCustomEnd(normalized > today ? normalized : today)
     }
-  }, [rangeStart, rangeEnd])
+  }, [initialDate, today])
 
   useEffect(() => {
     setLogDate(initialDay)
   }, [initialDay])
 
   useEffect(() => {
+    if (activeFilter === 'custom' && (!customStart.trim() || !customEnd.trim())) {
+      return
+    }
     void load()
-  }, [load])
+  }, [load, activeFilter, customStart, customEnd])
 
   const filteredRows = useMemo(
     () => rows.filter((r) => callOutMatchesSearch(r, searchQuery)),
@@ -157,6 +236,20 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
 
   const sickOverlap = (row: CallOutRow) =>
     sickLeaves.some((sl) => sl.staffId === row.staffId && sickLeaveCoversDate(sl, row.date))
+
+  const ensureSavedDateVisible = (workDate: string): { start: string; end: string } => {
+    let { start, end } = listRange
+    if (workDate < start || workDate > end) {
+      setActiveFilter('custom')
+      setShowCustomPicker(true)
+      const nextStart = workDate < start ? workDate : start
+      const nextEnd = workDate > end ? workDate : end
+      setCustomStart(nextStart)
+      setCustomEnd(nextEnd)
+      return { start: nextStart, end: nextEnd }
+    }
+    return { start, end }
+  }
 
   const handleLog = async () => {
     if (!logStaffId || !logDate) return
@@ -179,11 +272,8 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
       }
       setLogNotes('')
       setLogCalledAtParts(defaultCalledAtPartsNow())
-      const nextStart = logDate < rangeStart ? logDate : rangeStart
-      const nextEnd = logDate > rangeEnd ? logDate : rangeEnd
-      if (nextStart !== rangeStart) setRangeStart(nextStart)
-      if (nextEnd !== rangeEnd) setRangeEnd(nextEnd)
-      await load({ start: nextStart, end: nextEnd })
+      const range = ensureSavedDateVisible(logDate)
+      await load(range)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
     } finally {
@@ -202,7 +292,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     }
   }
 
-  const rangeLabel = `${formatDateOnlyForDisplay(rangeStart)} – ${formatDateOnlyForDisplay(rangeEnd)}`
+  const rangeLabel = listRange.label
 
   const renderDayTable = (dayRows: CallOutRow[]) => (
     <table className="min-w-full text-sm">
@@ -265,6 +355,81 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
     </table>
   )
 
+  const listToolbar = (
+    <div className="mb-4 flex flex-wrap items-center gap-3 justify-between">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveFilter('all')
+            setShowCustomPicker(false)
+          }}
+          className={pillClass(activeFilter === 'all')}
+          title={`Last ${ALL_MAX_DAYS} days`}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveFilter('thisMonth')
+            setShowCustomPicker(false)
+          }}
+          className={pillClass(activeFilter === 'thisMonth')}
+        >
+          This Month
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveFilter('lastMonth')
+            setShowCustomPicker(false)
+          }}
+          className={pillClass(activeFilter === 'lastMonth')}
+        >
+          Last Month
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveFilter('custom')
+            setShowCustomPicker(true)
+            if (!customStart) setCustomStart(addCalendarDaysYmd(today, -30))
+            if (!customEnd) setCustomEnd(today)
+          }}
+          className={pillClass(activeFilter === 'custom')}
+        >
+          Custom
+        </button>
+        {showCustomPicker && activeFilter === 'custom' ? (
+          <div className="flex flex-wrap items-center gap-2 ml-1">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+            <span className="text-sm text-gray-500">to</span>
+            <input
+              type="date"
+              value={customEnd}
+              min={customStart}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+        ) : null}
+      </div>
+      <input
+        type="search"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Staff name or note…"
+        className="w-full min-w-[12rem] max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
+      />
+    </div>
+  )
+
   return (
     <div>
       <p className="text-sm text-gray-600 mb-4">
@@ -272,55 +437,9 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         period — shown on the roster. Sick leave entered later can overlap the same dates.
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 mb-4">
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            From
-          </label>
-          <input
-            type="date"
-            value={rangeStart}
-            onChange={(e) => setRangeStart(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            To
-          </label>
-          <input
-            type="date"
-            value={rangeEnd}
-            min={rangeStart}
-            onChange={(e) => setRangeEnd(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => void load(undefined)}
-          className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          Refresh
-        </button>
-      </div>
-
-      <div className="mb-6">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-          Search
-        </label>
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Staff name or note…"
-          className="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
-        />
-      </div>
-
       {canLogCallOut ? (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
-          <h2 className="text-sm font-semibold text-gray-800 mb-3">Log call out</h2>
+          <TimeOffFormHeading accent="teal">Log call out</TimeOffFormHeading>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
@@ -378,13 +497,20 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         </div>
       ) : null}
 
+      {listToolbar}
+
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
+      ) : activeFilter === 'custom' && (!customStart.trim() || !customEnd.trim()) ? (
+        <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
+          Choose a start and end date for the custom range.
+        </p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
-          No call outs from {rangeLabel}.
+          No call outs in {rangeLabel}.
+          {activeFilter === 'all' ? ` (All shows the last ${ALL_MAX_DAYS} days.)` : null}
         </p>
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
@@ -392,11 +518,10 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         </p>
       ) : (
         <div className="space-y-6">
+          <TimeOffListHeading count={filteredRows.length}>Call outs</TimeOffListHeading>
           {groupedByDay.map(({ date, rows: dayRows }) => (
             <section key={date}>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2 px-0.5">
-                {formatDateOnlyForDisplay(date)}
-              </h3>
+              <TimeOffDayHeading>{formatDateOnlyForDisplay(date)}</TimeOffDayHeading>
               <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                 {renderDayTable(dayRows)}
               </div>
