@@ -15,6 +15,7 @@ import {
 import { deviceUserIdsMatch, expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
 import { readStationTimeZone } from '@/lib/present-absence'
+import { formatAppUserDisplayName } from '@/lib/roles'
 
 /** Max inclusive span for one report (safety). */
 export const STAFF_ATTENDANCE_REPORT_MAX_DAYS = 93
@@ -29,11 +30,20 @@ export interface StaffAttendanceReportPunch {
   punchTimeIso: string
 }
 
+export interface StaffAttendanceReportCallOut {
+  calledAt: string
+  notes: string
+  recordedByLabel: string | null
+  /** Sick leave also covers this work date (tooltip hint). */
+  sickLeaveOverlap: boolean
+}
+
 export interface StaffAttendanceReportDay {
   dateYmd: string
   dateLabel: string
   status: StaffAttendanceDayStatus
   statusNote: string
+  callOut: StaffAttendanceReportCallOut | null
   shiftName: string | null
   punches: StaffAttendanceReportPunch[]
   hours: number
@@ -227,7 +237,8 @@ export async function buildStaffAttendanceReport(params: {
   const logOr: Array<{ staffId: string } | { deviceUserId: { in: string[] } }> = [{ staffId }]
   if (devKeys.length) logOr.push({ deviceUserId: { in: devKeys } })
 
-  const [logs, rosterEntries, overrides, sickLeaves, dayOffs, settingsRow] = await Promise.all([
+  const [logs, rosterEntries, overrides, sickLeaves, dayOffs, callOutRows, settingsRow] =
+    await Promise.all([
     prisma.attendanceLog.findMany({
       where: {
         punchTime: { gte: windowStart, lt: windowEndExclusive },
@@ -262,6 +273,14 @@ export async function buildStaffAttendanceReport(params: {
       where: { staffId, date: { gte: startDate, lte: endDate }, status: 'approved' },
       select: { date: true, reason: true }
     }),
+    prisma.staffCallOut.findMany({
+      where: { staffId, date: { gte: startDate, lte: endDate } },
+      include: {
+        recordedBy: {
+          select: { id: true, username: true, firstName: true, lastName: true }
+        }
+      }
+    }),
     prisma.appSettings.findUnique({ where: { key: 'attendance_expected_punches_per_day' } })
   ])
 
@@ -287,6 +306,21 @@ export async function buildStaffAttendanceReport(params: {
   )
 
   const dayOffByDate = new Map(dayOffs.map((d) => [d.date, d.reason ?? 'Day off']))
+
+  const callOutByDate = new Map(
+    callOutRows.map((c) => [
+      c.date,
+      {
+        calledAt: c.calledAt.toISOString(),
+        notes: c.notes,
+        recordedByLabel: c.recordedBy ? formatAppUserDisplayName(c.recordedBy) : null
+      }
+    ])
+  )
+
+  function isOnSickLeave(ymd: string): boolean {
+    return sickLeaves.some((sl) => sl.startDate <= ymd && sl.endDate >= ymd)
+  }
 
   function excusedNoteFor(ymd: string): string | null {
     if (isDateInVacation(ymd, vacationStart, vacationEnd)) return 'Vacation'
@@ -368,11 +402,17 @@ export async function buildStaffAttendanceReport(params: {
       statusNote = statusNote ? `${statusNote} — ${extra}` : extra
     }
 
+    const callOutRow = callOutByDate.get(dateYmd)
+    const callOut = callOutRow
+      ? { ...callOutRow, sickLeaveOverlap: isOnSickLeave(dateYmd) }
+      : null
+
     days.push({
       dateYmd,
       dateLabel: formatDateOnlyForDisplay(dateYmd),
       status,
       statusNote,
+      callOut,
       shiftName: roster?.shiftName ?? null,
       punches: countedLogs.map((l) => ({
         timeLabel: formatPunchTime(l.punchTime, tz),

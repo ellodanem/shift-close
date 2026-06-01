@@ -6,7 +6,7 @@ import { useAuth } from '@/app/components/AuthContext'
 import {
   buildCallOutTooltip,
   combineCalledAtParts,
-  defaultCalledAtPartsNow,
+  defaultCalledAtPartsForWorkDate,
   formatCalledAtLocal,
   normalizeCallOutDate,
   sickLeaveCoversDate,
@@ -126,7 +126,9 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
   const [logStaffId, setLogStaffId] = useState('')
   const [logDate, setLogDate] = useState(initialDay)
   const [logNotes, setLogNotes] = useState('')
-  const [logCalledAtParts, setLogCalledAtParts] = useState<CalledAtParts>(defaultCalledAtPartsNow())
+  const [logCalledAtParts, setLogCalledAtParts] = useState<CalledAtParts>(() =>
+    defaultCalledAtPartsForWorkDate(initialDay)
+  )
   const [saving, setSaving] = useState(false)
 
   const listRange = useMemo(
@@ -180,6 +182,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
 
   useEffect(() => {
     setLogDate(initialDay)
+    setLogCalledAtParts(defaultCalledAtPartsForWorkDate(initialDay))
   }, [initialDay])
 
   useEffect(() => {
@@ -243,7 +246,7 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
         throw new Error(err.error || 'Failed to save')
       }
       setLogNotes('')
-      setLogCalledAtParts(defaultCalledAtPartsNow())
+      setLogCalledAtParts(defaultCalledAtPartsForWorkDate(logDate))
       const range = ensureSavedDateVisible(logDate)
       invalidateBundles()
       await load(range, true)
@@ -435,7 +438,13 @@ export default function CallOutsTab({ initialDate }: CallOutsTabProps) {
               <input
                 type="date"
                 value={logDate}
-                onChange={(e) => setLogDate(e.target.value)}
+                onChange={(e) => {
+                  const nextDate = e.target.value
+                  setLogDate(nextDate)
+                  if (nextDate) {
+                    setLogCalledAtParts((prev) => ({ ...prev, date: nextDate }))
+                  }
+                }}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
               />
             </div>

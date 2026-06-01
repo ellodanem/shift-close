@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { BUSINESS_TIME_ZONE } from '@/lib/datetime-policy'
 import {
   isFullAccessRole,
   isOperationsManagerRole,
@@ -83,7 +85,19 @@ export function defaultCalledAtPartsNow(): CalledAtParts {
   return { date: raw.date, time: snapCalledAtTimeToSelect(raw.time) }
 }
 
-/** ISO instant for API, or null when cleared / incomplete (server uses "now"). */
+/** Default called-at instant: work date + current wall time in station TZ (for API when omitted). */
+export function defaultCalledAtForWorkDate(workDateYmd: string, now = new Date()): Date {
+  const timePart = formatInTimeZone(now, BUSINESS_TIME_ZONE, 'HH:mm:ss')
+  return fromZonedTime(`${workDateYmd}T${timePart}`, BUSINESS_TIME_ZONE)
+}
+
+/** Form defaults: called-at date follows work date; time is now (15-min snap). */
+export function defaultCalledAtPartsForWorkDate(workDateYmd: string, now = new Date()): CalledAtParts {
+  const raw = splitCalledAtToParts(defaultCalledAtForWorkDate(workDateYmd, now))
+  return { date: workDateYmd, time: snapCalledAtTimeToSelect(raw.time) }
+}
+
+/** ISO instant for API, or null when cleared / incomplete (server uses work date + station time). */
 export function combineCalledAtParts(parts: CalledAtParts): string | null {
   const date = parts.date.trim()
   const time = parts.time.trim()

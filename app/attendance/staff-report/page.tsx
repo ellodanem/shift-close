@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IconCallOut } from '@/app/components/IconDropdown'
+import { buildCallOutTooltip } from '@/lib/call-outs'
 import { printStaffAttendanceReport } from '@/lib/staff-attendance-report-print'
 import type { StaffAttendanceReport, StaffAttendanceReportDay } from '@/lib/staff-attendance-report'
 
@@ -347,11 +349,28 @@ function StaffAttendanceReportInner() {
                     <tr key={d.dateYmd} className="border-b border-gray-100 hover:bg-gray-50/80">
                       <td className="px-4 py-2 text-gray-900 whitespace-nowrap">{d.dateLabel}</td>
                       <td className="px-4 py-2">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadgeClass(d.status)}`}
-                        >
-                          {statusLabel(d.status)}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadgeClass(d.status)}`}
+                          >
+                            {statusLabel(d.status)}
+                          </span>
+                          {d.callOut && (
+                            <span
+                              className="inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-amber-600 text-white shadow-sm ring-1 ring-amber-900/25 select-none"
+                              title={buildCallOutTooltip({
+                                calledAt: d.callOut.calledAt,
+                                notes: d.callOut.notes,
+                                recordedByLabel: d.callOut.recordedByLabel,
+                                sickLeaveOverlap: d.callOut.sickLeaveOverlap
+                              })}
+                              role="img"
+                              aria-label="Call out"
+                            >
+                              <IconCallOut size={9} />
+                            </span>
+                          )}
+                        </div>
                         {d.statusNote && (
                           <div className="text-xs text-gray-500 mt-0.5 max-w-[14rem]">{d.statusNote}</div>
                         )}

@@ -15,6 +15,7 @@ import CallOutCalledAtFields from '@/app/components/CallOutCalledAtFields'
 import {
   buildCallOutTooltip,
   combineCalledAtParts,
+  defaultCalledAtPartsForWorkDate,
   defaultCalledAtPartsNow,
   EMPTY_CALLED_AT_PARTS,
   snapCalledAtTimeToSelect,
@@ -660,7 +661,7 @@ export default function RosterPage() {
       const parts = splitCalledAtToParts(existing.calledAt)
       setCallOutCalledAtParts({ date: parts.date, time: snapCalledAtTimeToSelect(parts.time) })
     } else {
-      setCallOutCalledAtParts(defaultCalledAtPartsNow())
+      setCallOutCalledAtParts(defaultCalledAtPartsForWorkDate(date))
     }
   }
 

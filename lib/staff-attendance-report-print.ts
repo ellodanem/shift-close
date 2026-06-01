@@ -1,3 +1,4 @@
+import { buildCallOutTooltip } from '@/lib/call-outs'
 import { formatDateRange } from '@/lib/pay-period-excel'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import type { StaffAttendanceReport, StaffAttendanceReportDay } from '@/lib/staff-attendance-report'
@@ -43,10 +44,20 @@ export function printStaffAttendanceReport(data: StaffAttendanceReport) {
       const shift = d.shiftName
         ? `<div style="font-size:11px;color:#555">${escapePayPeriodHtml(d.shiftName)}</div>`
         : ''
+      const callOut = d.callOut
+        ? `<div style="font-size:11px;color:#b45309;margin-top:2px" title="${escapePayPeriodHtml(
+            buildCallOutTooltip({
+              calledAt: d.callOut.calledAt,
+              notes: d.callOut.notes,
+              recordedByLabel: d.callOut.recordedByLabel,
+              sickLeaveOverlap: d.callOut.sickLeaveOverlap
+            })
+          )}">Call out</div>`
+        : ''
       return `
         <tr style="border-bottom:1px solid #ddd">
           <td style="padding:8px;vertical-align:top">${escapePayPeriodHtml(d.dateLabel)}</td>
-          <td style="padding:8px;vertical-align:top"><strong>${statusLabel(d)}</strong>${note}${shift}</td>
+          <td style="padding:8px;vertical-align:top"><strong>${statusLabel(d)}</strong>${callOut}${note}${shift}</td>
           <td style="padding:8px;vertical-align:top">${punchTimesCell(d)}${qualityWarning(d)}</td>
           <td style="padding:8px;text-align:right;vertical-align:top">${data.punchExempt ? '—' : d.hours.toFixed(2)}</td>
         </tr>

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { normalizeCallOutDate, requireCallOutWrite } from '@/lib/call-outs'
+import {
+  defaultCalledAtForWorkDate,
+  normalizeCallOutDate,
+  requireCallOutWrite
+} from '@/lib/call-outs'
 import { formatAppUserDisplayName } from '@/lib/roles'
 import { prisma } from '@/lib/prisma'
 
@@ -88,7 +92,7 @@ export async function POST(
       return NextResponse.json({ error: 'Staff member not found' }, { status: 404 })
     }
 
-    let calledAtDate = new Date()
+    let calledAtDate = defaultCalledAtForWorkDate(normalizedDate)
     if (calledAt) {
       const parsed = new Date(calledAt)
       if (!Number.isNaN(parsed.getTime())) calledAtDate = parsed
