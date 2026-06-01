@@ -22,10 +22,24 @@ export async function GET(request: NextRequest) {
 
     const records = await prisma.staffDayOff.findMany({
       where,
-      orderBy: [{ date: 'asc' }, { staffId: 'asc' }]
+      include: {
+        staff: { select: { id: true, name: true, firstName: true, lastName: true } }
+      },
+      orderBy: [{ date: 'desc' }, { staffId: 'asc' }]
     })
 
-    return NextResponse.json(records)
+    return NextResponse.json(
+      records.map((r) => ({
+        id: r.id,
+        staffId: r.staffId,
+        staffName: r.staff.name,
+        staffFirstName: r.staff.firstName,
+        date: r.date,
+        reason: r.reason,
+        status: r.status,
+        createdAt: r.createdAt.toISOString()
+      }))
+    )
   } catch (error) {
     console.error('Error fetching day off records:', error)
     return NextResponse.json(

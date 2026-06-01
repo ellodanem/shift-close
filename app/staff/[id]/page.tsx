@@ -710,8 +710,8 @@ export default function EditStaffPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
           <div className="flex items-center justify-between gap-2 mb-4">
             <h2 className="text-lg font-semibold text-gray-700">Call outs</h2>
-            <Link href="/call-outs" className="text-sm font-medium text-teal-700 hover:text-teal-900">
-              Log on call outs page →
+            <Link href="/time-off?tab=call-outs" className="text-sm font-medium text-teal-700 hover:text-teal-900">
+              Log on Time Off page →
             </Link>
           </div>
           <p className="text-xs text-gray-500 mb-4">

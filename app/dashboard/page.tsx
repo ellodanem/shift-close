@@ -851,7 +851,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 shrink-0">
           {canLogCallOut ? (
             <Link
-              href={`/call-outs?date=${encodeURIComponent(todayRoster?.date ?? businessTodayYmd())}`}
+              href={`/time-off?tab=call-outs&date=${encodeURIComponent(todayRoster?.date ?? businessTodayYmd())}`}
               className="text-xs text-teal-700 hover:text-teal-900 font-medium whitespace-nowrap"
             >
               Log call out →
