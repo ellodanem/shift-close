@@ -345,6 +345,28 @@ export function IconRepeat() {
   )
 }
 
+/** Roster badge: staff phoned in (call out on file). */
+export function IconCallOut({ className = 'text-white', size = 11 }: { className?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 3l5 5M21 3v5h-5"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function BankStatusGlyph({ status }: { status: 'pending' | 'cleared' | 'discrepancy' }) {
   if (status === 'cleared') {
     return (

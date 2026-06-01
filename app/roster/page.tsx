@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
-import { useDropdownFixedPosition } from '@/app/components/IconDropdown'
+import { IconCallOut, useDropdownFixedPosition } from '@/app/components/IconDropdown'
 import {
   countOffDaysForStaffInWeek,
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
@@ -106,41 +106,30 @@ interface StaffCallOut {
   recordedByLabel?: string | null
 }
 
+/** Read-only indicator when a call out exists; use toolbar + Call outs page to log. */
 function CallOutMarker({
   callOut,
-  sickOverlap,
-  canEdit,
-  onOpen
+  sickOverlap
 }: {
   callOut?: StaffCallOut
   sickOverlap: boolean
-  canEdit: boolean
-  onOpen: () => void
 }) {
-  if (!callOut && !canEdit) return null
-  const title = callOut
-    ? buildCallOutTooltip({
-        calledAt: callOut.calledAt,
-        notes: callOut.notes,
-        recordedByLabel: callOut.recordedByLabel,
-        sickLeaveOverlap: sickOverlap
-      })
-    : 'Log call out'
+  if (!callOut) return null
+  const title = buildCallOutTooltip({
+    calledAt: callOut.calledAt,
+    notes: callOut.notes,
+    recordedByLabel: callOut.recordedByLabel,
+    sickLeaveOverlap: sickOverlap
+  })
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onOpen()
-      }}
-      className={`text-[12px] leading-none select-none rounded px-0.5 ${
-        callOut ? 'text-teal-800 hover:bg-teal-50 ring-1 ring-teal-200' : 'text-gray-400 hover:text-teal-700'
-      }`}
+    <span
+      className="inline-flex h-[15px] w-[15px] items-center justify-center rounded-full bg-amber-600 text-white shadow-sm ring-1 ring-amber-900/25 select-none"
       title={title}
-      aria-label={callOut ? 'Call out logged' : 'Log call out'}
+      role="img"
+      aria-label="Call out"
     >
-      📞
-    </button>
+      <IconCallOut size={9} />
+    </span>
   )
 }
 
@@ -329,11 +318,9 @@ export default function RosterPage() {
   const [dayOffRequests, setDayOffRequests] = useState<StaffDayOffRequest[]>([])
   const [sickLeaves, setSickLeaves] = useState<StaffSickLeave[]>([])
   const [callOuts, setCallOuts] = useState<StaffCallOut[]>([])
-  const [callOutModal, setCallOutModal] = useState<{
-    staffId: string
-    date: string
-    staffLabel: string
-  } | null>(null)
+  const [showCallOutModal, setShowCallOutModal] = useState(false)
+  const [callOutStaffId, setCallOutStaffId] = useState('')
+  const [callOutDate, setCallOutDate] = useState('')
   const [callOutNotes, setCallOutNotes] = useState('')
   const [callOutCalledAt, setCallOutCalledAt] = useState('')
   const [savingCallOut, setSavingCallOut] = useState(false)
@@ -659,27 +646,38 @@ export default function RosterPage() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
-  const openCallOutModal = (staff: Staff, date: string) => {
-    const existing = getCallOutFor(staff.id, date)
+  const syncCallOutFormForSelection = (staffId: string, date: string) => {
+    if (!staffId || !date) {
+      setCallOutNotes('')
+      setCallOutCalledAt(toDatetimeLocalValue(new Date().toISOString()))
+      return
+    }
+    const existing = getCallOutFor(staffId, date)
     setCallOutNotes(existing?.notes ?? '')
-    setCallOutCalledAt(existing ? toDatetimeLocalValue(existing.calledAt) : toDatetimeLocalValue(new Date().toISOString()))
-    setCallOutModal({
-      staffId: staff.id,
-      date,
-      staffLabel: staff.firstName?.trim() || staff.name
-    })
+    setCallOutCalledAt(
+      existing ? toDatetimeLocalValue(existing.calledAt) : toDatetimeLocalValue(new Date().toISOString())
+    )
+  }
+
+  const openCallOutModal = (staff?: Staff, date?: string) => {
+    const workDate = date ?? formatInputDate(new Date())
+    const staffId = staff?.id ?? ''
+    setCallOutStaffId(staffId)
+    setCallOutDate(workDate)
+    syncCallOutFormForSelection(staffId, workDate)
+    setShowCallOutModal(true)
   }
 
   const handleSaveCallOut = async () => {
-    if (!callOutModal) return
+    if (!callOutStaffId || !callOutDate) return
     setSavingCallOut(true)
     try {
       const body: { date: string; notes: string; calledAt?: string } = {
-        date: callOutModal.date,
+        date: callOutDate,
         notes: callOutNotes
       }
       if (callOutCalledAt.trim()) body.calledAt = new Date(callOutCalledAt).toISOString()
-      const res = await fetch(`/api/staff/${callOutModal.staffId}/call-out`, {
+      const res = await fetch(`/api/staff/${callOutStaffId}/call-out`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -695,7 +693,7 @@ export default function RosterPage() {
         )
         return [...rest, saved as StaffCallOut]
       })
-      setCallOutModal(null)
+      setShowCallOutModal(false)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save call out')
     } finally {
@@ -704,10 +702,10 @@ export default function RosterPage() {
   }
 
   const handleDeleteCallOut = async () => {
-    if (!callOutModal) return
-    const existing = getCallOutFor(callOutModal.staffId, callOutModal.date)
+    if (!callOutStaffId || !callOutDate) return
+    const existing = getCallOutFor(callOutStaffId, callOutDate)
     if (!existing) {
-      setCallOutModal(null)
+      setShowCallOutModal(false)
       return
     }
     if (!confirm('Remove this call out?')) return
@@ -716,7 +714,7 @@ export default function RosterPage() {
       const res = await fetch(`/api/call-outs/${existing.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
       setCallOuts((prev) => prev.filter((c) => c.id !== existing.id))
-      setCallOutModal(null)
+      setShowCallOutModal(false)
     } catch {
       alert('Failed to delete call out')
     } finally {
@@ -1572,10 +1570,7 @@ export default function RosterPage() {
             {canLogCallOut ? (
               <button
                 type="button"
-                onClick={() => {
-                  const active = allStaff.find((s) => s.status === 'active' && s.role !== 'manager')
-                  if (active) openCallOutModal(active, formatInputDate(new Date()))
-                }}
+                onClick={() => openCallOutModal()}
                 className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-teal-600 text-white rounded font-semibold hover:bg-teal-700 text-sm"
               >
                 <span className="md:hidden">+ Call</span>
@@ -2174,12 +2169,7 @@ export default function RosterPage() {
                                     ⭐
                                   </span>
                                 ) : null}
-                                <CallOutMarker
-                                  callOut={callOut}
-                                  sickOverlap={!!callOut && onSickLeave}
-                                  canEdit={canLogCallOut}
-                                  onOpen={() => openCallOutModal(s, date)}
-                                />
+                                <CallOutMarker callOut={callOut} sickOverlap={!!callOut && onSickLeave} />
                                 {blockedScheduledByLeave ? (
                                   <span
                                     className="inline-flex items-center rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700"
@@ -2549,12 +2539,7 @@ export default function RosterPage() {
                                   ⭐
                                 </span>
                               ) : null}
-                              <CallOutMarker
-                                callOut={callOut}
-                                sickOverlap={!!callOut && onSickLeave}
-                                canEdit={canLogCallOut}
-                                onOpen={() => openCallOutModal(s, date)}
-                              />
+                              <CallOutMarker callOut={callOut} sickOverlap={!!callOut && onSickLeave} />
                               {blockedScheduledByLeave ? (
                                 <span
                                   className="inline-flex items-center rounded border border-rose-300 bg-rose-50 px-1 py-[1px] text-[9px] font-bold uppercase tracking-wide text-rose-700"
@@ -2983,28 +2968,64 @@ export default function RosterPage() {
           </div>
         )}
 
-        {callOutModal && canLogCallOut ? (
+        {showCallOutModal && canLogCallOut ? (
           <div
             className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setCallOutModal(null)}
+            onClick={() => setShowCallOutModal(false)}
           >
             <div
               className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
+              aria-labelledby="call-out-modal-title"
             >
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Call out</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {callOutModal.staffLabel} · {callOutModal.date}
-                {getCallOutFor(callOutModal.staffId, callOutModal.date) &&
-                isOnSickLeave(callOutModal.staffId, callOutModal.date) ? (
-                  <span className="block text-xs text-rose-700 mt-1">
-                    Sick leave also covers this day — call out is kept for the phone log.
-                  </span>
-                ) : null}
-              </p>
+              <h3 id="call-out-modal-title" className="text-lg font-semibold text-gray-900 mb-4">
+                Call out
+              </h3>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff member</label>
+                  <select
+                    value={callOutStaffId}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setCallOutStaffId(id)
+                      syncCallOutFormForSelection(id, callOutDate)
+                    }}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  >
+                    <option value="">— Select staff —</option>
+                    {allStaff
+                      .filter((s) => s.status === 'active' && s.role !== 'manager')
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.firstName?.trim() || s.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Work date</label>
+                  <input
+                    type="date"
+                    value={callOutDate}
+                    onChange={(e) => {
+                      const d = e.target.value
+                      setCallOutDate(d)
+                      syncCallOutFormForSelection(callOutStaffId, d)
+                    }}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  />
+                </div>
+                {callOutStaffId &&
+                callOutDate &&
+                getCallOutFor(callOutStaffId, callOutDate) &&
+                isOnSickLeave(callOutStaffId, callOutDate) ? (
+                  <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded px-3 py-2">
+                    Sick leave also covers this day — call out is kept for the phone log.
+                  </p>
+                ) : null}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Called at <span className="text-gray-400 font-normal">(optional)</span>
@@ -3030,7 +3051,9 @@ export default function RosterPage() {
                 </div>
               </div>
               <div className="flex justify-between gap-2 mt-6">
-                {getCallOutFor(callOutModal.staffId, callOutModal.date) ? (
+                {callOutStaffId &&
+                callOutDate &&
+                getCallOutFor(callOutStaffId, callOutDate) ? (
                   <button
                     type="button"
                     onClick={() => void handleDeleteCallOut()}
@@ -3045,7 +3068,7 @@ export default function RosterPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setCallOutModal(null)}
+                    onClick={() => setShowCallOutModal(false)}
                     className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Cancel
@@ -3053,7 +3076,7 @@ export default function RosterPage() {
                   <button
                     type="button"
                     onClick={() => void handleSaveCallOut()}
-                    disabled={savingCallOut}
+                    disabled={savingCallOut || !callOutStaffId || !callOutDate}
                     className="px-4 py-2 bg-teal-600 text-white rounded text-sm font-semibold hover:bg-teal-700 disabled:opacity-50"
                   >
                     {savingCallOut ? 'Saving…' : 'Save'}
