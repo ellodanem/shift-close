@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { staffDisplayLabel } from './staff-label'
+import { TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
 
 interface StaffOption {
   id: string
@@ -197,7 +198,7 @@ export default function SickLeaveTab() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">Add sick leave</h2>
+        <TimeOffFormHeading accent="rose">Add sick leave</TimeOffFormHeading>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
@@ -274,13 +275,16 @@ export default function SickLeaveTab() {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
-          No sick leave in this range.
-        </p>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <table className="min-w-full text-sm">
+        <>
+          <TimeOffListHeading count={rows.length}>Sick leave</TimeOffListHeading>
+          {rows.length === 0 ? (
+            <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
+              No sick leave in this range.
+            </p>
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-3">Staff</th>
@@ -351,8 +355,10 @@ export default function SickLeaveTab() {
                 )
               })}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

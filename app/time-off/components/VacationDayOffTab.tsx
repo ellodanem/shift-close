@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { staffDisplayLabel } from './staff-label'
+import { TimeOffFormHeading, TimeOffListHeading } from './time-off-headings'
 
 interface StaffOption {
   id: string
@@ -228,7 +229,7 @@ export default function VacationDayOffTab() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">Set vacation</h2>
+        <TimeOffFormHeading accent="amber">Set vacation</TimeOffFormHeading>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
@@ -278,7 +279,7 @@ export default function VacationDayOffTab() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">Add day off</h2>
+        <TimeOffFormHeading accent="blue">Add day off</TimeOffFormHeading>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
@@ -336,7 +337,7 @@ export default function VacationDayOffTab() {
       ) : (
         <div className="space-y-6">
           <section>
-            <h2 className="text-sm font-semibold text-gray-800 mb-3">Vacation periods</h2>
+            <TimeOffListHeading count={vacations.length}>Vacation periods</TimeOffListHeading>
             {vacations.length === 0 ? (
               <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
                 No vacation periods in this range.
@@ -384,7 +385,7 @@ export default function VacationDayOffTab() {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-gray-800 mb-3">Day offs</h2>
+            <TimeOffListHeading count={dayOffs.length}>Day offs</TimeOffListHeading>
             {dayOffs.length === 0 ? (
               <p className="text-sm text-gray-600 bg-white rounded-lg border border-gray-200 p-5">
                 No day offs in this range.
