@@ -35,6 +35,13 @@ function addDaysYmd(ymd: string, days: number): string {
   return `${y}-${m}-${day}`
 }
 
+/** Inclusive calendar days from start through end (YYYY-MM-DD). */
+function sickLeaveInclusiveDays(startYmd: string, endYmd: string): number {
+  const start = new Date(`${startYmd}T12:00:00`)
+  const end = new Date(`${endYmd}T12:00:00`)
+  return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+}
+
 const statusColors: Record<string, string> = {
   approved: 'bg-green-100 text-green-800',
   denied: 'bg-red-100 text-red-800',
@@ -289,6 +296,7 @@ export default function SickLeaveTab() {
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-3">Staff</th>
                 <th className="px-4 py-3">Dates</th>
+                <th className="px-4 py-3">Days</th>
                 <th className="px-4 py-3">Reason</th>
                 <th className="px-4 py-3">Documents</th>
                 <th className="px-4 py-3">Status</th>
@@ -310,6 +318,9 @@ export default function SickLeaveTab() {
                       </Link>
                     </td>
                     <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{rangeLabel}</td>
+                    <td className="px-4 py-2.5 text-gray-700 tabular-nums">
+                      {sickLeaveInclusiveDays(r.startDate, r.endDate)}
+                    </td>
                     <td className="px-4 py-2.5 text-gray-600 max-w-xs truncate">
                       {r.reason || '—'}
                     </td>
