@@ -11,7 +11,16 @@ import {
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
   staffIdsBelowMinOffDays
 } from '@/lib/roster-settings'
-import { buildCallOutTooltip } from '@/lib/call-outs'
+import CallOutCalledAtFields from '@/app/components/CallOutCalledAtFields'
+import {
+  buildCallOutTooltip,
+  combineCalledAtParts,
+  defaultCalledAtPartsNow,
+  EMPTY_CALLED_AT_PARTS,
+  snapCalledAtTimeToSelect,
+  splitCalledAtToParts,
+  type CalledAtParts
+} from '@/lib/call-outs'
 import {
   activeCountStaffIds,
   displayStaffForWeek,
@@ -322,7 +331,7 @@ export default function RosterPage() {
   const [callOutStaffId, setCallOutStaffId] = useState('')
   const [callOutDate, setCallOutDate] = useState('')
   const [callOutNotes, setCallOutNotes] = useState('')
-  const [callOutCalledAt, setCallOutCalledAt] = useState('')
+  const [callOutCalledAtParts, setCallOutCalledAtParts] = useState<CalledAtParts>(EMPTY_CALLED_AT_PARTS)
   const [savingCallOut, setSavingCallOut] = useState(false)
   const [minOffDaysPerWeek, setMinOffDaysPerWeek] = useState(ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT)
 
@@ -639,24 +648,20 @@ export default function RosterPage() {
   const getCallOutFor = (staffId: string, date: string): StaffCallOut | undefined =>
     callOuts.find((c) => c.staffId === staffId && c.date === date)
 
-  const toDatetimeLocalValue = (iso: string) => {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return ''
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-
   const syncCallOutFormForSelection = (staffId: string, date: string) => {
     if (!staffId || !date) {
       setCallOutNotes('')
-      setCallOutCalledAt(toDatetimeLocalValue(new Date().toISOString()))
+      setCallOutCalledAtParts(defaultCalledAtPartsNow())
       return
     }
     const existing = getCallOutFor(staffId, date)
     setCallOutNotes(existing?.notes ?? '')
-    setCallOutCalledAt(
-      existing ? toDatetimeLocalValue(existing.calledAt) : toDatetimeLocalValue(new Date().toISOString())
-    )
+    if (existing) {
+      const parts = splitCalledAtToParts(existing.calledAt)
+      setCallOutCalledAtParts({ date: parts.date, time: snapCalledAtTimeToSelect(parts.time) })
+    } else {
+      setCallOutCalledAtParts(defaultCalledAtPartsNow())
+    }
   }
 
   const openCallOutModal = (staff?: Staff, date?: string) => {
@@ -676,7 +681,8 @@ export default function RosterPage() {
         date: callOutDate,
         notes: callOutNotes
       }
-      if (callOutCalledAt.trim()) body.calledAt = new Date(callOutCalledAt).toISOString()
+      const calledAtIso = combineCalledAtParts(callOutCalledAtParts)
+      if (calledAtIso) body.calledAt = calledAtIso
       const res = await fetch(`/api/staff/${callOutStaffId}/call-out`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1560,12 +1566,6 @@ export default function RosterPage() {
               className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50 text-sm sm:inline-block"
             >
               Staff
-            </a>
-            <a
-              href="/call-outs"
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-teal-300 text-teal-800 rounded font-semibold hover:bg-teal-50 text-sm sm:inline-block"
-            >
-              Call outs
             </a>
             {canLogCallOut ? (
               <button
@@ -3026,17 +3026,10 @@ export default function RosterPage() {
                     Sick leave also covers this day — call out is kept for the phone log.
                   </p>
                 ) : null}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Called at <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={callOutCalledAt}
-                    onChange={(e) => setCallOutCalledAt(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                  />
-                </div>
+                <CallOutCalledAtFields
+                  value={callOutCalledAtParts}
+                  onChange={setCallOutCalledAtParts}
+                />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Note <span className="text-gray-400 font-normal">(optional)</span>

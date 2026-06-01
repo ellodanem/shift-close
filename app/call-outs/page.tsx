@@ -1,9 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import CallOutCalledAtFields from '@/app/components/CallOutCalledAtFields'
 import { useAuth } from '@/app/components/AuthContext'
-import { buildCallOutTooltip, formatCalledAtLocal, sickLeaveCoversDate } from '@/lib/call-outs'
+import {
+  buildCallOutTooltip,
+  combineCalledAtParts,
+  defaultCalledAtPartsNow,
+  formatCalledAtLocal,
+  normalizeCallOutDate,
+  sickLeaveCoversDate,
+  type CalledAtParts
+} from '@/lib/call-outs'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 
 interface CallOutRow {
@@ -38,10 +48,18 @@ function staffLabel(s: { staffName: string; staffFirstName?: string }): string {
   return fn || s.staffName
 }
 
-export default function CallOutsPage() {
+function CallOutsPageContent() {
   const { canLogCallOut } = useAuth()
+  const searchParams = useSearchParams()
   const today = businessTodayYmd()
-  const [filterDate, setFilterDate] = useState(today)
+  const dateFromQuery = useMemo(() => {
+    const raw = searchParams.get('date')
+    if (!raw) return null
+    return normalizeCallOutDate(raw)
+  }, [searchParams])
+  const initialDay = dateFromQuery ?? today
+
+  const [filterDate, setFilterDate] = useState(initialDay)
   const [rows, setRows] = useState<CallOutRow[]>([])
   const [sickLeaves, setSickLeaves] = useState<SickLeaveRow[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
@@ -49,9 +67,9 @@ export default function CallOutsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [logStaffId, setLogStaffId] = useState('')
-  const [logDate, setLogDate] = useState(today)
+  const [logDate, setLogDate] = useState(initialDay)
   const [logNotes, setLogNotes] = useState('')
-  const [logCalledAt, setLogCalledAt] = useState('')
+  const [logCalledAtParts, setLogCalledAtParts] = useState<CalledAtParts>(defaultCalledAtPartsNow())
   const [saving, setSaving] = useState(false)
 
   const activeStaff = useMemo(
@@ -86,6 +104,11 @@ export default function CallOutsPage() {
   }, [filterDate])
 
   useEffect(() => {
+    setFilterDate(initialDay)
+    setLogDate(initialDay)
+  }, [initialDay])
+
+  useEffect(() => {
     void load()
   }, [load])
 
@@ -100,7 +123,8 @@ export default function CallOutsPage() {
         date: logDate,
         notes: logNotes
       }
-      if (logCalledAt.trim()) body.calledAt = new Date(logCalledAt).toISOString()
+      const calledAtIso = combineCalledAtParts(logCalledAtParts)
+      if (calledAtIso) body.calledAt = calledAtIso
       const res = await fetch(`/api/staff/${logStaffId}/call-out`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,7 +135,7 @@ export default function CallOutsPage() {
         throw new Error(err.error || 'Failed to save')
       }
       setLogNotes('')
-      setLogCalledAt('')
+      setLogCalledAtParts(defaultCalledAtPartsNow())
       if (logDate === filterDate) await load()
       else setFilterDate(logDate)
     } catch (e) {
@@ -136,8 +160,12 @@ export default function CallOutsPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
+          <Link href="/dashboard" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+            ← Dashboard
+          </Link>
+          <span className="text-slate-300 mx-2">·</span>
           <Link href="/roster" className="text-sm font-medium text-blue-600 hover:text-blue-800">
-            ← Roster
+            Roster
           </Link>
           <h1 className="mt-3 text-2xl font-bold text-gray-900">Call outs</h1>
           <p className="mt-1 text-sm text-gray-600">
@@ -195,15 +223,12 @@ export default function CallOutsPage() {
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Called at <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={logCalledAt}
-                  onChange={(e) => setLogCalledAt(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              <div className="sm:col-span-2">
+                <CallOutCalledAtFields
+                  value={logCalledAtParts}
+                  onChange={setLogCalledAtParts}
+                  labelClassName="block text-xs font-medium text-gray-600 mb-1"
+                  fieldClassName="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
                 />
               </div>
               <div className="sm:col-span-2">
@@ -302,5 +327,19 @@ export default function CallOutsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function CallOutsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-6">
+          <p className="text-sm text-gray-500">Loading…</p>
+        </div>
+      }
+    >
+      <CallOutsPageContent />
+    </Suspense>
   )
 }

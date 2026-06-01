@@ -218,7 +218,7 @@ function rosterShiftGroupSortMinutes(shiftName: string, scheduled: TodaySchedule
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading: authLoading, isStakeholder, isSupervisorLike } = useAuth()
+  const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut } = useAuth()
   const appRole = user?.role ?? ''
   const [summary, setSummary] = useState<MonthSummary | null>(null)
   const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([])
@@ -848,12 +848,20 @@ export default function DashboardPage() {
         <h3 className="text-base font-bold text-gray-900">
           {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
         </h3>
-        <div className="flex items-center justify-end shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 shrink-0">
+          {canLogCallOut ? (
+            <Link
+              href={`/call-outs?date=${encodeURIComponent(todayRoster?.date ?? businessTodayYmd())}`}
+              className="text-xs text-teal-700 hover:text-teal-900 font-medium whitespace-nowrap"
+            >
+              Log call out →
+            </Link>
+          ) : null}
           {todayRoster?.presentAbsenceEnabled ? (
             <button
               type="button"
               onClick={() => router.push('/dashboard/present-absence')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
             >
               Present / Absent Roster →
             </button>
@@ -861,7 +869,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => router.push('/roster')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
             >
               Roster →
             </button>
