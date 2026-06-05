@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import { canAccessAttendanceViewer, isAttendanceViewerPath } from '@/lib/attendance-viewer'
 import { canAccessManagerHub, isManagerHubPath } from '@/lib/manager-hub'
 import { canAccessRosterMobile, isRosterMobilePath } from '@/lib/roster-mobile'
+import { canAccessScansMobile, isScansMobilePath } from '@/lib/scans-mobile'
 import {
   isFullAccessRole,
   isOperationsManagerRole,
@@ -53,6 +54,10 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     return canAccessManagerHub(role)
   }
 
+  if (isScansMobilePath(pathname)) {
+    return canAccessScansMobile(role)
+  }
+
   if (isFullAccessRole(role)) return true
 
   if (normalizeAppRole(role) === 'stakeholder') {
@@ -77,13 +82,16 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
         pathname.startsWith('/api/attendance/present-absence') ||
         pathname.startsWith('/api/pay-days') ||
         pathname.startsWith('/api/fuel-payments/recent') ||
-        pathname.startsWith('/api/financial/deposit-comparisons')
+        pathname.startsWith('/api/financial/deposit-comparisons') ||
+        pathname === '/api/email-recipients' ||
+        pathname.startsWith('/api/email-recipients/')
       )
     }
     return (
       pathname === '/dashboard' ||
       pathname.startsWith('/dashboard/present-absence') ||
       pathname.startsWith('/insights/') ||
+      pathname === '/scans/mobile' ||
       pathname.startsWith('/financial/deposit-comparisons')
     )
   }

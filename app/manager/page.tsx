@@ -10,6 +10,7 @@ import {
   canAccessManagerHubDesktop
 } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
+import { SCANS_MOBILE_PATH, canAccessScansMobile } from '@/lib/scans-mobile'
 import { useAuth } from '@/app/components/AuthContext'
 
 const tileClass =
@@ -22,7 +23,8 @@ export default function ManagerHubPage() {
   const showDesktop = canAccessManagerHubDesktop(role)
   const showAttendance = canAccessAttendanceViewer(role)
   const showRoster = canAccessRosterMobile(role)
-  const showMobileSection = showAttendance || showRoster
+  const showScans = canAccessScansMobile(role)
+  const showMobileSection = showAttendance || showRoster || showScans
 
   useEffect(() => {
     if (loading) return
@@ -30,10 +32,10 @@ export default function ManagerHubPage() {
       router.replace(`/login?next=${encodeURIComponent(MANAGER_HUB_PATH)}`)
       return
     }
-    if (!showDesktop && !showAttendance && !showRoster) {
+    if (!showDesktop && !showAttendance && !showRoster && !showScans) {
       router.replace('/dashboard')
     }
-  }, [loading, user, showDesktop, showAttendance, showRoster, router])
+  }, [loading, user, showDesktop, showAttendance, showRoster, showScans, router])
 
   if (loading || !user) {
     return (
@@ -94,6 +96,15 @@ export default function ManagerHubPage() {
                 <h2 className="text-lg font-semibold text-white">Roster</h2>
                 <p className="text-sm text-slate-400 mt-1">
                   Edit shifts — week grid, day, or person — copy week, share image.
+                </p>
+              </Link>
+            ) : null}
+
+            {showScans ? (
+              <Link href={SCANS_MOBILE_PATH} className={tileClass}>
+                <h2 className="text-lg font-semibold text-white">Debit scans</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  Find, view, and send debit scans to the owner by email or WhatsApp.
                 </p>
               </Link>
             ) : null}
