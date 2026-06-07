@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DEFAULT_VAT_RATE, formatVatRatePercent } from '@/lib/vendorVat'
 
 export default function NewVendorPage() {
   const router = useRouter()
@@ -10,8 +9,7 @@ export default function NewVendorPage() {
     name: '',
     notificationEmail: '',
     notes: '',
-    isVatRegistered: false,
-    vatRatePercent: formatVatRatePercent(DEFAULT_VAT_RATE)
+    isVatRegistered: false
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,13 +23,7 @@ export default function NewVendorPage() {
       const res = await fetch('/api/vendor-payments/vendors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          notificationEmail: formData.notificationEmail,
-          notes: formData.notes,
-          isVatRegistered: formData.isVatRegistered,
-          vatRate: formData.vatRatePercent
-        })
+        body: JSON.stringify(formData)
       })
 
       if (!res.ok) {
@@ -120,27 +112,10 @@ export default function NewVendorPage() {
                   VAT registered
                 </label>
                 <p className="text-xs text-gray-500">
-                  Enables VAT calculator when adding invoices for this vendor.
+                  Enables VAT calculator when adding invoices for this vendor. VAT rate is set globally in Settings.
                 </p>
               </div>
             </div>
-            {formData.isVatRegistered && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  VAT rate (%)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.vatRatePercent}
-                  onChange={(e) =>
-                    setFormData({ ...formData, vatRatePercent: e.target.value })
-                  }
-                  className="w-full max-w-xs border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
           </div>
 
           <div className="mt-6 flex justify-end gap-4">

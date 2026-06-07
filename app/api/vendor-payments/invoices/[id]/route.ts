@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { prisma } from '@/lib/prisma'
+import { getVendorVatRate } from '@/lib/vendorVatSettings'
 
 export async function GET(
   _request: NextRequest,
@@ -15,7 +16,8 @@ export async function GET(
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
-    return NextResponse.json(invoice)
+    const vatRate = await getVendorVatRate()
+    return NextResponse.json({ ...invoice, vatRate })
   } catch (error) {
     console.error('Error fetching vendor invoice:', error)
     return NextResponse.json({ error: 'Failed to fetch invoice' }, { status: 500 })

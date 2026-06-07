@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { parseVatRatePercent } from '@/lib/vendorVat'
+import { getVendorVatRate } from '@/lib/vendorVatSettings'
 
 export async function GET(
   _request: NextRequest,
@@ -25,7 +25,8 @@ export async function GET(
     if (!vendor) {
       return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
     }
-    return NextResponse.json(vendor)
+    const vatRate = await getVendorVatRate()
+    return NextResponse.json({ ...vendor, vatRate })
   } catch (error) {
     console.error('Error fetching vendor:', error)
     return NextResponse.json({ error: 'Failed to fetch vendor' }, { status: 500 })
@@ -39,7 +40,7 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, notificationEmail, notes, isVatRegistered, vatRate } = body
+    const { name, notificationEmail, notes, isVatRegistered } = body
 
     const vendor = await prisma.vendor.findUnique({ where: { id } })
     if (!vendor) {
@@ -51,14 +52,6 @@ export async function PATCH(
     if (notificationEmail !== undefined) data.notificationEmail = String(notificationEmail).trim()
     if (notes !== undefined) data.notes = String(notes).trim()
     if (isVatRegistered !== undefined) data.isVatRegistered = Boolean(isVatRegistered)
-    if (vatRate !== undefined && vatRate !== null && String(vatRate).trim() !== '') {
-      const parsed = Number(vatRate)
-      const rate = parsed > 1 ? parseVatRatePercent(String(vatRate)) : parsed
-      if (Number.isNaN(rate) || rate < 0) {
-        return NextResponse.json({ error: 'Invalid VAT rate' }, { status: 400 })
-      }
-      data.vatRate = rate
-    }
 
     const updated = await prisma.vendor.update({
       where: { id },

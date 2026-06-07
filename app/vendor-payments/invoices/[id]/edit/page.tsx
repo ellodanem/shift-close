@@ -18,10 +18,10 @@ interface VendorInvoice {
   vat: number | null
   status: string
   notes: string
+  vatRate?: number
   vendor?: {
     name: string
     isVatRegistered: boolean
-    vatRate: number
   }
 }
 
@@ -31,6 +31,7 @@ export default function EditVendorInvoicePage() {
   const invoiceId = params.id as string
 
   const [invoice, setInvoice] = useState<VendorInvoice | null>(null)
+  const [vatRate, setVatRate] = useState(DEFAULT_VAT_RATE)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export default function EditVendorInvoicePage() {
       if (!res.ok) throw new Error('Failed to fetch invoice')
       const data: VendorInvoice = await res.json()
       setInvoice(data)
+      if (typeof data.vatRate === 'number') setVatRate(data.vatRate)
       setFormData({
         invoiceNumber: data.invoiceNumber,
         amount: String(data.amount),
@@ -138,7 +140,6 @@ export default function EditVendorInvoicePage() {
   }
 
   const isVatRegistered = Boolean(invoice.vendor?.isVatRegistered)
-  const vatRate = invoice.vendor?.vatRate ?? DEFAULT_VAT_RATE
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">

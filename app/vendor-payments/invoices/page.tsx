@@ -16,7 +16,6 @@ interface VendorRef {
   id: string
   name: string
   isVatRegistered: boolean
-  vatRate: number
 }
 
 interface PaidBatch {
@@ -90,6 +89,7 @@ function VendorInvoicesPageInner() {
   const [customMonth, setCustomMonth] = useState('')
 
   const [vendors, setVendors] = useState<VendorRef[]>([])
+  const [globalVatRate, setGlobalVatRate] = useState(DEFAULT_VAT_RATE)
   const [pendingCount, setPendingCount] = useState(0)
   const [paidCount, setPaidCount] = useState(0)
   const [copyNotification, setCopyNotification] = useState<string | null>(null)
@@ -223,6 +223,7 @@ function VendorInvoicesPageInner() {
           setVendors(Array.isArray(data.vendors) ? data.vendors : [])
           if (typeof data.pendingCount === 'number') setPendingCount(data.pendingCount)
           if (typeof data.paidCount === 'number') setPaidCount(data.paidCount)
+          if (typeof data.vatRate === 'number') setGlobalVatRate(data.vatRate)
         }
       } catch (e) {
         console.error('Error fetching vendor payments bootstrap', e)
@@ -925,7 +926,7 @@ function VendorInvoicesPageInner() {
                 {selectedAddInvoiceVendor && (
                   <VendorInvoiceVatCalculatorHeader
                     isVatRegistered={selectedAddInvoiceVendor.isVatRegistered}
-                    vatRate={selectedAddInvoiceVendor.vatRate ?? DEFAULT_VAT_RATE}
+                    vatRate={globalVatRate}
                     amount={addInvoiceForm.amount}
                     vat={addInvoiceForm.vat}
                     onAmountChange={(value) =>
@@ -986,7 +987,7 @@ function VendorInvoicesPageInner() {
 
                 <VendorInvoiceAmountFields
                   isVatRegistered={Boolean(selectedAddInvoiceVendor?.isVatRegistered)}
-                  vatRate={selectedAddInvoiceVendor?.vatRate ?? DEFAULT_VAT_RATE}
+                  vatRate={globalVatRate}
                   amount={addInvoiceForm.amount}
                   vat={addInvoiceForm.vat}
                   onAmountChange={(value) =>

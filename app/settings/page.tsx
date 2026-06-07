@@ -79,6 +79,14 @@ export default function SettingsPage() {
       icon: '📋',
       route: '/settings/roster'
     },
+    {
+      id: 'vendor-vat',
+      title: 'Vendor VAT rate',
+      description:
+        'Global VAT percentage used when splitting vendor invoice totals into amount and VAT.',
+      icon: '🧾',
+      route: '/settings/vendor-vat'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',

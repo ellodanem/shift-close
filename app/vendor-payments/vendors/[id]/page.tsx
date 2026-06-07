@@ -48,7 +48,6 @@ interface Vendor {
   name: string
   notificationEmail: string
   isVatRegistered: boolean
-  vatRate: number
   notes: string
   invoices: VendorInvoice[]
   batches: VendorBatch[]
@@ -83,6 +82,7 @@ function VendorDetailPageInner() {
   const [paidSearchQuery, setPaidSearchQuery] = useState('')
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
+  const [vatRate, setVatRate] = useState(DEFAULT_VAT_RATE)
   const [loading, setLoading] = useState(true)
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false)
   const [addInvoiceSaving, setAddInvoiceSaving] = useState(false)
@@ -123,6 +123,7 @@ function VendorDetailPageInner() {
       if (!res.ok) throw new Error('Failed to fetch vendor')
       const data = await res.json()
       setVendor(data)
+      if (typeof data.vatRate === 'number') setVatRate(data.vatRate)
     } catch (error) {
       console.error('Error fetching vendor:', error)
     } finally {
@@ -372,7 +373,7 @@ function VendorDetailPageInner() {
               <dt className="text-sm text-gray-500">VAT</dt>
               <dd className="text-sm font-medium text-gray-900">
                 {vendor.isVatRegistered
-                  ? `Registered (${((vendor.vatRate ?? DEFAULT_VAT_RATE) * 100).toFixed(2).replace(/\.?0+$/, '')}%)`
+                  ? `Registered (${(vatRate * 100).toFixed(2).replace(/\.?0+$/, '')}% global rate)`
                   : 'Not registered'}
               </dd>
             </div>
@@ -738,7 +739,7 @@ function VendorDetailPageInner() {
               </div>
               <VendorInvoiceVatCalculatorHeader
                 isVatRegistered={vendor.isVatRegistered}
-                vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+                vatRate={vatRate}
                 amount={addInvoiceForm.amount}
                 vat={addInvoiceForm.vat}
                 onAmountChange={(value) =>
@@ -770,7 +771,7 @@ function VendorDetailPageInner() {
 
               <VendorInvoiceAmountFields
                 isVatRegistered={vendor.isVatRegistered}
-                vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+                vatRate={vatRate}
                 amount={addInvoiceForm.amount}
                 vat={addInvoiceForm.vat}
                 onAmountChange={(value) =>
@@ -871,7 +872,7 @@ function VendorDetailPageInner() {
               </div>
               <VendorInvoiceVatCalculatorHeader
                 isVatRegistered={vendor.isVatRegistered}
-                vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+                vatRate={vatRate}
                 amount={editInvoiceForm.amount}
                 vat={editInvoiceForm.vat}
                 onAmountChange={(value) =>
@@ -903,7 +904,7 @@ function VendorDetailPageInner() {
               </div>
               <VendorInvoiceAmountFields
                 isVatRegistered={vendor.isVatRegistered}
-                vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+                vatRate={vatRate}
                 amount={editInvoiceForm.amount}
                 vat={editInvoiceForm.vat}
                 onAmountChange={(value) =>

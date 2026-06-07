@@ -13,7 +13,7 @@ interface Vendor {
   id: string
   name: string
   isVatRegistered: boolean
-  vatRate: number
+  vatRate?: number
 }
 
 export default function NewVendorInvoicePage() {
@@ -22,6 +22,7 @@ export default function NewVendorInvoicePage() {
   const vendorId = params.id as string
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
+  const [vatRate, setVatRate] = useState(DEFAULT_VAT_RATE)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     invoiceNumber: '',
@@ -35,7 +36,10 @@ export default function NewVendorInvoicePage() {
   useEffect(() => {
     fetch(`/api/vendor-payments/vendors/${vendorId}`)
       .then((res) => res.json())
-      .then((data) => setVendor(data))
+      .then((data) => {
+        setVendor(data)
+        if (typeof data.vatRate === 'number') setVatRate(data.vatRate)
+      })
       .catch(() => setVendor(null))
   }, [vendorId])
 
@@ -93,7 +97,7 @@ export default function NewVendorInvoicePage() {
           </div>
           <VendorInvoiceVatCalculatorHeader
             isVatRegistered={vendor.isVatRegistered}
-            vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+            vatRate={vatRate}
             amount={formData.amount}
             vat={formData.vat}
             onAmountChange={(value) => setFormData({ ...formData, amount: value })}
@@ -119,7 +123,7 @@ export default function NewVendorInvoicePage() {
 
             <VendorInvoiceAmountFields
               isVatRegistered={vendor.isVatRegistered}
-              vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+              vatRate={vatRate}
               amount={formData.amount}
               vat={formData.vat}
               onAmountChange={(value) => setFormData({ ...formData, amount: value })}
