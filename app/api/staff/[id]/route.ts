@@ -5,6 +5,7 @@ import { redactStaffRecord } from '@/lib/staff-redact'
 import { canViewStaffSensitiveFields } from '@/lib/roles'
 import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
 import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
+import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
 
 export async function GET(
   request: NextRequest,
@@ -109,6 +110,20 @@ export async function PATCH(
           return NextResponse.json({ error: 'Device ID already in use by another staff member.' }, { status: 400 })
         }
         data.deviceUserId = parsed.normalized
+      }
+    }
+
+    if (roleId !== undefined) {
+      if (roleId) {
+        const staffRole = await prisma.staffRole.findUnique({
+          where: { id: roleId },
+          select: { name: true }
+        })
+        if (staffRole) {
+          data.role = legacyRoleFromStaffRoleName(staffRole.name)
+        }
+      } else if (role === undefined) {
+        data.role = 'cashier'
       }
     }
 

@@ -11,6 +11,7 @@ import {
   calculateShiftClose
 } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
+import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -225,11 +226,8 @@ export default function ShiftDetailPage() {
       .then(res => res.json())
       .then(data => {
         const supervisors = data
-          .filter((s: any) => s.status === 'active' && (s.role === 'supervisor' || s.role === 'manager'))
-          .sort((a: any, b: any) => {
-            const roleOrder: Record<string, number> = { supervisor: 1, manager: 2 }
-            return (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99)
-          })
+          .filter((s: any) => isShiftSupervisorCandidate(s))
+          .sort(compareShiftSupervisorCandidates)
         setStaffList(supervisors)
       })
       .catch(err => console.error('Error fetching staff:', err))

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ShiftType, ShiftCloseInput, ShiftStatus } from '@/lib/types'
 import { calculateShiftClose, getMissingFields, canCloseShift } from '@/lib/calculations'
 import { businessTodayYmd } from '@/lib/datetime-policy'
+import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
@@ -81,11 +82,8 @@ export default function NewShiftPage() {
       .then(res => res.json())
       .then(data => {
         const activeStaff = data
-          .filter((s: any) => s.status === 'active' && (s.role === 'supervisor' || s.role === 'manager'))
-          .sort((a: any, b: any) => {
-            const roleOrder: Record<string, number> = { supervisor: 1, manager: 2 }
-            return (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99)
-          })
+          .filter((s: any) => isShiftSupervisorCandidate(s))
+          .sort(compareShiftSupervisorCandidates)
         setStaffList(activeStaff)
       })
       .catch(err => {

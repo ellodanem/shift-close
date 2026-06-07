@@ -8,6 +8,7 @@ import {
   findStaffOccupyingSlot,
   parseExplicitDeviceUserIdInput
 } from '@/lib/device-user-id'
+import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
 
 export async function GET(request: NextRequest) {
   try {
@@ -87,6 +88,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let resolvedRole = (role || 'cashier').toString()
+    if (roleId && String(roleId).trim() !== '') {
+      const staffRole = await prisma.staffRole.findUnique({
+        where: { id: String(roleId).trim() },
+        select: { name: true }
+      })
+      if (staffRole) {
+        resolvedRole = legacyRoleFromStaffRoleName(staffRole.name)
+      }
+    }
+
     const maxAttempts = 5
     let lastSerializationError: unknown = null
 
@@ -129,7 +141,7 @@ export async function POST(request: NextRequest) {
                 dateOfBirth: dateOfBirth && dateOfBirth.trim() !== '' ? dateOfBirth : null,
                 startDate: startDate && startDate.trim() !== '' ? startDate : null,
                 status: status || 'active',
-                role: role || 'cashier',
+                role: resolvedRole,
                 roleId: roleId && roleId.trim() !== '' ? roleId.trim() : null,
                 nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
                 bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
