@@ -156,8 +156,9 @@ export default function EditVendorInvoicePage() {
             vatRate={vatRate}
             amount={formData.amount}
             vat={formData.vat}
-            onAmountChange={(value) => setFormData({ ...formData, amount: value })}
-            onVatChange={(value) => setFormData({ ...formData, vat: value })}
+            onAmountVatChange={(amount, vat) =>
+              setFormData((prev) => ({ ...prev, amount, vat }))
+            }
           />
         </div>
 
@@ -185,8 +186,9 @@ export default function EditVendorInvoicePage() {
               vatRate={vatRate}
               amount={formData.amount}
               vat={formData.vat}
-              onAmountChange={(value) => setFormData({ ...formData, amount: value })}
-              onVatChange={(value) => setFormData({ ...formData, vat: value })}
+              hideCalculator
+              onAmountChange={(value) => setFormData((prev) => ({ ...prev, amount: value }))}
+              onVatChange={(value) => setFormData((prev) => ({ ...prev, vat: value }))}
             />
 
             <div className="grid grid-cols-2 gap-4">

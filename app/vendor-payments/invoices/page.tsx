@@ -929,11 +929,8 @@ function VendorInvoicesPageInner() {
                     vatRate={globalVatRate}
                     amount={addInvoiceForm.amount}
                     vat={addInvoiceForm.vat}
-                    onAmountChange={(value) =>
-                      setAddInvoiceForm({ ...addInvoiceForm, amount: value })
-                    }
-                    onVatChange={(value) =>
-                      setAddInvoiceForm({ ...addInvoiceForm, vat: value })
+                    onAmountVatChange={(amount, vat) =>
+                      setAddInvoiceForm((prev) => ({ ...prev, amount, vat }))
                     }
                   />
                 )}
@@ -990,10 +987,13 @@ function VendorInvoicesPageInner() {
                   vatRate={globalVatRate}
                   amount={addInvoiceForm.amount}
                   vat={addInvoiceForm.vat}
+                  hideCalculator
                   onAmountChange={(value) =>
-                    setAddInvoiceForm({ ...addInvoiceForm, amount: value })
+                    setAddInvoiceForm((prev) => ({ ...prev, amount: value }))
                   }
-                  onVatChange={(value) => setAddInvoiceForm({ ...addInvoiceForm, vat: value })}
+                  onVatChange={(value) =>
+                    setAddInvoiceForm((prev) => ({ ...prev, vat: value }))
+                  }
                 />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

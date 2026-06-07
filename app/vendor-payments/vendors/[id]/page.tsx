@@ -742,10 +742,9 @@ function VendorDetailPageInner() {
                 vatRate={vatRate}
                 amount={addInvoiceForm.amount}
                 vat={addInvoiceForm.vat}
-                onAmountChange={(value) =>
-                  setAddInvoiceForm({ ...addInvoiceForm, amount: value })
+                onAmountVatChange={(amount, vat) =>
+                  setAddInvoiceForm((prev) => ({ ...prev, amount, vat }))
                 }
-                onVatChange={(value) => setAddInvoiceForm({ ...addInvoiceForm, vat: value })}
               />
             </div>
 
@@ -774,10 +773,13 @@ function VendorDetailPageInner() {
                 vatRate={vatRate}
                 amount={addInvoiceForm.amount}
                 vat={addInvoiceForm.vat}
+                hideCalculator
                 onAmountChange={(value) =>
-                  setAddInvoiceForm({ ...addInvoiceForm, amount: value })
+                  setAddInvoiceForm((prev) => ({ ...prev, amount: value }))
                 }
-                onVatChange={(value) => setAddInvoiceForm({ ...addInvoiceForm, vat: value })}
+                onVatChange={(value) =>
+                  setAddInvoiceForm((prev) => ({ ...prev, vat: value }))
+                }
               />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -875,10 +877,9 @@ function VendorDetailPageInner() {
                 vatRate={vatRate}
                 amount={editInvoiceForm.amount}
                 vat={editInvoiceForm.vat}
-                onAmountChange={(value) =>
-                  setEditInvoiceForm({ ...editInvoiceForm, amount: value })
+                onAmountVatChange={(amount, vat) =>
+                  setEditInvoiceForm((prev) => ({ ...prev, amount, vat }))
                 }
-                onVatChange={(value) => setEditInvoiceForm({ ...editInvoiceForm, vat: value })}
               />
             </div>
 
@@ -907,10 +908,13 @@ function VendorDetailPageInner() {
                 vatRate={vatRate}
                 amount={editInvoiceForm.amount}
                 vat={editInvoiceForm.vat}
+                hideCalculator
                 onAmountChange={(value) =>
-                  setEditInvoiceForm({ ...editInvoiceForm, amount: value })
+                  setEditInvoiceForm((prev) => ({ ...prev, amount: value }))
                 }
-                onVatChange={(value) => setEditInvoiceForm({ ...editInvoiceForm, vat: value })}
+                onVatChange={(value) =>
+                  setEditInvoiceForm((prev) => ({ ...prev, vat: value }))
+                }
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

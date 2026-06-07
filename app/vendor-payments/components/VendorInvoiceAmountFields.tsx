@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
 import {
   calculateAmountVatFromTotal,
@@ -16,9 +16,8 @@ interface VendorInvoiceAmountFieldsProps {
   vat: string
   onAmountChange: (value: string) => void
   onVatChange: (value: string) => void
-  /** When true, render the VAT calculator beside the modal title (parent provides header row). */
-  showCalculatorInHeader?: boolean
-  calculatorSlot?: (calculator: ReactNode) => ReactNode
+  /** Hide inline calculator when the header calculator is rendered separately. */
+  hideCalculator?: boolean
 }
 
 function VatCalculatorControls({
@@ -67,16 +66,15 @@ export function VendorInvoiceAmountFields({
   vat,
   onAmountChange,
   onVatChange,
-  showCalculatorInHeader = false,
-  calculatorSlot
+  hideCalculator = false
 }: VendorInvoiceAmountFieldsProps) {
   const [totalInput, setTotalInput] = useState('')
 
   useEffect(() => {
-    if (!isVatRegistered) return
+    if (!isVatRegistered || hideCalculator) return
     const synced = sumAmountVatStrings(amount, vat)
     if (synced) setTotalInput(synced)
-  }, [amount, vat, isVatRegistered])
+  }, [amount, vat, isVatRegistered, hideCalculator])
 
   const handleCalculate = () => {
     const total = parseFloat(totalInput)
@@ -89,15 +87,6 @@ export function VendorInvoiceAmountFields({
     onVatChange(String(vatVal))
     setTotalInput(total.toFixed(2))
   }
-
-  const calculator = isVatRegistered ? (
-    <VatCalculatorControls
-      totalInput={totalInput}
-      onTotalInputChange={setTotalInput}
-      onCalculate={handleCalculate}
-      vatRate={vatRate}
-    />
-  ) : null
 
   const amountNum = parseFloat(amount)
   const vatNum = parseFloat(vat)
@@ -125,51 +114,17 @@ export function VendorInvoiceAmountFields({
     )
   }
 
-  if (showCalculatorInHeader && calculatorSlot && calculator) {
-    return (
-      <>
-        {calculatorSlot(calculator)}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Amount <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              required
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => onAmountChange(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">VAT / prepaid tax</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={vat}
-              onChange={(e) => onVatChange(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-        {previewTotal != null && (
-          <p className="text-sm text-gray-600">
-            Total payable:{' '}
-            <span className="font-semibold text-gray-900">{formatAmount(previewTotal)}</span>
-          </p>
-        )}
-      </>
-    )
-  }
-
   return (
     <div className="space-y-3">
-      {calculator && !showCalculatorInHeader && (
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-3">{calculator}</div>
+      {!hideCalculator && (
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+          <VatCalculatorControls
+            totalInput={totalInput}
+            onTotalInputChange={setTotalInput}
+            onCalculate={handleCalculate}
+            vatRate={vatRate}
+          />
+        </div>
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
@@ -214,9 +169,14 @@ export function VendorInvoiceVatCalculatorHeader({
   vatRate = DEFAULT_VAT_RATE,
   amount,
   vat,
-  onAmountChange,
-  onVatChange
-}: Omit<VendorInvoiceAmountFieldsProps, 'showCalculatorInHeader' | 'calculatorSlot'>) {
+  onAmountVatChange
+}: {
+  isVatRegistered: boolean
+  vatRate?: number
+  amount: string
+  vat: string
+  onAmountVatChange: (amount: string, vat: string) => void
+}) {
   const [totalInput, setTotalInput] = useState('')
 
   useEffect(() => {
@@ -234,8 +194,7 @@ export function VendorInvoiceVatCalculatorHeader({
       return
     }
     const { amount: amt, vat: vatVal } = calculateAmountVatFromTotal(total, vatRate)
-    onAmountChange(String(amt))
-    onVatChange(String(vatVal))
+    onAmountVatChange(String(amt), String(vatVal))
     setTotalInput(total.toFixed(2))
   }
 
