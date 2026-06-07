@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
+import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
 
 interface CustomerArSummary {
   id: string
@@ -65,9 +66,10 @@ export default function CustomerAccountsPage() {
   const [paymentAccount, setPaymentAccount] = useState<string>('')
   const [paymentAmount, setPaymentAmount] = useState<string>('')
   const [paymentRef, setPaymentRef] = useState<string>('')
-  const [paymentType, setPaymentType] = useState<'cash' | 'check' | 'eft'>('cash')
+  const [paymentType, setPaymentType] = useState<'' | 'cash' | 'check' | 'eft'>('')
   const [savingPayment, setSavingPayment] = useState(false)
   const [paymentsFilterMonth, setPaymentsFilterMonth] = useState<string>(defaultMonth)
+  const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(null)
 
   const formatPaymentTypeLabel = (method: string | null) => {
     if (!method?.trim()) return '—'
@@ -120,7 +122,7 @@ export default function CustomerAccountsPage() {
           date: paymentDate,
           account: paymentAccount.trim(),
           amount: amt,
-          paymentMethod: paymentType,
+          paymentMethod: paymentType.trim() || undefined,
           ref: paymentRef.trim() || undefined
         })
       })
@@ -131,7 +133,7 @@ export default function CustomerAccountsPage() {
       setPaymentAccount('')
       setPaymentAmount('')
       setPaymentRef('')
-      setPaymentType('cash')
+      setPaymentType('')
       setPaymentDate(() => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -456,14 +458,15 @@ export default function CustomerAccountsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Payment type</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Payment type (optional)</label>
               <select
                 value={paymentType}
                 onChange={(e) =>
-                  setPaymentType(e.target.value as 'cash' | 'check' | 'eft')
+                  setPaymentType(e.target.value as '' | 'cash' | 'check' | 'eft')
                 }
                 className="px-3 py-2 border border-gray-300 rounded text-sm bg-white min-w-[7.5rem] focus:outline-none focus:ring-2 focus:ring-green-500"
               >
+                <option value="">—</option>
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
                 <option value="eft">EFT</option>
@@ -857,7 +860,23 @@ export default function CustomerAccountsPage() {
                     {accounts.map((acc) => (
                       <tr key={acc.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-medium text-gray-900">
-                          {acc.account}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedLedgerAccount(
+                                selectedLedgerAccount === acc.account
+                                  ? null
+                                  : acc.account
+                              )
+                            }
+                            className={`text-left hover:underline ${
+                              selectedLedgerAccount === acc.account
+                                ? 'text-indigo-700 font-semibold'
+                                : 'text-blue-700'
+                            }`}
+                          >
+                            {acc.account}
+                          </button>
                         </td>
                         <td className="px-4 py-2 text-right font-mono">
                           {formatAmount(acc.opening)}
@@ -901,6 +920,25 @@ export default function CustomerAccountsPage() {
                 </table>
               </div>
             )}
+
+          {selectedLedgerAccount && selectedMonth && (
+            <CustomerAccountLedgerPanel
+              account={selectedLedgerAccount}
+              monthKey={selectedMonth}
+              onClose={() => setSelectedLedgerAccount(null)}
+              onImported={() => {
+                fetchAccountsForMonth(selectedMonth)
+                fetchSummaries()
+              }}
+            />
+          )}
+
+          {accounts.length > 0 && !selectedLedgerAccount && (
+            <p className="text-xs text-gray-500 mt-3">
+              Click an account name to view or import the Cstore Customer Credit Report
+              detail (charges and payments by date).
+            </p>
+          )}
         </div>
       </div>
     </div>

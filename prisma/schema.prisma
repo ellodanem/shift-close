@@ -595,9 +595,34 @@ model CustomerArPayment {
   notes          String?  @default("")
   createdAt      DateTime @default(now()) @map("created_at")
 
+  ledgerLine CustomerArLedgerLine?
+
   @@index([date])
   @@index([account])
   @@map("customer_ar_payments")
+}
+
+// Per-account transaction ledger (Cstore credit report detail, manual lines)
+model CustomerArLedgerLine {
+  id            String   @id @default(cuid())
+  account       String
+  date          String   // YYYY-MM-DD
+  lineType      String   @map("line_type") // charge | payment
+  amount        Float
+  memo          String?
+  paymentMethod String?  @map("payment_method")
+  ref           String?
+  source        String   @default("manual") // manual | cstore_import | payment_record
+  paymentId     String?  @unique @map("payment_id")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  payment CustomerArPayment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([account, date])
+  @@index([account])
+  @@map("customer_ar_ledger_lines")
 }
 
 // ZKTeco attendance punch (clock in/out)

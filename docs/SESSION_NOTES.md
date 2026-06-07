@@ -137,10 +137,17 @@ Captures individual customer payments as they are received (like Mr. Elcock's sp
 - API: GET/POST `/api/customer-accounts/payments` (query: startDate, endDate, account)
 - Neon script: `scripts/neon-apply-customer-ar-payments.sql`
 
-### Future (Phase 2 – Accounting)
+### Phase 2 – Per-account ledger (implemented)
+- **CustomerArLedgerLine**: charge/payment lines per account with optional `paymentMethod`, memo, source (`manual` | `cstore_import` | `payment_record`)
+- **Cstore Customer Credit Report import**: HTML `.xls` per account; updates account snapshot + monthly summary
+- **Account detail panel**: click account in breakdown → Cstore-style table (date, charges, payments, running total)
+- **Record Payment** syncs to ledger; payment type optional (— / Cash / Check / EFT)
+- API: `GET/POST /api/customer-accounts/ledger`, `PATCH/DELETE /api/customer-accounts/ledger/[id]`
+- Neon: `scripts/neon-apply-customer-ar-ledger-lines.sql`
+
+### Future (Accounting integration)
 - Link to cashbook (auto-create entries when recording payment)
-- Reconcile with POS/Cstore monthly totals
-- Per-account roll-forward (opening + charges − payments = closing)
+- Backfill ledger from existing `customer_ar_payments` rows
 
 ---
 

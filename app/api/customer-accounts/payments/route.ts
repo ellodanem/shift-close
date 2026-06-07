@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { syncPaymentToLedger } from '@/lib/customer-ar-ledger'
 
 // GET /api/customer-accounts/payments
 // Query params: startDate?, endDate?, account?
@@ -72,6 +73,16 @@ export async function POST(request: NextRequest) {
         ref: ref && typeof ref === 'string' ? ref.trim() || null : null,
         notes: notes && typeof notes === 'string' ? notes.trim() || '' : ''
       }
+    })
+
+    await syncPaymentToLedger({
+      id: payment.id,
+      date: payment.date,
+      account: payment.account,
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      ref: payment.ref,
+      notes: payment.notes
     })
 
     return NextResponse.json(payment, { status: 201 })
