@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { formatAmount } from '@/lib/fuelPayments'
+import {
+  VendorInvoiceAmountFields,
+  VendorInvoiceVatCalculatorHeader
+} from '../../../components/VendorInvoiceAmountFields'
+import { DEFAULT_VAT_RATE } from '@/lib/vendorVat'
 
 interface VendorInvoice {
   id: string
@@ -14,7 +18,11 @@ interface VendorInvoice {
   vat: number | null
   status: string
   notes: string
-  vendor?: { name: string }
+  vendor?: {
+    name: string
+    isVatRegistered: boolean
+    vatRate: number
+  }
 }
 
 export default function EditVendorInvoicePage() {
@@ -96,10 +104,6 @@ export default function EditVendorInvoicePage() {
     }
   }
 
-  const amountNum = Number(formData.amount) || 0
-  const vatNum = Number(formData.vat) || 0
-  const totalPayable = amountNum + vatNum
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -133,14 +137,27 @@ export default function EditVendorInvoicePage() {
     )
   }
 
+  const isVatRegistered = Boolean(invoice.vendor?.isVatRegistered)
+  const vatRate = invoice.vendor?.vatRate ?? DEFAULT_VAT_RATE
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Edit Invoice</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {invoice.vendor?.name} — Invoice #{invoice.invoiceNumber}
-          </p>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Edit Invoice</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              {invoice.vendor?.name} — Invoice #{invoice.invoiceNumber}
+            </p>
+          </div>
+          <VendorInvoiceVatCalculatorHeader
+            isVatRegistered={isVatRegistered}
+            vatRate={vatRate}
+            amount={formData.amount}
+            vat={formData.vat}
+            onAmountChange={(value) => setFormData({ ...formData, amount: value })}
+            onVatChange={(value) => setFormData({ ...formData, vat: value })}
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
@@ -162,37 +179,14 @@ export default function EditVendorInvoicePage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">VAT / Prepaid Tax</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.vat}
-                  onChange={(e) => setFormData({ ...formData, vat: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="text-sm text-gray-600">
-              Total payable (Amount + VAT):{' '}
-              <span className="font-semibold text-gray-900">{formatAmount(totalPayable)}</span>
-            </div>
+            <VendorInvoiceAmountFields
+              isVatRegistered={isVatRegistered}
+              vatRate={vatRate}
+              amount={formData.amount}
+              vat={formData.vat}
+              onAmountChange={(value) => setFormData({ ...formData, amount: value })}
+              onVatChange={(value) => setFormData({ ...formData, vat: value })}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>

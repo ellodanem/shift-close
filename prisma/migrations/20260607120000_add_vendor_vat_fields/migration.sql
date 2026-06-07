@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "vendors" ADD COLUMN "is_vat_registered" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "vendors" ADD COLUMN "vat_rate" DOUBLE PRECISION NOT NULL DEFAULT 0.125;

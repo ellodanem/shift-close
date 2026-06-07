@@ -3,10 +3,17 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { businessTodayYmd } from '@/lib/datetime-policy'
+import {
+  VendorInvoiceAmountFields,
+  VendorInvoiceVatCalculatorHeader
+} from '../../../../components/VendorInvoiceAmountFields'
+import { DEFAULT_VAT_RATE } from '@/lib/vendorVat'
 
 interface Vendor {
   id: string
   name: string
+  isVatRegistered: boolean
+  vatRate: number
 }
 
 export default function NewVendorInvoicePage() {
@@ -77,11 +84,21 @@ export default function NewVendorInvoicePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Add Invoice</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Add a new pending invoice for {vendor.name}. Due date is optional.
-          </p>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Add Invoice</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Add a new pending invoice for {vendor.name}. Due date is optional.
+            </p>
+          </div>
+          <VendorInvoiceVatCalculatorHeader
+            isVatRegistered={vendor.isVatRegistered}
+            vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+            amount={formData.amount}
+            vat={formData.vat}
+            onAmountChange={(value) => setFormData({ ...formData, amount: value })}
+            onVatChange={(value) => setFormData({ ...formData, vat: value })}
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
@@ -100,37 +117,14 @@ export default function NewVendorInvoicePage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  VAT / Prepaid Tax
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.vat}
-                  onChange={(e) => setFormData({ ...formData, vat: e.target.value })}
-                  placeholder="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+            <VendorInvoiceAmountFields
+              isVatRegistered={vendor.isVatRegistered}
+              vatRate={vendor.vatRate ?? DEFAULT_VAT_RATE}
+              amount={formData.amount}
+              vat={formData.vat}
+              onAmountChange={(value) => setFormData({ ...formData, amount: value })}
+              onVatChange={(value) => setFormData({ ...formData, vat: value })}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>

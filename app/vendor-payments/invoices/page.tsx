@@ -6,10 +6,17 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import { VendorMakePaymentModal } from '../components/VendorMakePaymentModal'
+import {
+  VendorInvoiceAmountFields,
+  VendorInvoiceVatCalculatorHeader
+} from '../components/VendorInvoiceAmountFields'
+import { DEFAULT_VAT_RATE } from '@/lib/vendorVat'
 
 interface VendorRef {
   id: string
   name: string
+  isVatRegistered: boolean
+  vatRate: number
 }
 
 interface PaidBatch {
@@ -129,6 +136,8 @@ function VendorInvoicesPageInner() {
     setShowAddInvoiceModal(false)
     setAddInvoiceSaving(false)
   }
+
+  const selectedAddInvoiceVendor = vendors.find((v) => v.id === addInvoiceForm.vendorId)
 
   const [showPayModal, setShowPayModal] = useState(false)
   const [payModalVendorId, setPayModalVendorId] = useState('')
@@ -901,16 +910,32 @@ function VendorInvoicesPageInner() {
               className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <div className="mb-6">
-                <h2
-                  id="add-vendor-invoice-title"
-                  className="text-3xl font-bold text-gray-900"
-                >
-                  Add invoice
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Add a new pending vendor invoice. Due date is optional.
-                </p>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2
+                    id="add-vendor-invoice-title"
+                    className="text-3xl font-bold text-gray-900"
+                  >
+                    Add invoice
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Add a new pending vendor invoice. Due date is optional.
+                  </p>
+                </div>
+                {selectedAddInvoiceVendor && (
+                  <VendorInvoiceVatCalculatorHeader
+                    isVatRegistered={selectedAddInvoiceVendor.isVatRegistered}
+                    vatRate={selectedAddInvoiceVendor.vatRate ?? DEFAULT_VAT_RATE}
+                    amount={addInvoiceForm.amount}
+                    vat={addInvoiceForm.vat}
+                    onAmountChange={(value) =>
+                      setAddInvoiceForm({ ...addInvoiceForm, amount: value })
+                    }
+                    onVatChange={(value) =>
+                      setAddInvoiceForm({ ...addInvoiceForm, vat: value })
+                    }
+                  />
+                )}
               </div>
 
               <form onSubmit={handleAddInvoiceSubmit} className="space-y-4">
@@ -922,7 +947,12 @@ function VendorInvoicesPageInner() {
                     required
                     value={addInvoiceForm.vendorId}
                     onChange={(e) =>
-                      setAddInvoiceForm({ ...addInvoiceForm, vendorId: e.target.value })
+                      setAddInvoiceForm({
+                        ...addInvoiceForm,
+                        vendorId: e.target.value,
+                        amount: '',
+                        vat: ''
+                      })
                     }
                     className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
@@ -954,39 +984,16 @@ function VendorInvoicesPageInner() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Amount <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      min="0"
-                      value={addInvoiceForm.amount}
-                      onChange={(e) =>
-                        setAddInvoiceForm({ ...addInvoiceForm, amount: e.target.value })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      VAT / prepaid tax
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={addInvoiceForm.vat}
-                      onChange={(e) =>
-                        setAddInvoiceForm({ ...addInvoiceForm, vat: e.target.value })
-                      }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
+                <VendorInvoiceAmountFields
+                  isVatRegistered={Boolean(selectedAddInvoiceVendor?.isVatRegistered)}
+                  vatRate={selectedAddInvoiceVendor?.vatRate ?? DEFAULT_VAT_RATE}
+                  amount={addInvoiceForm.amount}
+                  vat={addInvoiceForm.vat}
+                  onAmountChange={(value) =>
+                    setAddInvoiceForm({ ...addInvoiceForm, amount: value })
+                  }
+                  onVatChange={(value) => setAddInvoiceForm({ ...addInvoiceForm, vat: value })}
+                />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>

@@ -438,6 +438,8 @@ model Vendor {
   id                String   @id @default(cuid())
   name              String
   notificationEmail String   @map("notification_email")
+  isVatRegistered   Boolean  @default(false) @map("is_vat_registered")
+  vatRate           Float    @default(0.125) @map("vat_rate")
   notes             String   @default("")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

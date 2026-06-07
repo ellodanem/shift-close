@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { DEFAULT_VAT_RATE, formatVatRatePercent } from '@/lib/vendorVat'
 
 export default function EditVendorPage() {
   const router = useRouter()
@@ -11,7 +12,9 @@ export default function EditVendorPage() {
   const [formData, setFormData] = useState({
     name: '',
     notificationEmail: '',
-    notes: ''
+    notes: '',
+    isVatRegistered: false,
+    vatRatePercent: formatVatRatePercent(DEFAULT_VAT_RATE)
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -30,7 +33,11 @@ export default function EditVendorPage() {
       setFormData({
         name: data.name,
         notificationEmail: data.notificationEmail,
-        notes: data.notes || ''
+        notes: data.notes || '',
+        isVatRegistered: Boolean(data.isVatRegistered),
+        vatRatePercent: formatVatRatePercent(
+          typeof data.vatRate === 'number' ? data.vatRate : DEFAULT_VAT_RATE
+        )
       })
     } catch (err) {
       console.error('Error fetching vendor:', err)
@@ -49,7 +56,13 @@ export default function EditVendorPage() {
       const res = await fetch(`/api/vendor-payments/vendors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          name: formData.name,
+          notificationEmail: formData.notificationEmail,
+          notes: formData.notes,
+          isVatRegistered: formData.isVatRegistered,
+          vatRate: formData.vatRatePercent
+        })
       })
 
       if (!res.ok) {
@@ -130,6 +143,42 @@ export default function EditVendorPage() {
                 placeholder="Additional notes"
               />
             </div>
+            <div className="flex items-start gap-3">
+              <input
+                id="isVatRegistered"
+                type="checkbox"
+                checked={formData.isVatRegistered}
+                onChange={(e) =>
+                  setFormData({ ...formData, isVatRegistered: e.target.checked })
+                }
+                className="mt-1 rounded border-gray-300"
+              />
+              <div>
+                <label htmlFor="isVatRegistered" className="block text-sm font-medium text-gray-700">
+                  VAT registered
+                </label>
+                <p className="text-xs text-gray-500">
+                  Enables VAT calculator when adding invoices for this vendor.
+                </p>
+              </div>
+            </div>
+            {formData.isVatRegistered && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  VAT rate (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.vatRatePercent}
+                  onChange={(e) =>
+                    setFormData({ ...formData, vatRatePercent: e.target.value })
+                  }
+                  className="w-full max-w-xs border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex justify-end gap-4">
