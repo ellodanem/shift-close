@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, ChangeEvent } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
 import {
   creditReportToLedgerEntries,
+  detectMonthKeyFromParsed,
+  formatCstoreDisplayDate,
   parseCustomerCreditReportHtml
 } from '@/lib/parse-customer-credit-report'
 
@@ -49,18 +51,26 @@ function monthRange(monthKey: string): { start: string; end: string; year: numbe
   }
 }
 
+function formatMonthLabel(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
 type Props = {
   account: string
   monthKey: string
   onClose: () => void
-  onImported?: () => void
+  onImported?: (monthKey?: string) => void
+  onMonthChange?: (monthKey: string) => void
 }
 
 export default function CustomerAccountLedgerPanel({
   account,
   monthKey,
   onClose,
-  onImported
+  onImported,
+  onMonthChange
 }: Props) {
   const { start, end, year, month } = monthRange(monthKey)
   const [view, setView] = useState<LedgerView | null>(null)
@@ -112,6 +122,20 @@ export default function CustomerAccountLedgerPanel({
     try {
       const text = await file.text()
       const parsed = parseCustomerCreditReportHtml(text)
+      if (parsed.lines.length === 0) {
+        throw new Error(
+          'No dated charge or payment rows found in this file. Use the Cstore Customer Credit Report export (Details), not the monthly all-accounts Excel.'
+        )
+      }
+
+      const detectedMonth = detectMonthKeyFromParsed(parsed)
+      const importMonthKey = detectedMonth ?? monthKey
+      const [importYear, importMonth] = importMonthKey.split('-').map(Number)
+
+      if (detectedMonth && detectedMonth !== monthKey) {
+        onMonthChange?.(detectedMonth)
+      }
+
       const entries = creditReportToLedgerEntries(parsed)
       const res = await fetch('/api/customer-accounts/ledger', {
         method: 'POST',
@@ -119,8 +143,8 @@ export default function CustomerAccountLedgerPanel({
         body: JSON.stringify({
           importType: 'cstore',
           account,
-          year,
-          month,
+          year: importYear,
+          month: importMonth,
           opening: parsed.opening,
           entries,
           updateSnapshot: true
@@ -133,8 +157,12 @@ export default function CustomerAccountLedgerPanel({
       const data = await res.json()
       setOpeningInput(String(data.opening ?? parsed.opening))
       setView(data.view)
-      onImported?.()
-      alert(`Imported ${data.imported} line(s) from Cstore report.`)
+      onImported?.(importMonthKey)
+      alert(
+        `Imported ${data.imported} line(s). Dates: ${parsed.lines
+          .map((l) => formatCstoreDisplayDate(l.date))
+          .join(', ')}`
+      )
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to import Cstore file')
     } finally {
@@ -213,7 +241,8 @@ export default function CustomerAccountLedgerPanel({
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{account}</h3>
           <p className="text-xs text-gray-600">
-            Account ledger (Cstore-style) for selected month
+            Account ledger for {formatMonthLabel(monthKey)} — dates appear after you import
+            the Cstore Customer Credit Report for this customer.
           </p>
         </div>
         <button
@@ -343,15 +372,22 @@ export default function CustomerAccountLedgerPanel({
                 </tr>
                 {view.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-4 text-center text-gray-500">
-                      No lines for this month. Import a Cstore Customer Credit Report or add
-                      lines manually.
+                    <td colSpan={6} className="px-3 py-4 text-center text-gray-600">
+                      <p className="font-medium text-gray-800 mb-1">No dated lines for {formatMonthLabel(monthKey)}</p>
+                      <p className="text-sm">
+                        The monthly Excel import above only stores month totals (no daily dates).
+                        Click <strong>Import Cstore detail (.xls)</strong> and upload this
+                        customer&apos;s <strong>Customer Credit Report</strong> from Cstore
+                        (Report type: Details) to see charge and payment dates like 5/2/2026.
+                      </p>
                     </td>
                   </tr>
                 ) : (
                   view.rows.map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50 border-t border-gray-100">
-                      <td className="px-3 py-2">{row.date}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">
+                        {formatCstoreDisplayDate(row.date)}
+                      </td>
                       <td className="px-3 py-2 text-right font-mono">
                         {row.charges > 0 ? formatAmount(row.charges) : formatAmount(0)}
                       </td>

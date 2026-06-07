@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
+import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
 
 interface CustomerArSummary {
   id: string
@@ -522,7 +523,9 @@ export default function CustomerAccountsPage() {
                   <tbody className="divide-y divide-gray-200">
                     {payments.map((p) => (
                       <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-900">{p.date}</td>
+                        <td className="px-3 py-2 text-gray-900 whitespace-nowrap">
+                          {formatCstoreDisplayDate(p.date)}
+                        </td>
                         <td className="px-3 py-2 font-medium text-gray-900">{p.account}</td>
                         <td className="px-3 py-2 text-right font-mono">{formatAmount(p.amount)}</td>
                         <td className="px-3 py-2 text-gray-700">{formatPaymentTypeLabel(p.paymentMethod)}</td>
@@ -926,8 +929,14 @@ export default function CustomerAccountsPage() {
               account={selectedLedgerAccount}
               monthKey={selectedMonth}
               onClose={() => setSelectedLedgerAccount(null)}
-              onImported={() => {
-                fetchAccountsForMonth(selectedMonth)
+              onMonthChange={(monthKey) => {
+                setSelectedMonth(monthKey)
+                setMonthInput(monthKey)
+                fetchAccountsForMonth(monthKey)
+              }}
+              onImported={(monthKey) => {
+                const m = monthKey ?? selectedMonth
+                if (m) fetchAccountsForMonth(m)
                 fetchSummaries()
               }}
             />

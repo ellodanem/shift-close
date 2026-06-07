@@ -145,6 +145,20 @@ Captures individual customer payments as they are received (like Mr. Elcock's sp
 - API: `GET/POST /api/customer-accounts/ledger`, `PATCH/DELETE /api/customer-accounts/ledger/[id]`
 - Neon: `scripts/neon-apply-customer-ar-ledger-lines.sql`
 
+### Previous config (monthly totals only — before ledger)
+- **Import from Excel (Recommended)** at top of Customer Accounts: PDI multi-account monthly export (columns Account, Opening, Credit/Collection, Closing).
+- Stored **one row per customer per month** in `CustomerArAccountSnapshot` — opening, charges, payments, closing **totals only**.
+- **No charge or payment dates** in Shift Close; Account Breakdown showed monthly roll-forward only.
+- **Manual Entry (Totals Only)** fallback: enter month-level opening/charges/payments without per-account detail.
+- **Record Payment** captured individual payment dates but not Cstore charge dates.
+
+### Current workflow (two-step — verified on Vercel)
+1. **Step 1 — Month + all accounts:** Select month → import PDI monthly Excel (same as before). Populates Account Breakdown totals.
+2. **Step 2 — Individual customer + dates:** Click account name → **Import Cstore detail (.xls)** → upload Cstore **Customer Credit Report** (Report type: **Details**) for that customer and date range.
+3. **View month** must match the Cstore report period (or import auto-switches month from file dates).
+4. Ledger shows dates as **M/D/YYYY** (Cstore format): charge rows, payment rows, running total, optional payment type on payments.
+5. Requires Neon table `customer_ar_ledger_lines` (run `scripts/neon-apply-customer-ar-ledger-lines.sql` once).
+
 ### Future (Accounting integration)
 - Link to cashbook (auto-create entries when recording payment)
 - Backfill ledger from existing `customer_ar_payments` rows

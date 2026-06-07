@@ -29,6 +29,25 @@ export function parseCstoreMoney(value: unknown): number {
   return Number.isNaN(n) ? 0 : roundMoney(n)
 }
 
+/** M/D/YYYY for display (matches Cstore). */
+export function formatCstoreDisplayDate(isoDate: string): string {
+  const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return isoDate
+  const year = Number(m[1])
+  const month = Number(m[2])
+  const day = Number(m[3])
+  return `${month}/${day}/${year}`
+}
+
+/** YYYY-MM from first dated line in a parsed report. */
+export function detectMonthKeyFromParsed(parsed: ParsedCreditReport): string | null {
+  if (parsed.lines.length === 0) return null
+  const first = parsed.lines[0].date
+  const m = first.match(/^(\d{4})-(\d{2})-\d{2}$/)
+  if (!m) return null
+  return `${m[1]}-${m[2]}`
+}
+
 /** M/D/YYYY or MM/DD/YYYY → YYYY-MM-DD */
 export function parseCstoreDate(raw: string, defaultYear?: number): string | null {
   const s = raw.trim()
