@@ -115,6 +115,14 @@ export default function CustomerAccountLedgerPanel({
     loadLedger('')
   }, [account, monthKey])
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const handleCstoreUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -236,24 +244,37 @@ export default function CustomerAccountLedgerPanel({
   }
 
   return (
-    <div className="mt-4 border-2 border-indigo-200 rounded-lg bg-indigo-50/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{account}</h3>
-          <p className="text-xs text-gray-600">
-            Account ledger for {formatMonthLabel(monthKey)} — dates appear after you import
-            the Cstore Customer Credit Report for this customer.
-          </p>
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-ledger-modal-title"
+    >
+      <div
+        className="mt-4 mb-8 w-full max-w-5xl bg-white rounded-lg shadow-xl border border-indigo-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-indigo-50/80 px-4 py-3 rounded-t-lg backdrop-blur-sm">
+          <div>
+            <h3 id="customer-ledger-modal-title" className="text-lg font-semibold text-gray-900">
+              {account}
+            </h3>
+            <p className="text-xs text-gray-600">
+              Account ledger for {formatMonthLabel(monthKey)} — import the Cstore Customer Credit
+              Report (Details) to see charge and payment dates.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Close
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-sm text-gray-600 hover:text-gray-900 underline"
-        >
-          Close
-        </button>
-      </div>
 
+        <div className="p-4 sm:p-6">
       <div className="flex flex-wrap items-end gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -481,6 +502,8 @@ export default function CustomerAccountLedgerPanel({
           </div>
         </>
       )}
+        </div>
+      </div>
     </div>
   )
 }

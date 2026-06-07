@@ -865,13 +865,7 @@ export default function CustomerAccountsPage() {
                         <td className="px-4 py-2 font-medium text-gray-900">
                           <button
                             type="button"
-                            onClick={() =>
-                              setSelectedLedgerAccount(
-                                selectedLedgerAccount === acc.account
-                                  ? null
-                                  : acc.account
-                              )
-                            }
+                            onClick={() => setSelectedLedgerAccount(acc.account)}
                             className={`text-left hover:underline ${
                               selectedLedgerAccount === acc.account
                                 ? 'text-indigo-700 font-semibold'
@@ -924,31 +918,31 @@ export default function CustomerAccountsPage() {
               </div>
             )}
 
-          {selectedLedgerAccount && selectedMonth && (
-            <CustomerAccountLedgerPanel
-              account={selectedLedgerAccount}
-              monthKey={selectedMonth}
-              onClose={() => setSelectedLedgerAccount(null)}
-              onMonthChange={(monthKey) => {
-                setSelectedMonth(monthKey)
-                setMonthInput(monthKey)
-                fetchAccountsForMonth(monthKey)
-              }}
-              onImported={(monthKey) => {
-                const m = monthKey ?? selectedMonth
-                if (m) fetchAccountsForMonth(m)
-                fetchSummaries()
-              }}
-            />
-          )}
-
           {accounts.length > 0 && !selectedLedgerAccount && (
             <p className="text-xs text-gray-500 mt-3">
-              Click an account name to view or import the Cstore Customer Credit Report
-              detail (charges and payments by date).
+              Click an account name to open the ledger modal and import the Cstore Customer Credit
+              Report detail (charges and payments by date).
             </p>
           )}
         </div>
+
+        {selectedLedgerAccount && selectedMonth && (
+          <CustomerAccountLedgerPanel
+            account={selectedLedgerAccount}
+            monthKey={selectedMonth}
+            onClose={() => setSelectedLedgerAccount(null)}
+            onMonthChange={(monthKey) => {
+              setSelectedMonth(monthKey)
+              setMonthInput(monthKey)
+              fetchAccountsForMonth(monthKey)
+            }}
+            onImported={(monthKey) => {
+              const m = monthKey ?? selectedMonth
+              if (m) fetchAccountsForMonth(m)
+              fetchSummaries()
+            }}
+          />
+        )}
       </div>
     </div>
   )
