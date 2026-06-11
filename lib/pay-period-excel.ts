@@ -31,6 +31,12 @@ export function formatDateRange(start: string, end: string): string {
   return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 0:00 To ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 23:59`
 }
 
+/** One spreadsheet row per notes line so Excel shows each field on its own line. */
+export function buildPayPeriodNotesRows(notes: string): (string | number)[][] {
+  if (!notes.trim()) return []
+  return notes.split(/\r?\n/).map((line, i) => [i === 0 ? 'Notes:' : '', line])
+}
+
 export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | number)[][] {
   const rows = data.rows
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
@@ -40,7 +46,7 @@ export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | 
     ['Report Date:', formatDateDisplay(data.reportDate)],
     ['Date Range:', formatDateRange(data.startDate, data.endDate)],
     [data.entityName],
-    ...(data.notes?.trim() ? [['Notes:', data.notes]] as (string | number)[][] : []),
+    ...buildPayPeriodNotesRows(data.notes ?? ''),
     [],
     ['Staff', 'Trans Ttl', 'Vacation', 'Sick Days', 'Sick Leave', 'Shortage'],
     ...rows.map((r) => [
