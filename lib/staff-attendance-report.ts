@@ -204,7 +204,6 @@ export async function buildStaffAttendanceReport(params: {
     select: {
       id: true,
       name: true,
-      firstName: true,
       deviceUserId: true,
       punchExempt: true,
       vacationStart: true,
@@ -217,14 +216,13 @@ export async function buildStaffAttendanceReport(params: {
 
   const {
     name: staffFullName,
-    firstName,
     deviceUserId,
     punchExempt,
     vacationStart,
     vacationEnd
   } = staff
 
-  const staffName = firstName?.trim() || staffFullName
+  const staffName = staffFullName.trim()
   const todayYmd = businessTodayYmd()
 
   const windowStart = zonedStartOfDayUtc(startDate, tz)

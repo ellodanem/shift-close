@@ -19,6 +19,10 @@ import {
   payPeriodReportDefaultTo
 } from '@/lib/pay-period-email'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
+import {
+  resolvePayPeriodStaffDisplayName,
+  withPayPeriodStaffFullNames
+} from '@/lib/pay-period-rows'
 
 interface PayPeriodRow {
   staffId: string
@@ -188,6 +192,7 @@ export default function PayPeriodPage() {
   /** When set, Save updates this record via PATCH instead of creating a new one. */
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
   const [staffPayrollById, setStaffPayrollById] = useState<Record<string, StaffPayrollSnapshot>>({})
+  const [staffNameById, setStaffNameById] = useState<Record<string, string>>({})
 
   const loadStaffPayroll = async (staffIds: string[]) => {
     const ids = [...new Set(staffIds.filter(Boolean))]
@@ -229,6 +234,24 @@ export default function PayPeriodPage() {
 
   useEffect(() => {
     loadSavedPeriods()
+  }, [])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/staff', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as Array<{ id?: string; name?: string }>
+        if (!Array.isArray(data)) return
+        const map: Record<string, string> = {}
+        for (const s of data) {
+          if (s.id && s.name) map[s.id] = String(s.name).trim()
+        }
+        setStaffNameById(map)
+      } catch {
+        // ignore
+      }
+    })()
   }, [])
 
   const handleGenerate = async () => {
@@ -302,14 +325,20 @@ export default function PayPeriodPage() {
 
   const startEditFromSaved = (p: SavedPayPeriod) => {
     const rows = JSON.parse(p.rows) as PayPeriodRow[]
+    const prepared = withPayPeriodStaffFullNames(
+      {
+        id: p.id,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        reportDate: p.reportDate,
+        entityName: p.entityName,
+        rows,
+        notes: p.notes ?? ''
+      },
+      staffNameById
+    )
     setReportData({
-      id: p.id,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      reportDate: p.reportDate,
-      entityName: p.entityName,
-      rows,
-      notes: p.notes ?? '',
+      ...prepared,
       previousRowsSnapshot: parsePreviousRows(p.rowsBeforeLastEdit)
     })
     setEditingSavedId(p.id)
@@ -318,12 +347,15 @@ export default function PayPeriodPage() {
     setShowModal(true)
   }
 
+  const withFullStaffNames = (data: PayPeriodData) =>
+    withPayPeriodStaffFullNames(data, staffNameById)
+
   const handlePrint = (data: PayPeriodData) => {
-    printPayPeriodReport(data)
+    printPayPeriodReport(withFullStaffNames(data))
   }
 
   const handleDownloadExcel = (data: PayPeriodData) => {
-    downloadPayPeriodExcel(data)
+    downloadPayPeriodExcel(withFullStaffNames(data))
   }
 
   const closePayPeriodEmailModal = () => {
@@ -340,7 +372,7 @@ export default function PayPeriodPage() {
     }
     setEmailTo(payPeriodReportDefaultTo())
     setEmailSubject(formatSavedPayPeriodDateRange(data.startDate, data.endDate))
-    setEmailHtml(buildPayPeriodEmailHtml(data))
+    setEmailHtml(buildPayPeriodEmailHtml(withFullStaffNames(data)))
     setEmailModalData(data)
   }
 
@@ -510,10 +542,11 @@ export default function PayPeriodPage() {
           )}
 
           {viewingPeriod && displayData && (() => {
+            const viewData = withFullStaffNames(displayData)
             const prevRows = parsePreviousRows(viewingPeriod.rowsBeforeLastEdit)
-            const totalTrans = displayData.rows.reduce((s, r) => s + r.transTtl, 0)
-            const totalSick = displayData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)
-            const totalShort = displayData.rows.reduce((s, r) => s + r.shortage, 0)
+            const totalTrans = viewData.rows.reduce((s, r) => s + r.transTtl, 0)
+            const totalSick = viewData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)
+            const totalShort = viewData.rows.reduce((s, r) => s + r.shortage, 0)
             const prevTotalTrans = prevRows ? prevRows.reduce((s, r) => s + r.transTtl, 0) : null
             const prevTotalSick = prevRows ? prevRows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0) : null
             const prevTotalShort = prevRows ? prevRows.reduce((s, r) => s + r.shortage, 0) : null
@@ -522,9 +555,9 @@ export default function PayPeriodPage() {
             <div className="mt-6 overflow-visible p-4 bg-gray-50 rounded-lg border border-gray-200">
               <h3 className="font-semibold mb-2">Summary Report</h3>
               <p className="text-sm text-gray-600 mb-2">
-                Report Date: {formatDateDisplay(displayData.reportDate)} | Date Range: {formatDateRange(displayData.startDate, displayData.endDate)}
+                Report Date: {formatDateDisplay(viewData.reportDate)} | Date Range: {formatDateRange(viewData.startDate, viewData.endDate)}
               </p>
-              <p className="font-medium mb-2">{displayData.entityName}</p>
+              <p className="font-medium mb-2">{viewData.entityName}</p>
               <p className="text-xs text-gray-500 mb-2">
                 Saved {new Date(viewingPeriod.createdAt).toLocaleString()}
                 {viewingPeriod.updatedAt && new Date(viewingPeriod.updatedAt).getTime() !== new Date(viewingPeriod.createdAt).getTime() && (
@@ -536,8 +569,8 @@ export default function PayPeriodPage() {
                   Underlined figures changed in the last save — hover to see the previous value.
                 </p>
               )}
-              {(displayData.notes ?? '').trim() ? (
-                <p className="text-sm text-gray-800 mb-3 whitespace-pre-wrap border-l-2 border-gray-300 pl-3">{displayData.notes}</p>
+              {(viewData.notes ?? '').trim() ? (
+                <p className="text-sm text-gray-800 mb-3 whitespace-pre-wrap border-l-2 border-gray-300 pl-3">{viewData.notes}</p>
               ) : null}
               <table className="w-full text-sm border-collapse overflow-visible">
                 <thead>
@@ -551,7 +584,7 @@ export default function PayPeriodPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayData.rows.map((r, i) => {
+                  {viewData.rows.map((r, i) => {
                     const prev = resolvePreviousRow(prevRows, r.staffId, i)
                     const curVac = (r.vacation ?? '').trim()
                     const prevVac = prev ? (prev.vacation ?? '').trim() : null
@@ -565,7 +598,7 @@ export default function PayPeriodPage() {
                         <span className="inline-flex flex-wrap items-center gap-2">
                           {r.staffName}
                           <Link
-                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(displayData.startDate)}&endDate=${encodeURIComponent(displayData.endDate)}`}
+                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(viewData.startDate)}&endDate=${encodeURIComponent(viewData.endDate)}`}
                             className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
                           >
                             Daily
@@ -680,7 +713,7 @@ export default function PayPeriodPage() {
                     <tr key={i} className="border-b border-gray-200">
                       <td className="py-1">
                         <span className="inline-flex flex-wrap items-center gap-1">
-                          {r.staffName}
+                          {resolvePayPeriodStaffDisplayName(r, staffNameById)}
                           <CopyStaffPayrollButton
                             staffId={r.staffId}
                             staffPayrollById={staffPayrollById}

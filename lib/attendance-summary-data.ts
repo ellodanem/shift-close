@@ -223,7 +223,7 @@ export async function buildAttendanceSummaryData(
 
     rows.push({
       staffId: s.id,
-      staffName: s.firstName?.trim() || s.name,
+      staffName: s.name.trim(),
       hoursToday: staffHoursFromMap(s.id, s.deviceUserId, dayHours),
       hoursPeriodToDate: staffHoursFromMap(s.id, s.deviceUserId, periodHours),
       punchesToday

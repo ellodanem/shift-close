@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
       rows.push({
         staffId: s.id,
-        staffName: s.firstName?.trim() || s.name,
+        staffName: s.name.trim(),
         transTtl,
         vacation,
         shortage,

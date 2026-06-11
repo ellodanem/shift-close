@@ -65,7 +65,7 @@ const payPeriodStaffSelect = {
   sortOrder: true
 } as const
 
-/** Merge active baseline + inactive staff with period signals; sort by sortOrder, name. */
+/** Merge active baseline + inactive staff with period signals; sort alphabetically by full name. */
 export function mergePayPeriodStaffLists(
   activeBaseline: PayPeriodStaffRow[],
   inactiveSupplemental: PayPeriodStaffRow[]
@@ -75,8 +75,8 @@ export function mergePayPeriodStaffLists(
   for (const s of inactiveSupplemental) {
     if (!byId.has(s.id)) byId.set(s.id, s)
   }
-  return [...byId.values()].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  return [...byId.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   )
 }
 

@@ -23,7 +23,7 @@ import {
   type PayPeriodExcelRow
 } from '@/lib/pay-period-excel'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
-import { parsePayPeriodPreviousRows } from '@/lib/pay-period-rows'
+import { parsePayPeriodPreviousRows, withPayPeriodStaffFullNames } from '@/lib/pay-period-rows'
 import MobilePayPeriodEdit, { type MobileEditDraft } from './MobilePayPeriodEdit'
 
 interface SavedPayPeriod {
@@ -65,6 +65,7 @@ export default function MobilePayPeriodPage() {
   const [emailSending, setEmailSending] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MobileEditDraft | null>(null)
+  const [staffNameById, setStaffNameById] = useState<Record<string, string>>({})
 
   const loadSavedPeriods = useCallback(async () => {
     setError(null)
@@ -99,17 +100,42 @@ export default function MobilePayPeriodPage() {
     void loadSavedPeriods()
   }, [user, canView, loadSavedPeriods])
 
+  useEffect(() => {
+    if (!user || !canView) return
+    void (async () => {
+      try {
+        const res = await fetch('/api/staff', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as Array<{ id?: string; name?: string }>
+        if (!Array.isArray(data)) return
+        const map: Record<string, string> = {}
+        for (const s of data) {
+          if (s.id && s.name) map[s.id] = String(s.name).trim()
+        }
+        setStaffNameById(map)
+      } catch {
+        // ignore
+      }
+    })()
+  }, [user, canView])
+
   const startEdit = (p: SavedPayPeriod) => {
     setStatusMessage(null)
     const rows = JSON.parse(p.rows) as PayPeriodExcelRow[]
+    const draft = withPayPeriodStaffFullNames(
+      {
+        id: p.id,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        reportDate: p.reportDate,
+        entityName: p.entityName,
+        rows,
+        notes: p.notes ?? ''
+      },
+      staffNameById
+    )
     setEditDraft({
-      id: p.id,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      reportDate: p.reportDate,
-      entityName: p.entityName,
-      rows,
-      notes: p.notes ?? '',
+      ...draft,
       previousRowsSnapshot: parsePayPeriodPreviousRows(p.rowsBeforeLastEdit)
     })
   }
@@ -131,12 +157,16 @@ export default function MobilePayPeriodPage() {
     setEmailHtml('')
   }
 
+  const withFullStaffNames = (data: PayPeriodData) =>
+    withPayPeriodStaffFullNames(data, staffNameById)
+
   const openEmailModal = (data: PayPeriodData) => {
     setStatusMessage(null)
+    const enriched = withFullStaffNames(data)
     setEmailTo(payPeriodReportDefaultTo())
     setEmailSubject(formatSavedPayPeriodDateRange(data.startDate, data.endDate))
-    setEmailHtml(buildPayPeriodEmailHtml(data))
-    setEmailModalData(data)
+    setEmailHtml(buildPayPeriodEmailHtml(enriched))
+    setEmailModalData(enriched)
   }
 
   const sendEmail = async () => {
@@ -245,7 +275,7 @@ export default function MobilePayPeriodPage() {
         ) : (
           <ul className="space-y-3">
             {savedPeriods.map((p) => {
-              const data = toPayPeriodData(p)
+              const data = withFullStaffNames(toPayPeriodData(p))
               const expanded = expandedId === p.id
               const totalTrans = data.rows.reduce((s, r) => s + r.transTtl, 0)
               const totalShort = data.rows.reduce((s, r) => s + r.shortage, 0)
@@ -286,14 +316,14 @@ export default function MobilePayPeriodPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => printPayPeriodReport(data)}
+                        onClick={() => printPayPeriodReport(withFullStaffNames(data))}
                         className={`${pprActionBtn} bg-blue-900/50 text-blue-200 hover:bg-blue-900`}
                       >
                         Print
                       </button>
                       <button
                         type="button"
-                        onClick={() => downloadPayPeriodExcel(data)}
+                        onClick={() => downloadPayPeriodExcel(withFullStaffNames(data))}
                         className={`${pprActionBtn} bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60`}
                       >
                         Excel
