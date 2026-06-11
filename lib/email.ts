@@ -36,6 +36,7 @@ export interface SendMailOptions {
   html?: string
   text?: string
   cc?: string
+  bcc?: string
   attachments?: Array<{
     filename: string
     content: Buffer
@@ -63,6 +64,7 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     text: options.text || (options.html ? options.html.replace(/<[^>]*>/g, '') : ''),
     html: options.html,
     cc: options.cc,
+    bcc: options.bcc,
     attachments: options.attachments
   })
 }

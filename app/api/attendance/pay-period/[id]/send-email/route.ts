@@ -19,7 +19,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
-    const { to, subject, html } = body as { to?: string; subject?: string; html?: string }
+    const { to, subject, html, cc, bcc } = body as {
+      to?: string
+      subject?: string
+      html?: string
+      cc?: string
+      bcc?: string
+    }
 
     if (!to?.trim()) {
       return NextResponse.json({ error: 'Recipient (to) is required' }, { status: 400 })
@@ -61,6 +67,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       to: to.trim(),
       subject: subject.trim(),
       html: html?.trim() || undefined,
+      cc: typeof cc === 'string' && cc.trim() ? cc.trim() : undefined,
+      bcc: typeof bcc === 'string' && bcc.trim() ? bcc.trim() : undefined,
       attachments: [
         {
           filename,

@@ -12,6 +12,7 @@ import { useAuth } from '@/app/components/AuthContext'
 import {
   buildPayPeriodEmailHtml,
   formatSavedPayPeriodDateRange,
+  payPeriodReportDefaultSubject,
   payPeriodReportDefaultTo
 } from '@/lib/pay-period-email'
 import {
@@ -60,6 +61,9 @@ export default function MobilePayPeriodPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [emailModalData, setEmailModalData] = useState<PayPeriodData | null>(null)
   const [emailTo, setEmailTo] = useState('')
+  const [emailCc, setEmailCc] = useState('')
+  const [emailBcc, setEmailBcc] = useState('')
+  const [showEmailCcBcc, setShowEmailCcBcc] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailHtml, setEmailHtml] = useState('')
   const [emailSending, setEmailSending] = useState(false)
@@ -153,6 +157,9 @@ export default function MobilePayPeriodPage() {
   const closeEmailModal = () => {
     setEmailModalData(null)
     setEmailTo('')
+    setEmailCc('')
+    setEmailBcc('')
+    setShowEmailCcBcc(false)
     setEmailSubject('')
     setEmailHtml('')
   }
@@ -164,7 +171,7 @@ export default function MobilePayPeriodPage() {
     setStatusMessage(null)
     const enriched = withFullStaffNames(data)
     setEmailTo(payPeriodReportDefaultTo())
-    setEmailSubject(formatSavedPayPeriodDateRange(data.startDate, data.endDate))
+    setEmailSubject(payPeriodReportDefaultSubject(data.startDate, data.endDate))
     setEmailHtml(buildPayPeriodEmailHtml(enriched))
     setEmailModalData(enriched)
   }
@@ -190,7 +197,9 @@ export default function MobilePayPeriodPage() {
         body: JSON.stringify({
           to,
           subject,
-          html: emailHtml.trim() || undefined
+          html: emailHtml.trim() || undefined,
+          cc: emailCc.trim() || undefined,
+          bcc: emailBcc.trim() || undefined
         })
       })
       if (!res.ok) {
@@ -436,6 +445,47 @@ export default function MobilePayPeriodPage() {
                     autoComplete="email"
                   />
                 </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailCcBcc((open) => !open)}
+                    className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                  >
+                    {showEmailCcBcc ? 'Hide Cc / Bcc' : 'Cc / Bcc'}
+                  </button>
+                </div>
+                {showEmailCcBcc ? (
+                  <>
+                    <div>
+                      <label htmlFor="mobile-ppr-email-cc" className="block text-xs font-medium text-slate-300 mb-1">
+                        Cc
+                      </label>
+                      <input
+                        id="mobile-ppr-email-cc"
+                        type="text"
+                        value={emailCc}
+                        onChange={(e) => setEmailCc(e.target.value)}
+                        className="w-full border border-slate-600 rounded-lg px-3 py-2 text-sm bg-slate-900 text-slate-100"
+                        placeholder="Comma-separated addresses"
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="mobile-ppr-email-bcc" className="block text-xs font-medium text-slate-300 mb-1">
+                        Bcc
+                      </label>
+                      <input
+                        id="mobile-ppr-email-bcc"
+                        type="text"
+                        value={emailBcc}
+                        onChange={(e) => setEmailBcc(e.target.value)}
+                        className="w-full border border-slate-600 rounded-lg px-3 py-2 text-sm bg-slate-900 text-slate-100"
+                        placeholder="Comma-separated addresses"
+                        autoComplete="email"
+                      />
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <label
                     htmlFor="mobile-ppr-email-subject"

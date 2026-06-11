@@ -23,6 +23,10 @@ export function formatSavedPayPeriodDateRange(start: string, end: string): strin
   return `${formatDateDisplay(start)} \u2013 ${formatDateDisplay(end)}`
 }
 
+export function payPeriodReportDefaultSubject(start: string, end: string): string {
+  return `Staff hours commencing ${formatSavedPayPeriodDateRange(start, end)}`
+}
+
 export function buildPayPeriodEmailHtml(data: PayPeriodExcelData): string {
   const rows = data.rows
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)

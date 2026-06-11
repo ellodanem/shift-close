@@ -16,6 +16,7 @@ import {
 import {
   buildPayPeriodEmailHtml,
   formatSavedPayPeriodDateRange,
+  payPeriodReportDefaultSubject,
   payPeriodReportDefaultTo
 } from '@/lib/pay-period-email'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
@@ -186,6 +187,9 @@ export default function PayPeriodPage() {
   /** Open “compose email” modal for a saved pay period (send happens only from the modal). */
   const [emailModalData, setEmailModalData] = useState<PayPeriodData | null>(null)
   const [emailTo, setEmailTo] = useState('')
+  const [emailCc, setEmailCc] = useState('')
+  const [emailBcc, setEmailBcc] = useState('')
+  const [showEmailCcBcc, setShowEmailCcBcc] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailHtml, setEmailHtml] = useState('')
   const [emailSending, setEmailSending] = useState(false)
@@ -361,6 +365,9 @@ export default function PayPeriodPage() {
   const closePayPeriodEmailModal = () => {
     setEmailModalData(null)
     setEmailTo('')
+    setEmailCc('')
+    setEmailBcc('')
+    setShowEmailCcBcc(false)
     setEmailSubject('')
     setEmailHtml('')
   }
@@ -371,7 +378,7 @@ export default function PayPeriodPage() {
       return
     }
     setEmailTo(payPeriodReportDefaultTo())
-    setEmailSubject(formatSavedPayPeriodDateRange(data.startDate, data.endDate))
+    setEmailSubject(payPeriodReportDefaultSubject(data.startDate, data.endDate))
     setEmailHtml(buildPayPeriodEmailHtml(withFullStaffNames(data)))
     setEmailModalData(data)
   }
@@ -396,7 +403,9 @@ export default function PayPeriodPage() {
         body: JSON.stringify({
           to,
           subject,
-          html: emailHtml.trim() || undefined
+          html: emailHtml.trim() || undefined,
+          cc: emailCc.trim() || undefined,
+          bcc: emailBcc.trim() || undefined
         })
       })
       if (!res.ok) {
@@ -895,6 +904,47 @@ export default function PayPeriodPage() {
                     autoComplete="email"
                   />
                 </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailCcBcc((open) => !open)}
+                    className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                  >
+                    {showEmailCcBcc ? 'Hide Cc / Bcc' : 'Cc / Bcc'}
+                  </button>
+                </div>
+                {showEmailCcBcc ? (
+                  <>
+                    <div>
+                      <label htmlFor="pay-period-email-cc" className="block text-sm font-medium text-gray-700 mb-1">
+                        Cc
+                      </label>
+                      <input
+                        id="pay-period-email-cc"
+                        type="text"
+                        value={emailCc}
+                        onChange={(e) => setEmailCc(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        placeholder="Comma-separated addresses"
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="pay-period-email-bcc" className="block text-sm font-medium text-gray-700 mb-1">
+                        Bcc
+                      </label>
+                      <input
+                        id="pay-period-email-bcc"
+                        type="text"
+                        value={emailBcc}
+                        onChange={(e) => setEmailBcc(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        placeholder="Comma-separated addresses"
+                        autoComplete="email"
+                      />
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <label htmlFor="pay-period-email-subject" className="block text-sm font-medium text-gray-700 mb-1">
                     Subject
