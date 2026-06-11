@@ -2,6 +2,29 @@ import type { PayPeriodExcelRow } from '@/lib/pay-period-excel'
 
 export type PayPeriodRow = PayPeriodExcelRow
 
+/** Synthetic staff ids for rows that exist only on this pay period report. */
+export const REPORT_ONLY_PAY_PERIOD_STAFF_ID_PREFIX = 'report-only:'
+
+export function isReportOnlyPayPeriodRow(row: Pick<PayPeriodRow, 'staffId'>): boolean {
+  return row.staffId.startsWith(REPORT_ONLY_PAY_PERIOD_STAFF_ID_PREFIX)
+}
+
+export function createReportOnlyPayPeriodRow(): PayPeriodRow {
+  const id =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return {
+    staffId: `${REPORT_ONLY_PAY_PERIOD_STAFF_ID_PREFIX}${id}`,
+    staffName: '',
+    transTtl: 0,
+    vacation: '',
+    shortage: 0,
+    sickLeaveDays: 0,
+    sickLeaveRanges: ''
+  }
+}
+
 export function parsePayPeriodPreviousRows(raw: string | null | undefined): PayPeriodRow[] | null {
   if (raw == null || !String(raw).trim()) return null
   try {
@@ -26,6 +49,9 @@ export function resolvePayPeriodStaffDisplayName(
   row: Pick<PayPeriodRow, 'staffId' | 'staffName'>,
   nameByStaffId?: Record<string, string>
 ): string {
+  if (isReportOnlyPayPeriodRow(row)) {
+    return row.staffName.trim() || 'New staff'
+  }
   return nameByStaffId?.[row.staffId]?.trim() || row.staffName
 }
 

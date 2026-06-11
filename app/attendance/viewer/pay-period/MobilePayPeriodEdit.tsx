@@ -4,7 +4,11 @@ import { useState } from 'react'
 import { formatSavedPayPeriodDateRange } from '@/lib/pay-period-email'
 import { formatDateDisplay } from '@/lib/pay-period-excel'
 import type { PayPeriodExcelData, PayPeriodExcelRow } from '@/lib/pay-period-excel'
-import { resolvePayPeriodPreviousRow } from '@/lib/pay-period-rows'
+import {
+  createReportOnlyPayPeriodRow,
+  isReportOnlyPayPeriodRow,
+  resolvePayPeriodPreviousRow
+} from '@/lib/pay-period-rows'
 
 export interface MobileEditDraft extends PayPeriodExcelData {
   id: string
@@ -39,6 +43,7 @@ export default function MobilePayPeriodEdit({
   const rowCount = data.rows.length
   const safeIndex = rowCount > 0 ? Math.min(staffIndex, rowCount - 1) : 0
   const row = data.rows[safeIndex]
+  const reportOnly = row ? isReportOnlyPayPeriodRow(row) : false
   const prevRow = row
     ? resolvePayPeriodPreviousRow(data.previousRowsSnapshot, row.staffId, safeIndex)
     : undefined
@@ -47,6 +52,12 @@ export default function MobilePayPeriodEdit({
     const rows = [...data.rows]
     rows[index] = { ...rows[index], [field]: value }
     setData({ ...data, rows })
+  }
+
+  const addReportOnlyRow = () => {
+    const rows = [...data.rows, createReportOnlyPayPeriodRow()]
+    setData({ ...data, rows })
+    setStaffIndex(rows.length - 1)
   }
 
   const handleSave = async () => {
@@ -129,7 +140,24 @@ export default function MobilePayPeriodEdit({
             <p className="text-sm text-slate-400">No staff rows in this report.</p>
           ) : (
             <div className="rounded-xl border border-slate-600 bg-slate-800/80 p-4">
-              <h2 className="text-base font-semibold text-slate-100 mb-4">{row.staffName}</h2>
+              {reportOnly ? (
+                <div className="mb-4">
+                  <label className={fieldLabel} htmlFor="ppr-name">
+                    Staff name
+                  </label>
+                  <input
+                    id="ppr-name"
+                    type="text"
+                    value={row.staffName}
+                    placeholder="Staff name"
+                    onChange={(e) => updateRow(safeIndex, 'staffName', e.target.value)}
+                    className={fieldInput}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Report only — not added to Staff module.</p>
+                </div>
+              ) : (
+                <h2 className="text-base font-semibold text-slate-100 mb-4">{row.staffName}</h2>
+              )}
 
               <div className="space-y-4">
                 <div>
@@ -290,6 +318,13 @@ export default function MobilePayPeriodEdit({
               </button>
             </div>
           ) : null}
+          <button
+            type="button"
+            onClick={addReportOnlyRow}
+            className="w-full min-h-[44px] mb-2 rounded-lg border border-slate-600 bg-slate-800 text-sm font-medium text-slate-200 hover:bg-slate-700"
+          >
+            + Add staff row
+          </button>
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}

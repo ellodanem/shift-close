@@ -21,6 +21,8 @@ import {
 } from '@/lib/pay-period-email'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
 import {
+  createReportOnlyPayPeriodRow,
+  isReportOnlyPayPeriodRow,
   resolvePayPeriodStaffDisplayName,
   withPayPeriodStaffFullNames
 } from '@/lib/pay-period-rows'
@@ -273,7 +275,7 @@ export default function PayPeriodPage() {
       const data: PayPeriodData = await res.json()
       setReportData({ ...data, notes: data.notes ?? '', previousRowsSnapshot: null })
       setEditingSavedId(null)
-      void loadStaffPayroll(data.rows.map((r) => r.staffId))
+      void loadStaffPayroll(payPeriodStaffIdsForPayroll(data.rows))
       setShowModal(true)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to generate')
@@ -288,6 +290,14 @@ export default function PayPeriodPage() {
     rows[index] = { ...rows[index], [field]: value }
     setReportData({ ...reportData, rows })
   }
+
+  const addReportOnlyRow = () => {
+    if (!reportData) return
+    setReportData({ ...reportData, rows: [...reportData.rows, createReportOnlyPayPeriodRow()] })
+  }
+
+  const payPeriodStaffIdsForPayroll = (rows: PayPeriodRow[]) =>
+    rows.map((r) => r.staffId).filter((id) => !isReportOnlyPayPeriodRow({ staffId: id }))
 
   const handleSave = async () => {
     if (!reportData) return
@@ -347,7 +357,7 @@ export default function PayPeriodPage() {
     })
     setEditingSavedId(p.id)
     setShowConfirm(false)
-    void loadStaffPayroll(rows.map((r) => r.staffId))
+    void loadStaffPayroll(payPeriodStaffIdsForPayroll(rows))
     setShowModal(true)
   }
 
@@ -595,6 +605,7 @@ export default function PayPeriodPage() {
                 <tbody>
                   {viewData.rows.map((r, i) => {
                     const prev = resolvePreviousRow(prevRows, r.staffId, i)
+                    const reportOnly = isReportOnlyPayPeriodRow(r)
                     const curVac = (r.vacation ?? '').trim()
                     const prevVac = prev ? (prev.vacation ?? '').trim() : null
                     const curSickDays = String(r.sickLeaveDays ?? 0)
@@ -602,16 +613,18 @@ export default function PayPeriodPage() {
                     const curRanges = (r.sickLeaveRanges ?? '').trim()
                     const prevRanges = prev ? (prev.sickLeaveRanges ?? '').trim() : null
                     return (
-                    <tr key={i} className="border-b border-gray-200">
+                    <tr key={r.staffId} className="border-b border-gray-200">
                       <td className="py-1">
                         <span className="inline-flex flex-wrap items-center gap-2">
-                          {r.staffName}
-                          <Link
-                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(viewData.startDate)}&endDate=${encodeURIComponent(viewData.endDate)}`}
-                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
-                          >
-                            Daily
-                          </Link>
+                          {resolvePayPeriodStaffDisplayName(r, staffNameById)}
+                          {!reportOnly ? (
+                            <Link
+                              href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(viewData.startDate)}&endDate=${encodeURIComponent(viewData.endDate)}`}
+                              className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                            >
+                              Daily
+                            </Link>
+                          ) : null}
                         </span>
                       </td>
                       <td className="text-right align-top">
@@ -713,29 +726,40 @@ export default function PayPeriodPage() {
                 </thead>
                 <tbody>
                   {reportData.rows.map((r, i) => {
+                    const reportOnly = isReportOnlyPayPeriodRow(r)
                     const prevRow = resolvePreviousRow(reportData.previousRowsSnapshot ?? null, r.staffId, i)
                     const transPrevTitle =
                       prevRow && prevRow.transTtl.toFixed(2) !== r.transTtl.toFixed(2)
                         ? `Previously: ${prevRow.transTtl.toFixed(2)}`
                         : undefined
                     return (
-                    <tr key={i} className="border-b border-gray-200">
+                    <tr key={r.staffId} className="border-b border-gray-200">
                       <td className="py-1">
-                        <span className="inline-flex flex-wrap items-center gap-1">
-                          {resolvePayPeriodStaffDisplayName(r, staffNameById)}
-                          <CopyStaffPayrollButton
-                            staffId={r.staffId}
-                            staffPayrollById={staffPayrollById}
-                            onCopy={appendStaffBlockToNotes}
+                        {reportOnly ? (
+                          <input
+                            type="text"
+                            value={r.staffName}
+                            onChange={(e) => updateRow(i, 'staffName', e.target.value)}
+                            placeholder="Staff name"
+                            className="w-full min-w-[10rem] border border-gray-300 rounded px-2 py-1"
                           />
-                          <Link
-                            href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(reportData.startDate)}&endDate=${encodeURIComponent(reportData.endDate)}`}
-                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
-                            title="Daily punches and hours for this period"
-                          >
-                            Daily
-                          </Link>
-                        </span>
+                        ) : (
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            {resolvePayPeriodStaffDisplayName(r, staffNameById)}
+                            <CopyStaffPayrollButton
+                              staffId={r.staffId}
+                              staffPayrollById={staffPayrollById}
+                              onCopy={appendStaffBlockToNotes}
+                            />
+                            <Link
+                              href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(reportData.startDate)}&endDate=${encodeURIComponent(reportData.endDate)}`}
+                              className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                              title="Daily punches and hours for this period"
+                            >
+                              Daily
+                            </Link>
+                          </span>
+                        )}
                       </td>
                       <td className="text-right">
                         <input
@@ -788,7 +812,20 @@ export default function PayPeriodPage() {
                     </tr>
                   )})}
                   <tr className="font-bold border-t-2 border-gray-300">
-                    <td className="py-2">Total</td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={addReportOnlyRow}
+                          title="Add staff row (report only — not saved to Staff module)"
+                          aria-label="Add staff row"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-400 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50"
+                        >
+                          +
+                        </button>
+                        Total
+                      </span>
+                    </td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
                     <td></td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
