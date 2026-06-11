@@ -31,10 +31,27 @@ export function formatDateRange(start: string, end: string): string {
   return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 0:00 To ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 23:59`
 }
 
+/** Known payroll note field starts (blocks copied without line breaks). */
+const PAY_PERIOD_NOTE_FIELD_RE =
+  /(?=(?:Name:|Address:|D\.O\.B\.|Date Started\s*:|N\.I\.C\s*#:?|Bank account:|Account number:))/i
+
+/** Split stored notes into one line per field for Excel export. */
+export function splitPayPeriodNotesForExport(notes: string): string[] {
+  const trimmed = notes.trim()
+  if (!trimmed) return []
+
+  if (trimmed.includes('\n') || trimmed.includes('\r')) {
+    return trimmed.split(/\r?\n/)
+  }
+
+  const parts = trimmed.split(PAY_PERIOD_NOTE_FIELD_RE).map((s) => s.trim()).filter(Boolean)
+  return parts.length > 0 ? parts : [trimmed]
+}
+
 /** One spreadsheet row per notes line so Excel shows each field on its own line. */
 export function buildPayPeriodNotesRows(notes: string): (string | number)[][] {
   if (!notes.trim()) return []
-  return notes.split(/\r?\n/).map((line, i) => [i === 0 ? 'Notes:' : '', line])
+  return splitPayPeriodNotesForExport(notes).map((line, i) => [i === 0 ? 'Notes:' : '', line])
 }
 
 export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | number)[][] {
