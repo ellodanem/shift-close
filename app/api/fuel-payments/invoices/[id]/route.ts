@@ -103,7 +103,7 @@ export async function PATCH(
     }
 
     if (type !== undefined && type !== existing.type) {
-      const validTypes = ['Fuel', 'LPG', 'Lubricants', 'Rent']
+      const validTypes = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty']
       if (!validTypes.includes(type)) {
         return NextResponse.json(
           { error: `type must be one of: ${validTypes.join(', ')}` },

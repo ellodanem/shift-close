@@ -38,6 +38,10 @@ const getInvoiceTypeIcon = (type: string): string => {
       return '🛢️'
     case 'Rent':
       return '🏢'
+    case 'Uniforms':
+      return '👔'
+    case 'Loyalty':
+      return '⭐'
     default:
       return '📄'
   }
@@ -927,6 +931,8 @@ export default function InvoicesPage() {
                       <option value="LPG">LPG</option>
                       <option value="Lubricants">Lubricants</option>
                       <option value="Rent">Rent</option>
+                      <option value="Uniforms">Uniforms</option>
+                      <option value="Loyalty">Loyalty</option>
                     </select>
                   </div>
                 </div>
