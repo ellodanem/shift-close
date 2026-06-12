@@ -992,3 +992,20 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+// Weekly/daily operations checklist manual state (in progress, complete, snooze)
+model ChecklistAcknowledgement {
+  id        String   @id @default(cuid())
+  taskId    String   @map("task_id")
+  weekKey   String   @map("week_key") // Monday YMD for weekly tasks; work date for daily
+  kind      String   // started | complete | snooze | waive
+  note      String?
+  userId    String?  @map("user_id")
+  untilDate String?  @map("until_date") // YMD for snooze
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([taskId, weekKey, kind], name: "checklist_ack_task_week_kind")
+  @@index([weekKey])
+  @@map("checklist_acknowledgements")
+}
+

@@ -18,7 +18,8 @@
     "db:delete-pay-periods": "node scripts/delete-all-pay-periods.cjs",
     "db:backfill-extracted": "node scripts/backfill-attendance-extracted.cjs",
     "db:normalize-dateonly": "node scripts/normalize-dateonly-datetime.cjs",
-    "test:datetime": "tsx --test scripts/test-datetime-policy.ts"
+    "test:datetime": "tsx --test scripts/test-datetime-policy.ts",
+    "test:checklist": "tsx --test scripts/test-operations-checklist-due-dates.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

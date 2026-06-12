@@ -11,6 +11,7 @@ import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH } from '@/lib/scans-mobile'
 import { formatAppUserDisplayName } from '@/lib/roles'
+import OperationsChecklistPanel from './OperationsChecklistPanel'
 
 export default function LayoutWrapper({
   children
@@ -57,6 +58,7 @@ export default function LayoutWrapper({
           </header>
         )}
         <main className="min-h-0 flex-1 min-w-0 overflow-y-auto">{children}</main>
+        <OperationsChecklistPanel />
       </div>
     </div>
   )

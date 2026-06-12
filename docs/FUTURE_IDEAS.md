@@ -68,6 +68,18 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ---
 
-## 4. Adding more ideas
+## 4. Operations checklist (floating panel)
+
+**Goal:** Global floating checklist of daily/weekly close tasks with derived green status, badge counts, and links into the right screen.
+
+**Spec (locked):** [`operations-checklist.md`](./operations-checklist.md)
+
+**Locked highlights:** Shift entry **W+1**; deposit comparison **bank receipt → process → due next day** (Fri–Sun → bank Mon → due **Tue**; Mon → due **Wed**; banking holidays push dates); weekly customer/vendor due **Sunday** with **`in_progress`** for partial invoice entry; O/S disclosure **excluded** from close; scans required unless station closed; `discrepancy` = incomplete.
+
+**Still open:** Time-of-day cutoff, weekend notification policy, vendor complete rule detail.
+
+---
+
+## 5. Adding more ideas
 
 Use short subsections with **Goal**, **Rough behavior**, and **Open decisions**. Link to PRDs or issues when they exist.
