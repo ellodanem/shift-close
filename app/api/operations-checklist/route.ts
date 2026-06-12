@@ -11,11 +11,12 @@ export async function GET(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!canAccessOperationsChecklist(session.role)) {
+    const accessUser = { role: session.role, isSuperAdmin: session.isSuperAdmin }
+    if (!canAccessOperationsChecklist(accessUser)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const payload = await loadOperationsChecklist(session.role)
+    const payload = await loadOperationsChecklist(session.role, accessUser)
     return NextResponse.json(payload, {
       headers: { 'Cache-Control': 'no-store, max-age=0' }
     })

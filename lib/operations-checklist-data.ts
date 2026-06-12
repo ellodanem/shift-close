@@ -3,13 +3,18 @@ import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { buildDayReports } from '@/lib/day-reports'
 import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { getStationClosedDates } from '@/lib/public-holidays'
+import type { OperationsChecklistUser } from '@/lib/operations-checklist-access'
+import { canSeeFinancialChecklistItems } from '@/lib/operations-checklist-access'
 import { buildOperationsChecklist, ROLLING_WORK_DAYS } from '@/lib/operations-checklist'
 import { weekKeyMonday } from '@/lib/operations-checklist-due-dates'
 import type { ComparisonRow } from '@/lib/deposit-comparison-rows'
 import type { DayReport } from '@/lib/types'
 import type { OperationsChecklistPayload } from '@/lib/operations-checklist-types'
 
-export async function loadOperationsChecklist(role: string): Promise<OperationsChecklistPayload> {
+export async function loadOperationsChecklist(
+  role: string,
+  accessUser: OperationsChecklistUser
+): Promise<OperationsChecklistPayload> {
   const asOf = businessTodayYmd()
   const sinceDate = addCalendarDaysYmd(asOf, -(ROLLING_WORK_DAYS + 2))
 
@@ -66,6 +71,7 @@ export async function loadOperationsChecklist(role: string): Promise<OperationsC
   return buildOperationsChecklist({
     asOf,
     role,
+    showFinancial: canSeeFinancialChecklistItems(accessUser),
     dayReportsByDate,
     comparisonRowsByDate,
     stationClosedDates,

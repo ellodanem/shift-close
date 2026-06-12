@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!canAcknowledgeWeeklyChecklist(session.role)) {
+    if (!canAcknowledgeWeeklyChecklist({ role: session.role, isSuperAdmin: session.isSuperAdmin })) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

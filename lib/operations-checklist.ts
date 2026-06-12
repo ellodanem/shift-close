@@ -8,7 +8,6 @@ import {
   weekDueSunday,
   weekKeyMonday
 } from '@/lib/operations-checklist-due-dates'
-import { canSeeFinancialChecklistItems } from '@/lib/operations-checklist-access'
 import type {
   ChecklistAckKind,
   ChecklistItem,
@@ -29,6 +28,7 @@ type AckRow = {
 type BuildInput = {
   asOf: string
   role: string
+  showFinancial: boolean
   dayReportsByDate: Map<string, DayReport>
   comparisonRowsByDate: Map<string, ComparisonRow[]>
   stationClosedDates: ReadonlySet<string>
@@ -125,7 +125,8 @@ function ackForWeek(acks: AckRow[], taskId: string, weekKey: string, kind: Check
 export function buildOperationsChecklist(input: BuildInput): OperationsChecklistPayload {
   const {
     asOf,
-    role,
+    role: _role,
+    showFinancial,
     dayReportsByDate,
     comparisonRowsByDate,
     stationClosedDates,
@@ -137,7 +138,6 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
   } = input
 
   const items: ChecklistItem[] = []
-  const showFinancial = canSeeFinancialChecklistItems(role)
   const weekKey = weekKeyMonday(asOf)
   const weekSunday = weekDueSunday(weekKey)
 

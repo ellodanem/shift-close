@@ -34,6 +34,7 @@ Give managers and accounting a **single always-visible panel** of operational ta
 | Banking holidays | **Push back** receipt and processing (comparison stays `not_due`) |
 | Station closed | No shift/scans expected; tasks **`na`** for that work date |
 | Vocabulary | `complete`, `not_due`, `due`, `overdue`, `blocked`, `discrepancy`, `in_progress`, `na` |
+| **Access** | **`admin` role or `isSuperAdmin` only** — not managers, operations managers, or supervisors |
 
 ---
 

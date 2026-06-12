@@ -1,17 +1,19 @@
-import { isFinancialPowerRole, isFullAccessRole, isOperationsManagerRole, isSupervisorLike } from '@/lib/roles'
+import { isAdministratorRole } from '@/lib/roles'
 
-export function canAccessOperationsChecklist(role: string): boolean {
-  return (
-    isFullAccessRole(role) ||
-    isOperationsManagerRole(role) ||
-    isSupervisorLike(role)
-  )
+export type OperationsChecklistUser = {
+  role: string
+  isSuperAdmin?: boolean
 }
 
-export function canSeeFinancialChecklistItems(role: string): boolean {
-  return isFinancialPowerRole(role)
+/** Admin role, or the super-admin account (owner). Not managers, ops, or supervisors. */
+export function canAccessOperationsChecklist(user: OperationsChecklistUser): boolean {
+  return isAdministratorRole(user.role) || user.isSuperAdmin === true
 }
 
-export function canAcknowledgeWeeklyChecklist(role: string): boolean {
-  return isFullAccessRole(role)
+export function canSeeFinancialChecklistItems(user: OperationsChecklistUser): boolean {
+  return canAccessOperationsChecklist(user)
+}
+
+export function canAcknowledgeWeeklyChecklist(user: OperationsChecklistUser): boolean {
+  return canAccessOperationsChecklist(user)
 }

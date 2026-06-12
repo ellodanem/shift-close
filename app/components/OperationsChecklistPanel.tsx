@@ -54,7 +54,7 @@ export default function OperationsChecklistPanel() {
   const tabHiddenAtRef = useRef<number | null>(null)
 
   const load = useCallback(async () => {
-    if (!user || !canAccessOperationsChecklist(user.role)) return
+    if (!user || !canAccessOperationsChecklist({ role: user.role, isSuperAdmin: user.isSuperAdmin })) return
     setFetching(true)
     try {
       const res = await fetch('/api/operations-checklist', { cache: 'no-store' })
@@ -69,7 +69,7 @@ export default function OperationsChecklistPanel() {
   }, [user])
 
   useEffect(() => {
-    if (loading || !user || !canAccessOperationsChecklist(user.role)) return
+    if (loading || !user || !canAccessOperationsChecklist({ role: user.role, isSuperAdmin: user.isSuperAdmin })) return
     void load()
     const id = window.setInterval(() => void load(), POLL_MS)
     return () => window.clearInterval(id)
@@ -99,7 +99,9 @@ export default function OperationsChecklistPanel() {
     void load()
   }
 
-  if (loading || !user || !canAccessOperationsChecklist(user.role)) return null
+  if (loading || !user || !canAccessOperationsChecklist({ role: user.role, isSuperAdmin: user.isSuperAdmin })) {
+    return null
+  }
 
   const badgeCount = data?.items.reduce((n, i) => n + i.badgeWeight, 0) ?? 0
   const grouped = groupItems(data?.items ?? [])
