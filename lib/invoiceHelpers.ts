@@ -1,5 +1,5 @@
 // Helper functions for invoice management
-import { normalizeToUtcString, ymdToUtcNoonDate } from '@/lib/datetime-policy'
+import { businessTodayYmd, normalizeToUtcString, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 
 export interface DueDateStatus {
   status: 'ok' | 'warning' | 'due' | 'overdue'
@@ -7,21 +7,23 @@ export interface DueDateStatus {
   className: string
 }
 
+function calendarDaysBetweenYmd(fromYmd: string, toYmd: string): number {
+  const fromMs = ymdToUtcNoonDate(fromYmd).getTime()
+  const toMs = ymdToUtcNoonDate(toYmd).getTime()
+  return Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000))
+}
+
 /**
  * Calculate due date status and styling
  * - Yellow (warning): 1 day before due date
  * - Orange (due): On due date
  * - Red (overdue): Past due date
- * Uses UTC calendar days so status matches the displayed due date in all timezones.
+ * Compares against the business calendar day (America/St_Lucia) so labels match local "today".
  */
 export function getDueDateStatus(dueDate: Date | string): DueDateStatus {
-  const due = typeof dueDate === 'string' ? new Date(normalizeToUtcString(dueDate)) : dueDate
-  const now = new Date()
-
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  const dueUtc = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate())
-  const diffTime = dueUtc - todayUtc
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+  const todayYmd = businessTodayYmd()
+  const dueYmd = invoiceDateToInputValue(dueDate)
+  const diffDays = calendarDaysBetweenYmd(todayYmd, dueYmd)
 
   if (diffDays < 0) {
     // Overdue

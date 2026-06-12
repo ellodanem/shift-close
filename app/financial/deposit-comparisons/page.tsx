@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BankStatusGlyph,
   IconDebitCard,
@@ -71,6 +71,143 @@ function formatDayHeading(isoDate: string): string {
     month: 'long',
     day: 'numeric'
   }).format(d)
+}
+
+type DayStatus = 'cleared' | 'discrepancy' | 'mixed' | 'pending'
+
+function getDayStatus(deposits: Row[], debits: Row[]): DayStatus {
+  const all = [...deposits, ...debits]
+  if (all.length === 0) return 'pending'
+  if (all.some((r) => r.bankStatus === 'discrepancy')) return 'discrepancy'
+  if (all.every((r) => r.bankStatus === 'cleared')) return 'cleared'
+  const hasCleared = all.some((r) => r.bankStatus === 'cleared')
+  const hasPending = all.some((r) => r.bankStatus === 'pending')
+  if (hasCleared && hasPending) return 'mixed'
+  return 'pending'
+}
+
+function isDayFullyCleared(deposits: Row[], debits: Row[]): boolean {
+  return getDayStatus(deposits, debits) === 'cleared'
+}
+
+function dayHeaderClass(status: DayStatus): string {
+  switch (status) {
+    case 'cleared':
+      return 'bg-emerald-50/60'
+    case 'discrepancy':
+      return 'bg-red-50/50'
+    case 'mixed':
+      return 'bg-amber-50/60'
+    default:
+      return 'bg-slate-100/90'
+  }
+}
+
+function dayStatusLabel(status: DayStatus): string {
+  switch (status) {
+    case 'cleared':
+      return 'All lines cleared'
+    case 'discrepancy':
+      return 'Has discrepancies'
+    case 'mixed':
+      return 'In progress — some cleared, some pending'
+    default:
+      return 'All lines pending'
+  }
+}
+
+function collapsedDaySummary(deposits: Row[], debits: Row[], dayTotal: number): string {
+  const all = [...deposits, ...debits]
+  const pending = all.filter((r) => r.bankStatus === 'pending').length
+  const cleared = all.filter((r) => r.bankStatus === 'cleared').length
+  const discrepancy = all.filter((r) => r.bankStatus === 'discrepancy').length
+  const parts: string[] = []
+  if (pending > 0) parts.push(`${pending} pending`)
+  if (cleared > 0) parts.push(`${cleared} cleared`)
+  if (discrepancy > 0) parts.push(`${discrepancy} issue${discrepancy === 1 ? '' : 's'}`)
+  parts.push(formatCurrency(dayTotal))
+  return parts.join(' · ')
+}
+
+function DayStatusGlyph({ status }: { status: DayStatus }) {
+  const wrap = (className: string, title: string, icon: ReactNode) => (
+    <span
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${className}`}
+      title={title}
+      aria-label={title}
+    >
+      {icon}
+    </span>
+  )
+
+  if (status === 'cleared') {
+    return wrap('bg-emerald-100 ring-emerald-200', dayStatusLabel(status), <BankStatusGlyph status="cleared" />)
+  }
+  if (status === 'discrepancy') {
+    return wrap(
+      'bg-red-100 ring-red-200',
+      dayStatusLabel(status),
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-red-700" aria-hidden>
+        <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+      </svg>
+    )
+  }
+  if (status === 'mixed') {
+    return wrap(
+      'bg-amber-100 ring-amber-200',
+      dayStatusLabel(status),
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-amber-600" aria-hidden>
+        <circle cx="12" cy="12" r="7" fill="currentColor" />
+      </svg>
+    )
+  }
+  return wrap(
+    'bg-slate-200/80 ring-slate-300',
+    dayStatusLabel(status),
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-slate-500" aria-hidden>
+      <circle cx="12" cy="12" r="7" fill="currentColor" />
+    </svg>
+  )
+}
+
+function computeTotals(rows: Row[]): Totals {
+  return {
+    count: rows.length,
+    sumDeposits: rows.filter((r) => r.recordKind === 'deposit').reduce((a, r) => a + r.amount, 0),
+    sumDebits: rows.filter((r) => r.recordKind === 'debit').reduce((a, r) => a + r.amount, 0),
+    pending: rows.filter((r) => r.bankStatus === 'pending').length,
+    cleared: rows.filter((r) => r.bankStatus === 'cleared').length,
+    discrepancy: rows.filter((r) => r.bankStatus === 'discrepancy').length
+  }
+}
+
+function applyClientFilters(
+  rows: Row[],
+  hideCleared: boolean,
+  statusFilter: BankStatus | 'all'
+): Row[] {
+  let out = rows
+  if (hideCleared) {
+    const byDate = new Map<string, Row[]>()
+    for (const r of out) {
+      if (!byDate.has(r.date)) byDate.set(r.date, [])
+      byDate.get(r.date)!.push(r)
+    }
+    const dropDates = new Set<string>()
+    for (const [date, list] of byDate) {
+      if (list.length > 0 && list.every((x) => x.bankStatus === 'cleared')) {
+        dropDates.add(date)
+      }
+    }
+    if (dropDates.size > 0) {
+      out = out.filter((r) => !dropDates.has(r.date))
+    }
+  }
+  if (statusFilter !== 'all') {
+    out = out.filter((r) => r.bankStatus === statusFilter)
+  }
+  return out
 }
 
 function buildDefaultDiscrepancyEmailBody(_date: string, deposits: Row[], debits: Row[]): string {
@@ -594,7 +731,9 @@ const BANK_ROW_STATUS_OPTIONS: { value: BankStatus; label: string }[] = [
 const SHIFT_LIMIT_OPTIONS = [400, 600, 1200, 3000] as const
 
 export default function DepositComparisonsPage() {
-  const [hideCleared, setHideCleared] = useState(true)
+  const [hideCleared, setHideCleared] = useState(false)
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set())
+  const prevFullyClearedRef = useRef<Map<string, boolean>>(new Map())
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]['value']>('all')
   const [useDateRange, setUseDateRange] = useState(false)
   const todayStr = useMemo(() => ymd(new Date()), [])
@@ -607,9 +746,10 @@ export default function DepositComparisonsPage() {
   const [shiftLimit, setShiftLimit] = useState<(typeof SHIFT_LIMIT_OPTIONS)[number]>(600)
 
   const [rows, setRows] = useState<Row[]>([])
-  const [totals, setTotals] = useState<Totals | null>(null)
   const [meta, setMeta] = useState<LoadMeta | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const rowCountRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
@@ -632,7 +772,9 @@ export default function DepositComparisonsPage() {
 
   const load = useCallback(async () => {
     setError(null)
-    setLoading(true)
+    const firstLoad = rowCountRef.current === 0
+    if (firstLoad) setLoading(true)
+    else setRefreshing(true)
     try {
       const q = new URLSearchParams()
       if (useDateRange) {
@@ -645,22 +787,26 @@ export default function DepositComparisonsPage() {
       const res = await fetch(`/api/financial/deposit-comparisons?${q.toString()}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
-      setRows(Array.isArray(data.rows) ? data.rows : [])
-      setTotals(data.totals ?? null)
+      const nextRows = Array.isArray(data.rows) ? data.rows : []
+      setRows(nextRows)
+      rowCountRef.current = nextRows.length
       setMeta(data.meta ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
       setRows([])
-      setTotals(null)
+      rowCountRef.current = 0
       setMeta(null)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [from, to, statusFilter, hideCleared, shiftLimit, useDateRange])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const totals = useMemo(() => computeTotals(rows), [rows])
 
   const byDate = useMemo(() => {
     const m = new Map<string, Row[]>()
@@ -675,6 +821,23 @@ export default function DepositComparisonsPage() {
       debits: (m.get(date) ?? []).filter((x) => x.recordKind === 'debit')
     }))
   }, [rows])
+
+  useEffect(() => {
+    setExpandedDates((prev) => {
+      let changed = false
+      const next = new Set(prev)
+      for (const { date, deposits, debits } of byDate) {
+        const fullyCleared = isDayFullyCleared(deposits, debits)
+        const wasFullyCleared = prevFullyClearedRef.current.get(date)
+        prevFullyClearedRef.current.set(date, fullyCleared)
+
+        if (fullyCleared && wasFullyCleared !== true && next.delete(date)) {
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [byDate])
 
   const patchRow = async (
     shiftId: string,
@@ -693,7 +856,20 @@ export default function DepositComparisonsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Save failed')
-      void load()
+      setRows((prev) => {
+        const updated = prev.map((r) =>
+          r.shiftId === shiftId && r.recordKind === recordKind && r.lineIndex === lineIndex
+            ? {
+                ...r,
+                ...(body.bankStatus !== undefined ? { bankStatus: body.bankStatus } : {}),
+                ...(body.notes !== undefined ? { notes: body.notes } : {})
+              }
+            : r
+        )
+        const filtered = applyClientFilters(updated, hideCleared, statusFilter)
+        rowCountRef.current = filtered.length
+        return filtered
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -718,9 +894,9 @@ export default function DepositComparisonsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Recent closed shifts first. Use the day&apos;s <strong>Deposits</strong>, <strong>Credit & debit (day sheet, Other Items)</strong>, and{' '}
-            <strong>Security</strong> icons to pick a scan and preview it in a modal (labeled by shift). Tables below are for amounts
-            and bank status only.
+            Recent closed shifts first. Days start collapsed — click a date to expand. Status icons: grey circle (all pending), yellow
+            (mixed), red X (discrepancy), green check (all cleared). Use each day&apos;s <strong>Deposits</strong>,{' '}
+            <strong>Credit & debit</strong>, and <strong>Security</strong> scan menus after expanding.
           </p>
         </div>
 
@@ -771,9 +947,10 @@ export default function DepositComparisonsPage() {
             <button
               type="button"
               onClick={() => void load()}
-              className="ml-auto rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
+              disabled={refreshing}
+              className="ml-auto rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60"
             >
-              Refresh
+              {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
 
@@ -827,7 +1004,7 @@ export default function DepositComparisonsPage() {
           </p>
         ) : null}
 
-        {totals && !loading ? (
+        {!loading ? (
           <div className="flex flex-wrap gap-3 text-sm">
             <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 font-medium tabular-nums">
               <span className="text-slate-500 mr-2">Items</span>
@@ -869,68 +1046,108 @@ export default function DepositComparisonsPage() {
               const debitScanOptions = buildDebitScanOptions(debits)
               const securityScanOptions = buildSecurityScanOptions(deposits, debits)
               const hasDiscrepancy = [...deposits, ...debits].some((r) => r.bankStatus === 'discrepancy')
+              const dayStatus = getDayStatus(deposits, debits)
+              const isExpanded = expandedDates.has(date)
+              const dayTotal =
+                deposits.reduce((sum, r) => sum + r.amount, 0) + debits.reduce((sum, r) => sum + r.amount, 0)
               return (
                 <section key={date} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                  <header className="bg-slate-100/90 border-b border-slate-200 px-4 py-3">
+                  <header
+                    className={`px-4 py-3 ${dayHeaderClass(dayStatus)} ${
+                      isExpanded ? 'border-b border-slate-200' : ''
+                    }`}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
-                          {debits.length
-                            ? ` · ${debits.length} day-sheet credit & debit row${debits.length === 1 ? '' : 's'}`
-                            : ''}
-                        </p>
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-start gap-2 text-left cursor-pointer hover:opacity-90"
+                        onClick={() => {
+                          setExpandedDates((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(date)) next.delete(date)
+                            else next.add(date)
+                            return next
+                          })
+                        }}
+                        aria-expanded={isExpanded}
+                      >
+                        <span
+                          className={`mt-0.5 shrink-0 text-slate-400 transition-transform ${
+                            isExpanded ? 'rotate-90' : ''
+                          }`}
+                          aria-hidden
+                        >
+                          ›
+                        </span>
+                        <div className="min-w-0">
+                          <h2 className="text-base font-semibold text-slate-900">{formatDayHeading(date)}</h2>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {deposits.length} deposit line{deposits.length === 1 ? '' : 's'}
+                            {debits.length
+                              ? ` · ${debits.length} day-sheet credit & debit row${debits.length === 1 ? '' : 's'}`
+                              : ''}
+                            {!isExpanded ? (
+                              <span className="text-slate-600"> · {collapsedDaySummary(deposits, debits, dayTotal)}</span>
+                            ) : null}
+                          </p>
+                        </div>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {hasDiscrepancy ? (
+                          smtpConfigured === false ? (
+                            <span
+                              className="text-xs text-slate-600 max-w-[14rem] text-right"
+                              title="Email not configured. Set SMTP settings in Settings → Email (SMTP)."
+                            >
+                              Email requires SMTP — Settings → Email (SMTP)
+                            </span>
+                          ) : smtpConfigured === null ? (
+                            <span className="text-xs text-slate-400">Checking email…</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEmailSuccess(null)
+                                setDiscrepancyEmail({ date, deposits, debits })
+                              }}
+                              className="rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
+                            >
+                              Email about discrepancies
+                            </button>
+                          )
+                        ) : null}
+                        <DayStatusGlyph status={dayStatus} />
                       </div>
-                      {hasDiscrepancy ? (
-                        smtpConfigured === false ? (
-                          <span
-                            className="shrink-0 text-xs text-slate-600 max-w-[14rem] text-right"
-                            title="Email not configured. Set SMTP settings in Settings → Email (SMTP)."
-                          >
-                            Email requires SMTP — Settings → Email (SMTP)
-                          </span>
-                        ) : smtpConfigured === null ? (
-                          <span className="shrink-0 text-xs text-slate-400">Checking email…</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEmailSuccess(null)
-                              setDiscrepancyEmail({ date, deposits, debits })
-                            }}
-                            className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
-                          >
-                            Email about discrepancies
-                          </button>
-                        )
-                      ) : null}
                     </div>
                   </header>
 
-                  <DayScanDropdowns
-                    depositOptions={depositScanOptions}
-                    debitOptions={debitScanOptions}
-                    securityOptions={securityScanOptions}
-                    onOpenPreview={(url, title) => setScanPreview({ url, title })}
-                  />
+                  {isExpanded ? (
+                    <>
+                      <DayScanDropdowns
+                        depositOptions={depositScanOptions}
+                        debitOptions={debitScanOptions}
+                        securityOptions={securityScanOptions}
+                        onOpenPreview={(url, title) => setScanPreview({ url, title })}
+                      />
 
-                  <div className="divide-y divide-slate-100">
-                    {deposits.length > 0 ? (
-                      <div className="p-3 md:p-4">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
-                        <ItemTable rows={deposits} savingKey={savingKey} onPatch={patchRow} />
+                      <div className="divide-y divide-slate-100">
+                        {deposits.length > 0 ? (
+                          <div className="p-3 md:p-4">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
+                            <ItemTable rows={deposits} savingKey={savingKey} onPatch={patchRow} />
+                          </div>
+                        ) : null}
+                        {debits.length > 0 ? (
+                          <div className="p-3 md:p-4 bg-slate-50/50">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                              Other Items — credit &amp; debit (end-of-day sheet)
+                            </h3>
+                            <ItemTable rows={debits} savingKey={savingKey} onPatch={patchRow} />
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                    {debits.length > 0 ? (
-                      <div className="p-3 md:p-4 bg-slate-50/50">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                          Other Items — credit &amp; debit (end-of-day sheet)
-                        </h3>
-                        <ItemTable rows={debits} savingKey={savingKey} onPatch={patchRow} />
-                      </div>
-                    ) : null}
-                  </div>
+                    </>
+                  ) : null}
                 </section>
               )
             })
