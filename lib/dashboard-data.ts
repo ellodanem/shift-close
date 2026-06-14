@@ -9,7 +9,8 @@ import {
   loadRosterForCalendarYmd,
   readStationTimeZone
 } from '@/lib/present-absence'
-import { isSupervisorLike, normalizeAppRole } from '@/lib/roles'
+import { fetchStaleArAccounts } from '@/lib/customer-ar-stale-payments'
+import { isFullAccessRole, isSupervisorLike, normalizeAppRole } from '@/lib/roles'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 import { prisma } from '@/lib/prisma'
 
@@ -650,6 +651,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
   const lastDay = new Date(year, month, 0)
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
 
+  const fullFinancialAccess = isFullAccessRole(role)
+
   const [
     summary,
     upcoming,
@@ -659,7 +662,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     averageDeposit,
     arSummary,
     cashbookSummary,
-    fuelMtdSold
+    fuelMtdSold,
+    staleArAccounts
   ] = await Promise.all([
     fetchDashboardMonthSummary({ year, month }),
     fetchDashboardUpcoming(),
@@ -669,7 +673,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     skipFuelCharts ? Promise.resolve(null) : fetchDashboardAverageDeposit(),
     skipFinancial ? Promise.resolve(null) : fetchCustomerArSummaryFirst(year, month),
     skipFinancial ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
-    fetchDashboardFuelMtdSold(year, month)
+    fetchDashboardFuelMtdSold(year, month),
+    fullFinancialAccess ? fetchStaleArAccounts() : Promise.resolve(null)
   ])
 
   let fuelExpense: number | null = null
@@ -691,6 +696,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     averageDeposit,
     arSummary,
     cashbookSummary,
-    fuelMtdSold
+    fuelMtdSold,
+    staleArAccounts
   }
 }

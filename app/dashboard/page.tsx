@@ -14,6 +14,8 @@ import {
   isPinnedTopDashboardWidget
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
+import type { StaleArBucketDays, StaleArPayload } from '@/lib/customer-ar-stale-payments'
+import { STALE_AR_BUCKET_DAYS } from '@/lib/customer-ar-stale-payments'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -218,7 +220,7 @@ function rosterShiftGroupSortMinutes(shiftName: string, scheduled: TodaySchedule
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut } = useAuth()
+  const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut, isFullAccess } = useAuth()
   const appRole = user?.role ?? ''
   const [summary, setSummary] = useState<MonthSummary | null>(null)
   const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([])
@@ -265,6 +267,8 @@ export default function DashboardPage() {
   const [presenceSaving, setPresenceSaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
+  const [staleArAccounts, setStaleArAccounts] = useState<StaleArPayload | null>(null)
+  const [selectedStaleBucket, setSelectedStaleBucket] = useState<StaleArBucketDays | 'all'>('all')
 
   useEffect(() => {
     if (authLoading) return
@@ -401,6 +405,7 @@ export default function DashboardPage() {
       else setAverageDeposit(null)
 
       setArSummary(data.arSummary ?? null)
+      setStaleArAccounts(data.staleArAccounts ?? null)
 
       const cb = data.cashbookSummary
       if (cb && typeof cb.totalIncome === 'number') {
@@ -526,6 +531,29 @@ export default function DashboardPage() {
   const formatLitres = (num: number): string =>
     num.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 })
 
+  const staleBucketTone = (days: StaleArBucketDays): string => {
+    if (days >= 120) return 'border-red-300 bg-red-50 text-red-900'
+    if (days >= 90) return 'border-orange-300 bg-orange-50 text-orange-900'
+    if (days >= 45) return 'border-amber-300 bg-amber-50 text-amber-900'
+    return 'border-slate-300 bg-slate-50 text-slate-900'
+  }
+
+  const staleBucketActiveTone = (days: StaleArBucketDays): string => {
+    if (days >= 120) return 'ring-2 ring-red-400 border-red-400'
+    if (days >= 90) return 'ring-2 ring-orange-400 border-orange-400'
+    if (days >= 45) return 'ring-2 ring-amber-400 border-amber-400'
+    return 'ring-2 ring-slate-400 border-slate-400'
+  }
+
+  const filteredStaleAccounts = useMemo(() => {
+    if (!staleArAccounts) return []
+    if (selectedStaleBucket === 'all') return staleArAccounts.accounts
+    return staleArAccounts.accounts.filter((row) => {
+      if (row.neverPaid) return true
+      return (row.daysSincePayment ?? 0) >= selectedStaleBucket
+    })
+  }, [staleArAccounts, selectedStaleBucket])
+
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr)
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -536,7 +564,11 @@ export default function DashboardPage() {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   }
 
-  const visibleLayout = layout.filter(id => id !== 'fuel-volume' || fuelComparison.length > 0)
+  const visibleLayout = layout.filter((id) => {
+    if (id === 'fuel-volume' && fuelComparison.length === 0) return false
+    if (id === 'stale-ar-accounts' && !isFullAccess) return false
+    return true
+  })
 
   /** Widgets that participate in reorder controls and the scrollable list (excludes pinned top). */
   const reorderableVisibleLayout = useMemo(
@@ -1363,6 +1395,159 @@ export default function DashboardPage() {
               </div>
             ) : (
               <p className="text-xs text-slate-400">Customer A/R is not shown for your role.</p>
+            )}
+          </div>
+            )}
+            {id === 'stale-ar-accounts' && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-blue-950">Stale A/R accounts</h2>
+              <p className="text-sm text-slate-500 mt-1 leading-snug">
+                Customers with a balance owing and no ledger payment in 30+ days. Based on recorded
+                payment lines in Customer Accounts.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/customer-accounts')}
+                className="mt-2 text-sm text-teal-600 hover:text-teal-700 font-semibold"
+              >
+                Customer Accounts →
+              </button>
+            </div>
+
+            {staleArAccounts ? (
+              staleArAccounts.trackedAccounts === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-6 text-center">
+                  <p className="text-sm text-slate-600">No customer account balances on file yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/customer-accounts')}
+                    className="mt-2 text-xs font-semibold text-teal-600 hover:text-teal-700"
+                  >
+                    Import account data →
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {staleArAccounts.balanceAsOf && (
+                    <p className="text-xs text-slate-500">
+                      Balances from {staleArAccounts.balanceAsOf.monthName}{' '}
+                      {staleArAccounts.balanceAsOf.year}. As of {formatDate(staleArAccounts.asOfDate)}.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {STALE_AR_BUCKET_DAYS.map((days) => {
+                      const key = `days${days}` as const
+                      const bucket = staleArAccounts.buckets[key]
+                      const isActive = selectedStaleBucket === days
+                      return (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() =>
+                            setSelectedStaleBucket((prev) => (prev === days ? 'all' : days))
+                          }
+                          className={`rounded-lg border px-3 py-3 text-left transition-shadow ${staleBucketTone(days)} ${
+                            isActive ? staleBucketActiveTone(days) : ''
+                          }`}
+                        >
+                          <div className="text-[11px] font-semibold uppercase tracking-wide opacity-80">
+                            {days}+ days
+                          </div>
+                          <div className="mt-1 text-2xl font-bold tabular-nums">{bucket.count}</div>
+                          <div className="mt-0.5 text-xs tabular-nums opacity-80">
+                            ${formatCurrency(bucket.totalBalance)}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {staleArAccounts.neverPaidCount > 0 && (
+                    <p className="text-xs font-medium text-red-700">
+                      {staleArAccounts.neverPaidCount} account
+                      {staleArAccounts.neverPaidCount === 1 ? '' : 's'} with balance but no recorded
+                      payments
+                    </p>
+                  )}
+
+                  {filteredStaleAccounts.length === 0 ? (
+                    <p className="text-sm text-emerald-700 font-medium">
+                      No accounts overdue 30+ days — all tracked balances have recent payments.
+                    </p>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                          {selectedStaleBucket === 'all'
+                            ? 'All stale accounts'
+                            : `${selectedStaleBucket}+ days`}
+                        </span>
+                        {selectedStaleBucket !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStaleBucket('all')}
+                            className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+                          >
+                            Show all
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                        {filteredStaleAccounts.slice(0, 12).map((row) => (
+                          <button
+                            key={row.account}
+                            type="button"
+                            onClick={() => router.push('/customer-accounts')}
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-900 truncate">
+                                {row.account}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {row.neverPaid
+                                  ? 'Never paid (ledger)'
+                                  : row.lastPaymentDate
+                                    ? `Last paid ${formatDate(row.lastPaymentDate)}`
+                                    : 'No payment on file'}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-sm font-semibold text-slate-900 tabular-nums">
+                                ${formatCurrency(row.balance)}
+                              </div>
+                              <div
+                                className={`text-xs font-medium tabular-nums mt-0.5 ${
+                                  row.neverPaid || (row.daysSincePayment ?? 0) >= 120
+                                    ? 'text-red-600'
+                                    : (row.daysSincePayment ?? 0) >= 90
+                                      ? 'text-orange-600'
+                                      : (row.daysSincePayment ?? 0) >= 45
+                                        ? 'text-amber-600'
+                                        : 'text-slate-500'
+                                }`}
+                              >
+                                {row.neverPaid
+                                  ? 'No payments'
+                                  : `${row.daysSincePayment} days`}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      {filteredStaleAccounts.length > 12 && (
+                        <div className="px-3 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+                          +{filteredStaleAccounts.length - 12} more on Customer Accounts
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            ) : (
+              <p className="text-sm text-slate-400 italic">Loading stale account data…</p>
             )}
           </div>
             )}
