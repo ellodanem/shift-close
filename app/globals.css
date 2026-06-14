@@ -58,16 +58,33 @@ input[type="number"] {
   0%,
   100% {
     color: rgb(220 38 38);
+    background-color: rgb(254 226 226);
+    box-shadow: inset 3px 0 0 rgb(220 38 38);
   }
   50% {
-    color: rgb(153 27 27);
-    opacity: 0.75;
+    color: rgb(239 68 68);
+    background-color: rgb(254 202 202);
+    box-shadow: inset 3px 0 0 rgb(239 68 68);
   }
 }
 
 .roster-staff-off-days-warning {
-  animation: roster-off-days-flash 1s ease-in-out infinite;
-  font-weight: 600;
+  color: rgb(220 38 38);
+  font-weight: 700;
+  background-color: rgb(254 226 226);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem 0.125rem 0.5rem;
+  box-shadow: inset 3px 0 0 rgb(220 38 38);
+  animation: roster-off-days-flash 0.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roster-staff-off-days-warning {
+    animation: none;
+    color: rgb(185 28 28);
+    background-color: rgb(254 202 202);
+    box-shadow: inset 3px 0 0 rgb(185 28 28);
+  }
 }
 
 /* Sticky top bar on roster desktop table */
