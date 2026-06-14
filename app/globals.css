@@ -57,33 +57,36 @@ input[type="number"] {
 @keyframes roster-off-days-flash {
   0%,
   100% {
-    color: rgb(220 38 38);
-    background-color: rgb(254 226 226);
-    box-shadow: inset 3px 0 0 rgb(220 38 38);
+    background-color: rgb(220 38 38);
+    border-color: rgb(153 27 27);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
   }
   50% {
-    color: rgb(239 68 68);
-    background-color: rgb(254 202 202);
-    box-shadow: inset 3px 0 0 rgb(239 68 68);
+    background-color: rgb(239 68 68);
+    border-color: rgb(220 38 38);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35);
   }
 }
 
 .roster-staff-off-days-warning {
-  color: rgb(220 38 38);
+  display: inline-flex !important;
+  width: fit-content;
+  max-width: 100%;
+  color: rgb(255 255 255);
   font-weight: 700;
-  background-color: rgb(254 226 226);
-  border-radius: 0.25rem;
-  padding: 0.125rem 0.375rem 0.125rem 0.5rem;
-  box-shadow: inset 3px 0 0 rgb(220 38 38);
+  background-color: rgb(220 38 38);
+  border: 2px solid rgb(153 27 27);
+  border-radius: 0.375rem;
+  padding: 0.1875rem 0.5rem;
   animation: roster-off-days-flash 0.85s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .roster-staff-off-days-warning {
     animation: none;
-    color: rgb(185 28 28);
-    background-color: rgb(254 202 202);
-    box-shadow: inset 3px 0 0 rgb(185 28 28);
+    background-color: rgb(185 28 28);
+    border-color: rgb(127 29 29);
+    box-shadow: none;
   }
 }
 
