@@ -76,6 +76,7 @@ export default function CustomerAccountLedgerPanel({
   const [view, setView] = useState<LedgerView | null>(null)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [importUsed, setImportUsed] = useState(false)
   const [openingInput, setOpeningInput] = useState<string>('')
   const [savingLine, setSavingLine] = useState(false)
 
@@ -165,9 +166,10 @@ export default function CustomerAccountLedgerPanel({
       const data = await res.json()
       setOpeningInput(String(data.opening ?? parsed.opening))
       setView(data.view)
+      setImportUsed(true)
       onImported?.(importMonthKey)
       alert(
-        `Imported ${data.imported} line(s). Dates: ${parsed.lines
+        `Imported ${data.imported} line(s) for ${account}. Dates: ${parsed.lines
           .map((l) => formatCstoreDisplayDate(l.date))
           .join(', ')}`
       )
@@ -295,13 +297,28 @@ export default function CustomerAccountLedgerPanel({
         >
           Apply opening
         </button>
-        <label className="px-3 py-1.5 border-2 border-dashed border-indigo-400 rounded text-sm cursor-pointer hover:bg-white">
-          {importing ? 'Importing…' : 'Import Cstore detail (.xls)'}
+        <label
+          className={`px-3 py-1.5 border-2 border-dashed rounded text-sm ${
+            importUsed
+              ? 'border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50'
+              : 'border-indigo-400 cursor-pointer hover:bg-white'
+          }`}
+          title={
+            importUsed
+              ? 'Import used for this session. Close and reopen the ledger to import again.'
+              : undefined
+          }
+        >
+          {importing
+            ? 'Importing…'
+            : importUsed
+              ? 'Import used — close & reopen to import again'
+              : 'Import Cstore detail (.xls)'}
           <input
             type="file"
             accept=".xls,.xlsx,.html"
             className="hidden"
-            disabled={importing}
+            disabled={importing || importUsed}
             onChange={handleCstoreUpload}
           />
         </label>
