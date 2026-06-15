@@ -55,51 +55,76 @@ function totalBadgeCount(items: ChecklistItem[]): number {
   return items.reduce((n, item) => n + itemBadgeCount(item), 0)
 }
 
-function renderSubtaskList(title: string, subtasks: ChecklistSubtask[]) {
+function CollapsibleSubtaskSection({ title, subtasks }: { title: string; subtasks: ChecklistSubtask[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const openCount = subtasks.reduce((n, s) => n + s.badgeWeight, 0)
+
   if (subtasks.length === 0) return null
+
   return (
     <div className="mt-2">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
-      <ul className="space-y-1">
-        {subtasks.map((sub) => (
-          <li key={sub.id} className="rounded-md border border-slate-100 bg-slate-50/80 px-2 py-1.5">
-            <div className="flex items-start gap-2">
-              <StatusDot status={sub.status} />
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={sub.href}
-                  className="text-sm font-medium text-slate-900 hover:text-blue-700 hover:underline"
-                >
-                  {sub.label}
-                </Link>
-                {sub.reason ? (
-                  <p className="mt-0.5 text-xs text-slate-600 line-clamp-2">{sub.reason}</p>
-                ) : null}
-                <span
-                  className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[sub.status] ?? STATUS_STYLES.not_due}`}
-                >
-                  {sub.status.replace(/_/g, ' ')}
-                </span>
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:bg-slate-100/80"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <svg
+          className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</span>
+        <span className="text-[10px] text-slate-400">({subtasks.length})</span>
+        {openCount > 0 ? (
+          <span className="ml-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            {openCount}
+          </span>
+        ) : null}
+      </button>
+      {expanded ? (
+        <ul className="mt-1 space-y-1">
+          {subtasks.map((sub) => (
+            <li key={sub.id} className="rounded-md border border-slate-100 bg-slate-50/80 px-2 py-1.5">
+              <div className="flex items-start gap-2">
+                <StatusDot status={sub.status} />
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={sub.href}
+                    className="text-sm font-medium text-slate-900 hover:text-blue-700 hover:underline"
+                  >
+                    {sub.label}
+                  </Link>
+                  {sub.reason ? (
+                    <p className="mt-0.5 text-xs text-slate-600 line-clamp-2">{sub.reason}</p>
+                  ) : null}
+                  <span
+                    className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[sub.status] ?? STATUS_STYLES.not_due}`}
+                  >
+                    {sub.status.replace(/_/g, ' ')}
+                  </span>
+                </div>
               </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }
 
-function renderShiftCloseItem(item: ChecklistItem, onNavigate: () => void) {
+function ShiftCloseItem({ item, onNavigate }: { item: ChecklistItem; onNavigate: () => void }) {
   const children = item.children ?? []
   const currentWeek = children.filter((c) => c.bucket === 'current_week')
   const backlog = children.filter((c) => c.bucket === 'backlog')
   const openCount = itemBadgeCount(item)
 
   return (
-    <li
-      key={item.id}
-      className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 text-sm shadow-sm"
-    >
+    <li className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 text-sm shadow-sm">
       <div className="flex items-start gap-2">
         <StatusDot status={item.status} />
         <div className="min-w-0 flex-1">
@@ -124,8 +149,8 @@ function renderShiftCloseItem(item: ChecklistItem, onNavigate: () => void) {
             </span>
           ) : (
             <>
-              {renderSubtaskList('This week', currentWeek)}
-              {renderSubtaskList('Backlog', backlog)}
+              <CollapsibleSubtaskSection title="This week" subtasks={currentWeek} />
+              <CollapsibleSubtaskSection title="Backlog" subtasks={backlog} />
             </>
           )}
         </div>
@@ -134,16 +159,17 @@ function renderShiftCloseItem(item: ChecklistItem, onNavigate: () => void) {
   )
 }
 
-function renderFlatItem(
-  item: ChecklistItem,
-  onNavigate: () => void,
+function FlatChecklistItem({
+  item,
+  onNavigate,
+  postAck
+}: {
+  item: ChecklistItem
+  onNavigate: () => void
   postAck: (taskId: string, weekKey: string, kind: 'started' | 'complete') => void
-) {
+}) {
   return (
-    <li
-      key={item.id}
-      className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 text-sm shadow-sm"
-    >
+    <li className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 text-sm shadow-sm">
       <div className="flex items-start gap-2">
         <StatusDot status={item.status} />
         <div className="min-w-0 flex-1">
@@ -271,8 +297,15 @@ export default function OperationsChecklistPanel() {
               <p className="text-sm text-slate-500">Loading…</p>
             ) : (
               <ul className="space-y-2">
-                {shiftItem ? renderShiftCloseItem(shiftItem, () => setOpen(false)) : null}
-                {otherItems.map((item) => renderFlatItem(item, () => setOpen(false), postAck))}
+                {shiftItem ? <ShiftCloseItem item={shiftItem} onNavigate={() => setOpen(false)} /> : null}
+                {otherItems.map((item) => (
+                  <FlatChecklistItem
+                    key={item.id}
+                    item={item}
+                    onNavigate={() => setOpen(false)}
+                    postAck={postAck}
+                  />
+                ))}
               </ul>
             )}
             {data?.counts.inProgress ? (
