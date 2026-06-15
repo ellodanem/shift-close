@@ -541,6 +541,22 @@ model CustomerArSummary {
   @@map("customer_ar_summary")
 }
 
+/// CSV import audit for operations checklist (one row per week + target month).
+model CustomerArImportLog {
+  id                    String   @id @default(cuid())
+  weekKey               String   @map("week_key")
+  year                  Int
+  month                 Int
+  accountCount          Int      @map("account_count")
+  accountsWithCharges   Int      @map("accounts_with_charges")
+  importedAt            DateTime @default(now()) @map("imported_at")
+  userId                String?  @map("user_id")
+
+  @@unique([weekKey, year, month], name: "customer_ar_import_week_month")
+  @@index([weekKey])
+  @@map("customer_ar_import_logs")
+}
+
 // Recipients for "Email report" dropdown (manageable in Settings)
 model EmailRecipient {
   id           String   @id @default(cuid())

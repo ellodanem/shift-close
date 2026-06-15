@@ -21,7 +21,11 @@ import type {
   ChecklistSubtask,
   OperationsChecklistPayload
 } from '@/lib/operations-checklist-types'
-import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON, CHECKLIST_ENABLE_WEEKLY_TASKS } from '@/lib/operations-checklist-types'
+import {
+  buildCustomerAccountsGroup,
+  type CustomerArImportRow
+} from '@/lib/operations-checklist-customer-accounts'
+import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON, CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS, CHECKLIST_ENABLE_VENDOR_INVOICES } from '@/lib/operations-checklist-types'
 
 export { CHECKLIST_EPOCH_YMD } from '@/lib/operations-checklist-types'
 
@@ -42,7 +46,8 @@ type BuildInput = {
   stationClosedDates: ReadonlySet<string>
   bankHolidayDates: ReadonlySet<string>
   acknowledgements: AckRow[]
-  customerArUpdatedAt: Date | null
+  customerArImportLogs: CustomerArImportRow[]
+  customerCompleteAcks: ReadonlySet<string>
   vendorInvoicesTouchedThisWeek: number
   vendorPendingCount: number
 }
@@ -171,20 +176,33 @@ function buildShiftCloseGroup(input: BuildInput): ChecklistItem {
 export function buildOperationsChecklist(input: BuildInput): OperationsChecklistPayload {
   const {
     asOf,
+    now,
     showFinancial,
     dayReportsByDate,
     comparisonRowsByDate,
     stationClosedDates,
     bankHolidayDates,
     acknowledgements,
-    customerArUpdatedAt,
+    customerArImportLogs,
+    customerCompleteAcks,
     vendorInvoicesTouchedThisWeek,
     vendorPendingCount
   } = input
 
   const items: ChecklistItem[] = [buildShiftCloseGroup(input)]
 
-  if (showFinancial && (CHECKLIST_ENABLE_DEPOSIT_COMPARISON || CHECKLIST_ENABLE_WEEKLY_TASKS)) {
+  if (CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS) {
+    items.push(
+      buildCustomerAccountsGroup({
+        asOf,
+        now,
+        importLogs: customerArImportLogs,
+        completeAcks: customerCompleteAcks
+      })
+    )
+  }
+
+  if (showFinancial && (CHECKLIST_ENABLE_DEPOSIT_COMPARISON || CHECKLIST_ENABLE_VENDOR_INVOICES)) {
     const weekKey = weekKeyMonday(asOf)
     const weekSunday = weekDueSunday(weekKey)
     const latestWorkDate = addCalendarDaysYmd(asOf, -1)
@@ -228,37 +246,12 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
       }
     }
 
-    if (CHECKLIST_ENABLE_WEEKLY_TASKS) {
+    if (CHECKLIST_ENABLE_VENDOR_INVOICES) {
+      const weekKey = weekKeyMonday(asOf)
+      const weekSunday = weekDueSunday(weekKey)
       const weekTiming = timingStatus(asOf, weekSunday)
-
-    const customerTouched =
-      customerArUpdatedAt != null && isTimestampInWeek(customerArUpdatedAt, weekKey)
-    const customerStarted = ackForWeek(acknowledgements, 'customer-accounts', weekKey, 'started')
-    const customerCompleteAck = ackForWeek(acknowledgements, 'customer-accounts', weekKey, 'complete')
-
-    let customerStatus: ChecklistItemStatus = 'not_due'
-    if (customerCompleteAck || customerTouched) customerStatus = 'complete'
-    else if (customerStarted) customerStatus = 'in_progress'
-    else if (weekTiming === 'overdue') customerStatus = 'overdue'
-    else if (weekTiming === 'due') customerStatus = 'due'
-
-    const weekSection: 'today' | 'soon' | 'week' =
-      compareYmd(asOf, weekSunday) >= 0 ? 'today' : compareYmd(weekSunday, asOf) <= 2 ? 'soon' : 'week'
-
-    if (customerStatus !== 'complete' && customerStatus !== 'not_due') {
-      items.push({
-        id: `customer-accounts:${weekKey}`,
-        label: 'Update customer accounts',
-        section: weekSection,
-        status: customerStatus,
-        weekKey,
-        dueDate: weekSunday,
-        summary: customerTouched || customerCompleteAck ? 'Updated this week' : 'Weekly update due Sunday',
-        href: '/customer-accounts',
-        badgeWeight: badgeWeight(customerStatus),
-        actions: ['mark_in_progress', 'mark_complete']
-      })
-    }
+      const weekSection: 'today' | 'soon' | 'week' =
+        compareYmd(asOf, weekSunday) >= 0 ? 'today' : compareYmd(weekSunday, asOf) <= 2 ? 'soon' : 'week'
 
     const vendorStarted = ackForWeek(acknowledgements, 'vendor-invoices', weekKey, 'started')
     const vendorCompleteAck = ackForWeek(acknowledgements, 'vendor-invoices', weekKey, 'complete')

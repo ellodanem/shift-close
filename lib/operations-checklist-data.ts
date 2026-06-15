@@ -10,7 +10,10 @@ import { compareYmd, enumerateYmdRange, weekKeyMonday } from '@/lib/operations-c
 import type { ComparisonRow } from '@/lib/deposit-comparison-rows'
 import type { DayReport } from '@/lib/types'
 import type { OperationsChecklistPayload } from '@/lib/operations-checklist-types'
-import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON } from '@/lib/operations-checklist-types'
+import {
+  CHECKLIST_EPOCH_YMD,
+  CHECKLIST_ENABLE_DEPOSIT_COMPARISON
+} from '@/lib/operations-checklist-types'
 
 export async function loadOperationsChecklist(
   role: string,
@@ -18,13 +21,14 @@ export async function loadOperationsChecklist(
 ): Promise<OperationsChecklistPayload> {
   const now = new Date()
   const asOf = businessTodayYmd(now)
+  const epochWeekKey = weekKeyMonday(CHECKLIST_EPOCH_YMD)
   const latestWorkDate = addCalendarDaysYmd(asOf, -1)
   const datesInWindow =
     compareYmd(latestWorkDate, CHECKLIST_EPOCH_YMD) >= 0
       ? enumerateYmdRange(CHECKLIST_EPOCH_YMD, latestWorkDate)
       : []
 
-  const [dayReports, holidays, acknowledgements, customerAr, vendorPendingCount, vendorTouched] =
+  const [dayReports, holidays, acknowledgements, customerArImportLogs, vendorPendingCount, vendorTouched] =
     await Promise.all([
       buildDayReports({ sinceDate: CHECKLIST_EPOCH_YMD }),
       prisma.publicHoliday.findMany({
@@ -32,10 +36,13 @@ export async function loadOperationsChecklist(
         select: { date: true, stationClosed: true }
       }),
       prisma.checklistAcknowledgement.findMany({
-        where: { weekKey: weekKeyMonday(asOf) }
+        where: {
+          weekKey: { gte: epochWeekKey },
+          taskId: { in: ['customer-accounts', 'vendor-invoices'] }
+        }
       }),
-      prisma.customerArSummary.findFirst({
-        orderBy: [{ year: 'desc' }, { month: 'desc' }]
+      prisma.customerArImportLog.findMany({
+        where: { weekKey: { gte: epochWeekKey } }
       }),
       prisma.vendorInvoice.count({ where: { status: 'pending' } }),
       prisma.vendorInvoice.count({
@@ -68,6 +75,12 @@ export async function loadOperationsChecklist(
     }
   }
 
+  const customerCompleteAcks = new Set(
+    acknowledgements
+      .filter((a) => a.taskId === 'customer-accounts' && a.kind === 'complete')
+      .map((a) => a.weekKey)
+  )
+
   return buildOperationsChecklist({
     asOf,
     now,
@@ -83,7 +96,14 @@ export async function loadOperationsChecklist(
       kind: a.kind,
       note: a.note
     })),
-    customerArUpdatedAt: customerAr?.updatedAt ?? null,
+    customerArImportLogs: customerArImportLogs.map((l) => ({
+      weekKey: l.weekKey,
+      year: l.year,
+      month: l.month,
+      accountCount: l.accountCount,
+      accountsWithCharges: l.accountsWithCharges
+    })),
+    customerCompleteAcks,
     vendorInvoicesTouchedThisWeek: vendorTouched,
     vendorPendingCount
   })

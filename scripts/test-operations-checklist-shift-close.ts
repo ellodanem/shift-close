@@ -42,7 +42,8 @@ describe('operations checklist shift-close group', () => {
       stationClosedDates: new Set(),
       bankHolidayDates: new Set(),
       acknowledgements: [],
-      customerArUpdatedAt: null,
+      customerArImportLogs: [],
+      customerCompleteAcks: new Set(),
       vendorInvoicesTouchedThisWeek: 0,
       vendorPendingCount: 0
     })
@@ -105,7 +106,8 @@ describe('operations checklist shift-close group', () => {
       stationClosedDates: new Set(),
       bankHolidayDates: new Set(),
       acknowledgements: [],
-      customerArUpdatedAt: null,
+      customerArImportLogs: [],
+      customerCompleteAcks: new Set(),
       vendorInvoicesTouchedThisWeek: 0,
       vendorPendingCount: 0
     })
@@ -165,7 +167,8 @@ describe('operations checklist shift-close group', () => {
       stationClosedDates: new Set(),
       bankHolidayDates: new Set(),
       acknowledgements: [],
-      customerArUpdatedAt: null,
+      customerArImportLogs: [],
+      customerCompleteAcks: new Set(),
       vendorInvoicesTouchedThisWeek: 0,
       vendorPendingCount: 0
     })
@@ -188,7 +191,8 @@ describe('operations checklist shift-close group', () => {
       stationClosedDates: new Set(),
       bankHolidayDates: new Set(),
       acknowledgements: [],
-      customerArUpdatedAt: null,
+      customerArImportLogs: [],
+      customerCompleteAcks: new Set(),
       vendorInvoicesTouchedThisWeek: 0,
       vendorPendingCount: 0
     })

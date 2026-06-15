@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, ChangeEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
@@ -39,6 +39,7 @@ interface CustomerArPaymentRecord {
 
 export default function CustomerAccountsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
   const [accounts, setAccounts] = useState<CustomerArAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,6 +54,14 @@ export default function CustomerAccountsPage() {
   ).padStart(2, '0')}`
 
   const [monthInput, setMonthInput] = useState<string>(defaultMonth)
+
+  useEffect(() => {
+    const monthParam = searchParams.get('month')?.trim()
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      setMonthInput(monthParam)
+      setSelectedMonth(monthParam)
+    }
+  }, [searchParams])
   const [openingInput, setOpeningInput] = useState<string>('')
   const [chargesInput, setChargesInput] = useState<string>('')
   const [paymentsInput, setPaymentsInput] = useState<string>('')

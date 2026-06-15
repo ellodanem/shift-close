@@ -12,6 +12,7 @@ import type {
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 const POLL_MS = 4 * 60 * 1000
+const GROUPED_ITEM_IDS = new Set(['shift-close', 'customer-accounts'])
 
 const STATUS_STYLES: Record<string, string> = {
   complete: 'bg-emerald-100 text-emerald-800',
@@ -55,7 +56,24 @@ function totalBadgeCount(items: ChecklistItem[]): number {
   return items.reduce((n, item) => n + itemBadgeCount(item), 0)
 }
 
-function CollapsibleSubtaskSection({ title, subtasks }: { title: string; subtasks: ChecklistSubtask[] }) {
+type PostAckFn = (
+  taskId: string,
+  weekKey: string,
+  kind: 'complete',
+  options?: { note?: string; overrideZeroCharges?: boolean }
+) => Promise<void>
+
+function CollapsibleSubtaskSection({
+  title,
+  subtasks,
+  taskId,
+  postAck
+}: {
+  title: string
+  subtasks: ChecklistSubtask[]
+  taskId: string
+  postAck?: PostAckFn
+}) {
   const [expanded, setExpanded] = useState(false)
   const openCount = subtasks.reduce((n, s) => n + s.badgeWeight, 0)
 
@@ -107,6 +125,37 @@ function CollapsibleSubtaskSection({ title, subtasks }: { title: string; subtask
                   >
                     {sub.status.replace(/_/g, ' ')}
                   </span>
+                  {postAck && sub.weekKey && sub.actions?.includes('mark_complete') ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                        onClick={() => void postAck(taskId, sub.weekKey!, 'complete')}
+                      >
+                        Mark complete
+                      </button>
+                    </div>
+                  ) : null}
+                  {postAck && sub.weekKey && sub.actions?.includes('mark_complete_with_note') ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+                        onClick={() => {
+                          const note = window.prompt(
+                            'No accounts with charges. Enter a note (min 10 characters) to mark complete:'
+                          )
+                          if (note === null) return
+                          void postAck(taskId, sub.weekKey!, 'complete', {
+                            note,
+                            overrideZeroCharges: true
+                          })
+                        }}
+                      >
+                        Complete with note
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </li>
@@ -117,7 +166,15 @@ function CollapsibleSubtaskSection({ title, subtasks }: { title: string; subtask
   )
 }
 
-function ShiftCloseItem({ item, onNavigate }: { item: ChecklistItem; onNavigate: () => void }) {
+function GroupedChecklistItem({
+  item,
+  onNavigate,
+  postAck
+}: {
+  item: ChecklistItem
+  onNavigate: () => void
+  postAck?: PostAckFn
+}) {
   const children = item.children ?? []
   const currentWeek = children.filter((c) => c.bucket === 'current_week')
   const backlog = children.filter((c) => c.bucket === 'backlog')
@@ -149,8 +206,13 @@ function ShiftCloseItem({ item, onNavigate }: { item: ChecklistItem; onNavigate:
             </span>
           ) : (
             <>
-              <CollapsibleSubtaskSection title="This week" subtasks={currentWeek} />
-              <CollapsibleSubtaskSection title="Backlog" subtasks={backlog} />
+              <CollapsibleSubtaskSection
+                title="This week"
+                subtasks={currentWeek}
+                taskId={item.id}
+                postAck={postAck}
+              />
+              <CollapsibleSubtaskSection title="Backlog" subtasks={backlog} taskId={item.id} postAck={postAck} />
             </>
           )}
         </div>
@@ -166,7 +228,7 @@ function FlatChecklistItem({
 }: {
   item: ChecklistItem
   onNavigate: () => void
-  postAck: (taskId: string, weekKey: string, kind: 'started' | 'complete') => void
+  postAck: PostAckFn
 }) {
   return (
     <li className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 text-sm shadow-sm">
@@ -191,16 +253,9 @@ function FlatChecklistItem({
               <button
                 type="button"
                 className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-800 hover:bg-blue-100"
-                onClick={() => void postAck(item.id.replace(/:.*$/, ''), item.weekKey!, 'started')}
-              >
-                In progress
-              </button>
-              <button
-                type="button"
-                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
                 onClick={() => void postAck(item.id.replace(/:.*$/, ''), item.weekKey!, 'complete')}
               >
-                Mark complete
+                In progress
               </button>
             </div>
           ) : null}
@@ -254,12 +309,23 @@ export default function OperationsChecklistPanel() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
 
-  const postAck = async (taskId: string, weekKey: string, kind: 'started' | 'complete') => {
-    await fetch('/api/operations-checklist/ack', {
+  const postAck: PostAckFn = async (taskId, weekKey, kind, options) => {
+    const res = await fetch('/api/operations-checklist/ack', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId, weekKey, kind })
+      body: JSON.stringify({
+        taskId,
+        weekKey,
+        kind,
+        note: options?.note,
+        overrideZeroCharges: options?.overrideZeroCharges
+      })
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      window.alert(typeof err.error === 'string' ? err.error : 'Could not save checklist acknowledgement.')
+      return
+    }
     void load()
   }
 
@@ -268,8 +334,6 @@ export default function OperationsChecklistPanel() {
   }
 
   const badgeCount = totalBadgeCount(data?.items ?? [])
-  const otherItems = (data?.items ?? []).filter((i) => i.id !== 'shift-close')
-  const shiftItem = (data?.items ?? []).find((i) => i.id === 'shift-close')
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2">
@@ -297,15 +361,23 @@ export default function OperationsChecklistPanel() {
               <p className="text-sm text-slate-500">Loading…</p>
             ) : (
               <ul className="space-y-2">
-                {shiftItem ? <ShiftCloseItem item={shiftItem} onNavigate={() => setOpen(false)} /> : null}
-                {otherItems.map((item) => (
-                  <FlatChecklistItem
-                    key={item.id}
-                    item={item}
-                    onNavigate={() => setOpen(false)}
-                    postAck={postAck}
-                  />
-                ))}
+                {(data?.items ?? []).map((item) =>
+                  GROUPED_ITEM_IDS.has(item.id) ? (
+                    <GroupedChecklistItem
+                      key={item.id}
+                      item={item}
+                      onNavigate={() => setOpen(false)}
+                      postAck={item.id === 'customer-accounts' ? postAck : undefined}
+                    />
+                  ) : (
+                    <FlatChecklistItem
+                      key={item.id}
+                      item={item}
+                      onNavigate={() => setOpen(false)}
+                      postAck={postAck}
+                    />
+                  )
+                )}
               </ul>
             )}
             {data?.counts.inProgress ? (

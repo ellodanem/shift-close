@@ -22,6 +22,8 @@ export type ChecklistSubtask = {
   badgeWeight: 0 | 1
   bucket: ChecklistSubtaskBucket
   dueDate?: string
+  weekKey?: string
+  actions?: ('mark_complete' | 'mark_complete_with_note')[]
 }
 
 export type ChecklistItem = {
@@ -61,7 +63,11 @@ export const CHECKLIST_EPOCH_YMD = '2026-06-01'
 
 /** Roll out checklist tasks one at a time. */
 export const CHECKLIST_ENABLE_DEPOSIT_COMPARISON = false
-export const CHECKLIST_ENABLE_WEEKLY_TASKS = false
+export const CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS = true
+export const CHECKLIST_ENABLE_VENDOR_INVOICES = false
+
+/** @deprecated Use per-task flags. */
+export const CHECKLIST_ENABLE_WEEKLY_TASKS = CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS || CHECKLIST_ENABLE_VENDOR_INVOICES
 
 /** @deprecated Use CHECKLIST_EPOCH_YMD. */
 export const BACKLOG_WEEKS = 12

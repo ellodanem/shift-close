@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { upsertCustomerArSummaryRow } from '@/lib/customer-ar-summary-upsert'
+import {
+  countAccountsWithCharges,
+  recordCustomerArCsvImport
+} from '@/lib/customer-ar-import-log'
+import { getSessionFromRequest } from '@/lib/session'
 
 // GET /api/customer-accounts/accounts?year=2026&month=1
 // Returns all account snapshots for a given month
@@ -122,6 +127,15 @@ export async function POST(request: NextRequest) {
       charges: aggregates.charges,
       payments: aggregates.payments,
       closing: aggregates.closing
+    })
+
+    const session = await getSessionFromRequest(request)
+    await recordCustomerArCsvImport({
+      year,
+      month,
+      accountCount: cleanRows.length,
+      accountsWithCharges: countAccountsWithCharges(cleanRows),
+      userId: session?.userId ?? null
     })
 
     return NextResponse.json({ summary }, { status: 201 })
