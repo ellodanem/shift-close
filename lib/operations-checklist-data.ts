@@ -5,22 +5,30 @@ import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { getStationClosedDates } from '@/lib/public-holidays'
 import type { OperationsChecklistUser } from '@/lib/operations-checklist-access'
 import { canSeeFinancialChecklistItems } from '@/lib/operations-checklist-access'
-import { buildOperationsChecklist, ROLLING_WORK_DAYS } from '@/lib/operations-checklist'
-import { weekKeyMonday } from '@/lib/operations-checklist-due-dates'
+import { buildOperationsChecklist } from '@/lib/operations-checklist'
+import { compareYmd, enumerateYmdRange, weekKeyMonday } from '@/lib/operations-checklist-due-dates'
 import type { ComparisonRow } from '@/lib/deposit-comparison-rows'
 import type { DayReport } from '@/lib/types'
 import type { OperationsChecklistPayload } from '@/lib/operations-checklist-types'
+import { BACKLOG_DAYS } from '@/lib/operations-checklist-types'
 
 export async function loadOperationsChecklist(
   role: string,
   accessUser: OperationsChecklistUser
 ): Promise<OperationsChecklistPayload> {
-  const asOf = businessTodayYmd()
-  const sinceDate = addCalendarDaysYmd(asOf, -(ROLLING_WORK_DAYS + 2))
+  const now = new Date()
+  const asOf = businessTodayYmd(now)
+  const currentWeekStart = weekKeyMonday(asOf)
+  const backlogStart = addCalendarDaysYmd(currentWeekStart, -BACKLOG_DAYS)
+  const latestWorkDate = addCalendarDaysYmd(asOf, -1)
+  const datesInWindow =
+    compareYmd(latestWorkDate, backlogStart) >= 0
+      ? enumerateYmdRange(backlogStart, latestWorkDate)
+      : []
 
   const [dayReports, holidays, acknowledgements, customerAr, vendorPendingCount, vendorTouched] =
     await Promise.all([
-      buildDayReports({ sinceDate }),
+      buildDayReports({ sinceDate: backlogStart }),
       prisma.publicHoliday.findMany({
         where: { countryCode: 'LC' },
         select: { date: true, stationClosed: true }
@@ -41,15 +49,7 @@ export async function loadOperationsChecklist(
       })
     ])
 
-  const dayReportsByDate = new Map<string, DayReport>(
-    dayReports.map((r) => [r.date, r])
-  )
-
-  const datesInWindow: string[] = []
-  for (let i = ROLLING_WORK_DAYS + 1; i >= 1; i--) {
-    datesInWindow.push(addCalendarDaysYmd(asOf, -i))
-  }
-
+  const dayReportsByDate = new Map<string, DayReport>(dayReports.map((r) => [r.date, r]))
   const stationClosedDates = await getStationClosedDates(prisma, datesInWindow)
   const bankHolidayDates = new Set(holidays.map((h) => h.date))
 
@@ -70,6 +70,7 @@ export async function loadOperationsChecklist(
 
   return buildOperationsChecklist({
     asOf,
+    now,
     role,
     showFinancial: canSeeFinancialChecklistItems(accessUser),
     dayReportsByDate,

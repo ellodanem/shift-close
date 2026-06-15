@@ -33,6 +33,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         open: alert.open,
         selections,
         note: alert.note,
+        slipUnavailableReason: alert.slipUnavailableReason,
         firstNotifySentAt: alert.firstNotifySentAt?.toISOString() ?? null,
         lastNotifySentAt: alert.lastNotifySentAt?.toISOString() ?? null,
         lastEmailError: alert.lastEmailError
@@ -54,11 +55,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       open?: boolean
       selections?: DepositSlipSelection[]
       note?: string
+      slipUnavailableReason?: 'missing' | 'destroyed' | null
     }
 
-    const open = body.open !== false
+    let open = body.open !== false
     const note = typeof body.note === 'string' ? body.note.slice(0, 2000) : ''
     const selections = Array.isArray(body.selections) ? body.selections : []
+    const slipUnavailableReason =
+      body.slipUnavailableReason === 'missing' || body.slipUnavailableReason === 'destroyed'
+        ? body.slipUnavailableReason
+        : null
+
+    if (slipUnavailableReason) {
+      open = false
+    }
 
     const shifts = await prisma.shiftClose.findMany({
       where: { date },
@@ -69,7 +79,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'No shifts for this date' }, { status: 404 })
     }
 
-    if (open && selections.length === 0) {
+    if (open && selections.length === 0 && !slipUnavailableReason) {
       return NextResponse.json(
         { error: 'When the alert is open, select at least one deposit line (or turn the alert off).' },
         { status: 400 }
@@ -92,12 +102,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         open,
         selectionsJson,
         note,
+        slipUnavailableReason,
         lastEmailError: null
       },
       update: {
         open,
         selectionsJson,
         note,
+        slipUnavailableReason,
         lastEmailError: null
       }
     })
@@ -108,6 +120,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         open: saved.open,
         selections: selOut,
         note: saved.note,
+        slipUnavailableReason: saved.slipUnavailableReason,
         firstNotifySentAt: saved.firstNotifySentAt?.toISOString() ?? null,
         lastNotifySentAt: saved.lastNotifySentAt?.toISOString() ?? null,
         lastEmailError: saved.lastEmailError

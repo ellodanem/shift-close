@@ -40,6 +40,24 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
         ).map((r) => r.date)
   )
 
+  const slipUnavailableByDate = new Map<string, 'missing' | 'destroyed'>(
+    allDates.length === 0
+      ? []
+      : (
+          await prisma.missingDepositSlipAlert.findMany({
+            where: {
+              date: { in: allDates },
+              slipUnavailableReason: { in: ['missing', 'destroyed'] }
+            },
+            select: { date: true, slipUnavailableReason: true }
+          })
+        ).flatMap((r) =>
+          r.slipUnavailableReason === 'missing' || r.slipUnavailableReason === 'destroyed'
+            ? [[r.date, r.slipUnavailableReason] as const]
+            : []
+        )
+  )
+
   const securityWaiverByDate = new Map<string, string>(
     allDates.length === 0
       ? []
@@ -184,7 +202,8 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
       securityScans,
       securityScanWaived: securityWaiverByDate.has(date),
       securityScanWaiverNote: securityWaiverByDate.get(date) ?? '',
-      missingDepositSlipAlertOpen: openMissingSlipDates.has(date)
+      missingDepositSlipAlertOpen: openMissingSlipDates.has(date),
+      depositSlipUnavailableReason: slipUnavailableByDate.get(date) ?? null
     })
   }
 

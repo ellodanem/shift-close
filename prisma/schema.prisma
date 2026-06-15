@@ -176,6 +176,7 @@ model MissingDepositSlipAlert {
   open                  Boolean   @default(true)
   selectionsJson        String    @default("[]") @map("selections_json") // [{ shiftId, lineIndex, amount }]
   note                  String    @default("")
+  slipUnavailableReason String?   @map("slip_unavailable_reason") // "missing" | "destroyed" — waives deposit scan when slip cannot be uploaded
   firstNotifySentAt     DateTime? @map("first_notify_sent_at")
   lastNotifyFingerprint String?   @map("last_notify_fingerprint")
   lastNotifySentAt      DateTime? @map("last_notify_sent_at")

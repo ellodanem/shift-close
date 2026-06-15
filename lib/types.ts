@@ -83,5 +83,7 @@ export interface DayReport {
   securityScanWaiverNote?: string
   /** True when a Missing deposit slip alert exists and is open for this calendar day */
   missingDepositSlipAlertOpen?: boolean
+  /** When the physical slip is missing or destroyed — deposit scan requirement waived. */
+  depositSlipUnavailableReason?: 'missing' | 'destroyed' | null
 }
 

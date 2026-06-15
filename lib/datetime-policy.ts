@@ -61,6 +61,29 @@ export function formatDateOnlyForDisplay(ymd: string, locale = 'en-US'): string 
   return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
+function ordinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return 'th'
+  switch (day % 10) {
+    case 1:
+      return 'st'
+    case 2:
+      return 'nd'
+    case 3:
+      return 'rd'
+    default:
+      return 'th'
+  }
+}
+
+/** e.g. "Thursday 11th June, 2026" */
+export function formatWorkDateLabelLong(ymd: string, locale = 'en-US'): string {
+  const d = ymdToUtcNoonDate(ymd)
+  const weekday = d.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' })
+  const day = d.getUTCDate()
+  const monthYear = d.toLocaleDateString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  return `${weekday} ${day}${ordinalSuffix(day)} ${monthYear}`
+}
+
 export function formatInstantForDisplay(
   instant: Date | string,
   locale = 'en-US',

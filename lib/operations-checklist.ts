@@ -1,22 +1,29 @@
 import type { DayReport } from '@/lib/types'
 import type { ComparisonRow } from '@/lib/deposit-comparison-rows'
-import { formatDateOnlyForDisplay, addCalendarDaysYmd } from '@/lib/datetime-policy'
+import { addCalendarDaysYmd } from '@/lib/datetime-policy'
 import {
   compareYmd,
   depositComparisonDueDate,
-  shiftEntryDueDate,
+  enumerateYmdRange,
   weekDueSunday,
   weekKeyMonday
 } from '@/lib/operations-checklist-due-dates'
+import {
+  buildShiftCloseSubtask,
+  evaluateShiftClose,
+  sectionForShiftParent,
+  worstShiftStatus
+} from '@/lib/operations-checklist-shift-close'
 import type {
   ChecklistAckKind,
   ChecklistItem,
   ChecklistItemStatus,
+  ChecklistSubtask,
   OperationsChecklistPayload
 } from '@/lib/operations-checklist-types'
-import { ROLLING_WORK_DAYS } from '@/lib/operations-checklist-types'
+import { BACKLOG_DAYS } from '@/lib/operations-checklist-types'
 
-export { ROLLING_WORK_DAYS }
+export { BACKLOG_DAYS, BACKLOG_WEEKS } from '@/lib/operations-checklist-types'
 
 type AckRow = {
   taskId: string
@@ -27,6 +34,7 @@ type AckRow = {
 
 type BuildInput = {
   asOf: string
+  now?: Date
   role: string
   showFinancial: boolean
   dayReportsByDate: Map<string, DayReport>
@@ -51,42 +59,6 @@ function sectionForDue(asOf: string, dueDate: string): 'today' | 'soon' | 'week'
   return 'week'
 }
 
-function shiftCloseComplete(report: DayReport, stationClosed: boolean): { ok: boolean; summary: string } {
-  if (stationClosed) return { ok: true, summary: 'Station closed' }
-
-  const reopened = report.shifts.some((s) => s.status === 'reopened')
-  if (reopened) return { ok: false, summary: 'Reopened shift needs re-close' }
-
-  if (report.status !== 'Complete') {
-    if (report.status === 'Invalid mix') return { ok: false, summary: 'Invalid shift mix' }
-    const missing = []
-    const types = new Set(report.shifts.map((s) => s.shift))
-    if (!types.has('6-1')) missing.push('6-1')
-    if (!types.has('1-9') && report.dayType === 'Standard') missing.push('1-9')
-    if (report.shifts.some((s) => s.status === 'draft')) missing.push('draft')
-    return { ok: false, summary: missing.length ? `Missing: ${missing.join(', ')}` : 'Incomplete' }
-  }
-
-  const issues: string[] = []
-  if (report.missingDepositSlipAlertOpen) issues.push('missing deposit slip')
-
-  const needsDeposits = report.totals.totalDeposits > 0
-  const needsDebits = report.totals.totalDebit > 0 || report.totals.totalCredit > 0
-
-  if (needsDeposits && report.depositScans.length === 0) issues.push('deposit scans')
-  if (needsDebits && report.debitScans.length === 0) issues.push('debit scans')
-  if (
-    !report.securityScanWaived &&
-    (needsDeposits || needsDebits) &&
-    (report.securityScans?.length ?? 0) === 0
-  ) {
-    issues.push('security scans')
-  }
-
-  if (issues.length) return { ok: false, summary: issues.join(', ') }
-  return { ok: true, summary: 'Complete' }
-}
-
 function depositComparisonStatus(rows: ComparisonRow[]): {
   status: ChecklistItemStatus
   summary: string
@@ -104,11 +76,13 @@ function depositComparisonStatus(rows: ComparisonRow[]): {
 }
 
 function badgeWeight(status: ChecklistItemStatus): 0 | 1 {
-  return status === 'due' || status === 'overdue' || status === 'discrepancy' ? 1 : 0
-}
-
-function workDateLabel(ymd: string): string {
-  return formatDateOnlyForDisplay(ymd)
+  return status === 'due' ||
+    status === 'overdue' ||
+    status === 'incomplete' ||
+    status === 'reopened' ||
+    status === 'discrepancy'
+    ? 1
+    : 0
 }
 
 function isTimestampInWeek(iso: Date, weekKey: string): boolean {
@@ -122,10 +96,81 @@ function ackForWeek(acks: AckRow[], taskId: string, weekKey: string, kind: Check
   return acks.find((a) => a.taskId === taskId && a.weekKey === weekKey && a.kind === kind)
 }
 
+function sortSubtasks(subtasks: ChecklistSubtask[]): ChecklistSubtask[] {
+  const statusOrder: Record<ChecklistItemStatus, number> = {
+    overdue: 0,
+    reopened: 1,
+    discrepancy: 2,
+    due: 3,
+    incomplete: 4,
+    in_progress: 5,
+    blocked: 6,
+    not_due: 7,
+    complete: 8,
+    na: 9
+  }
+  return [...subtasks].sort((a, b) => {
+    const s = statusOrder[a.status] - statusOrder[b.status]
+    if (s !== 0) return s
+    return b.workDate.localeCompare(a.workDate)
+  })
+}
+
+function buildShiftCloseGroup(input: BuildInput): ChecklistItem {
+  const { asOf, now = new Date(), dayReportsByDate, stationClosedDates } = input
+  const currentWeekStart = weekKeyMonday(asOf)
+  const currentWeekEnd = weekDueSunday(currentWeekStart)
+  const backlogStart = addCalendarDaysYmd(currentWeekStart, -BACKLOG_DAYS)
+  const latestWorkDate = addCalendarDaysYmd(asOf, -1)
+
+  const subtasks: ChecklistSubtask[] = []
+
+  if (compareYmd(latestWorkDate, backlogStart) >= 0) {
+    for (const workDate of enumerateYmdRange(backlogStart, latestWorkDate)) {
+      const bucket = compareYmd(workDate, currentWeekStart) >= 0 ? 'current_week' : 'backlog'
+      if (bucket === 'current_week' && compareYmd(workDate, currentWeekEnd) > 0) continue
+
+      const sub = buildShiftCloseSubtask({
+        workDate,
+        bucket,
+        report: dayReportsByDate.get(workDate),
+        stationClosed: stationClosedDates.has(workDate),
+        asOf,
+        now
+      })
+      if (sub) subtasks.push(sub)
+    }
+  }
+
+  const sorted = sortSubtasks(subtasks)
+  const badge = sorted.reduce((n, s) => n + s.badgeWeight, 0)
+  const status = worstShiftStatus(sorted)
+  const currentWeekCount = sorted.filter((s) => s.bucket === 'current_week').length
+  const backlogCount = sorted.filter((s) => s.bucket === 'backlog').length
+
+  let summary = 'All shifts complete'
+  if (sorted.length > 0) {
+    const parts: string[] = []
+    if (currentWeekCount > 0) parts.push(`${currentWeekCount} this week`)
+    if (backlogCount > 0) parts.push(`${backlogCount} in backlog`)
+    summary = parts.join(', ')
+  }
+
+  return {
+    id: 'shift-close',
+    label: 'Update Shift',
+    section: sectionForShiftParent(sorted, asOf),
+    status: sorted.length === 0 ? 'complete' : status,
+    summary,
+    href: '/days',
+    badgeWeight: badge > 0 ? 1 : 0,
+    children: sorted
+  }
+}
+
 export function buildOperationsChecklist(input: BuildInput): OperationsChecklistPayload {
   const {
     asOf,
-    role: _role,
     showFinancial,
     dayReportsByDate,
     comparisonRowsByDate,
@@ -137,96 +182,50 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
     vendorPendingCount
   } = input
 
-  const items: ChecklistItem[] = []
+  const items: ChecklistItem[] = [buildShiftCloseGroup(input)]
+
   const weekKey = weekKeyMonday(asOf)
   const weekSunday = weekDueSunday(weekKey)
-
-  const workDates: string[] = []
-  for (let i = ROLLING_WORK_DAYS + 1; i >= 1; i--) {
-    workDates.push(addCalendarDaysYmd(asOf, -i))
-  }
-
-  for (const workDate of workDates) {
-    const stationClosed = stationClosedDates.has(workDate)
-    const report = dayReportsByDate.get(workDate)
-    const shiftDue = shiftEntryDueDate(workDate)
-
-    if (stationClosed) continue
-
-    if (!report) {
-      const timing = timingStatus(asOf, shiftDue)
-      if (timing === 'not_due' && compareYmd(shiftDue, addCalendarDaysYmd(asOf, 2)) > 0) continue
-      items.push({
-        id: `shift-close:${workDate}`,
-        label: 'Update shift',
-        section: sectionForDue(asOf, shiftDue),
-        status: timing === 'not_due' ? 'not_due' : timing,
-        workDate,
-        dueDate: shiftDue,
-        summary: 'No shifts recorded',
-        href: `/days?date=${workDate}`,
-        badgeWeight: timing === 'not_due' ? 0 : 1
-      })
-      continue
-    }
-
-    const shiftEval = shiftCloseComplete(report, false)
-    let shiftStatus: ChecklistItemStatus
-    if (shiftEval.ok) {
-      shiftStatus = 'complete'
-    } else {
-      const timing = timingStatus(asOf, shiftDue)
-      shiftStatus = timing === 'not_due' ? 'not_due' : timing
-    }
-
-    items.push({
-      id: `shift-close:${workDate}`,
-      label: 'Update shift',
-      section: sectionForDue(asOf, shiftDue),
-      status: shiftStatus,
-      workDate,
-      dueDate: shiftDue,
-      summary: `${workDateLabel(workDate)} — ${shiftEval.summary}`,
-      href: `/days?date=${workDate}`,
-      badgeWeight: badgeWeight(shiftStatus)
-    })
-
-    if (!showFinancial) continue
-
-    const compDue = depositComparisonDueDate(workDate, bankHolidayDates)
-    const compRows = comparisonRowsByDate.get(workDate) ?? []
-    const hasClosedShifts = report.shifts.some(
-      (s) => s.status === 'closed' || s.status === 'reviewed'
-    )
-    const shiftDone = shiftEval.ok
-    const compEval = depositComparisonStatus(compRows)
-
-    let compStatus = compEval.status
-    if (compStatus !== 'na' && compStatus !== 'complete') {
-      const timing = timingStatus(asOf, compDue)
-      if (timing === 'not_due') compStatus = 'not_due'
-      else if (!hasClosedShifts || !shiftDone) compStatus = 'blocked'
-      else if (compEval.status === 'discrepancy') compStatus = 'discrepancy'
-      else compStatus = timing
-    }
-
-    if (compStatus === 'na') continue
-
-    items.push({
-      id: `deposit-comparison:${workDate}`,
-      label: 'Bank deposit & comparison',
-      section: sectionForDue(asOf, compDue),
-      status: compStatus,
-      workDate,
-      dueDate: compDue,
-      summary: `${workDateLabel(workDate)} — ${compEval.summary}`,
-      href: `/financial/deposit-comparisons?date=${workDate}`,
-      blockedBy: !hasClosedShifts || !shiftDone ? ['shift-close'] : undefined,
-      badgeWeight: badgeWeight(compStatus)
-    })
-  }
+  const latestWorkDate = addCalendarDaysYmd(asOf, -1)
+  const depositWorkDates = enumerateYmdRange(addCalendarDaysYmd(asOf, -14), latestWorkDate)
 
   if (showFinancial) {
+    for (const workDate of depositWorkDates) {
+      if (stationClosedDates.has(workDate)) continue
+      const report = dayReportsByDate.get(workDate)
+      const compDue = depositComparisonDueDate(workDate, bankHolidayDates)
+      const compRows = comparisonRowsByDate.get(workDate) ?? []
+      const hasClosedShifts = report?.shifts.some(
+        (s) => s.status === 'closed' || s.status === 'reviewed'
+      )
+      const shiftDone = report ? evaluateShiftClose(report, false).outcome === 'complete' : false
+      const compEval = depositComparisonStatus(compRows)
+
+      let compStatus = compEval.status
+      if (compStatus !== 'na' && compStatus !== 'complete') {
+        const timing = timingStatus(asOf, compDue)
+        if (timing === 'not_due') compStatus = 'not_due'
+        else if (!hasClosedShifts || !shiftDone) compStatus = 'blocked'
+        else if (compEval.status === 'discrepancy') compStatus = 'discrepancy'
+        else compStatus = timing
+      }
+
+      if (compStatus === 'na' || compStatus === 'complete' || compStatus === 'not_due') continue
+
+      items.push({
+        id: `deposit-comparison:${workDate}`,
+        label: 'Bank deposit & comparison',
+        section: sectionForDue(asOf, compDue),
+        status: compStatus,
+        workDate,
+        dueDate: compDue,
+        summary: compEval.summary,
+        href: `/financial/deposit-comparisons?date=${workDate}`,
+        blockedBy: !hasClosedShifts || !shiftDone ? ['shift-close'] : undefined,
+        badgeWeight: badgeWeight(compStatus)
+      })
+    }
+
     const weekTiming = timingStatus(asOf, weekSunday)
 
     const customerTouched =
@@ -243,18 +242,20 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
     const weekSection: 'today' | 'soon' | 'week' =
       compareYmd(asOf, weekSunday) >= 0 ? 'today' : compareYmd(weekSunday, asOf) <= 2 ? 'soon' : 'week'
 
-    items.push({
-      id: `customer-accounts:${weekKey}`,
-      label: 'Update customer accounts',
-      section: weekSection,
-      status: customerStatus,
-      weekKey,
-      dueDate: weekSunday,
-      summary: customerTouched || customerCompleteAck ? 'Updated this week' : 'Weekly update due Sunday',
-      href: '/customer-accounts',
-      badgeWeight: badgeWeight(customerStatus),
-      actions: customerStatus !== 'complete' ? ['mark_in_progress', 'mark_complete'] : undefined
-    })
+    if (customerStatus !== 'complete' && customerStatus !== 'not_due') {
+      items.push({
+        id: `customer-accounts:${weekKey}`,
+        label: 'Update customer accounts',
+        section: weekSection,
+        status: customerStatus,
+        weekKey,
+        dueDate: weekSunday,
+        summary: customerTouched || customerCompleteAck ? 'Updated this week' : 'Weekly update due Sunday',
+        href: '/customer-accounts',
+        badgeWeight: badgeWeight(customerStatus),
+        actions: ['mark_in_progress', 'mark_complete']
+      })
+    }
 
     const vendorStarted = ackForWeek(acknowledgements, 'vendor-invoices', weekKey, 'started')
     const vendorCompleteAck = ackForWeek(acknowledgements, 'vendor-invoices', weekKey, 'complete')
@@ -266,50 +267,58 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
     else if (weekTiming === 'overdue') vendorStatus = 'overdue'
     else if (weekTiming === 'due') vendorStatus = 'due'
 
-    items.push({
-      id: `vendor-invoices:${weekKey}`,
-      label: 'Update vendor invoices',
-      section: weekSection,
-      status: vendorStatus,
-      weekKey,
-      dueDate: weekSunday,
-      summary: vendorCompleteAck
-        ? 'Marked complete'
-        : vendorTouched
-          ? `${vendorInvoicesTouchedThisWeek} touched, ${vendorPendingCount} pending`
-          : 'Weekly entry (usually Sunday)',
-      href: '/vendor-payments/invoices',
-      badgeWeight: badgeWeight(vendorStatus),
-      actions: vendorStatus !== 'complete' ? ['mark_in_progress', 'mark_complete'] : undefined
-    })
+    if (vendorStatus !== 'complete' && vendorStatus !== 'not_due') {
+      items.push({
+        id: `vendor-invoices:${weekKey}`,
+        label: 'Update vendor invoices',
+        section: weekSection,
+        status: vendorStatus,
+        weekKey,
+        dueDate: weekSunday,
+        summary: vendorCompleteAck
+          ? 'Marked complete'
+          : vendorTouched
+            ? `${vendorInvoicesTouchedThisWeek} touched, ${vendorPendingCount} pending`
+            : 'Weekly entry (usually Sunday)',
+        href: '/vendor-payments/invoices',
+        badgeWeight: badgeWeight(vendorStatus),
+        actions: ['mark_in_progress', 'mark_complete']
+      })
+    }
   }
 
-  const visible = items.filter((i) => i.status !== 'complete' && i.status !== 'na')
+  const flatStatuses = items.flatMap((item) =>
+    item.children?.length ? item.children.map((c) => c.status) : [item.status]
+  )
 
   const counts = {
-    due: visible.filter((i) => i.status === 'due').length,
-    overdue: visible.filter((i) => i.status === 'overdue').length,
-    inProgress: visible.filter((i) => i.status === 'in_progress').length,
-    notDue: visible.filter((i) => i.status === 'not_due').length,
-    complete: items.filter((i) => i.status === 'complete').length
+    due: flatStatuses.filter((s) => s === 'due').length,
+    overdue: flatStatuses.filter((s) => s === 'overdue').length,
+    incomplete: flatStatuses.filter((s) => s === 'incomplete').length,
+    reopened: flatStatuses.filter((s) => s === 'reopened').length,
+    inProgress: flatStatuses.filter((s) => s === 'in_progress').length,
+    notDue: flatStatuses.filter((s) => s === 'not_due').length,
+    complete: flatStatuses.filter((s) => s === 'complete').length
   }
 
   const sortOrder: Record<ChecklistItemStatus, number> = {
     overdue: 0,
-    discrepancy: 1,
-    due: 2,
-    in_progress: 3,
-    blocked: 4,
-    not_due: 5,
-    complete: 6,
-    na: 7
+    reopened: 1,
+    discrepancy: 2,
+    due: 3,
+    incomplete: 4,
+    in_progress: 5,
+    blocked: 6,
+    not_due: 7,
+    complete: 8,
+    na: 9
   }
 
-  visible.sort((a, b) => {
+  items.sort((a, b) => {
     const s = sortOrder[a.status] - sortOrder[b.status]
     if (s !== 0) return s
-    return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+    return a.id.localeCompare(b.id)
   })
 
-  return { asOf, items: visible, counts }
+  return { asOf, items, counts }
 }
