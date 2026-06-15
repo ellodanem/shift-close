@@ -174,4 +174,29 @@ describe('operations checklist shift-close group', () => {
     assert.ok(sub)
     assert.equal(sub.status, 'reopened')
   })
+
+  it('ignores work dates before the June 2026 epoch', () => {
+    const asOf = '2026-06-15'
+    const now = fromZonedTime('2026-06-15T10:00:00', 'America/St_Lucia')
+    const payload = buildOperationsChecklist({
+      asOf,
+      now,
+      role: 'admin',
+      showFinancial: false,
+      dayReportsByDate: new Map(),
+      comparisonRowsByDate: new Map(),
+      stationClosedDates: new Set(),
+      bankHolidayDates: new Set(),
+      acknowledgements: [],
+      customerArUpdatedAt: null,
+      vendorInvoicesTouchedThisWeek: 0,
+      vendorPendingCount: 0
+    })
+
+    const workDates = (payload.items.find((i) => i.id === 'shift-close')?.children ?? []).map(
+      (c) => c.workDate
+    )
+    assert.ok(!workDates.includes('2026-05-31'))
+    assert.ok(workDates.includes('2026-06-01'))
+  })
 })

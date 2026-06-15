@@ -21,9 +21,9 @@ import type {
   ChecklistSubtask,
   OperationsChecklistPayload
 } from '@/lib/operations-checklist-types'
-import { BACKLOG_DAYS } from '@/lib/operations-checklist-types'
+import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON, CHECKLIST_ENABLE_WEEKLY_TASKS } from '@/lib/operations-checklist-types'
 
-export { BACKLOG_DAYS, BACKLOG_WEEKS } from '@/lib/operations-checklist-types'
+export { CHECKLIST_EPOCH_YMD } from '@/lib/operations-checklist-types'
 
 type AckRow = {
   taskId: string
@@ -120,13 +120,13 @@ function buildShiftCloseGroup(input: BuildInput): ChecklistItem {
   const { asOf, now = new Date(), dayReportsByDate, stationClosedDates } = input
   const currentWeekStart = weekKeyMonday(asOf)
   const currentWeekEnd = weekDueSunday(currentWeekStart)
-  const backlogStart = addCalendarDaysYmd(currentWeekStart, -BACKLOG_DAYS)
+  const windowStart = CHECKLIST_EPOCH_YMD
   const latestWorkDate = addCalendarDaysYmd(asOf, -1)
 
   const subtasks: ChecklistSubtask[] = []
 
-  if (compareYmd(latestWorkDate, backlogStart) >= 0) {
-    for (const workDate of enumerateYmdRange(backlogStart, latestWorkDate)) {
+  if (compareYmd(latestWorkDate, windowStart) >= 0) {
+    for (const workDate of enumerateYmdRange(windowStart, latestWorkDate)) {
       const bucket = compareYmd(workDate, currentWeekStart) >= 0 ? 'current_week' : 'backlog'
       if (bucket === 'current_week' && compareYmd(workDate, currentWeekEnd) > 0) continue
 
@@ -184,13 +184,14 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
 
   const items: ChecklistItem[] = [buildShiftCloseGroup(input)]
 
-  const weekKey = weekKeyMonday(asOf)
-  const weekSunday = weekDueSunday(weekKey)
-  const latestWorkDate = addCalendarDaysYmd(asOf, -1)
-  const depositWorkDates = enumerateYmdRange(addCalendarDaysYmd(asOf, -14), latestWorkDate)
+  if (showFinancial && (CHECKLIST_ENABLE_DEPOSIT_COMPARISON || CHECKLIST_ENABLE_WEEKLY_TASKS)) {
+    const weekKey = weekKeyMonday(asOf)
+    const weekSunday = weekDueSunday(weekKey)
+    const latestWorkDate = addCalendarDaysYmd(asOf, -1)
+    const depositWorkDates = enumerateYmdRange(CHECKLIST_EPOCH_YMD, latestWorkDate)
 
-  if (showFinancial) {
-    for (const workDate of depositWorkDates) {
+    if (CHECKLIST_ENABLE_DEPOSIT_COMPARISON) {
+      for (const workDate of depositWorkDates) {
       if (stationClosedDates.has(workDate)) continue
       const report = dayReportsByDate.get(workDate)
       const compDue = depositComparisonDueDate(workDate, bankHolidayDates)
@@ -224,9 +225,11 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
         blockedBy: !hasClosedShifts || !shiftDone ? ['shift-close'] : undefined,
         badgeWeight: badgeWeight(compStatus)
       })
+      }
     }
 
-    const weekTiming = timingStatus(asOf, weekSunday)
+    if (CHECKLIST_ENABLE_WEEKLY_TASKS) {
+      const weekTiming = timingStatus(asOf, weekSunday)
 
     const customerTouched =
       customerArUpdatedAt != null && isTimestampInWeek(customerArUpdatedAt, weekKey)
@@ -284,6 +287,7 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
         badgeWeight: badgeWeight(vendorStatus),
         actions: ['mark_in_progress', 'mark_complete']
       })
+    }
     }
   }
 

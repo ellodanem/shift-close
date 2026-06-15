@@ -10,7 +10,7 @@ import { compareYmd, enumerateYmdRange, weekKeyMonday } from '@/lib/operations-c
 import type { ComparisonRow } from '@/lib/deposit-comparison-rows'
 import type { DayReport } from '@/lib/types'
 import type { OperationsChecklistPayload } from '@/lib/operations-checklist-types'
-import { BACKLOG_DAYS } from '@/lib/operations-checklist-types'
+import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON } from '@/lib/operations-checklist-types'
 
 export async function loadOperationsChecklist(
   role: string,
@@ -18,17 +18,15 @@ export async function loadOperationsChecklist(
 ): Promise<OperationsChecklistPayload> {
   const now = new Date()
   const asOf = businessTodayYmd(now)
-  const currentWeekStart = weekKeyMonday(asOf)
-  const backlogStart = addCalendarDaysYmd(currentWeekStart, -BACKLOG_DAYS)
   const latestWorkDate = addCalendarDaysYmd(asOf, -1)
   const datesInWindow =
-    compareYmd(latestWorkDate, backlogStart) >= 0
-      ? enumerateYmdRange(backlogStart, latestWorkDate)
+    compareYmd(latestWorkDate, CHECKLIST_EPOCH_YMD) >= 0
+      ? enumerateYmdRange(CHECKLIST_EPOCH_YMD, latestWorkDate)
       : []
 
   const [dayReports, holidays, acknowledgements, customerAr, vendorPendingCount, vendorTouched] =
     await Promise.all([
-      buildDayReports({ sinceDate: backlogStart }),
+      buildDayReports({ sinceDate: CHECKLIST_EPOCH_YMD }),
       prisma.publicHoliday.findMany({
         where: { countryCode: 'LC' },
         select: { date: true, stationClosed: true }
@@ -53,19 +51,21 @@ export async function loadOperationsChecklist(
   const stationClosedDates = await getStationClosedDates(prisma, datesInWindow)
   const bankHolidayDates = new Set(holidays.map((h) => h.date))
 
-  const shifts = await prisma.shiftClose.findMany({
-    where: {
-      date: { in: datesInWindow },
-      status: { in: ['closed', 'reviewed', 'draft', 'reopened'] }
-    },
-    include: { depositRecords: true }
-  })
-
-  const comparisonRows = buildComparisonRowsFromShifts(shifts)
   const comparisonRowsByDate = new Map<string, ComparisonRow[]>()
-  for (const row of comparisonRows) {
-    if (!comparisonRowsByDate.has(row.date)) comparisonRowsByDate.set(row.date, [])
-    comparisonRowsByDate.get(row.date)!.push(row)
+  if (CHECKLIST_ENABLE_DEPOSIT_COMPARISON) {
+    const shifts = await prisma.shiftClose.findMany({
+      where: {
+        date: { in: datesInWindow },
+        status: { in: ['closed', 'reviewed', 'draft', 'reopened'] }
+      },
+      include: { depositRecords: true }
+    })
+
+    const comparisonRows = buildComparisonRowsFromShifts(shifts)
+    for (const row of comparisonRows) {
+      if (!comparisonRowsByDate.has(row.date)) comparisonRowsByDate.set(row.date, [])
+      comparisonRowsByDate.get(row.date)!.push(row)
+    }
   }
 
   return buildOperationsChecklist({
