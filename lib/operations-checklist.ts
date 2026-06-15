@@ -25,7 +25,13 @@ import {
   buildCustomerAccountsGroup,
   type CustomerArImportRow
 } from '@/lib/operations-checklist-customer-accounts'
-import { CHECKLIST_EPOCH_YMD, CHECKLIST_ENABLE_DEPOSIT_COMPARISON, CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS, CHECKLIST_ENABLE_VENDOR_INVOICES } from '@/lib/operations-checklist-types'
+import {
+  CHECKLIST_EPOCH_YMD,
+  CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS,
+  CHECKLIST_ENABLE_DEPOSIT_COMPARISON,
+  CHECKLIST_ENABLE_VENDOR_INVOICES,
+  filterEnabledChecklistItems
+} from '@/lib/operations-checklist-types'
 
 export { CHECKLIST_EPOCH_YMD } from '@/lib/operations-checklist-types'
 
@@ -284,20 +290,6 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
     }
   }
 
-  const flatStatuses = items.flatMap((item) =>
-    item.children?.length ? item.children.map((c) => c.status) : [item.status]
-  )
-
-  const counts = {
-    due: flatStatuses.filter((s) => s === 'due').length,
-    overdue: flatStatuses.filter((s) => s === 'overdue').length,
-    incomplete: flatStatuses.filter((s) => s === 'incomplete').length,
-    reopened: flatStatuses.filter((s) => s === 'reopened').length,
-    inProgress: flatStatuses.filter((s) => s === 'in_progress').length,
-    notDue: flatStatuses.filter((s) => s === 'not_due').length,
-    complete: flatStatuses.filter((s) => s === 'complete').length
-  }
-
   const sortOrder: Record<ChecklistItemStatus, number> = {
     overdue: 0,
     reopened: 1,
@@ -311,11 +303,29 @@ export function buildOperationsChecklist(input: BuildInput): OperationsChecklist
     na: 9
   }
 
-  items.sort((a, b) => {
+  const enabledItems = filterEnabledChecklistItems(items)
+
+  enabledItems.sort((a, b) => {
     const s = sortOrder[a.status] - sortOrder[b.status]
     if (s !== 0) return s
     return a.id.localeCompare(b.id)
   })
 
-  return { asOf, items, counts }
+  const enabledStatuses = enabledItems.flatMap((item) =>
+    item.children?.length ? item.children.map((c) => c.status) : [item.status]
+  )
+
+  return {
+    asOf,
+    items: enabledItems,
+    counts: {
+      due: enabledStatuses.filter((s) => s === 'due').length,
+      overdue: enabledStatuses.filter((s) => s === 'overdue').length,
+      incomplete: enabledStatuses.filter((s) => s === 'incomplete').length,
+      reopened: enabledStatuses.filter((s) => s === 'reopened').length,
+      inProgress: enabledStatuses.filter((s) => s === 'in_progress').length,
+      notDue: enabledStatuses.filter((s) => s === 'not_due').length,
+      complete: enabledStatuses.filter((s) => s === 'complete').length
+    }
+  }
 }

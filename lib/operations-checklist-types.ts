@@ -77,3 +77,15 @@ export const BACKLOG_DAYS = BACKLOG_WEEKS * 7
 
 /** @deprecated Use week window + epoch instead. */
 export const ROLLING_WORK_DAYS = 7
+
+export function isChecklistTaskEnabled(taskId: string): boolean {
+  if (taskId === 'shift-close') return true
+  if (taskId === 'customer-accounts') return CHECKLIST_ENABLE_CUSTOMER_ACCOUNTS
+  if (taskId.startsWith('deposit-comparison:')) return CHECKLIST_ENABLE_DEPOSIT_COMPARISON
+  if (taskId.startsWith('vendor-invoices:')) return CHECKLIST_ENABLE_VENDOR_INVOICES
+  return true
+}
+
+export function filterEnabledChecklistItems(items: ChecklistItem[]): ChecklistItem[] {
+  return items.filter((item) => isChecklistTaskEnabled(item.id))
+}

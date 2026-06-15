@@ -9,6 +9,7 @@ import type {
   ChecklistSubtask,
   OperationsChecklistPayload
 } from '@/lib/operations-checklist-types'
+import { filterEnabledChecklistItems } from '@/lib/operations-checklist-types'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 const POLL_MS = 4 * 60 * 1000
@@ -333,7 +334,8 @@ export default function OperationsChecklistPanel() {
     return null
   }
 
-  const badgeCount = totalBadgeCount(data?.items ?? [])
+  const visibleItems = filterEnabledChecklistItems(data?.items ?? [])
+  const badgeCount = totalBadgeCount(visibleItems)
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2">
@@ -361,7 +363,7 @@ export default function OperationsChecklistPanel() {
               <p className="text-sm text-slate-500">Loading…</p>
             ) : (
               <ul className="space-y-2">
-                {(data?.items ?? []).map((item) =>
+                {visibleItems.map((item) =>
                   GROUPED_ITEM_IDS.has(item.id) ? (
                     <GroupedChecklistItem
                       key={item.id}
