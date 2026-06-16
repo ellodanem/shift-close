@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent } from 'react'
+import { Suspense, useEffect, useState, type ChangeEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
@@ -37,9 +37,25 @@ interface CustomerArPaymentRecord {
   notes: string | null
 }
 
+function MonthParamSync({
+  onMonth
+}: {
+  onMonth: (monthKey: string) => void
+}) {
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const monthParam = searchParams.get('month')?.trim()
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      onMonth(monthParam)
+    }
+  }, [searchParams, onMonth])
+
+  return null
+}
+
 export default function CustomerAccountsPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
   const [accounts, setAccounts] = useState<CustomerArAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,13 +71,6 @@ export default function CustomerAccountsPage() {
 
   const [monthInput, setMonthInput] = useState<string>(defaultMonth)
 
-  useEffect(() => {
-    const monthParam = searchParams.get('month')?.trim()
-    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
-      setMonthInput(monthParam)
-      setSelectedMonth(monthParam)
-    }
-  }, [searchParams])
   const [openingInput, setOpeningInput] = useState<string>('')
   const [chargesInput, setChargesInput] = useState<string>('')
   const [paymentsInput, setPaymentsInput] = useState<string>('')
@@ -410,6 +419,14 @@ export default function CustomerAccountsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      <Suspense fallback={null}>
+        <MonthParamSync
+          onMonth={(monthParam) => {
+            setMonthInput(monthParam)
+            setSelectedMonth(monthParam)
+          }}
+        />
+      </Suspense>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
