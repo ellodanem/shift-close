@@ -24,6 +24,17 @@ function defaultStartYmd(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** First calendar day after a YYYY-MM-DD date (matches pay-period last-sent-cutoff). */
+function dayAfterYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + 1)
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
 function statusBadgeClass(status: StaffAttendanceReportDay['status']): string {
   switch (status) {
     case 'present':
@@ -91,6 +102,22 @@ function StaffAttendanceReportInner() {
       }
     })()
   }, [])
+
+  /** Default Start = day after last filed pay period end (unless URL already has startDate). */
+  useEffect(() => {
+    if (searchParams.get('startDate')) return
+    void (async () => {
+      try {
+        const res = await fetch('/api/attendance/pay-period?latestSaved=1', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as { lastFiledPeriod?: { endDate: string } | null }
+        const end = data.lastFiledPeriod?.endDate
+        if (end) setStartDate(dayAfterYmd(end))
+      } catch {
+        // keep defaultStartYmd fallback
+      }
+    })()
+  }, [searchParams])
 
   const fetchReport = useCallback(
     async (sid: string, start: string, end: string) => {
