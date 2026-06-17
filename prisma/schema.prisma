@@ -811,6 +811,7 @@ model CashbookEntry {
   depositLineIndex     Int?     @map("deposit_line_index") // Index in ShiftClose.deposits JSON when auto-synced
   paymentBatchId       String?  // If related to a fuel PaymentBatch
   vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
+  clearedAt            DateTime? @map("cleared_at") // When a check expense was cashed at the bank
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

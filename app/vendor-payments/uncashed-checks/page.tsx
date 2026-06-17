@@ -5,36 +5,41 @@ import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
-interface UncashedBatch {
+interface UncashedCheck {
   id: string
+  source: 'vendor' | 'cashbook'
   paymentDate: string
+  payee: string
   bankRef: string
   totalAmount: number
-  vendor: { id: string; name: string }
-  invoices: { invoiceNumber: string; amount: number }[]
+  detail: string
 }
 
 function formatDate(d: string) {
   return formatInvoiceDate(d)
 }
 
+function sourceLabel(source: UncashedCheck['source']) {
+  return source === 'vendor' ? 'Vendor payment' : 'Cashbook'
+}
+
 export default function UncashedChecksPage() {
   const router = useRouter()
-  const [batches, setBatches] = useState<UncashedBatch[]>([])
+  const [checks, setChecks] = useState<UncashedCheck[]>([])
   const [loading, setLoading] = useState(true)
   const [clearingId, setClearingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchBatches()
+    fetchChecks()
   }, [])
 
-  const fetchBatches = async () => {
+  const fetchChecks = async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/vendor-payments/uncashed-checks')
       if (res.ok) {
         const data = await res.json()
-        setBatches(data)
+        setChecks(data)
       }
     } catch (error) {
       console.error('Error fetching uncashed checks:', error)
@@ -49,11 +54,11 @@ export default function UncashedChecksPage() {
 
     setClearingId(id)
     try {
-      const res = await fetch(`/api/vendor-payments/uncashed-checks/${id}/clear`, {
+      const res = await fetch(`/api/vendor-payments/uncashed-checks/${encodeURIComponent(id)}/clear`, {
         method: 'PATCH'
       })
       if (res.ok) {
-        fetchBatches()
+        fetchChecks()
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to clear check')
@@ -76,12 +81,12 @@ export default function UncashedChecksPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Uncashed Checks</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Mark checks as cleared when they have been cashed at the bank
+              All outstanding checks — vendor payments and cashbook expenses — until cleared at the bank
             </p>
           </div>
           <div className="flex gap-4">
@@ -100,7 +105,7 @@ export default function UncashedChecksPage() {
           </div>
         </div>
 
-        {batches.length === 0 ? (
+        {checks.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <p className="text-gray-500 mb-4">No uncashed checks.</p>
             <button
@@ -119,13 +124,16 @@ export default function UncashedChecksPage() {
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Vendor
+                    Source
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Payee / Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Check #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Invoices
+                    Detail
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Amount
@@ -136,30 +144,33 @@ export default function UncashedChecksPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {batches.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
+                {checks.map((check) => (
+                  <tr key={check.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(b.paymentDate)}
+                      {formatDate(check.paymentDate)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {b.vendor.name}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {sourceLabel(check.source)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={check.payee}>
+                      {check.payee}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
-                      {b.bankRef}
+                      {check.bankRef}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {b.invoices.map((i) => i.invoiceNumber).join(', ')}
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title={check.detail}>
+                      {check.detail || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900">
-                      {formatAmount(b.totalAmount)}
+                      {formatAmount(check.totalAmount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
-                        onClick={() => handleMarkCleared(b.id)}
-                        disabled={clearingId === b.id}
+                        onClick={() => handleMarkCleared(check.id)}
+                        disabled={clearingId === check.id}
                         className="px-3 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                       >
-                        {clearingId === b.id ? 'Clearing...' : 'Mark as cleared'}
+                        {clearingId === check.id ? 'Clearing...' : 'Mark as cleared'}
                       </button>
                     </td>
                   </tr>

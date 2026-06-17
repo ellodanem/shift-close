@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { roundMoney } from '@/lib/fuelPayments'
+import { clearUncashedCheck } from '@/lib/uncashedChecks'
 
 // PATCH mark check as cleared (deduct from balance)
 export async function PATCH(
@@ -9,67 +8,25 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-
-    const batch = await prisma.vendorPaymentBatch.findUnique({
-      where: { id }
-    })
-
-    if (!batch) {
-      return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
-    }
-
-    if (batch.paymentMethod !== 'check') {
-      return NextResponse.json(
-        { error: 'Only check payments can be cleared' },
-        { status: 400 }
-      )
-    }
-
-    if (batch.clearedAt) {
-      return NextResponse.json(
-        { error: 'Check already cleared' },
-        { status: 400 }
-      )
-    }
-
-    const existingBalance = await prisma.balance.findUnique({
-      where: { id: 'balance' }
-    })
-
-    const amount = roundMoney(batch.totalAmount)
-
-    if (existingBalance) {
-      const updatedAvailable = roundMoney(existingBalance.availableFunds - amount)
-      await prisma.balance.update({
-        where: { id: 'balance' },
-        data: {
-          availableFunds: updatedAvailable,
-          balanceAfter: roundMoney(updatedAvailable - existingBalance.planned)
-        }
-      })
-    } else {
-      await prisma.balance.create({
-        data: {
-          id: 'balance',
-          currentBalance: 0,
-          availableFunds: roundMoney(0 - amount),
-          planned: 0,
-          balanceAfter: roundMoney(0 - amount)
-        }
-      })
-    }
-
-    await prisma.vendorPaymentBatch.update({
-      where: { id },
-      data: { clearedAt: new Date() }
-    })
-
+    await clearUncashedCheck(id)
     return NextResponse.json({ success: true })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to clear check'
     console.error('Error clearing check:', error)
-    return NextResponse.json(
-      { error: 'Failed to clear check' },
-      { status: 500 }
-    )
+
+    if (message === 'Batch not found' || message === 'Cashbook entry not found') {
+      return NextResponse.json({ error: message }, { status: 404 })
+    }
+    if (
+      message === 'Check already cleared' ||
+      message === 'Only check payments can be cleared' ||
+      message === 'Entry is not a check payment' ||
+      message === 'Clear this check from its vendor payment batch' ||
+      message === 'Invalid check id'
+    ) {
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
+
+    return NextResponse.json({ error: 'Failed to clear check' }, { status: 500 })
   }
 }

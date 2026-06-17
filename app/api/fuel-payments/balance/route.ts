@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { sumUncashedChecks } from '@/lib/uncashedChecks'
 
 // GET current balance
 export async function GET() {
@@ -62,17 +63,8 @@ export async function GET() {
       }
     }
 
-    // Calculate uncashed checks (vendor batches paid by check, not yet cleared).
-    // Vendor and fuel share the same Balance, so uncashed checks affect both.
-    // "Phantom" = availableFunds - uncashed checks (heads-up of real spendable funds).
-    const uncashedChecks = await prisma.vendorPaymentBatch.aggregate({
-      where: {
-        paymentMethod: 'check',
-        clearedAt: null
-      },
-      _sum: { totalAmount: true }
-    })
-    const uncashedChecksTotal = roundMoney(uncashedChecks._sum.totalAmount ?? 0)
+    // Uncashed checks reduce spendable balance (vendor batches + cashbook check expenses).
+    const uncashedChecksTotal = await sumUncashedChecks()
     const phantom = roundMoney(balance.availableFunds - uncashedChecksTotal)
 
     return NextResponse.json({

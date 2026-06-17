@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { sumUncashedChecks } from '@/lib/uncashedChecks'
 
 // GET balance with uncashed checks (shared with fuel payments)
 export async function GET() {
@@ -9,15 +10,7 @@ export async function GET() {
       where: { id: 'balance' }
     })
 
-    const uncashedChecks = await prisma.vendorPaymentBatch.aggregate({
-      where: {
-        paymentMethod: 'check',
-        clearedAt: null
-      },
-      _sum: { totalAmount: true }
-    })
-
-    const uncashedTotal = roundMoney(uncashedChecks._sum.totalAmount ?? 0)
+    const uncashedTotal = await sumUncashedChecks()
     const availableFunds = balance ? balance.availableFunds : 0
     const netBalance = roundMoney(availableFunds - uncashedTotal)
 
