@@ -12,7 +12,6 @@ interface UncashedCheck {
   payee: string
   bankRef: string
   totalAmount: number
-  detail: string
 }
 
 function formatDate(d: string) {
@@ -81,7 +80,7 @@ export default function UncashedChecksPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Uncashed Checks</h1>
@@ -132,9 +131,6 @@ export default function UncashedChecksPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Check #
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Detail
-                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Amount
                   </th>
@@ -157,9 +153,6 @@ export default function UncashedChecksPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
                       {check.bankRef}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title={check.detail}>
-                      {check.detail || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900">
                       {formatAmount(check.totalAmount)}
