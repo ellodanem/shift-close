@@ -192,6 +192,29 @@ function getShiftRequestMismatch(
   return null
 }
 
+function shiftRequestFulfilled(
+  parsed: ParsedDayOffRequest | null,
+  assignedShiftTemplateId: string | null | undefined
+): boolean {
+  return (
+    parsed?.type === 'shift' &&
+    !!parsed.shiftTemplateId &&
+    (assignedShiftTemplateId ?? null) === parsed.shiftTemplateId
+  )
+}
+
+function shiftRequestIndicatorTitle(
+  parsed: ParsedDayOffRequest,
+  requestedTemplateName: string | null | undefined,
+  fulfilled: boolean
+): string {
+  const name = requestedTemplateName ? `: ${requestedTemplateName}` : ''
+  const reason = parsed.reason ? ` (${parsed.reason})` : ''
+  return fulfilled
+    ? `Shift request fulfilled${name}${reason}`
+    : `Shift request${name}${reason}`
+}
+
 interface PublicHolidayRow {
   id: string
   date: string
@@ -2134,6 +2157,10 @@ export default function RosterPage() {
                           entry?.shiftTemplateId,
                           templateNameById
                         )
+                        const requestedShiftFulfilled = shiftRequestFulfilled(
+                          parsedDayOffRequest,
+                          entry?.shiftTemplateId
+                        )
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
@@ -2188,14 +2215,31 @@ export default function RosterPage() {
                                   </span>
                                 ) : null}
                                 {parsedDayOffRequest?.type === 'shift' ? (
-                                  <span
-                                    className="text-sm"
-                                    title={`Shift request${requestedTemplateName ? `: ${requestedTemplateName}` : ''}${parsedDayOffRequest.reason ? ` (${parsedDayOffRequest.reason})` : ''}`}
-                                    role="img"
-                                    aria-label="Shift request"
-                                  >
-                                    ⭐
-                                  </span>
+                                  requestedShiftFulfilled ? (
+                                    <span
+                                      className="text-sm"
+                                      title={shiftRequestIndicatorTitle(
+                                        parsedDayOffRequest,
+                                        requestedTemplateName,
+                                        true
+                                      )}
+                                      role="img"
+                                      aria-label="Shift request fulfilled"
+                                    >
+                                      ⭐
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 leading-none"
+                                      title={shiftRequestIndicatorTitle(
+                                        parsedDayOffRequest,
+                                        requestedTemplateName,
+                                        false
+                                      )}
+                                    >
+                                      {requestedTemplateName ?? 'Requested'}
+                                    </span>
+                                  )
                                 ) : null}
                                 <CallOutMarker callOut={callOut} sickOverlap={!!callOut && onSickLeave} />
                                 {blockedScheduledByLeave ? (
@@ -2204,14 +2248,6 @@ export default function RosterPage() {
                                     title="Shift assignment exists but is blocked by leave/day-off request"
                                   >
                                     Blocked
-                                  </span>
-                                ) : null}
-                                {shiftRequestMismatch ? (
-                                  <span
-                                    className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900"
-                                    title={shiftRequestMismatch.tooltip}
-                                  >
-                                    ≠ {shiftRequestMismatch.requestedLabel}
                                   </span>
                                 ) : null}
                               </div>
@@ -2532,6 +2568,10 @@ export default function RosterPage() {
                           entry?.shiftTemplateId,
                           templateNameById
                         )
+                        const requestedShiftFulfilled = shiftRequestFulfilled(
+                          parsedDayOffRequest,
+                          entry?.shiftTemplateId
+                        )
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
@@ -2576,14 +2616,31 @@ export default function RosterPage() {
                                 </span>
                               ) : null}
                               {parsedDayOffRequest?.type === 'shift' ? (
-                                <span
-                                  className="text-[12px] leading-none select-none"
-                                  title={`Shift request${requestedTemplateName ? `: ${requestedTemplateName}` : ''}${parsedDayOffRequest.reason ? ` (${parsedDayOffRequest.reason})` : ''}`}
-                                  role="img"
-                                  aria-label="Shift request"
-                                >
-                                  ⭐
-                                </span>
+                                requestedShiftFulfilled ? (
+                                  <span
+                                    className="text-[12px] leading-none select-none"
+                                    title={shiftRequestIndicatorTitle(
+                                      parsedDayOffRequest,
+                                      requestedTemplateName,
+                                      true
+                                    )}
+                                    role="img"
+                                    aria-label="Shift request fulfilled"
+                                  >
+                                    ⭐
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1 py-[1px] text-[9px] font-bold text-amber-900 leading-tight max-w-[6.5rem] truncate"
+                                    title={shiftRequestIndicatorTitle(
+                                      parsedDayOffRequest,
+                                      requestedTemplateName,
+                                      false
+                                    )}
+                                  >
+                                    {requestedTemplateName ?? 'Requested'}
+                                  </span>
+                                )
                               ) : null}
                               <CallOutMarker callOut={callOut} sickOverlap={!!callOut && onSickLeave} />
                               {blockedScheduledByLeave ? (
@@ -2592,14 +2649,6 @@ export default function RosterPage() {
                                   title="Shift assignment exists but is blocked by leave/day-off request"
                                 >
                                   Blocked
-                                </span>
-                              ) : null}
-                              {shiftRequestMismatch ? (
-                                <span
-                                  className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1 py-[1px] text-[9px] font-bold uppercase tracking-wide text-amber-900"
-                                  title={shiftRequestMismatch.tooltip}
-                                >
-                                  ≠ {shiftRequestMismatch.requestedLabel}
                                 </span>
                               ) : null}
                               {onVacation ? (
