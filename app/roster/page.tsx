@@ -170,6 +170,28 @@ function parseDayOffRequestReason(reason: string | null | undefined): ParsedDayO
   }
 }
 
+function getShiftRequestMismatch(
+  parsed: ParsedDayOffRequest | null,
+  assignedShiftTemplateId: string | null | undefined,
+  templateNameById: Map<string, string>
+): { requestedLabel: string; tooltip: string } | null {
+  if (!parsed) return null
+  const assigned = assignedShiftTemplateId ?? null
+
+  if (parsed.type === 'shift' && parsed.shiftTemplateId) {
+    if (assigned === parsed.shiftTemplateId) return null
+    const requestedLabel = templateNameById.get(parsed.shiftTemplateId) ?? 'Requested shift'
+    const assignedLabel = assigned ? templateNameById.get(assigned) ?? 'Other shift' : 'Off'
+    const reasonSuffix = parsed.reason ? ` Reason: ${parsed.reason}` : ''
+    return {
+      requestedLabel,
+      tooltip: `Requested ${requestedLabel}, assigned ${assignedLabel}.${reasonSuffix}`
+    }
+  }
+
+  return null
+}
+
 interface PublicHolidayRow {
   id: string
   date: string
@@ -2107,6 +2129,11 @@ export default function RosterPage() {
                         const blockedScheduledByLeave =
                           !!entry?.shiftTemplateId &&
                           (onVacation || onSickLeave || parsedDayOffRequest?.type === 'off')
+                        const shiftRequestMismatch = getShiftRequestMismatch(
+                          parsedDayOffRequest,
+                          entry?.shiftTemplateId,
+                          templateNameById
+                        )
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
@@ -2179,6 +2206,14 @@ export default function RosterPage() {
                                     Blocked
                                   </span>
                                 ) : null}
+                                {shiftRequestMismatch ? (
+                                  <span
+                                    className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900"
+                                    title={shiftRequestMismatch.tooltip}
+                                  >
+                                    ≠ {shiftRequestMismatch.requestedLabel}
+                                  </span>
+                                ) : null}
                               </div>
                               {onVacation ? (
                                 <span className="text-sm font-medium text-gray-600">Vacation</span>
@@ -2211,7 +2246,12 @@ export default function RosterPage() {
                                       e.target.value === '' ? null : e.target.value
                                     )
                                   }
-                                  className="w-full min-h-[48px] px-2 py-2 border border-gray-300 rounded-lg text-base bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  title={shiftRequestMismatch?.tooltip}
+                                  className={`w-full min-h-[48px] px-2 py-2 border rounded-lg text-base bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    shiftRequestMismatch
+                                      ? 'roster-shift-request-mismatch border-amber-500'
+                                      : 'border-gray-300'
+                                  }`}
                                 >
                                   <option value="">Off</option>
                                   {templates.map((t) => (
@@ -2487,6 +2527,11 @@ export default function RosterPage() {
                         const blockedScheduledByLeave =
                           !!entry?.shiftTemplateId &&
                           (onVacation || onSickLeave || parsedDayOffRequest?.type === 'off')
+                        const shiftRequestMismatch = getShiftRequestMismatch(
+                          parsedDayOffRequest,
+                          entry?.shiftTemplateId,
+                          templateNameById
+                        )
                         const template = getTemplateForEntry(entry)
                         const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
@@ -2549,6 +2594,14 @@ export default function RosterPage() {
                                   Blocked
                                 </span>
                               ) : null}
+                              {shiftRequestMismatch ? (
+                                <span
+                                  className="inline-flex items-center rounded border border-amber-400 bg-amber-100 px-1 py-[1px] text-[9px] font-bold uppercase tracking-wide text-amber-900"
+                                  title={shiftRequestMismatch.tooltip}
+                                >
+                                  ≠ {shiftRequestMismatch.requestedLabel}
+                                </span>
+                              ) : null}
                               {onVacation ? (
                                 <span className="text-xs font-medium text-gray-500">Vacation</span>
                               ) : onSickLeave ? (
@@ -2582,7 +2635,12 @@ export default function RosterPage() {
                                       e.target.value === '' ? null : e.target.value
                                     )
                                   }
-                                  className="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  title={shiftRequestMismatch?.tooltip}
+                                  className={`w-full max-w-[7rem] px-1 py-1 border rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                    shiftRequestMismatch
+                                      ? 'roster-shift-request-mismatch border-amber-500'
+                                      : 'border-gray-300'
+                                  }`}
                                 >
                                   <option value="">Off</option>
                                   {templates.map((t) => (
