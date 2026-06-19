@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
@@ -8,6 +8,7 @@ import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 interface UncashedCheck {
   id: string
   source: 'vendor' | 'cashbook'
+  vendorId: string | null
   paymentDate: string
   payee: string
   bankRef: string
@@ -20,6 +21,45 @@ function formatDate(d: string) {
 
 function sourceLabel(source: UncashedCheck['source']) {
   return source === 'vendor' ? 'Vendor payment' : 'Cashbook'
+}
+
+/** Accept both unified API rows and legacy vendor-batch payloads. */
+function normalizeUncashedChecks(data: unknown): UncashedCheck[] {
+  if (!Array.isArray(data)) return []
+
+  return data.map((raw) => {
+    const item = raw as Record<string, unknown>
+    const vendor = item.vendor as { id?: string; name?: string } | undefined
+    const rawId = String(item.id ?? '')
+    const source =
+      item.source === 'cashbook' || item.source === 'vendor'
+        ? item.source
+        : vendor
+          ? 'vendor'
+          : 'cashbook'
+
+    let id = rawId
+    if (rawId && !rawId.includes(':')) {
+      id = `${source}:${rawId}`
+    }
+
+    return {
+      id,
+      source,
+      vendorId:
+        typeof item.vendorId === 'string'
+          ? item.vendorId
+          : vendor?.id ?? null,
+      paymentDate: String(item.paymentDate ?? item.date ?? ''),
+      payee: String(item.payee ?? vendor?.name ?? item.description ?? '—'),
+      bankRef: String(item.bankRef ?? item.ref ?? '—'),
+      totalAmount: Number(item.totalAmount ?? item.debitCheck ?? 0)
+    }
+  })
+}
+
+function rowKey(check: UncashedCheck) {
+  return `${check.id}|${check.bankRef}|${check.paymentDate}`
 }
 
 export default function UncashedChecksPage() {
@@ -35,10 +75,12 @@ export default function UncashedChecksPage() {
   const fetchChecks = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/vendor-payments/uncashed-checks')
+      const res = await fetch('/api/vendor-payments/uncashed-checks', {
+        cache: 'no-store'
+      })
       if (res.ok) {
         const data = await res.json()
-        setChecks(data)
+        setChecks(normalizeUncashedChecks(data))
       }
     } catch (error) {
       console.error('Error fetching uncashed checks:', error)
@@ -46,6 +88,11 @@ export default function UncashedChecksPage() {
       setLoading(false)
     }
   }
+
+  const totalAmount = useMemo(
+    () => checks.reduce((sum, check) => sum + check.totalAmount, 0),
+    [checks]
+  )
 
   const handleMarkCleared = async (id: string) => {
     if (!confirm('Mark this check as cleared? This will deduct the amount from available funds.'))
@@ -79,13 +126,15 @@ export default function UncashedChecksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-full bg-gray-50 p-8 pb-24">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Uncashed Checks</h1>
             <p className="text-sm text-gray-600 mt-1">
-              All outstanding checks — vendor payments and cashbook expenses — until cleared at the bank
+              {checks.length === 0
+                ? 'All outstanding checks — vendor payments and cashbook expenses — until cleared at the bank'
+                : `${checks.length} outstanding check${checks.length === 1 ? '' : 's'} totaling ${formatAmount(totalAmount)}`}
             </p>
           </div>
           <div className="flex gap-4">
@@ -115,8 +164,8 @@ export default function UncashedChecksPage() {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -141,7 +190,7 @@ export default function UncashedChecksPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {checks.map((check) => (
-                  <tr key={check.id} className="hover:bg-gray-50">
+                  <tr key={rowKey(check)} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(check.paymentDate)}
                     </td>
@@ -169,6 +218,17 @@ export default function UncashedChecksPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-gray-50 border-t border-gray-200">
+                <tr>
+                  <td colSpan={4} className="px-6 py-3 text-sm font-medium text-gray-700">
+                    {checks.length} check{checks.length === 1 ? '' : 's'}
+                  </td>
+                  <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
+                    {formatAmount(totalAmount)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

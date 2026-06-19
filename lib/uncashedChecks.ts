@@ -6,6 +6,7 @@ export type UncashedCheckSource = 'vendor' | 'cashbook'
 export type UncashedCheckRecord = {
   id: string
   source: UncashedCheckSource
+  vendorId: string | null
   paymentDate: string
   payee: string
   bankRef: string
@@ -94,6 +95,7 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
   const vendorItems: UncashedCheckRecord[] = vendorBatches.map((batch) => ({
     id: uncashedCheckId('vendor', batch.id),
     source: 'vendor',
+    vendorId: batch.vendorId,
     paymentDate: batch.paymentDate.toISOString(),
     payee: batch.vendor.name,
     bankRef: batch.bankRef,
@@ -110,6 +112,7 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
     return {
       id: uncashedCheckId('cashbook', entry.id),
       source: 'cashbook',
+      vendorId: null,
       paymentDate: entry.date,
       payee: entry.description.trim() || 'Cashbook expense',
       bankRef: entry.ref?.trim() || '—',
@@ -121,7 +124,9 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
   return [...vendorItems, ...cashbookItems].sort((a, b) => {
     const dateCmp = a.paymentDate.localeCompare(b.paymentDate)
     if (dateCmp !== 0) return dateCmp
-    return a.bankRef.localeCompare(b.bankRef)
+    const refCmp = a.bankRef.localeCompare(b.bankRef)
+    if (refCmp !== 0) return refCmp
+    return a.id.localeCompare(b.id)
   })
 }
 

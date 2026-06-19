@@ -105,7 +105,6 @@ export function VendorInvoiceAmountFields({
           type="number"
           required
           step="0.01"
-          min="0"
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -135,7 +134,6 @@ export function VendorInvoiceAmountFields({
             type="number"
             required
             step="0.01"
-            min="0"
             value={amount}
             onChange={(e) => onAmountChange(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -146,7 +144,6 @@ export function VendorInvoiceAmountFields({
           <input
             type="number"
             step="0.01"
-            min="0"
             value={vat}
             onChange={(e) => onVatChange(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
