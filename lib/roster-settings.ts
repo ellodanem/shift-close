@@ -19,7 +19,10 @@ export function countOffDaysForStaffInWeek(params: {
   const { staff, weekDates, entries, stationClosedDates, isOnSickLeave } = params
   let count = 0
   for (const date of weekDates) {
-    if (stationClosedDates.has(date)) continue
+    if (stationClosedDates.has(date)) {
+      count++
+      continue
+    }
     if (isOnVacation(staff, date) || isOnSickLeave(staff.id, date)) {
       count++
       continue
