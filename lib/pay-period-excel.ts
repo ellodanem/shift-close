@@ -33,7 +33,7 @@ export function formatDateRange(start: string, end: string): string {
 
 /** Known payroll note field starts (blocks copied without line breaks). */
 const PAY_PERIOD_NOTE_FIELD_RE =
-  /(?=(?:Name:|Address:|D\.O\.B\.|Date Started\s*:|N\.I\.C\s*#:?|Bank account:|Account number:))/i
+  /(?=(?:\bName\b|Address:|D\.O\.B\.|Date Started\s*:|N\.I\.C\s*#:?|Bank account:|Account number:))/i
 
 /** Split stored notes into one line per field for Excel export. */
 export function splitPayPeriodNotesForExport(notes: string): string[] {

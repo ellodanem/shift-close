@@ -1,4 +1,9 @@
-import { formatDateDisplay, formatDateRange, type PayPeriodExcelData } from '@/lib/pay-period-excel'
+import {
+  formatDateDisplay,
+  formatDateRange,
+  splitPayPeriodNotesForExport,
+  type PayPeriodExcelData
+} from '@/lib/pay-period-excel'
 
 /** Default recipients when emailing a saved pay period report from Attendance → Pay Period. */
 export const PAY_PERIOD_REPORT_DEFAULT_RECIPIENTS = [
@@ -27,6 +32,13 @@ export function payPeriodReportDefaultSubject(start: string, end: string): strin
   return `Staff hours commencing ${formatSavedPayPeriodDateRange(start, end)}`
 }
 
+/** One HTML line per notes field — email clients often ignore white-space: pre-wrap. */
+export function formatPayPeriodNotesEmailHtml(notes: string): string {
+  const lines = splitPayPeriodNotesForExport(notes)
+  if (lines.length === 0) return ''
+  return lines.map(escapePayPeriodHtml).join('<br>')
+}
+
 export function buildPayPeriodEmailHtml(data: PayPeriodExcelData): string {
   const rows = data.rows
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
@@ -36,7 +48,7 @@ export function buildPayPeriodEmailHtml(data: PayPeriodExcelData): string {
         <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
         <p><strong>Date Range:</strong> ${formatDateRange(data.startDate, data.endDate)}</p>
         <p><strong>${data.entityName}</strong></p>
-        ${(data.notes ?? '').trim() ? `<p style="white-space: pre-wrap;">${escapePayPeriodHtml(data.notes ?? '')}</p>` : ''}
+        ${(data.notes ?? '').trim() ? `<p>${formatPayPeriodNotesEmailHtml(data.notes ?? '')}</p>` : ''}
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
           <tr><th>Staff</th><th>Trans Ttl</th><th>Vacation</th><th>Sick Days</th><th>Sick Leave</th><th>Shortage</th></tr>
           ${rows
