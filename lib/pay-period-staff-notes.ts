@@ -1,6 +1,7 @@
 /** Payroll fields used for pay-period notes copy blocks. */
 export type StaffPayrollSnapshot = {
   fullName: string
+  address: string | null
   dateOfBirth: string | null
   nicNumber: string | null
   startDate: string | null
@@ -61,6 +62,7 @@ function formatStartDateValue(ymd: string | null): string {
 export function formatPayPeriodStaffNotesBlock(s: StaffPayrollSnapshot): string {
   const lines: string[] = []
   lines.push(alignedRow('Name', s.fullName.trim()))
+  lines.push(alignedRow('Address:', (s.address ?? '').trim()))
   lines.push(alignedRow('D.O.B.', formatDobValue(s.dateOfBirth)))
   lines.push(alignedRow('Date Started :', formatStartDateValue(s.startDate)))
   lines.push(alignedRow('N.I.C #', (s.nicNumber ?? '').trim()))

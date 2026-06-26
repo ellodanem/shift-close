@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       nicNumber,
       bankName,
       accountNumber,
+      address,
       mobileNumber,
       notes,
       punchExempt,
@@ -74,6 +75,11 @@ export async function POST(request: NextRequest) {
     const displayName = fullNameFromFirstLast(first, last)
     if (!displayName) {
       return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
+    }
+
+    const addressTrimmed = (address ?? '').toString().trim()
+    if (!addressTrimmed) {
+      return NextResponse.json({ error: 'Address is required' }, { status: 400 })
     }
 
     const explicitRaw =
@@ -144,6 +150,7 @@ export async function POST(request: NextRequest) {
                 role: resolvedRole,
                 roleId: roleId && roleId.trim() !== '' ? roleId.trim() : null,
                 nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
+                address: addressTrimmed,
                 bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
                 accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
                 mobileNumber: mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null,

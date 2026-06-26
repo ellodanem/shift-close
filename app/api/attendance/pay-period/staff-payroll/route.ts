@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         name: true,
+        address: true,
         dateOfBirth: true,
         startDate: true,
         nicNumber: true,
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
     for (const s of staff) {
       out[s.id] = {
         fullName: s.name.trim(),
+        address: s.address?.trim() || null,
         dateOfBirth: s.dateOfBirth,
         nicNumber: sensitive ? s.nicNumber : null,
         startDate: s.startDate,

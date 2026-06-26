@@ -84,6 +84,7 @@ export default function EditStaffPage() {
     roleId: '',
     nicNumber: '',
     deviceUserId: '',
+    address: '',
     bankName: '',
     accountNumber: '',
     mobileNumber: '',
@@ -318,6 +319,7 @@ export default function EditStaffPage() {
         roleId: data.roleId || '',
         nicNumber: (data as any).nicNumber || '',
         deviceUserId: (data as any).deviceUserId || '',
+        address: (data as any).address || '',
         bankName: (data as any).bankName || '',
         accountNumber: (data as any).accountNumber || '',
         mobileNumber: (data as any).mobileNumber || '',
@@ -595,6 +597,21 @@ export default function EditStaffPage() {
                 placeholder="e.g. +1 242 555 1234 or 12425551234"
               />
               <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Home address"
+              />
             </div>
 
             {/* NIC Number */}

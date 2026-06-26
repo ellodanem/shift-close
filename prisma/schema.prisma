@@ -18,6 +18,7 @@ model Staff {
   role        String   @default("cashier") // Backwards-compatible string role label
   roleId      String?  @map("role_id")
   nicNumber   String?  @map("nic_number")
+  address     String   @default("")
   deviceUserId String? @map("device_user_id") // ZKTeco device user ID for attendance mapping
   bankName    String?  @map("bank_name")
   accountNumber String? @map("account_number")

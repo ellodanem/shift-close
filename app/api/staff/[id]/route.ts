@@ -55,6 +55,7 @@ export async function PATCH(
       deviceUserId,
       bankName,
       accountNumber,
+      address,
       mobileNumber,
       notes,
       vacationStart,
@@ -71,6 +72,7 @@ export async function PATCH(
       ...(canViewStaffSensitiveFields(appRole) && nicNumber !== undefined && { nicNumber: nicNumber || null }),
       ...(canViewStaffSensitiveFields(appRole) && bankName !== undefined && { bankName: bankName || null }),
       ...(canViewStaffSensitiveFields(appRole) && accountNumber !== undefined && { accountNumber: accountNumber || null }),
+      ...(address !== undefined && { address: String(address).trim() }),
       ...(mobileNumber !== undefined && { mobileNumber: mobileNumber || null }),
       ...(notes !== undefined && { notes: notes || '' }),
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
@@ -125,6 +127,10 @@ export async function PATCH(
       } else if (role === undefined) {
         data.role = 'cashier'
       }
+    }
+
+    if (address !== undefined && !String(address).trim()) {
+      return NextResponse.json({ error: 'Address is required' }, { status: 400 })
     }
 
     const prior =
