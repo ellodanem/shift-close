@@ -248,6 +248,12 @@ function StaffAttendanceReportInner() {
             >
               Pay period
             </Link>
+            <Link
+              href="/roster/staff-report"
+              className="px-4 py-2 border border-teal-600 text-teal-800 bg-white rounded font-semibold hover:bg-teal-50 text-sm"
+            >
+              Roster report
+            </Link>
           </div>
         </div>
 

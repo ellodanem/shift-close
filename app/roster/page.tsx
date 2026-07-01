@@ -1613,6 +1613,13 @@ export default function RosterPage() {
             >
               Staff
             </a>
+            <a
+              href="/roster/staff-report"
+              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-indigo-600 text-indigo-800 rounded font-semibold hover:bg-indigo-50 text-sm sm:inline-block"
+            >
+              <span className="md:hidden">Schedule</span>
+              <span className="hidden md:inline">Schedule report</span>
+            </a>
             {canLogCallOut ? (
               <button
                 type="button"

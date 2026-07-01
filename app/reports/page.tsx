@@ -7,6 +7,14 @@ export default function ReportsPage() {
 
   const reports = [
     {
+      id: 'staff-roster',
+      title: 'Staff Roster Report',
+      description: 'Individual scheduled shifts over a date range — week or list view',
+      icon: '🗓️',
+      comingSoon: false,
+      route: '/roster/staff-report'
+    },
+    {
       id: 'weekly',
       title: 'Weekly Reports',
       description: 'Aggregate all days in a week with totals and summaries',
