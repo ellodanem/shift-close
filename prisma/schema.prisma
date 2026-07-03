@@ -200,6 +200,16 @@ model SecurityScanDayWaiver {
   @@map("security_scan_day_waivers")
 }
 
+/// Calendar-day: debit machine did not print / misprinted — satisfies EOD debit column without a file.
+model DebitScanDayWaiver {
+  date      String   @id // YYYY-MM-DD
+  note      String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("debit_scan_day_waivers")
+}
+
 /// Reconciliation rows: deposit lines (recordKind deposit, lineIndex = index in ShiftClose.deposits JSON)
 /// or one debit row per shift (recordKind debit, lineIndex = 0).
 model DepositRecord {

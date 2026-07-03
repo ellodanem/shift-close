@@ -81,6 +81,10 @@ export interface DayReport {
   securityScanWaived?: boolean
   /** Optional note stored with the security scan waiver. */
   securityScanWaiverNote?: string
+  /** True when staff marked "missing/misprinted debit slip" for this calendar day (no scan file). */
+  debitScanWaived?: boolean
+  /** Optional note stored with the debit scan waiver. */
+  debitScanWaiverNote?: string
   /** True when a Missing deposit slip alert exists and is open for this calendar day */
   missingDepositSlipAlertOpen?: boolean
   /** When the physical slip is missing or destroyed — deposit scan requirement waived. */

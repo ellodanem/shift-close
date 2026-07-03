@@ -29,6 +29,8 @@ export default function DayScanStrip({
   securityScans,
   securityScanWaived,
   securityScanWaiverNote,
+  debitScanWaived,
+  debitScanWaiverNote,
   onRefresh,
   onOpenPreview
 }: {
@@ -38,16 +40,24 @@ export default function DayScanStrip({
   securityScans: string[]
   securityScanWaived: boolean
   securityScanWaiverNote: string
+  debitScanWaived: boolean
+  debitScanWaiverNote: string
   onRefresh: () => void
   onOpenPreview: (url: string, title: string) => void
 }) {
   const [uploading, setUploading] = useState<ScanKind | null>(null)
-  const [savingWaiver, setSavingWaiver] = useState(false)
-  const [waiverNoteDraft, setWaiverNoteDraft] = useState(securityScanWaiverNote)
+  const [savingSecurityWaiver, setSavingSecurityWaiver] = useState(false)
+  const [securityWaiverNoteDraft, setSecurityWaiverNoteDraft] = useState(securityScanWaiverNote)
+  const [savingDebitWaiver, setSavingDebitWaiver] = useState(false)
+  const [debitWaiverNoteDraft, setDebitWaiverNoteDraft] = useState(debitScanWaiverNote)
 
   useEffect(() => {
-    setWaiverNoteDraft(securityScanWaiverNote)
+    setSecurityWaiverNoteDraft(securityScanWaiverNote)
   }, [securityScanWaiverNote, date])
+
+  useEffect(() => {
+    setDebitWaiverNoteDraft(debitScanWaiverNote)
+  }, [debitScanWaiverNote, date])
   const depInput = useRef<HTMLInputElement>(null)
   const debInput = useRef<HTMLInputElement>(null)
   const secInput = useRef<HTMLInputElement>(null)
@@ -111,7 +121,7 @@ export default function DayScanStrip({
   }
 
   const saveSecurityWaiver = async (waived: boolean, note: string) => {
-    setSavingWaiver(true)
+    setSavingSecurityWaiver(true)
     try {
       const res = await fetch(`/api/days/${encodeURIComponent(date)}/security-scan-waiver`, {
         method: 'PUT',
@@ -126,7 +136,27 @@ export default function DayScanStrip({
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Could not update security waiver')
     } finally {
-      setSavingWaiver(false)
+      setSavingSecurityWaiver(false)
+    }
+  }
+
+  const saveDebitWaiver = async (waived: boolean, note: string) => {
+    setSavingDebitWaiver(true)
+    try {
+      const res = await fetch(`/api/days/${encodeURIComponent(date)}/debit-scan-waiver`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waived, note })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(typeof err.error === 'string' ? err.error : 'Save failed')
+      }
+      onRefresh()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not update debit waiver')
+    } finally {
+      setSavingDebitWaiver(false)
     }
   }
 
@@ -185,7 +215,11 @@ export default function DayScanStrip({
           footer={uploadFooter('debit', debInput)}
         />
         {debitScans.length === 0 ? (
-          <span className="text-[11px] text-violet-600/75">No debit scans</span>
+          <span
+            className={`text-[11px] ${debitScanWaived ? 'text-amber-800/90 font-medium' : 'text-violet-600/75'}`}
+          >
+            {debitScanWaived ? 'No scan — missing/misprinted debit slip' : 'No debit scans'}
+          </span>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -210,6 +244,44 @@ export default function DayScanStrip({
         ) : null}
       </div>
     </div>
+    {debitScans.length === 0 ? (
+      <div className="border-b border-slate-100 bg-slate-50/30 px-4 py-3">
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-slate-300 text-violet-700 focus:ring-violet-600"
+            checked={debitScanWaived}
+            disabled={savingDebitWaiver}
+            onChange={(e) => void saveDebitWaiver(e.target.checked, debitWaiverNoteDraft)}
+          />
+          <span className="text-sm text-slate-800 leading-snug">
+            Missing/misprinted debit slip — mark debit as recorded without a slip.
+            {savingDebitWaiver ? <span className="text-slate-500"> Saving…</span> : null}
+          </span>
+        </label>
+        {debitScanWaived ? (
+          <div className="mt-2 ml-7 max-w-xl">
+            <label className="block text-[11px] font-medium text-slate-600 mb-0.5" htmlFor={`deb-waiver-note-${date}`}>
+              Optional note
+            </label>
+            <input
+              id={`deb-waiver-note-${date}`}
+              type="text"
+              className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm text-slate-900"
+              placeholder="e.g. machine error, paper jam"
+              value={debitWaiverNoteDraft}
+              disabled={savingDebitWaiver}
+              onChange={(e) => setDebitWaiverNoteDraft(e.target.value)}
+              onBlur={() => {
+                if (!debitScanWaived) return
+                if (debitWaiverNoteDraft === debitScanWaiverNote) return
+                void saveDebitWaiver(true, debitWaiverNoteDraft)
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+    ) : null}
     {securityScans.length === 0 ? (
       <div className="border-b border-slate-100 bg-slate-50/30 px-4 py-3">
         <label className="flex items-start gap-2.5 cursor-pointer select-none">
@@ -217,12 +289,12 @@ export default function DayScanStrip({
             type="checkbox"
             className="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
             checked={securityScanWaived}
-            disabled={savingWaiver}
-            onChange={(e) => void saveSecurityWaiver(e.target.checked, waiverNoteDraft)}
+            disabled={savingSecurityWaiver}
+            onChange={(e) => void saveSecurityWaiver(e.target.checked, securityWaiverNoteDraft)}
           />
           <span className="text-sm text-slate-800 leading-snug">
             No security pickup — deposit was still dropped off; mark security as recorded without a slip.
-            {savingWaiver ? <span className="text-slate-500"> Saving…</span> : null}
+            {savingSecurityWaiver ? <span className="text-slate-500"> Saving…</span> : null}
           </span>
         </label>
         {securityScanWaived ? (
@@ -235,13 +307,13 @@ export default function DayScanStrip({
               type="text"
               className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm text-slate-900"
               placeholder="e.g. manual bank drop, security off duty"
-              value={waiverNoteDraft}
-              disabled={savingWaiver}
-              onChange={(e) => setWaiverNoteDraft(e.target.value)}
+              value={securityWaiverNoteDraft}
+              disabled={savingSecurityWaiver}
+              onChange={(e) => setSecurityWaiverNoteDraft(e.target.value)}
               onBlur={() => {
                 if (!securityScanWaived) return
-                if (waiverNoteDraft === securityScanWaiverNote) return
-                void saveSecurityWaiver(true, waiverNoteDraft)
+                if (securityWaiverNoteDraft === securityScanWaiverNote) return
+                void saveSecurityWaiver(true, securityWaiverNoteDraft)
               }}
             />
           </div>

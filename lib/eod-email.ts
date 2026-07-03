@@ -61,10 +61,15 @@ export function buildEndOfDayEmailHtml(
     report.depositScans.length > 0
       ? `<ul>${report.depositScans.map((u) => `<li><a href="${u}">Deposit scan</a></li>`).join('')}</ul>`
       : '<p><em>No deposit scans uploaded.</em></p>'
+  const debitWaiverNote = (report.debitScanWaiverNote ?? '').trim()
   const debitLinks =
     report.debitScans.length > 0
       ? `<ul>${report.debitScans.map((u) => `<li><a href="${u}">Debit scan</a></li>`).join('')}</ul>`
-      : '<p><em>No debit scans uploaded.</em></p>'
+      : report.debitScanWaived
+        ? `<p><em>No debit scan file — missing/misprinted debit slip.</em>${
+            debitWaiverNote ? ` <span style="color:#444">(${escapeHtmlText(debitWaiverNote)})</span>` : ''
+          }</p>`
+        : '<p><em>No debit scans uploaded.</em></p>'
   const securityScans = report.securityScans ?? []
   const waiverNote = (report.securityScanWaiverNote ?? '').trim()
   const securityLinks =

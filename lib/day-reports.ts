@@ -69,6 +69,17 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
         ).map((r) => [r.date, r.note ?? ''])
   )
 
+  const debitWaiverByDate = new Map<string, string>(
+    allDates.length === 0
+      ? []
+      : (
+          await prisma.debitScanDayWaiver.findMany({
+            where: { date: { in: allDates } },
+            select: { date: true, note: true }
+          })
+        ).map((r) => [r.date, r.note ?? ''])
+  )
+
   for (const [date, dayShifts] of byDate.entries()) {
     const shiftTypes = dayShifts.map((s) => s.shift)
     const hasDraft = dayShifts.some((s) => (s as { status?: string }).status === 'draft')
@@ -202,6 +213,8 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
       securityScans,
       securityScanWaived: securityWaiverByDate.has(date),
       securityScanWaiverNote: securityWaiverByDate.get(date) ?? '',
+      debitScanWaived: debitWaiverByDate.has(date),
+      debitScanWaiverNote: debitWaiverByDate.get(date) ?? '',
       missingDepositSlipAlertOpen: openMissingSlipDates.has(date),
       depositSlipUnavailableReason: slipUnavailableByDate.get(date) ?? null
     })

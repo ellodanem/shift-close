@@ -100,6 +100,9 @@ export async function POST(
     if (type === 'security') {
       await prisma.securityScanDayWaiver.deleteMany({ where: { date } })
     }
+    if (type === 'debit') {
+      await prisma.debitScanDayWaiver.deleteMany({ where: { date } })
+    }
 
     return NextResponse.json({ success: true, url })
   } catch (error: any) {

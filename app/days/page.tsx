@@ -670,11 +670,16 @@ export default function DaysPage() {
                             </div>
                             <div
                               className="relative"
-                              title={
-                                dayReport.debitScans.length > 0
-                                  ? `${dayReport.debitScans.length} debit slip(s) uploaded`
-                                  : 'No debit slips uploaded'
-                              }
+                              title={(() => {
+                                if (dayReport.debitScans.length > 0) return `${dayReport.debitScans.length} debit slip(s) uploaded`
+                                if (dayReport.debitScanWaived) {
+                                  const note = (dayReport.debitScanWaiverNote ?? '').trim()
+                                  return note
+                                    ? `No debit scan — missing/misprinted debit slip (${note})`
+                                    : 'No debit scan — missing/misprinted debit slip'
+                                }
+                                return 'No debit slips uploaded'
+                              })()}
                             >
                               <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -691,9 +696,15 @@ export default function DaysPage() {
                                 />
                               </svg>
                               <span
-                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.debitScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${
+                                  dayReport.debitScans.length > 0
+                                    ? 'bg-green-500'
+                                    : dayReport.debitScanWaived
+                                      ? 'bg-amber-500'
+                                      : 'bg-red-500'
+                                }`}
                               >
-                                {dayReport.debitScans.length > 0 ? '✓' : '✕'}
+                                {dayReport.debitScans.length > 0 || dayReport.debitScanWaived ? '✓' : '✕'}
                               </span>
                             </div>
                             <div
@@ -850,6 +861,8 @@ export default function DaysPage() {
                       securityScans={dayReport.securityScans ?? []}
                       securityScanWaived={dayReport.securityScanWaived ?? false}
                       securityScanWaiverNote={dayReport.securityScanWaiverNote ?? ''}
+                      debitScanWaived={dayReport.debitScanWaived ?? false}
+                      debitScanWaiverNote={dayReport.debitScanWaiverNote ?? ''}
                       onRefresh={refreshDayReports}
                       onOpenPreview={(url, title) => setScanPreview({ url, title })}
                     />
