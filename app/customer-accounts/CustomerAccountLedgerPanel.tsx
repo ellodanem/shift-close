@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState, ChangeEvent } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatStatementDateRange } from '@/lib/customer-statement'
 import {
   creditReportToLedgerEntries,
   detectMonthKeyFromParsed,
@@ -51,12 +53,6 @@ function monthRange(monthKey: string): { start: string; end: string; year: numbe
   }
 }
 
-function formatMonthLabel(monthKey: string): string {
-  const [y, m] = monthKey.split('-').map(Number)
-  const d = new Date(y, m - 1, 1)
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-}
-
 type Props = {
   account: string
   monthKey: string
@@ -72,7 +68,9 @@ export default function CustomerAccountLedgerPanel({
   onImported,
   onMonthChange
 }: Props) {
-  const { start, end, year, month } = monthRange(monthKey)
+  const { start: monthStart, end: monthEnd, year, month } = monthRange(monthKey)
+  const [startDate, setStartDate] = useState(monthStart)
+  const [endDate, setEndDate] = useState(monthEnd)
   const [view, setView] = useState<LedgerView | null>(null)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
@@ -80,7 +78,7 @@ export default function CustomerAccountLedgerPanel({
   const [openingInput, setOpeningInput] = useState<string>('')
   const [savingLine, setSavingLine] = useState(false)
 
-  const [lineDate, setLineDate] = useState(start)
+  const [lineDate, setLineDate] = useState(monthStart)
   const [lineType, setLineType] = useState<'charge' | 'payment'>('payment')
   const [lineAmount, setLineAmount] = useState('')
   const [lineMemo, setLineMemo] = useState('')
@@ -94,7 +92,7 @@ export default function CustomerAccountLedgerPanel({
         const openingQ =
           o.trim() !== '' ? `&opening=${encodeURIComponent(o)}` : ''
         const res = await fetch(
-          `/api/customer-accounts/ledger?account=${encodeURIComponent(account)}&startDate=${start}&endDate=${end}${openingQ}`
+          `/api/customer-accounts/ledger?account=${encodeURIComponent(account)}&startDate=${startDate}&endDate=${endDate}${openingQ}`
         )
         if (!res.ok) throw new Error('Failed to load')
         const data: LedgerView = await res.json()
@@ -108,10 +106,14 @@ export default function CustomerAccountLedgerPanel({
         setLoading(false)
       }
     },
-    [account, start, end, openingInput]
+    [account, startDate, endDate, openingInput]
   )
 
   useEffect(() => {
+    const { start, end } = monthRange(monthKey)
+    setStartDate(start)
+    setEndDate(end)
+    setLineDate(start)
     setOpeningInput('')
     loadLedger('')
   }, [account, monthKey])
@@ -263,21 +265,54 @@ export default function CustomerAccountLedgerPanel({
               {account}
             </h3>
             <p className="text-xs text-gray-600">
-              Account ledger for {formatMonthLabel(monthKey)} — import the Cstore Customer Credit
-              Report (Details) to see charge and payment dates.
+              Account ledger for {formatStatementDateRange(startDate, endDate)} — import the Cstore
+              Customer Credit Report (Details) to see charge and payment dates.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/customer-accounts/statement?account=${encodeURIComponent(account)}&startDate=${startDate}&endDate=${endDate}&mode=detail`}
+              className="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-white border border-indigo-300 rounded hover:bg-indigo-50"
+            >
+              Full statement
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div className="p-4 sm:p-6">
       <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => loadLedger()}
+          className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+        >
+          Apply range
+        </button>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Opening balance
@@ -411,7 +446,9 @@ export default function CustomerAccountLedgerPanel({
                 {view.rows.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-4 text-center text-gray-600">
-                      <p className="font-medium text-gray-800 mb-1">No dated lines for {formatMonthLabel(monthKey)}</p>
+                      <p className="font-medium text-gray-800 mb-1">
+                        No dated lines for {formatStatementDateRange(startDate, endDate)}
+                      </p>
                       <p className="text-sm">
                         The monthly Excel import above only stores month totals (no daily dates).
                         Click <strong>Import Cstore detail (.xls)</strong> and upload this

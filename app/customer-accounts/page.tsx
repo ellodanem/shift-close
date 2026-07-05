@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { Suspense, useEffect, useState, type ChangeEvent } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
@@ -55,7 +56,6 @@ function MonthParamSync({
 }
 
 export default function CustomerAccountsPage() {
-  const router = useRouter()
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
   const [accounts, setAccounts] = useState<CustomerArAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -429,7 +429,7 @@ export default function CustomerAccountsPage() {
       </Suspense>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Customer Accounts
@@ -439,6 +439,12 @@ export default function CustomerAccountsPage() {
               customer account report.
             </p>
           </div>
+          <Link
+            href="/customer-accounts/statement"
+            className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+          >
+            Account Statement →
+          </Link>
         </div>
 
         {/* Record Payment */}
