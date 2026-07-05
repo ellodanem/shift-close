@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react'
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 import { VendorRevertPaymentModal } from '../../components/VendorRevertPaymentModal'
@@ -94,6 +94,7 @@ function VendorDetailPageInner() {
     vat: '',
     notes: ''
   })
+  const addInvoiceNumberRef = useRef<HTMLInputElement>(null)
   const [batchSearch, setBatchSearch] = useState('')
   const [showRevertModal, setShowRevertModal] = useState(false)
   const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false)
@@ -274,8 +275,7 @@ function VendorDetailPageInner() {
     }
   }
 
-  const handleAddInvoiceSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const submitAddInvoice = async (createAnother: boolean) => {
     const amt = parseFloat(addInvoiceForm.amount)
     if (Number.isNaN(amt)) {
       alert('Please enter a valid amount')
@@ -302,8 +302,21 @@ function VendorDetailPageInner() {
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        closeAddInvoiceModal()
         await fetchVendor()
+        if (createAnother) {
+          const { invoiceDate, dueDate } = addInvoiceForm
+          setAddInvoiceForm({
+            invoiceNumber: '',
+            amount: '',
+            invoiceDate,
+            dueDate,
+            vat: '',
+            notes: ''
+          })
+          setTimeout(() => addInvoiceNumberRef.current?.focus(), 50)
+        } else {
+          closeAddInvoiceModal()
+        }
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to create invoice')
@@ -314,6 +327,11 @@ function VendorDetailPageInner() {
     } finally {
       setAddInvoiceSaving(false)
     }
+  }
+
+  const handleAddInvoiceSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    await submitAddInvoice(false)
   }
 
   if (loading) {
@@ -754,6 +772,7 @@ function VendorDetailPageInner() {
                   Invoice number <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={addInvoiceNumberRef}
                   type="text"
                   required
                   value={addInvoiceForm.invoiceNumber}
@@ -835,6 +854,14 @@ function VendorDetailPageInner() {
                   className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {addInvoiceSaving ? 'Creating...' : 'Create invoice'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitAddInvoice(true)}
+                  disabled={addInvoiceSaving}
+                  className="rounded bg-slate-600 px-4 py-2 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {addInvoiceSaving ? 'Creating...' : 'Create and New…'}
                 </button>
                 <button
                   type="button"
