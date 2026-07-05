@@ -1,7 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense, useEffect, useState, type ChangeEvent } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent
+} from 'react'
 import { useSearchParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
@@ -38,6 +46,15 @@ interface CustomerArPaymentRecord {
   notes: string | null
 }
 
+function monthDateRange(monthKey: string): { startDate: string; endDate: string } {
+  const [y, m] = monthKey.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return {
+    startDate: `${y}-${String(m).padStart(2, '0')}-01`,
+    endDate: `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  }
+}
+
 function MonthParamSync({
   onMonth
 }: {
@@ -56,20 +73,24 @@ function MonthParamSync({
 }
 
 export default function CustomerAccountsPage() {
+  const today = new Date()
+  const defaultMonth = `${today.getFullYear()}-${String(
+    today.getMonth() + 1
+  ).padStart(2, '0')}`
+
+  const excelInputRef = useRef<HTMLInputElement>(null)
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
   const [accounts, setAccounts] = useState<CustomerArAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
-
-  const today = new Date()
-  const defaultMonth = `${today.getFullYear()}-${String(
-    today.getMonth() + 1
-  ).padStart(2, '0')}`
-
-  const [monthInput, setMonthInput] = useState<string>(defaultMonth)
+  const [workingMonth, setWorkingMonth] = useState<string>(defaultMonth)
+  const [rollForwardExpanded, setRollForwardExpanded] = useState(false)
+  const [accountSearch, setAccountSearch] = useState('')
+  const [accountSort, setAccountSort] = useState<
+    'name-asc' | 'name-desc' | 'closing-desc'
+  >('name-asc')
 
   const [openingInput, setOpeningInput] = useState<string>('')
   const [chargesInput, setChargesInput] = useState<string>('')
@@ -87,8 +108,9 @@ export default function CustomerAccountsPage() {
   const [paymentRef, setPaymentRef] = useState<string>('')
   const [paymentType, setPaymentType] = useState<'' | 'cash' | 'check' | 'eft'>('')
   const [savingPayment, setSavingPayment] = useState(false)
-  const [paymentsFilterMonth, setPaymentsFilterMonth] = useState<string>(defaultMonth)
-  const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(null)
+  const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(
+    null
+  )
 
   const formatPaymentTypeLabel = (method: string | null) => {
     if (!method?.trim()) return '—'
@@ -99,14 +121,83 @@ export default function CustomerAccountsPage() {
     return method
   }
 
-  const fetchPayments = async () => {
+  const formatMonthLabel = (year: number, month: number) => {
+    const d = new Date(year, month - 1, 1)
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
+
+  const formatMonthLabelFromKey = (monthKey: string) => {
+    const [y, m] = monthKey.split('-').map(Number)
+    return formatMonthLabel(y, m)
+  }
+
+  const computeClosing = (s: CustomerArSummary) =>
+    s.opening + s.charges - s.payments
+
+  const fetchAccountsForMonth = useCallback(async (monthKey: string) => {
+    if (!monthKey) {
+      setAccounts([])
+      return
+    }
+
+    const [yearStr, monthStr] = monthKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+
+    if (Number.isNaN(year) || Number.isNaN(month)) {
+      setAccounts([])
+      return
+    }
+
+    setLoadingAccounts(true)
+    try {
+      const res = await fetch(
+        `/api/customer-accounts/accounts?year=${year}&month=${month}`
+      )
+      if (!res.ok) throw new Error('Failed to fetch customer accounts')
+      const data = await res.json()
+      setAccounts(data)
+    } catch (error) {
+      console.error(error)
+      setAccounts([])
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }, [])
+
+  const applyWorkingMonth = useCallback(
+    (monthKey: string) => {
+      if (!monthKey) return
+      setWorkingMonth(monthKey)
+      void fetchAccountsForMonth(monthKey)
+    },
+    [fetchAccountsForMonth]
+  )
+
+  const fetchSummaries = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/customer-accounts/monthly')
+      if (!res.ok) throw new Error('Failed to fetch customer account summaries')
+      const data = await res.json()
+      setSummaries(data)
+      return data as CustomerArSummary[]
+    } catch (error) {
+      console.error(error)
+      alert('Failed to load customer account summaries')
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchPayments = useCallback(async () => {
     setLoadingPayments(true)
     try {
-      const [y, m] = paymentsFilterMonth.split('-').map(Number)
-      const start = `${y}-${String(m).padStart(2, '0')}-01`
-      const lastDay = new Date(y, m, 0)
-      const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
-      const res = await fetch(`/api/customer-accounts/payments?startDate=${start}&endDate=${end}`)
+      const { startDate, endDate } = monthDateRange(workingMonth)
+      const res = await fetch(
+        `/api/customer-accounts/payments?startDate=${startDate}&endDate=${endDate}`
+      )
       if (!res.ok) throw new Error('Failed to fetch payments')
       const data = await res.json()
       setPayments(data)
@@ -116,11 +207,75 @@ export default function CustomerAccountsPage() {
     } finally {
       setLoadingPayments(false)
     }
-  }
+  }, [workingMonth])
 
   useEffect(() => {
-    fetchPayments()
-  }, [paymentsFilterMonth])
+    void fetchPayments()
+  }, [fetchPayments])
+
+  useEffect(() => {
+    const loadData = async () => {
+      const summariesData = await fetchSummaries()
+      if (summariesData && summariesData.length > 0) {
+        const sorted = [...summariesData].sort((a, b) => {
+          if (a.year !== b.year) return b.year - a.year
+          return b.month - a.month
+        })
+        const mostRecent = sorted[0]
+        const monthKey = `${mostRecent.year}-${String(mostRecent.month).padStart(2, '0')}`
+        applyWorkingMonth(monthKey)
+      } else {
+        await fetchAccountsForMonth(defaultMonth)
+      }
+    }
+    void loadData()
+  }, [])
+
+  const sortedSummaries = useMemo(
+    () =>
+      [...summaries].sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year
+        return a.month - b.month
+      }),
+    [summaries]
+  )
+
+  const visibleSummaries = rollForwardExpanded
+    ? sortedSummaries
+    : sortedSummaries.slice(-3)
+
+  const workingSummary = useMemo(() => {
+    const [y, m] = workingMonth.split('-').map(Number)
+    return summaries.find((s) => s.year === y && s.month === m) ?? null
+  }, [summaries, workingMonth])
+
+  const workingMonthReconciliation = useMemo(() => {
+    if (!workingSummary) return null
+    const computed = computeClosing(workingSummary)
+    if (workingSummary.closing == null) return null
+    const diff = workingSummary.closing - computed
+    return {
+      computed,
+      diff,
+      reconciled: Math.abs(diff) < 0.01
+    }
+  }, [workingSummary])
+
+  const filteredAccounts = useMemo(() => {
+    let list = [...accounts]
+    const q = accountSearch.trim().toLowerCase()
+    if (q) {
+      list = list.filter((a) => a.account.toLowerCase().includes(q))
+    }
+    list.sort((a, b) => {
+      if (accountSort === 'closing-desc') return b.closing - a.closing
+      if (accountSort === 'name-desc') {
+        return b.account.localeCompare(a.account, undefined, { sensitivity: 'base' })
+      }
+      return a.account.localeCompare(b.account, undefined, { sensitivity: 'base' })
+    })
+    return list
+  }, [accounts, accountSearch, accountSort])
 
   const handleRecordPayment = async () => {
     if (!paymentDate.trim() || !paymentAccount.trim()) {
@@ -166,100 +321,23 @@ export default function CustomerAccountsPage() {
     }
   }
 
-  useEffect(() => {
-    const loadData = async () => {
-      const summariesData = await fetchSummaries()
-      // After summaries load, find the most recent month with data and load its accounts
-      if (summariesData && summariesData.length > 0) {
-        // Sort by year desc, then month desc to get most recent
-        const sorted = [...summariesData].sort((a, b) => {
-          if (a.year !== b.year) return b.year - a.year
-          return b.month - a.month
-        })
-        const mostRecent = sorted[0]
-        const monthKey = `${mostRecent.year}-${String(mostRecent.month).padStart(2, '0')}`
-        setMonthInput(monthKey)
-        await fetchAccountsForMonth(monthKey)
-      } else if (defaultMonth) {
-        // If no summaries yet, load default month
-        await fetchAccountsForMonth(defaultMonth)
-      }
-    }
-    loadData()
-  }, [])
-
-  const fetchSummaries = async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/customer-accounts/monthly')
-      if (!res.ok) {
-        throw new Error('Failed to fetch customer account summaries')
-      }
-      const data = await res.json()
-      setSummaries(data)
-      return data // Return data so it can be used in the useEffect
-    } catch (error) {
-      console.error(error)
-      alert('Failed to load customer account summaries')
-      return []
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchAccountsForMonth = async (monthKey: string) => {
-    if (!monthKey) {
-      setAccounts([])
-      setSelectedMonth(null)
-      return
-    }
-
-    const [yearStr, monthStr] = monthKey.split('-')
-    const year = Number(yearStr)
-    const month = Number(monthStr)
-
-    if (Number.isNaN(year) || Number.isNaN(month)) {
-      setAccounts([])
-      setSelectedMonth(null)
-      return
-    }
-
-    setLoadingAccounts(true)
-    setSelectedMonth(monthKey)
-    try {
-      const res = await fetch(
-        `/api/customer-accounts/accounts?year=${year}&month=${month}`
-      )
-      if (!res.ok) {
-        throw new Error('Failed to fetch customer accounts')
-      }
-      const data = await res.json()
-      setAccounts(data)
-    } catch (error) {
-      console.error(error)
-      setAccounts([])
-    } finally {
-      setLoadingAccounts(false)
-    }
-  }
-
   const handleSave = async () => {
-    if (!monthInput) {
-      alert('Please select a month')
+    if (!workingMonth) {
+      alert('Please select a working month')
       return
     }
 
-    const [yearStr, monthStr] = monthInput.split('-')
+    const [yearStr, monthStr] = workingMonth.split('-')
     const year = Number(yearStr)
     const month = Number(monthStr)
 
     const opening = Number(openingInput || '0')
     const charges = Number(chargesInput || '0')
-    const payments = Number(paymentsInput || '0')
+    const paymentsVal = Number(paymentsInput || '0')
     const closing =
       closingInput.trim() === '' ? null : Number(closingInput || '0')
 
-    if ([opening, charges, payments].some((v) => Number.isNaN(v))) {
+    if ([opening, charges, paymentsVal].some((v) => Number.isNaN(v))) {
       alert('Opening, charges, and payments must be numbers')
       return
     }
@@ -279,7 +357,7 @@ export default function CustomerAccountsPage() {
           month,
           opening,
           charges,
-          payments,
+          payments: paymentsVal,
           closing,
           notes: notesInput
         })
@@ -290,7 +368,6 @@ export default function CustomerAccountsPage() {
         throw new Error(err.error || 'Failed to save summary')
       }
 
-      // Reset inputs a bit: keep month, clear numbers
       setOpeningInput('')
       setChargesInput('')
       setPaymentsInput('')
@@ -298,10 +375,7 @@ export default function CustomerAccountsPage() {
       setNotesInput('')
 
       await fetchSummaries()
-      // Refresh account breakdown for the saved month
-      if (monthInput) {
-        await fetchAccountsForMonth(monthInput)
-      }
+      await fetchAccountsForMonth(workingMonth)
       alert('Customer account summary saved')
     } catch (error) {
       console.error(error)
@@ -311,15 +385,7 @@ export default function CustomerAccountsPage() {
     }
   }
 
-  const formatMonthLabel = (year: number, month: number) => {
-    const d = new Date(year, month - 1, 1)
-    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  }
-
-  const computeClosing = (s: CustomerArSummary) =>
-    s.opening + s.charges - s.payments
-
-  const parseNumber = (value: any): number => {
+  const parseNumber = (value: unknown): number => {
     if (typeof value === 'number') return value
     if (typeof value !== 'string') return 0
     const cleaned = value
@@ -334,8 +400,8 @@ export default function CustomerAccountsPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!monthInput) {
-      alert('Please select the month this Excel file belongs to first.')
+    if (!workingMonth) {
+      alert('Please select the working month first.')
       e.target.value = ''
       return
     }
@@ -347,7 +413,9 @@ export default function CustomerAccountsPage() {
       const workbook = XLSX.read(data, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
       const sheet = workbook.Sheets[sheetName]
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, {
+        defval: ''
+      })
 
       const mappedRows = rows
         .map((row) => {
@@ -356,24 +424,14 @@ export default function CustomerAccountsPage() {
             (row['ACCOUNT'] as string) ||
             (row['Account Name'] as string) ||
             ''
-          const opening =
-            parseNumber(row.Opening ?? row['OPENING'] ?? row['Opening'])
-          const charges =
-            parseNumber(row.Credit ?? row['CREDIT'] ?? row['Credit'])
-          const payments =
-            parseNumber(
-              row.Collection ?? row['COLLECTION'] ?? row['Collection']
-            )
-          const closing =
-            parseNumber(row.Closing ?? row['CLOSING'] ?? row['Closing'])
+          const opening = parseNumber(row.Opening ?? row['OPENING'] ?? row['Opening'])
+          const charges = parseNumber(row.Credit ?? row['CREDIT'] ?? row['Credit'])
+          const paymentsVal = parseNumber(
+            row.Collection ?? row['COLLECTION'] ?? row['Collection']
+          )
+          const closing = parseNumber(row.Closing ?? row['CLOSING'] ?? row['Closing'])
 
-          return {
-            account,
-            opening,
-            charges,
-            payments,
-            closing
-          }
+          return { account, opening, charges, payments: paymentsVal, closing }
         })
         .filter(
           (r) =>
@@ -387,7 +445,7 @@ export default function CustomerAccountsPage() {
         return
       }
 
-      const [yearStr, monthStr] = monthInput.split('-')
+      const [yearStr, monthStr] = workingMonth.split('-')
       const year = Number(yearStr)
       const month = Number(monthStr)
 
@@ -403,10 +461,7 @@ export default function CustomerAccountsPage() {
       }
 
       await fetchSummaries()
-      // Refresh account breakdown for the imported month
-      if (monthInput) {
-        await fetchAccountsForMonth(monthInput)
-      }
+      await fetchAccountsForMonth(workingMonth)
       alert('Customer account Excel imported successfully.')
     } catch (error) {
       console.error(error)
@@ -417,256 +472,512 @@ export default function CustomerAccountsPage() {
     }
   }
 
+  const { startDate: monthStart, endDate: monthEnd } = monthDateRange(workingMonth)
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      <input
+        ref={excelInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={handleExcelUpload}
+        disabled={importing}
+        className="hidden"
+      />
+
       <Suspense fallback={null}>
-        <MonthParamSync
-          onMonth={(monthParam) => {
-            setMonthInput(monthParam)
-            setSelectedMonth(monthParam)
-          }}
-        />
+        <MonthParamSync onMonth={applyWorkingMonth} />
       </Suspense>
+
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
+        <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Customer Accounts
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900">Customer Accounts</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Lightweight monthly A/R overview using totals from the POS
-              customer account report.
+              Import monthly totals, then drill into individual accounts.
+            </p>
+            <p className="text-xs text-gray-500 mt-2 max-w-2xl">
+              <span className="font-medium text-gray-600">Monthly:</span> Import POS
+              Excel for all accounts.{' '}
+              <span className="font-medium text-gray-600">Detail:</span> Open Ledger
+              on a customer to import the Cstore Credit Report (Details).
             </p>
           </div>
-          <Link
-            href="/customer-accounts/statement"
-            className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
-          >
-            Account Statement →
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => excelInputRef.current?.click()}
+              disabled={importing}
+              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {importing ? 'Importing…' : 'Import Excel'}
+            </button>
+            <Link
+              href="/customer-accounts/statement"
+              className="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded font-semibold text-sm hover:bg-gray-50"
+            >
+              Account Statement
+            </Link>
+          </div>
         </div>
 
-        {/* Record Payment */}
-        <div className="bg-white rounded-lg shadow-sm border-2 border-green-200 p-6 mb-6">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="text-3xl">💰</div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                Record Payment
-              </h2>
-              <p className="text-xs text-gray-600">
-                Capture customer payments as they are received (like Mr. Elcock&apos;s spreadsheet).
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
-              <input
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Customer</label>
-              <input
-                type="text"
-                value={paymentAccount}
-                onChange={(e) => setPaymentAccount(e.target.value)}
-                placeholder="e.g. Distillers, Barbay"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
-              <input
-                type="text"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="0.00"
-                className="px-3 py-2 border border-gray-300 rounded text-sm w-28 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Payment type (optional)</label>
-              <select
-                value={paymentType}
-                onChange={(e) =>
-                  setPaymentType(e.target.value as '' | 'cash' | 'check' | 'eft')
-                }
-                className="px-3 py-2 border border-gray-300 rounded text-sm bg-white min-w-[7.5rem] focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">—</option>
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="eft">EFT</option>
-              </select>
-            </div>
-            <div className="min-w-[120px]">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Ref (optional)</label>
-              <input
-                type="text"
-                value={paymentRef}
-                onChange={(e) => setPaymentRef(e.target.value)}
-                placeholder="Cheque #"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <button
-              onClick={handleRecordPayment}
-              disabled={savingPayment}
-              className="px-5 py-2 bg-green-600 text-white rounded font-semibold text-sm hover:bg-green-700 disabled:opacity-50"
-            >
-              {savingPayment ? 'Saving...' : 'Record'}
-            </button>
-          </div>
-          <div className="border-t border-gray-200 pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-700">Recorded payments</h3>
+        {/* Working month bar */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-end gap-4">
               <div>
-                <label className="text-xs text-gray-600 mr-2">Show month:</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Working month
+                </label>
                 <input
                   type="month"
-                  value={paymentsFilterMonth}
-                  onChange={(e) => setPaymentsFilterMonth(e.target.value)}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
+                  value={workingMonth}
+                  onChange={(e) => applyWorkingMonth(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+              <p className="text-xs text-gray-500 pb-2 max-w-xs">
+                Drives import, account list, and recorded payments for{' '}
+                {formatMonthLabelFromKey(workingMonth)}.
+              </p>
             </div>
-            {loadingPayments ? (
-              <p className="text-sm text-gray-500">Loading...</p>
-            ) : payments.length === 0 ? (
-              <p className="text-sm text-gray-500">No payments recorded for this month.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Ref</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-900 whitespace-nowrap">
-                          {formatCstoreDisplayDate(p.date)}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-gray-900">{p.account}</td>
-                        <td className="px-3 py-2 text-right font-mono">{formatAmount(p.amount)}</td>
-                        <td className="px-3 py-2 text-gray-700">{formatPaymentTypeLabel(p.paymentMethod)}</td>
-                        <td className="px-3 py-2 text-gray-600">{p.ref || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-100">
-                    <tr className="font-semibold">
-                      <td className="px-3 py-2" colSpan={2}>Total</td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
-                      </td>
-                      <td className="px-3 py-2" />
-                      <td className="px-3 py-2" />
-                    </tr>
-                  </tfoot>
-                </table>
+            {workingMonthReconciliation && (
+              <div className="flex items-center gap-2 text-sm">
+                {workingMonthReconciliation.reconciled ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-800 border border-green-200 font-medium text-xs">
+                    Reconciled
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-800 border border-red-200 font-medium text-xs">
+                    Out of balance
+                  </span>
+                )}
+                <span className="text-xs text-gray-600 font-mono">
+                  Difference{' '}
+                  {workingMonthReconciliation.diff >= 0 ? '+' : ''}
+                  {formatAmount(workingMonthReconciliation.diff)} vs POS
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Primary: Excel Import */}
-        <div className="bg-white rounded-lg shadow-sm border-2 border-blue-200 p-6 mb-6">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="text-3xl">📊</div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                Import from Excel (Recommended)
-              </h2>
-              <p className="text-xs text-gray-600">
-                Export the customer account report from your POS (PDI) and upload
-                it here. This will automatically import all accounts and compute
-                monthly totals.
-              </p>
+        {/* Account Breakdown — primary */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Account Breakdown — {formatMonthLabelFromKey(workingMonth)}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="search"
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                placeholder="Search accounts…"
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm w-44 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <select
+                value={accountSort}
+                onChange={(e) =>
+                  setAccountSort(
+                    e.target.value as 'name-asc' | 'name-desc' | 'closing-desc'
+                  )
+                }
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm bg-white"
+              >
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="closing-desc">Closing (high–low)</option>
+              </select>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Select Month
-              </label>
-              <input
-                type="month"
-                value={monthInput}
-                onChange={(e) => {
-                  setMonthInput(e.target.value)
-                  fetchAccountsForMonth(e.target.value)
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          {loadingAccounts ? (
+            <p className="text-gray-600 text-sm">Loading accounts…</p>
+          ) : accounts.length === 0 ? (
+            <p className="text-gray-500 text-sm">
+              No account breakdown for this month. Click{' '}
+              <button
+                type="button"
+                onClick={() => excelInputRef.current?.click()}
+                className="text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Import Excel
+              </button>{' '}
+              to load customer accounts from your POS export.
+            </p>
+          ) : filteredAccounts.length === 0 ? (
+            <p className="text-gray-500 text-sm">No accounts match your search.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                      Account
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                      Opening
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                      Charges
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                      Payments
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                      Closing
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredAccounts.map((acc) => (
+                    <tr key={acc.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 font-medium text-gray-900">
+                        {acc.account}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono">
+                        {formatAmount(acc.opening)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono">
+                        {formatAmount(acc.charges)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono">
+                        {formatAmount(acc.payments)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono font-semibold">
+                        {formatAmount(acc.closing)}
+                      </td>
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLedgerAccount(acc.account)}
+                          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm mr-3"
+                        >
+                          Ledger
+                        </button>
+                        <Link
+                          href={`/customer-accounts/statement?account=${encodeURIComponent(acc.account)}&startDate=${monthStart}&endDate=${monthEnd}&mode=summary`}
+                          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+                        >
+                          Statement
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 font-semibold">
+                    <td className="px-4 py-2 text-gray-900">Total</td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatAmount(accounts.reduce((s, a) => s + a.opening, 0))}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatAmount(accounts.reduce((s, a) => s + a.charges, 0))}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatAmount(accounts.reduce((s, a) => s + a.payments, 0))}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatAmount(accounts.reduce((s, a) => s + a.closing, 0))}
+                    </td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Excel File
-              </label>
-              <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-blue-300 rounded text-sm cursor-pointer hover:bg-blue-50 transition-colors">
-                <span className="text-blue-600 font-semibold">
-                  {importing ? 'Importing...' : 'Choose Excel File'}
-                </span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleExcelUpload}
-                  disabled={importing}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Secondary: Manual Entry (Totals Only) */}
+        {/* Company roll-forward — secondary */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-800">
+                Company roll-forward
+              </h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                Reconciliation
+              </span>
+            </div>
+            <p className="text-xs text-gray-500">
+              Closing (computed) = Opening + Charges − Payments
+            </p>
+          </div>
+
+          {loading ? (
+            <p className="text-gray-600 text-sm">Loading summaries…</p>
+          ) : summaries.length === 0 ? (
+            <p className="text-gray-500 text-sm">
+              No customer account summaries recorded yet.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                        Month
+                      </th>
+                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                        Opening
+                      </th>
+                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                        Charges
+                      </th>
+                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                        Payments
+                      </th>
+                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                        Closing
+                      </th>
+                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
+                        Diff
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {visibleSummaries.map((s) => {
+                      const computed = computeClosing(s)
+                      const diff = s.closing != null ? s.closing - computed : null
+                      return (
+                        <tr
+                          key={s.id}
+                          className={`hover:bg-gray-50 ${
+                            `${s.year}-${String(s.month).padStart(2, '0')}` ===
+                            workingMonth
+                              ? 'bg-indigo-50/40'
+                              : ''
+                          }`}
+                        >
+                          <td className="px-4 py-2">
+                            {formatMonthLabel(s.year, s.month)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono">
+                            {formatAmount(s.opening)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono">
+                            {formatAmount(s.charges)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono">
+                            {formatAmount(s.payments)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-semibold">
+                            {formatAmount(computed)}
+                          </td>
+                          <td
+                            className={`px-4 py-2 text-right font-mono ${
+                              diff == null
+                                ? 'text-gray-400'
+                                : Math.abs(diff) < 0.01
+                                  ? 'text-green-600'
+                                  : 'text-red-600 font-semibold'
+                            }`}
+                          >
+                            {diff == null
+                              ? '—'
+                              : `${diff >= 0 ? '+' : ''}${formatAmount(diff)}`}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {sortedSummaries.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setRollForwardExpanded((v) => !v)}
+                  className="mt-3 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {rollForwardExpanded
+                    ? 'Show recent months only'
+                    : `Show all ${sortedSummaries.length} months`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Record payment — collapsed */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2 list-none">
+              <span className="text-indigo-600 font-semibold">+</span>
+              <span>Record payment</span>
+              <span className="text-xs text-gray-500 font-normal">
+                Capture a payment as received
+              </span>
+            </summary>
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex flex-wrap items-end gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Customer
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentAccount}
+                    onChange={(e) => setPaymentAccount(e.target.value)}
+                    placeholder="e.g. Distillers, Barbay"
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="px-3 py-2 border border-gray-300 rounded text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Type (optional)
+                  </label>
+                  <select
+                    value={paymentType}
+                    onChange={(e) =>
+                      setPaymentType(e.target.value as '' | 'cash' | 'check' | 'eft')
+                    }
+                    className="px-3 py-2 border border-gray-300 rounded text-sm bg-white min-w-[7.5rem] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">—</option>
+                    <option value="cash">Cash</option>
+                    <option value="check">Check</option>
+                    <option value="eft">EFT</option>
+                  </select>
+                </div>
+                <div className="min-w-[120px]">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Ref (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentRef}
+                    onChange={(e) => setPaymentRef(e.target.value)}
+                    placeholder="Cheque #"
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleRecordPayment()}
+                  disabled={savingPayment}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {savingPayment ? 'Saving…' : 'Record'}
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                  Recorded payments — {formatMonthLabelFromKey(workingMonth)}
+                </h3>
+                {loadingPayments ? (
+                  <p className="text-sm text-gray-500">Loading…</p>
+                ) : payments.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No payments recorded for this month.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                            Date
+                          </th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                            Customer
+                          </th>
+                          <th className="px-3 py-2 text-right font-semibold text-gray-700">
+                            Amount
+                          </th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                            Type
+                          </th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                            Ref
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {payments.map((p) => (
+                          <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-900 whitespace-nowrap">
+                              {formatCstoreDisplayDate(p.date)}
+                            </td>
+                            <td className="px-3 py-2 font-medium text-gray-900">
+                              {p.account}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono">
+                              {formatAmount(p.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-gray-700">
+                              {formatPaymentTypeLabel(p.paymentMethod)}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">{p.ref || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-100">
+                        <tr className="font-semibold">
+                          <td className="px-3 py-2" colSpan={2}>
+                            Total
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
+                          </td>
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2" />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
+        </div>
+
+        {/* Manual entry — collapsed */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <details className="group">
-            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2">
-              <span>Manual Entry (Totals Only - Fallback)</span>
-              <span className="text-xs text-gray-500 group-open:hidden">
-                Click to expand
+            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2 list-none">
+              <span>Manual entry (totals only)</span>
+              <span className="text-xs text-gray-500 font-normal group-open:hidden">
+                Fallback when Excel is unavailable
               </span>
             </summary>
             <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-xs text-gray-500 mb-4">
-                Use this only if you don't have the Excel file. Enter totals
-                manually - this will <strong>not</strong> include individual
-                account breakdown.
+                Saves company-wide totals for{' '}
+                <strong>{formatMonthLabelFromKey(workingMonth)}</strong> only — not
+                individual account breakdown. Change the working month above if needed.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Month
-                  </label>
-                  <input
-                    type="month"
-                    value={monthInput}
-                    onChange={(e) => {
-                      setMonthInput(e.target.value)
-                      fetchAccountsForMonth(e.target.value)
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Opening
-                  </label>
+                  <label className="block text-xs text-gray-600 mb-1">Opening</label>
                   <input
                     type="number"
                     step="0.01"
@@ -727,251 +1038,30 @@ export default function CustomerAccountsPage() {
 
               <div className="mt-4 flex justify-end">
                 <button
-                  onClick={handleSave}
+                  type="button"
+                  onClick={() => void handleSave()}
                   disabled={saving}
                   className="px-5 py-2 bg-gray-600 text-white rounded font-semibold text-sm hover:bg-gray-700 disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : 'Save Totals Only'}
+                  {saving ? 'Saving…' : 'Save totals only'}
                 </button>
               </div>
             </div>
           </details>
         </div>
 
-        {/* Summary table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              Monthly A/R Roll-forward
-            </h2>
-            <p className="text-xs text-gray-500">
-              Closing (computed) = Opening + Charges - Payments
-            </p>
-          </div>
-
-          {loading ? (
-            <p className="text-gray-600 text-sm">Loading summaries...</p>
-          ) : summaries.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              No customer account summaries recorded yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                      Month
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Opening
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Charges
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Payments
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Closing (computed)
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Closing from POS
-                    </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Difference
-                    </th>
-                    <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                      Notes
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {summaries.map((s) => {
-                    const computed = computeClosing(s)
-                    const diff =
-                      s.closing != null ? s.closing - computed : null
-                    return (
-                      <tr key={s.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">
-                          {formatMonthLabel(s.year, s.month)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(s.opening)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(s.charges)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(s.payments)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono font-semibold">
-                          {formatAmount(computed)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {s.closing != null ? formatAmount(s.closing) : '—'}
-                        </td>
-                        <td
-                          className={`px-4 py-2 text-right font-mono ${
-                            diff == null
-                              ? 'text-gray-400'
-                              : Math.abs(diff) < 0.01
-                              ? 'text-green-600'
-                              : 'text-red-600 font-semibold'
-                          }`}
-                        >
-                          {diff == null
-                            ? '—'
-                            : `${diff >= 0 ? '+' : ''}${formatAmount(diff)}`}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-gray-600 max-w-xs">
-                          {s.notes}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Account Breakdown Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              Account Breakdown
-              {selectedMonth && (
-                <> – {formatMonthLabel(
-                  Number(selectedMonth.split('-')[0]),
-                  Number(selectedMonth.split('-')[1])
-                )}</>
-              )}
-            </h2>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">View month:</label>
-              <input
-                type="month"
-                value={selectedMonth || defaultMonth}
-                onChange={(e) => {
-                  const monthKey = e.target.value
-                  if (monthKey) fetchAccountsForMonth(monthKey)
-                }}
-                className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-            {loadingAccounts ? (
-              <p className="text-gray-600 text-sm">Loading accounts...</p>
-            ) : accounts.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                No account breakdown available for this month. Import an Excel
-                file to see individual customer accounts.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                        Account
-                      </th>
-                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                        Opening
-                      </th>
-                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                        Charges
-                      </th>
-                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                        Payments
-                      </th>
-                      <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                        Closing
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {accounts.map((acc) => (
-                      <tr key={acc.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 font-medium text-gray-900">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLedgerAccount(acc.account)}
-                            className={`text-left hover:underline ${
-                              selectedLedgerAccount === acc.account
-                                ? 'text-indigo-700 font-semibold'
-                                : 'text-blue-700'
-                            }`}
-                          >
-                            {acc.account}
-                          </button>
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(acc.opening)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(acc.charges)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatAmount(acc.payments)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono font-semibold">
-                          {formatAmount(acc.closing)}
-                        </td>
-                      </tr>
-                    ))}
-                    {/* Total Row */}
-                    <tr className="bg-gray-100 font-semibold">
-                      <td className="px-4 py-2 text-gray-900">Total</td>
-                      <td className="px-4 py-2 text-right font-mono">
-                        {formatAmount(
-                          accounts.reduce((sum, acc) => sum + acc.opening, 0)
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono">
-                        {formatAmount(
-                          accounts.reduce((sum, acc) => sum + acc.charges, 0)
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono">
-                        {formatAmount(
-                          accounts.reduce((sum, acc) => sum + acc.payments, 0)
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono">
-                        {formatAmount(
-                          accounts.reduce((sum, acc) => sum + acc.closing, 0)
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-          {accounts.length > 0 && !selectedLedgerAccount && (
-            <p className="text-xs text-gray-500 mt-3">
-              Click an account name to open the ledger modal and import the Cstore Customer Credit
-              Report detail (charges and payments by date).
-            </p>
-          )}
-        </div>
-
-        {selectedLedgerAccount && selectedMonth && (
+        {selectedLedgerAccount && (
           <CustomerAccountLedgerPanel
             account={selectedLedgerAccount}
-            monthKey={selectedMonth}
+            monthKey={workingMonth}
             onClose={() => setSelectedLedgerAccount(null)}
             onMonthChange={(monthKey) => {
-              setSelectedMonth(monthKey)
-              setMonthInput(monthKey)
-              fetchAccountsForMonth(monthKey)
+              applyWorkingMonth(monthKey)
             }}
             onImported={(monthKey) => {
-              const m = monthKey ?? selectedMonth
-              if (m) fetchAccountsForMonth(m)
-              fetchSummaries()
+              const m = monthKey ?? workingMonth
+              if (m) void fetchAccountsForMonth(m)
+              void fetchSummaries()
             }}
           />
         )}
