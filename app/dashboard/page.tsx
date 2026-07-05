@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
+import { Fragment, useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   type DashboardWidgetId,
@@ -242,6 +242,21 @@ function monthDateRangeFromKey(monthKey: string): { startDate: string; endDate: 
   }
 }
 
+const THIS_MONTH_WIDGET_IDS: DashboardWidgetId[] = ['month-summary', 'customer-ar-glance']
+const TRENDS_WIDGET_IDS: DashboardWidgetId[] = [
+  'fuel-volume',
+  'average-deposit',
+  'recent-fuel-payment'
+]
+
+function DashboardSectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 mt-1">
+      {children}
+    </h2>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut, isFullAccess } = useAuth()
@@ -291,6 +306,7 @@ export default function DashboardPage() {
   const [presenceSaving, setPresenceSaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
+  const [recentPaymentExpanded, setRecentPaymentExpanded] = useState(false)
   const [staleArAccounts, setStaleArAccounts] = useState<StaleArPayload | null>(null)
 
   useEffect(() => {
@@ -1049,94 +1065,115 @@ export default function DashboardPage() {
     )
   }
 
+  const dashboardScopeHint = summary
+    ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
+    : 'Select a month to load summary data'
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Dashboard</h1>
-        </div>
-
-        {/* Main metrics + Upcoming/Roster: even 50/50 from lg */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
-          <div className="space-y-6 min-w-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                setActiveFilter('currentMonth')
-                setCustomStartDate('')
-                setCustomEndDate('')
-                setShowCustomPicker(false)
-              }}
-              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                activeFilter === 'currentMonth'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Current Month
-            </button>
-            <button
-              onClick={() => {
-                setActiveFilter('previousMonth')
-                setCustomStartDate('')
-                setCustomEndDate('')
-                setShowCustomPicker(false)
-              }}
-              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                activeFilter === 'previousMonth'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Previous Month
-            </button>
-            <div className="relative">
+          <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => {
-                  setActiveFilter('custom')
-                  setShowCustomPicker(!showCustomPicker)
+                  setActiveFilter('currentMonth')
+                  setCustomStartDate('')
+                  setCustomEndDate('')
+                  setShowCustomPicker(false)
                 }}
                 className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                  activeFilter === 'custom'
-                    ? 'bg-blue-600 text-white'
+                  activeFilter === 'currentMonth'
+                    ? 'bg-indigo-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                Custom{' '}
-                {activeFilter === 'custom' && customStartDate
-                  ? `(${customStartDate})`
-                  : '▼'}
+                Current Month
               </button>
-              {showCustomPicker && (
-                <div ref={customPickerRef} className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
-                  <div className="mb-2 text-sm font-semibold text-gray-700">
-                    Select Month
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">
-                        Month
-                      </label>
-                      <input
-                        type="month"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      />
+              <button
+                onClick={() => {
+                  setActiveFilter('previousMonth')
+                  setCustomStartDate('')
+                  setCustomEndDate('')
+                  setShowCustomPicker(false)
+                }}
+                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                  activeFilter === 'previousMonth'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Previous Month
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveFilter('custom')
+                    setShowCustomPicker(!showCustomPicker)
+                  }}
+                  className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                    activeFilter === 'custom'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Custom{' '}
+                  {activeFilter === 'custom' && customStartDate
+                    ? `(${customStartDate})`
+                    : '▼'}
+                </button>
+                {showCustomPicker && (
+                  <div ref={customPickerRef} className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
+                    <div className="mb-2 text-sm font-semibold text-gray-700">
+                      Select Month
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">
+                          Month
+                        </label>
+                        <input
+                          type="month"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+              </div>
+              {activeFilter !== 'currentMonth' && summary && (
+                <span className="text-sm text-gray-600 ml-2">
+                  Showing: {summary.monthName} {summary.year}
+                </span>
               )}
             </div>
-            {activeFilter !== 'currentMonth' && summary && (
-              <span className="text-sm text-gray-600 ml-2">
-                Showing: {summary.monthName} {summary.year}
-              </span>
-            )}
+            <p className="mt-3 text-xs text-slate-500">{dashboardScopeHint}</p>
           </div>
-            </div>
+        </div>
+
+        {summary && summary.status.pendingReviewCount > 0 && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <span className="text-sm font-medium text-amber-950">
+              {summary.status.pendingReviewCount} shift
+              {summary.status.pendingReviewCount === 1 ? '' : 's'} need review
+            </span>
+            <button
+              type="button"
+              onClick={() => router.push('/shifts')}
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              Go to Shift List →
+            </button>
+          </div>
+        )}
+
+        <DashboardSectionLabel>Today</DashboardSectionLabel>
+        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
+          <div className="min-w-0">
             {showFuelMtdHero && summary ? renderFuelMtdDepositBlock() : null}
           </div>
           <aside className="flex flex-col gap-5 w-full min-w-0">
@@ -1146,7 +1183,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Moveable widgets */}
-        {dashboardSegments.map((segment) => {
+        {(() => {
+          let lastSection: 'month' | 'trends' | 'ops' | null = null
+          return dashboardSegments.map((segment) => {
+          const headId = segment[0]
+          let sectionLabel: React.ReactNode = null
+          if (
+            (THIS_MONTH_WIDGET_IDS as readonly string[]).includes(headId) &&
+            lastSection !== 'month'
+          ) {
+            sectionLabel = <DashboardSectionLabel>This month</DashboardSectionLabel>
+            lastSection = 'month'
+          } else if (headId === 'phase1-status' && lastSection !== 'ops') {
+            sectionLabel = <DashboardSectionLabel>Operations</DashboardSectionLabel>
+            lastSection = 'ops'
+          } else if (
+            (TRENDS_WIDGET_IDS as readonly string[]).includes(headId) &&
+            lastSection !== 'trends'
+          ) {
+            sectionLabel = <DashboardSectionLabel>Trends</DashboardSectionLabel>
+            lastSection = 'trends'
+          }
           const renderOne = (id: DashboardWidgetId) => (
             <>
             {id === 'month-summary' && summary && (
@@ -1163,7 +1220,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Metrics Grid - cash-style inflows only */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {/* Total Deposits */}
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                 <div className="text-xs font-medium text-blue-700 mb-1">Total Deposits</div>
@@ -1197,18 +1254,17 @@ export default function DashboardPage() {
                   ${formatCurrency(summary.totals.vouchers)}
                 </div>
               </div>
+            </div>
 
-              {/* Grand Total (cash-style, excludes Customer Charges) */}
-              <div className="bg-gray-100 rounded-lg p-4 border-2 border-gray-300 col-span-2 md:col-span-4 lg:col-span-1">
-                <div className="text-xs font-medium text-gray-700 mb-1">Grand Total</div>
-                <div
-                  className="text-2xl font-bold text-gray-900"
-                  title="Does not include Customer Charges (In-House)."
-                >
-                  ${formatCurrency(summary.totals.grandTotal)}
+            <div className="rounded-lg border-2 border-slate-300 bg-slate-100 px-4 py-3 mb-3">
+              <div className="text-xs font-semibold text-slate-600">Grand Total (cash)</div>
+              <div
+                className="text-3xl font-bold text-blue-950 tabular-nums"
+                title="Does not include Customer Charges (In-House)."
+              >
+                ${formatCurrency(summary.totals.grandTotal)}
               </div>
             </div>
-          </div>
 
             {/* Customer Accounts + Fuel Net helper band (collapsible) */}
             <div className="mt-2 pt-3 border-t border-dashed border-gray-200">
@@ -1527,87 +1583,14 @@ export default function DashboardPage() {
           </div>
             )}
             {id === 'phase1-status' && summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Customer A/R Summary — hidden for stakeholders */}
-            {!isStakeholder && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-medium text-gray-600">Customer A/R</div>
-                <button
-                  onClick={() => router.push('/customer-accounts')}
-                  className="text-xs text-teal-600 hover:text-teal-700 font-semibold"
-                  title="View Customer Accounts"
-                >
-                  View →
-                </button>
-              </div>
-              {arSummary ? (
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-xs text-gray-500 mb-0.5">Closing Balance</div>
-                    <div className="text-lg font-semibold text-gray-900">
-                      ${formatCurrency(arSummary.closing ?? 0)}
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-gray-100">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-500">Collection Rate</span>
-                      <span
-                        className={`font-semibold ${
-                          arSummary.charges > 0
-                            ? arSummary.payments / arSummary.charges >= 1
-                              ? 'text-green-600'
-                              : arSummary.payments / arSummary.charges >= 0.8
-                              ? 'text-yellow-600'
-                              : 'text-red-600'
-                            : 'text-gray-500'
-                        }`}
-                      >
-                        {arSummary.charges > 0
-                          ? `${Math.round((arSummary.payments / arSummary.charges) * 100)}%`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs mt-1">
-                      <span className="text-gray-500">Reconciled</span>
-                      <span
-                        className={`font-semibold ${
-                          arSummary.closing != null &&
-                          Math.abs(
-                            (arSummary.opening + arSummary.charges - arSummary.payments) -
-                              (arSummary.closing ?? 0)
-                          ) < 0.01
-                            ? 'text-green-600'
-                            : 'text-yellow-600'
-                        }`}
-                      >
-                        {arSummary.closing != null &&
-                        Math.abs(
-                          (arSummary.opening + arSummary.charges - arSummary.payments) -
-                            (arSummary.closing ?? 0)
-                        ) < 0.01
-                          ? '✓ Yes'
-                          : arSummary.closing != null
-                          ? '⚠ Check'
-                          : '—'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-gray-400">
-                  No A/R data for {summary.monthName} {summary.year}
-                </div>
-              )}
-            </div>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Cashbook Income/Expense */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-gray-600">Cashbook (MTD)</div>
                 <button
                   onClick={() => router.push('/financial/cashbook')}
-                  className="text-xs text-amber-600 hover:text-amber-700 font-semibold"
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold"
                   title="View Cashbook"
                 >
                   View →
@@ -1672,9 +1655,26 @@ export default function DashboardPage() {
             </div>
 
             {/* Shifts Pending Review */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="text-xs font-medium text-gray-600 mb-2">Shifts Pending Review</div>
-              <div className={`text-3xl font-bold ${summary.status.pendingReviewCount > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+            <div
+              className={`bg-white rounded-lg shadow-sm border p-4 ${
+                summary.status.pendingReviewCount > 0
+                  ? 'border-amber-300 ring-1 ring-amber-100 md:col-span-2'
+                  : 'border-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-600">Shifts Pending Review</div>
+                {summary.status.pendingReviewCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/shifts')}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold"
+                  >
+                    Review →
+                  </button>
+                )}
+              </div>
+              <div className={`text-3xl font-bold ${summary.status.pendingReviewCount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
                 {summary.status.pendingReviewCount}
               </div>
               <div className="text-xs text-gray-500 mt-1">
@@ -1799,76 +1799,53 @@ export default function DashboardPage() {
             </div>
             {recentPayment ? (
               <div className="space-y-3">
-                {/* Batch summary */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs font-medium text-gray-600 mb-1">Date Paid</div>
-                    <div className="text-xs text-gray-900">{recentPayment.datePaid}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-gray-600 mb-1">Reference #</div>
-                    <div className="text-xs text-gray-900 font-mono">{recentPayment.referenceNumber}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-gray-600 mb-1">Total Paid</div>
-                    <div className="text-xs text-gray-900 font-semibold">{recentPayment.totalPaid}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-gray-600 mb-1">Available Balance</div>
-                    <div className="text-xs text-green-600 font-semibold">{recentPayment.availableBalance}</div>
-                  </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-gray-900 tabular-nums">
+                    <span className="font-medium">{recentPayment.datePaid}</span>
+                    {' · '}
+                    <span className="font-semibold">{recentPayment.totalPaid}</span>
+                    {' · Ref '}
+                    <span className="font-mono text-gray-700">{recentPayment.referenceNumber}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRecentPaymentExpanded(!recentPaymentExpanded)}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                  >
+                    {recentPaymentExpanded ? 'Hide details' : 'Details'}
+                  </button>
                 </div>
-
-                {/* Invoices list */}
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">
-                    Invoices in this payment ({recentPayment.invoices.length})
-                  </div>
-                  <div className="max-h-32 overflow-y-auto rounded border border-gray-100 bg-gray-50">
-                    {recentPayment.invoices.map((inv, idx) => (
-                      <div
-                        key={`${inv.invoiceNumber}-${idx}`}
-                        className="flex items-center justify-between px-2 py-1 text-xs border-b border-gray-100 last:border-b-0"
-                      >
-                        <span className="font-mono text-gray-900">{inv.invoiceNumber}</span>
-                        <span className="text-gray-500">{inv.amount}</span>
+                {recentPaymentExpanded && (
+                  <>
+                    <div className="text-xs text-green-600 font-semibold">
+                      Available balance: {recentPayment.availableBalance}
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 mb-1">
+                        Invoices in this payment ({recentPayment.invoices.length})
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="max-h-32 overflow-y-auto rounded border border-gray-100 bg-gray-50">
+                        {recentPayment.invoices.map((inv, idx) => (
+                          <div
+                            key={`${inv.invoiceNumber}-${idx}`}
+                            className="flex items-center justify-between px-2 py-1 text-xs border-b border-gray-100 last:border-b-0"
+                          >
+                            <span className="font-mono text-gray-900">{inv.invoiceNumber}</span>
+                            <span className="text-gray-500">{inv.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Invoice #</div>
-                  <div className="text-xs text-gray-400 italic">-</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Amount</div>
-                  <div className="text-xs text-gray-400 italic">-</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Date Paid</div>
-                  <div className="text-xs text-gray-400 italic">-</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Reference #</div>
-                  <div className="text-xs text-gray-400 italic">-</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Total Paid</div>
-                  <div className="text-xs text-gray-400 italic">-</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Available Balance</div>
-                  <div className="text-xs text-green-600 italic">-</div>
-                </div>
-              </div>
+              <p className="text-sm text-gray-400 italic">No recent fuel payment recorded</p>
             )}
             {recentPayment && !isStakeholder && (
               <button
                 onClick={() => router.push('/fuel-payments/invoices')}
-                className="mt-3 w-full text-xs text-blue-600 hover:text-blue-800 font-medium"
+                className="mt-3 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium"
               >
                 View All Payments →
               </button>
@@ -1879,36 +1856,38 @@ export default function DashboardPage() {
           )
           if (segment.length === 2) {
             return (
-              <div
-                key={`dashboard-pair-${segment[0]}-${segment[1]}`}
-                className="flex flex-col lg:flex-row gap-6 mb-6 w-full items-stretch"
-              >
-                {segment.map((id) => (
-                  <WidgetWrapper
-                    key={id}
-                    id={id}
-                    className="mb-0 flex-1 min-w-0 basis-0 lg:max-w-[calc(50%-0.75rem)]"
-                    contentClassName="w-full min-w-0"
-                  >
-                    {renderOne(id)}
-                  </WidgetWrapper>
-                ))}
-              </div>
+              <Fragment key={`dashboard-pair-${segment[0]}-${segment[1]}`}>
+                {sectionLabel}
+                <div className="flex flex-col lg:flex-row gap-6 mb-6 w-full items-stretch">
+                  {segment.map((id) => (
+                    <WidgetWrapper
+                      key={id}
+                      id={id}
+                      className="mb-0 flex-1 min-w-0 basis-0 lg:max-w-[calc(50%-0.75rem)]"
+                      contentClassName="w-full min-w-0"
+                    >
+                      {renderOne(id)}
+                    </WidgetWrapper>
+                  ))}
+                </div>
+              </Fragment>
             )
           }
           return (
-            <WidgetWrapper
-              key={segment[0]}
-              id={segment[0]}
-              contentClassName={
-                segment[0] === 'customer-ar-glance' ? 'w-full min-w-0' : undefined
-              }
-            >
-              {renderOne(segment[0])}
-            </WidgetWrapper>
+            <Fragment key={segment[0]}>
+              {sectionLabel}
+              <WidgetWrapper
+                id={segment[0]}
+                contentClassName={
+                  segment[0] === 'customer-ar-glance' ? 'w-full min-w-0' : undefined
+                }
+              >
+                {renderOne(segment[0])}
+              </WidgetWrapper>
+            </Fragment>
           )
-        })}
-        </div>
+        })
+        })()}
 
       {/* Add Pay Day Modal */}
       {payDayModalOpen && (
@@ -2250,6 +2229,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

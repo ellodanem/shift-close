@@ -6,10 +6,10 @@ export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
   'fuel-mtd-deposit-block',
   'customer-ar-glance',
-  'average-deposit',
-  'phase1-status',
   'fuel-volume',
-  'recent-fuel-payment'
+  'average-deposit',
+  'recent-fuel-payment',
+  'phase1-status'
 ] as const
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number]
@@ -40,23 +40,42 @@ export function getDefaultLayout(): DashboardWidgetId[] {
   return normalizeDashboardLayout([...DEFAULT_LAYOUT])
 }
 
+/** Keep customer A/R snapshot directly under monthly summary. */
+export function ensureCustomerArAfterSummary(
+  layout: DashboardWidgetId[]
+): DashboardWidgetId[] {
+  if (
+    !layout.includes('month-summary') ||
+    !layout.includes('customer-ar-glance')
+  ) {
+    return layout
+  }
+  const next: DashboardWidgetId[] = layout.filter((id) => id !== 'customer-ar-glance')
+  const summaryIdx = next.indexOf('month-summary')
+  if (summaryIdx < 0) return layout
+  next.splice(summaryIdx + 1, 0, 'customer-ar-glance')
+  return next
+}
+
 /**
- * Group customer A/R + fuel MTD into one row when both are present (side-by-side on large screens).
+ * Pair average deposit + recent fuel payment on one row; all other widgets full width.
  */
 export function buildDashboardSegments(layout: DashboardWidgetId[]): DashboardWidgetId[][] {
-  const hasAr = layout.includes('customer-ar-glance')
-  const hasFuel = layout.includes('fuel-mtd-deposit-block')
-  const pairActive = hasAr && hasFuel
   const used = new Set<DashboardWidgetId>()
   const out: DashboardWidgetId[][] = []
 
   for (const id of layout) {
     if (used.has(id)) continue
-    if (pairActive && (id === 'customer-ar-glance' || id === 'fuel-mtd-deposit-block')) {
-      // Fuel sold left, Customer accounts right (matches dashboard layout)
-      out.push(['fuel-mtd-deposit-block', 'customer-ar-glance'])
-      used.add('customer-ar-glance')
-      used.add('fuel-mtd-deposit-block')
+    if (
+      id === 'average-deposit' &&
+      layout.includes('recent-fuel-payment')
+    ) {
+      out.push(['average-deposit', 'recent-fuel-payment'])
+      used.add('average-deposit')
+      used.add('recent-fuel-payment')
+      continue
+    }
+    if (id === 'recent-fuel-payment' && used.has('average-deposit')) {
       continue
     }
     out.push([id])
@@ -72,8 +91,6 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
     if (!raw) return getDefaultLayout()
     const parsed = JSON.parse(raw) as string[]
     if (!Array.isArray(parsed)) return getDefaultLayout()
-    // Migrate: 'upcoming' / 'today-roster' / 'upcoming-roster' → dropped (roster is fixed in dashboard header)
-    // Migrate: 'fuel-mtd-sold' -> 'fuel-mtd-deposit-block' (average-deposit is its own widget)
     const migrated = parsed
       .map((id) => {
         if (id === 'upcoming' || id === 'today-roster') return 'upcoming-roster'
@@ -86,26 +103,21 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
     const valid = withoutStale.filter((id): id is DashboardWidgetId =>
       DASHBOARD_WIDGET_IDS.includes(id as DashboardWidgetId)
     )
-    const missing = DEFAULT_LAYOUT.filter(id => !valid.includes(id))
+    const missing = DEFAULT_LAYOUT.filter((id) => !valid.includes(id))
     let merged = [...valid, ...missing]
-    // Place customer-ar-glance after fuel-mtd-deposit-block when missing (paired row)
     if (missing.includes('customer-ar-glance')) {
       merged = merged.filter((id) => id !== 'customer-ar-glance')
-      const fi = merged.indexOf('fuel-mtd-deposit-block')
-      if (fi >= 0) merged.splice(fi + 1, 0, 'customer-ar-glance')
+      const si = merged.indexOf('month-summary')
+      if (si >= 0) merged.splice(si + 1, 0, 'customer-ar-glance')
       else merged.splice(Math.min(1, merged.length), 0, 'customer-ar-glance')
     }
     if (missing.includes('average-deposit')) {
       merged = merged.filter((id) => id !== 'average-deposit')
-      const ci = merged.indexOf('customer-ar-glance')
-      if (ci >= 0) merged.splice(ci + 1, 0, 'average-deposit')
-      else {
-        const fi = merged.indexOf('fuel-mtd-deposit-block')
-        if (fi >= 0) merged.splice(fi + 1, 0, 'average-deposit')
-        else merged.push('average-deposit')
-      }
+      const vi = merged.indexOf('fuel-volume')
+      if (vi >= 0) merged.splice(vi + 1, 0, 'average-deposit')
+      else merged.push('average-deposit')
     }
-    return normalizeDashboardLayout(merged)
+    return normalizeDashboardLayout(ensureCustomerArAfterSummary(merged))
   } catch {
     return getDefaultLayout()
   }
@@ -114,7 +126,12 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
 export function saveDashboardLayout(layout: DashboardWidgetId[], userId?: string): void {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(getStorageKey(userId), JSON.stringify(normalizeDashboardLayout(layout)))
+    localStorage.setItem(
+      getStorageKey(userId),
+      JSON.stringify(
+        normalizeDashboardLayout(ensureCustomerArAfterSummary(layout))
+      )
+    )
   } catch {
     // ignore
   }
@@ -129,7 +146,7 @@ export function moveWidgetUp(layout: DashboardWidgetId[], id: DashboardWidgetId)
   if (i <= 0) return normalized
   const nextTail = [...tail]
   ;[nextTail[i - 1], nextTail[i]] = [nextTail[i], nextTail[i - 1]]
-  return normalizeDashboardLayout([...pinned, ...nextTail])
+  return normalizeDashboardLayout(ensureCustomerArAfterSummary([...pinned, ...nextTail]))
 }
 
 export function moveWidgetDown(layout: DashboardWidgetId[], id: DashboardWidgetId): DashboardWidgetId[] {
@@ -141,5 +158,5 @@ export function moveWidgetDown(layout: DashboardWidgetId[], id: DashboardWidgetI
   if (i < 0 || i >= tail.length - 1) return normalized
   const nextTail = [...tail]
   ;[nextTail[i], nextTail[i + 1]] = [nextTail[i + 1], nextTail[i]]
-  return normalizeDashboardLayout([...pinned, ...nextTail])
+  return normalizeDashboardLayout(ensureCustomerArAfterSummary([...pinned, ...nextTail]))
 }
