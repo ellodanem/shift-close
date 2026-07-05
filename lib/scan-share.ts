@@ -115,6 +115,28 @@ export interface EmailRecipientOption {
   mobileNumber?: string | null
 }
 
+/** Prefer a recipient whose label matches the account/customer name. */
+export function pickRecipientForAccount(
+  recipients: EmailRecipientOption[],
+  accountName: string
+): string {
+  const normalized = accountName.trim().toLowerCase()
+  if (!normalized || recipients.length === 0) return 'other'
+
+  const exact = recipients.find(
+    (r) => r.label.trim().toLowerCase() === normalized
+  )
+  if (exact) return exact.id
+
+  const partial = recipients.find((r) => {
+    const label = r.label.trim().toLowerCase()
+    return label.includes(normalized) || normalized.includes(label)
+  })
+  if (partial) return partial.id
+
+  return 'other'
+}
+
 /** Prefer a recipient labeled like the owner; otherwise first in list. */
 export function pickDefaultRecipientId(recipients: EmailRecipientOption[]): string {
   const owner = recipients.find((r) => /owner|elcock/i.test(r.label))

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   EmailRecipientOption,
   openWhatsAppWithMessage,
-  pickDefaultRecipientId
+  pickRecipientForAccount
 } from '@/lib/scan-share'
 import { buildWhatsAppStatementMessage } from '@/lib/customer-statement-pdf'
 import { formatStatementDateRange, type AccountStatement, type StatementMode } from '@/lib/customer-statement'
@@ -65,9 +65,8 @@ export default function ShareStatementModal({
             }))
           : []
         setRecipients(list)
-        const defaultId = pickDefaultRecipientId(list)
-        setRecipientId(defaultId || (list.length > 0 ? list[0].id : 'other'))
-        if (list.length === 0) setRecipientId('other')
+        setRecipientId(pickRecipientForAccount(list, account))
+        setOtherEmail('')
       })
       .catch(() => {
         setRecipients([])
@@ -187,7 +186,7 @@ export default function ShareStatementModal({
       >
         <div className="border-b border-gray-200 px-5 py-4 rounded-t-lg bg-indigo-50/60">
           <h2 className="text-lg font-semibold text-gray-900">
-            Send to {selectedRecipient?.label || account}
+            Send to {account}
           </h2>
           <p className="text-xs text-gray-600 mt-0.5">
             {account} — {rangeLabel}

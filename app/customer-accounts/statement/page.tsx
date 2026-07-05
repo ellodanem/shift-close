@@ -208,7 +208,7 @@ export default function AccountStatementPage() {
                   onClick={() => setShowShare(true)}
                   className="px-4 py-2 bg-green-600 text-white rounded font-semibold text-sm hover:bg-green-700"
                 >
-                  Send to Mr. Elcock
+                  Send to {account}
                 </button>
               </>
             )}
