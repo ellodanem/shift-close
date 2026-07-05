@@ -6,7 +6,6 @@ export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
   'fuel-mtd-deposit-block',
   'customer-ar-glance',
-  'stale-ar-accounts',
   'average-deposit',
   'phase1-status',
   'fuel-volume',
@@ -83,7 +82,8 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       })
       .filter((id) => id !== 'upcoming-roster')
     const deduped = migrated.filter((id, i) => migrated.indexOf(id) === i)
-    const valid = deduped.filter((id): id is DashboardWidgetId =>
+    const withoutStale = deduped.filter((id) => id !== 'stale-ar-accounts')
+    const valid = withoutStale.filter((id): id is DashboardWidgetId =>
       DASHBOARD_WIDGET_IDS.includes(id as DashboardWidgetId)
     )
     const missing = DEFAULT_LAYOUT.filter(id => !valid.includes(id))
@@ -94,12 +94,6 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       const fi = merged.indexOf('fuel-mtd-deposit-block')
       if (fi >= 0) merged.splice(fi + 1, 0, 'customer-ar-glance')
       else merged.splice(Math.min(1, merged.length), 0, 'customer-ar-glance')
-    }
-    if (missing.includes('stale-ar-accounts')) {
-      merged = merged.filter((id) => id !== 'stale-ar-accounts')
-      const ci = merged.indexOf('customer-ar-glance')
-      if (ci >= 0) merged.splice(ci + 1, 0, 'stale-ar-accounts')
-      else merged.push('stale-ar-accounts')
     }
     if (missing.includes('average-deposit')) {
       merged = merged.filter((id) => id !== 'average-deposit')

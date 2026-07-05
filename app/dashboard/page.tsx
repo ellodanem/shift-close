@@ -14,8 +14,7 @@ import {
   isPinnedTopDashboardWidget
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
-import type { StaleArBucketDays, StaleArPayload } from '@/lib/customer-ar-stale-payments'
-import { STALE_AR_BUCKET_DAYS } from '@/lib/customer-ar-stale-payments'
+import type { StaleArPayload } from '@/lib/customer-ar-stale-payments'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -218,6 +217,31 @@ function rosterShiftGroupSortMinutes(shiftName: string, scheduled: TodaySchedule
   return parseShiftLabelStartMinutes(shiftName)
 }
 
+function staleAccountStatus(row: {
+  neverPaid: boolean
+  daysSincePayment: number | null
+}): { text: string; className: string } {
+  if (row.neverPaid) return { text: 'Never paid', className: 'text-red-600' }
+  const days = row.daysSincePayment ?? 0
+  if (days >= 120) return { text: `${days} days`, className: 'text-red-600' }
+  if (days >= 90) return { text: `${days} days`, className: 'text-orange-600' }
+  if (days >= 45) return { text: `${days} days`, className: 'text-amber-600' }
+  return { text: `${days} days`, className: 'text-slate-500' }
+}
+
+function monthKeyFromSummary(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function monthDateRangeFromKey(monthKey: string): { startDate: string; endDate: string } {
+  const [y, m] = monthKey.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return {
+    startDate: `${y}-${String(m).padStart(2, '0')}-01`,
+    endDate: `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut, isFullAccess } = useAuth()
@@ -268,7 +292,6 @@ export default function DashboardPage() {
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
   const [staleArAccounts, setStaleArAccounts] = useState<StaleArPayload | null>(null)
-  const [selectedStaleBucket, setSelectedStaleBucket] = useState<StaleArBucketDays | 'all'>('all')
 
   useEffect(() => {
     if (authLoading) return
@@ -531,28 +554,12 @@ export default function DashboardPage() {
   const formatLitres = (num: number): string =>
     num.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 })
 
-  const staleBucketTone = (days: StaleArBucketDays): string => {
-    if (days >= 120) return 'border-red-300 bg-red-50 text-red-900'
-    if (days >= 90) return 'border-orange-300 bg-orange-50 text-orange-900'
-    if (days >= 45) return 'border-amber-300 bg-amber-50 text-amber-900'
-    return 'border-slate-300 bg-slate-50 text-slate-900'
-  }
-
-  const staleBucketActiveTone = (days: StaleArBucketDays): string => {
-    if (days >= 120) return 'ring-2 ring-red-400 border-red-400'
-    if (days >= 90) return 'ring-2 ring-orange-400 border-orange-400'
-    if (days >= 45) return 'ring-2 ring-amber-400 border-amber-400'
-    return 'ring-2 ring-slate-400 border-slate-400'
-  }
-
-  const filteredStaleAccounts = useMemo(() => {
-    if (!staleArAccounts) return []
-    if (selectedStaleBucket === 'all') return staleArAccounts.accounts
-    return staleArAccounts.accounts.filter((row) => {
-      if (row.neverPaid) return true
-      return (row.daysSincePayment ?? 0) >= selectedStaleBucket
-    })
-  }, [staleArAccounts, selectedStaleBucket])
+  const topStaleAccounts = useMemo(() => {
+    if (!staleArAccounts?.accounts.length) return []
+    return [...staleArAccounts.accounts]
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 4)
+  }, [staleArAccounts])
 
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr)
@@ -566,7 +573,6 @@ export default function DashboardPage() {
 
   const visibleLayout = layout.filter((id) => {
     if (id === 'fuel-volume' && fuelComparison.length === 0) return false
-    if (id === 'stale-ar-accounts' && !isFullAccess) return false
     return true
   })
 
@@ -1284,102 +1290,166 @@ export default function DashboardPage() {
           </div>
             )}
             {id === 'customer-ar-glance' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full">
-            <div className="min-w-0 mb-3">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
+            <div className="mb-4">
               <h2 className="text-lg font-semibold text-blue-950 tracking-tight">
-                Customer accounts
+                Customer accounts — {summary.monthName} {summary.year}
               </h2>
               <p className="text-sm text-slate-500 mt-1 leading-snug">
-                Totals for {summary.monthName} {summary.year}. Hover Charges or Payments to see change
-                since the last import or save.
+                Totals and collections at a glance. Hover charge and payment amounts for
+                change since the last import.
               </p>
-              {!isStakeholder && !isSupervisorLike && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/customer-accounts')}
-                  className="mt-2 text-sm text-teal-600 hover:text-teal-700 font-semibold"
-                >
-                  Customer Accounts →
-                </button>
-              )}
             </div>
 
             {arSummary ? (
-              <>
-                {(() => {
-                  const computedClosing =
-                    arSummary.opening + arSummary.charges - arSummary.payments
-                  const posClosing = arSummary.closing
-                  const posDiffers =
-                    posClosing != null && Math.abs(posClosing - computedClosing) >= 0.01
-                  return (
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-4">
-                      <div
-                        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-                        style={{ fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        <div
-                          className="rounded-lg bg-white border border-slate-200 px-4 py-3 cursor-help shadow-sm"
+              (() => {
+                const computedClosing =
+                  arSummary.opening + arSummary.charges - arSummary.payments
+                const posClosing = arSummary.closing
+                const reconciled =
+                  posClosing == null || Math.abs(posClosing - computedClosing) < 0.01
+                const monthKey = monthKeyFromSummary(summary.year, summary.month)
+                const { startDate, endDate } = monthDateRangeFromKey(monthKey)
+                const collections = staleArAccounts?.buckets.days30
+                const staleCount = collections?.count ?? 0
+                const staleTotal = collections?.totalBalance ?? 0
+                const trackedWithBalance = staleArAccounts?.trackedAccounts ?? 0
+
+                return (
+                  <div className="space-y-5">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Total A/R (closing)
+                      </div>
+                      <div className="mt-1 text-3xl font-bold text-blue-950 tabular-nums">
+                        ${formatCurrency(computedClosing)}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600 tabular-nums">
+                        This month{' '}
+                        <span
+                          className="font-medium text-blue-950 cursor-help"
                           title={customerArDeltaTitle(
                             'Charges',
                             arSummary.charges,
                             arSummary.chargesPrevious
                           )}
                         >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Charges
-                          </div>
-                          <div className="mt-1 text-2xl font-bold text-blue-950 tabular-nums break-all sm:break-normal">
-                            ${formatCurrency(arSummary.charges)}
-                          </div>
-                        </div>
-                        <div
-                          className="rounded-lg bg-white border border-slate-200 px-4 py-3 cursor-help shadow-sm"
+                          +${formatCurrency(arSummary.charges)} charges
+                        </span>
+                        {' · '}
+                        <span
+                          className="font-medium text-blue-950 cursor-help"
                           title={customerArDeltaTitle(
                             'Payments',
                             arSummary.payments,
                             arSummary.paymentsPrevious
                           )}
                         >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Payments
-                          </div>
-                          <div className="mt-1 text-2xl font-bold text-blue-950 tabular-nums break-all sm:break-normal">
-                            ${formatCurrency(arSummary.payments)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-600">
-                        <div>
-                          <span className="text-slate-500">Opening</span>{' '}
-                          <span className="tabular-nums font-medium text-blue-950">
-                            ${formatCurrency(arSummary.opening)}
+                          −${formatCurrency(arSummary.payments)} payments
+                        </span>
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                        {reconciled ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200 font-medium">
+                            Reconciled
                           </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500">Closing (computed)</span>{' '}
-                          <span className="tabular-nums font-medium text-blue-950">
-                            ${formatCurrency(computedClosing)}
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                            POS differs
                           </span>
-                          {posDiffers && (
-                            <span className="ml-1 text-amber-700 text-xs font-medium">
-                              (POS {formatCurrency(posClosing!)})
-                            </span>
-                          )}
-                        </div>
+                        )}
+                        <span className="text-slate-500 tabular-nums">
+                          Opening ${formatCurrency(arSummary.opening)}
+                        </span>
+                        {arSummary.updatedAt && (
+                          <span className="text-slate-400">
+                            Last import {formatDateTime(arSummary.updatedAt)}
+                          </span>
+                        )}
                       </div>
-
-                      {arSummary.updatedAt && (
-                        <div className="mt-4 pt-3 border-t border-slate-200 text-xs text-slate-400">
-                          Last updated{' '}
-                          <span className="text-slate-500">{formatDateTime(arSummary.updatedAt)}</span>
-                        </div>
-                      )}
                     </div>
-                  )
-                })()}
-              </>
+
+                    {isFullAccess && staleArAccounts && trackedWithBalance > 0 && (
+                      <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 px-4 py-3">
+                        {staleCount === 0 ? (
+                          <p className="text-sm font-medium text-emerald-800">
+                            All tracked accounts paid within 30 days.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                              <h3 className="text-sm font-semibold text-amber-950">
+                                Collections — 30+ days
+                              </h3>
+                              <p className="text-xs text-amber-900 tabular-nums">
+                                {staleCount} account{staleCount === 1 ? '' : 's'} · $
+                                {formatCurrency(staleTotal)} overdue
+                              </p>
+                            </div>
+                            <div className="divide-y divide-amber-100/80 rounded-md border border-amber-100 bg-white/70">
+                              {topStaleAccounts.map((row) => {
+                                const status = staleAccountStatus(row)
+                                return (
+                                  <button
+                                    key={row.account}
+                                    type="button"
+                                    onClick={() =>
+                                      router.push(`/customer-accounts?month=${monthKey}`)
+                                    }
+                                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-amber-50/80 transition-colors first:rounded-t-md last:rounded-b-md"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-slate-900 truncate">
+                                        {row.account}
+                                      </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <div className="text-sm font-semibold text-slate-900 tabular-nums">
+                                        ${formatCurrency(row.balance)}
+                                      </div>
+                                      <div
+                                        className={`text-xs font-medium mt-0.5 ${status.className}`}
+                                      >
+                                        {status.text}
+                                      </div>
+                                    </div>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {staleCount > topStaleAccounts.length && (
+                              <p className="mt-2 text-xs text-slate-500">
+                                +{staleCount - topStaleAccounts.length} more on Customer
+                                Accounts
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {!isStakeholder && !isSupervisorLike && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/customer-accounts?month=${monthKey}`)
+                          }
+                          className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+                        >
+                          Open Customer Accounts
+                        </button>
+                        <Link
+                          href={`/customer-accounts/statement?startDate=${startDate}&endDate=${endDate}&mode=summary`}
+                          className="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded font-semibold text-sm hover:bg-gray-50"
+                        >
+                          Account Statement
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()
             ) : !isStakeholder && !isSupervisorLike ? (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-6 text-center">
                 <p className="text-sm text-slate-600">
@@ -1388,166 +1458,13 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => router.push('/customer-accounts')}
-                  className="mt-2 text-xs font-semibold text-teal-600 hover:text-teal-700"
+                  className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
                 >
-                  Import or enter on Customer Accounts →
+                  Import on Customer Accounts →
                 </button>
               </div>
             ) : (
               <p className="text-xs text-slate-400">Customer A/R is not shown for your role.</p>
-            )}
-          </div>
-            )}
-            {id === 'stale-ar-accounts' && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-blue-950">Stale A/R accounts</h2>
-              <p className="text-sm text-slate-500 mt-1 leading-snug">
-                Customers with a balance owing and no ledger payment in 30+ days. Based on recorded
-                payment lines in Customer Accounts.
-              </p>
-              <button
-                type="button"
-                onClick={() => router.push('/customer-accounts')}
-                className="mt-2 text-sm text-teal-600 hover:text-teal-700 font-semibold"
-              >
-                Customer Accounts →
-              </button>
-            </div>
-
-            {staleArAccounts ? (
-              staleArAccounts.trackedAccounts === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-6 text-center">
-                  <p className="text-sm text-slate-600">No customer account balances on file yet.</p>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/customer-accounts')}
-                    className="mt-2 text-xs font-semibold text-teal-600 hover:text-teal-700"
-                  >
-                    Import account data →
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {staleArAccounts.balanceAsOf && (
-                    <p className="text-xs text-slate-500">
-                      Balances from {staleArAccounts.balanceAsOf.monthName}{' '}
-                      {staleArAccounts.balanceAsOf.year}. As of {formatDate(staleArAccounts.asOfDate)}.
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {STALE_AR_BUCKET_DAYS.map((days) => {
-                      const key = `days${days}` as const
-                      const bucket = staleArAccounts.buckets[key]
-                      const isActive = selectedStaleBucket === days
-                      return (
-                        <button
-                          key={days}
-                          type="button"
-                          onClick={() =>
-                            setSelectedStaleBucket((prev) => (prev === days ? 'all' : days))
-                          }
-                          className={`rounded-lg border px-3 py-3 text-left transition-shadow ${staleBucketTone(days)} ${
-                            isActive ? staleBucketActiveTone(days) : ''
-                          }`}
-                        >
-                          <div className="text-[11px] font-semibold uppercase tracking-wide opacity-80">
-                            {days}+ days
-                          </div>
-                          <div className="mt-1 text-2xl font-bold tabular-nums">{bucket.count}</div>
-                          <div className="mt-0.5 text-xs tabular-nums opacity-80">
-                            ${formatCurrency(bucket.totalBalance)}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {staleArAccounts.neverPaidCount > 0 && (
-                    <p className="text-xs font-medium text-red-700">
-                      {staleArAccounts.neverPaidCount} account
-                      {staleArAccounts.neverPaidCount === 1 ? '' : 's'} with balance but no recorded
-                      payments
-                    </p>
-                  )}
-
-                  {filteredStaleAccounts.length === 0 ? (
-                    <p className="text-sm text-emerald-700 font-medium">
-                      No accounts overdue 30+ days — all tracked balances have recent payments.
-                    </p>
-                  ) : (
-                    <div className="rounded-lg border border-slate-200 overflow-hidden">
-                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
-                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          {selectedStaleBucket === 'all'
-                            ? 'All stale accounts'
-                            : `${selectedStaleBucket}+ days`}
-                        </span>
-                        {selectedStaleBucket !== 'all' && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedStaleBucket('all')}
-                            className="text-xs text-teal-600 hover:text-teal-700 font-medium"
-                          >
-                            Show all
-                          </button>
-                        )}
-                      </div>
-                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
-                        {filteredStaleAccounts.slice(0, 12).map((row) => (
-                          <button
-                            key={row.account}
-                            type="button"
-                            onClick={() => router.push('/customer-accounts')}
-                            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-slate-900 truncate">
-                                {row.account}
-                              </div>
-                              <div className="text-xs text-slate-500 mt-0.5">
-                                {row.neverPaid
-                                  ? 'Never paid (ledger)'
-                                  : row.lastPaymentDate
-                                    ? `Last paid ${formatDate(row.lastPaymentDate)}`
-                                    : 'No payment on file'}
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="text-sm font-semibold text-slate-900 tabular-nums">
-                                ${formatCurrency(row.balance)}
-                              </div>
-                              <div
-                                className={`text-xs font-medium tabular-nums mt-0.5 ${
-                                  row.neverPaid || (row.daysSincePayment ?? 0) >= 120
-                                    ? 'text-red-600'
-                                    : (row.daysSincePayment ?? 0) >= 90
-                                      ? 'text-orange-600'
-                                      : (row.daysSincePayment ?? 0) >= 45
-                                        ? 'text-amber-600'
-                                        : 'text-slate-500'
-                                }`}
-                              >
-                                {row.neverPaid
-                                  ? 'No payments'
-                                  : `${row.daysSincePayment} days`}
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      {filteredStaleAccounts.length > 12 && (
-                        <div className="px-3 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
-                          +{filteredStaleAccounts.length - 12} more on Customer Accounts
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            ) : (
-              <p className="text-sm text-slate-400 italic">Loading stale account data…</p>
             )}
           </div>
             )}
