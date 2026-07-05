@@ -84,7 +84,7 @@ function VendorDetailPageInner() {
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [vatRate, setVatRate] = useState(DEFAULT_VAT_RATE)
   const [loading, setLoading] = useState(true)
-  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false)
+  const [showAddInvoiceForm, setShowAddInvoiceForm] = useState(false)
   const [addInvoiceSaving, setAddInvoiceSaving] = useState(false)
   const [addInvoiceForm, setAddInvoiceForm] = useState({
     invoiceNumber: '',
@@ -202,7 +202,8 @@ function VendorDetailPageInner() {
   })
   const batchesTotal = filteredBatches.reduce((sum, batch) => sum + batch.totalAmount, 0)
 
-  const openAddInvoiceModal = () => {
+  const openAddInvoiceForm = () => {
+    setActiveInvoiceTab('pending')
     setAddInvoiceForm({
       invoiceNumber: '',
       amount: '',
@@ -211,11 +212,12 @@ function VendorDetailPageInner() {
       vat: '',
       notes: ''
     })
-    setShowAddInvoiceModal(true)
+    setShowAddInvoiceForm(true)
+    setTimeout(() => addInvoiceNumberRef.current?.focus(), 50)
   }
 
-  const closeAddInvoiceModal = () => {
-    setShowAddInvoiceModal(false)
+  const closeAddInvoiceForm = () => {
+    setShowAddInvoiceForm(false)
     setAddInvoiceSaving(false)
   }
 
@@ -315,7 +317,7 @@ function VendorDetailPageInner() {
           })
           setTimeout(() => addInvoiceNumberRef.current?.focus(), 50)
         } else {
-          closeAddInvoiceModal()
+          closeAddInvoiceForm()
         }
       } else {
         const err = await res.json().catch(() => ({}))
@@ -420,13 +422,15 @@ function VendorDetailPageInner() {
                   Revert Payment
                 </button>
               )}
-              <button
-                type="button"
-                onClick={openAddInvoiceModal}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
-              >
-                Add Invoice
-              </button>
+              {!showAddInvoiceForm && (
+                <button
+                  type="button"
+                  onClick={openAddInvoiceForm}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
+                >
+                  Add Invoice
+                </button>
+              )}
             </div>
           </div>
 
@@ -445,7 +449,10 @@ function VendorDetailPageInner() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveInvoiceTab('paid')}
+                onClick={() => {
+                  setActiveInvoiceTab('paid')
+                  setShowAddInvoiceForm(false)
+                }}
                 className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
                   activeInvoiceTab === 'paid'
                     ? 'border-blue-600 text-blue-600'
@@ -471,9 +478,141 @@ function VendorDetailPageInner() {
             )}
           </div>
 
+          {activeInvoiceTab === 'pending' && showAddInvoiceForm && (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Add invoice</h3>
+                  <p className="mt-0.5 text-xs text-gray-600">
+                    New invoices appear in the list below. Due date is optional.
+                  </p>
+                </div>
+                <VendorInvoiceVatCalculatorHeader
+                  isVatRegistered={vendor.isVatRegistered}
+                  vatRate={vatRate}
+                  amount={addInvoiceForm.amount}
+                  vat={addInvoiceForm.vat}
+                  onAmountVatChange={(amount, vat) =>
+                    setAddInvoiceForm((prev) => ({ ...prev, amount, vat }))
+                  }
+                />
+              </div>
+
+              <form onSubmit={handleAddInvoiceSubmit} className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Invoice number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    ref={addInvoiceNumberRef}
+                    type="text"
+                    required
+                    value={addInvoiceForm.invoiceNumber}
+                    onChange={(e) =>
+                      setAddInvoiceForm({
+                        ...addInvoiceForm,
+                        invoiceNumber: e.target.value
+                      })
+                    }
+                    placeholder="e.g., INV-001"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <VendorInvoiceAmountFields
+                  isVatRegistered={vendor.isVatRegistered}
+                  vatRate={vatRate}
+                  amount={addInvoiceForm.amount}
+                  vat={addInvoiceForm.vat}
+                  hideCalculator
+                  onAmountChange={(value) =>
+                    setAddInvoiceForm((prev) => ({ ...prev, amount: value }))
+                  }
+                  onVatChange={(value) =>
+                    setAddInvoiceForm((prev) => ({ ...prev, vat: value }))
+                  }
+                />
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Invoice date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={addInvoiceForm.invoiceDate}
+                      onChange={(e) =>
+                        setAddInvoiceForm({
+                          ...addInvoiceForm,
+                          invoiceDate: e.target.value
+                        })
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Due date <span className="text-gray-400">(optional)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={addInvoiceForm.dueDate}
+                      onChange={(e) =>
+                        setAddInvoiceForm({ ...addInvoiceForm, dueDate: e.target.value })
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+                  <textarea
+                    value={addInvoiceForm.notes}
+                    onChange={(e) =>
+                      setAddInvoiceForm({ ...addInvoiceForm, notes: e.target.value })
+                    }
+                    rows={2}
+                    placeholder="Optional notes..."
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3 pt-1">
+                  <button
+                    type="submit"
+                    disabled={addInvoiceSaving}
+                    className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {addInvoiceSaving ? 'Creating...' : 'Create invoice'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitAddInvoice(true)}
+                    disabled={addInvoiceSaving}
+                    className="rounded bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {addInvoiceSaving ? 'Creating...' : 'Create and New…'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeAddInvoiceForm}
+                    disabled={addInvoiceSaving}
+                    className="rounded bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Done
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {activeInvoiceTab === 'pending' ? (
-            pendingInvoices.length === 0 ? (
+            pendingInvoices.length === 0 && !showAddInvoiceForm ? (
               <p className="text-sm text-gray-500">No pending invoices.</p>
+            ) : pendingInvoices.length === 0 ? (
+              <p className="text-sm text-gray-500">No pending invoices yet — add one above.</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -732,150 +871,6 @@ function VendorDetailPageInner() {
           )}
         </div>
       </div>
-
-      {showAddInvoiceModal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          role="presentation"
-          aria-hidden={!showAddInvoiceModal}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-vendor-invoice-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 id="add-vendor-invoice-title" className="text-3xl font-bold text-gray-900">
-                  Add invoice
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Add a new pending invoice for {vendor.name}. Due date is optional.
-                </p>
-              </div>
-              <VendorInvoiceVatCalculatorHeader
-                isVatRegistered={vendor.isVatRegistered}
-                vatRate={vatRate}
-                amount={addInvoiceForm.amount}
-                vat={addInvoiceForm.vat}
-                onAmountVatChange={(amount, vat) =>
-                  setAddInvoiceForm((prev) => ({ ...prev, amount, vat }))
-                }
-              />
-            </div>
-
-            <form onSubmit={handleAddInvoiceSubmit} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Invoice number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  ref={addInvoiceNumberRef}
-                  type="text"
-                  required
-                  value={addInvoiceForm.invoiceNumber}
-                  onChange={(e) =>
-                    setAddInvoiceForm({
-                      ...addInvoiceForm,
-                      invoiceNumber: e.target.value
-                    })
-                  }
-                  placeholder="e.g., INV-001"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <VendorInvoiceAmountFields
-                isVatRegistered={vendor.isVatRegistered}
-                vatRate={vatRate}
-                amount={addInvoiceForm.amount}
-                vat={addInvoiceForm.vat}
-                hideCalculator
-                onAmountChange={(value) =>
-                  setAddInvoiceForm((prev) => ({ ...prev, amount: value }))
-                }
-                onVatChange={(value) =>
-                  setAddInvoiceForm((prev) => ({ ...prev, vat: value }))
-                }
-              />
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Invoice date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={addInvoiceForm.invoiceDate}
-                    onChange={(e) =>
-                      setAddInvoiceForm({
-                        ...addInvoiceForm,
-                        invoiceDate: e.target.value
-                      })
-                    }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Due date <span className="text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={addInvoiceForm.dueDate}
-                    onChange={(e) =>
-                      setAddInvoiceForm({ ...addInvoiceForm, dueDate: e.target.value })
-                    }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
-                <textarea
-                  value={addInvoiceForm.notes}
-                  onChange={(e) =>
-                    setAddInvoiceForm({ ...addInvoiceForm, notes: e.target.value })
-                  }
-                  rows={3}
-                  placeholder="Optional notes..."
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-4">
-                <button
-                  type="submit"
-                  disabled={addInvoiceSaving}
-                  className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {addInvoiceSaving ? 'Creating...' : 'Create invoice'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void submitAddInvoice(true)}
-                  disabled={addInvoiceSaving}
-                  className="rounded bg-slate-600 px-4 py-2 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-                >
-                  {addInvoiceSaving ? 'Creating...' : 'Create and New…'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeAddInvoiceModal}
-                  disabled={addInvoiceSaving}
-                  className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {showEditInvoiceModal && (
         <div
