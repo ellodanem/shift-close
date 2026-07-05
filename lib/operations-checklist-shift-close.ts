@@ -1,5 +1,6 @@
 import type { DayReport } from '@/lib/types'
 
+import { isDebitScanComplete } from '@/lib/day-scan-status'
 import { formatWorkDateLabelLong } from '@/lib/datetime-policy'
 
 import type { ChecklistItemStatus, ChecklistSubtask, ChecklistSubtaskBucket } from '@/lib/operations-checklist-types'
@@ -214,7 +215,7 @@ export function evaluateShiftClose(
 
   }
 
-  if (needsDebits && report.debitScans.length === 0 && !report.debitScanWaived) {
+  if (needsDebits && !isDebitScanComplete(report)) {
 
     scanIssues.push({ code: 'debit_scans', label: 'Debit scans not uploaded' })
 

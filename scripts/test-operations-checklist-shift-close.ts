@@ -203,4 +203,110 @@ describe('operations checklist shift-close group', () => {
     assert.ok(!workDates.includes('2026-05-31'))
     assert.ok(workDates.includes('2026-06-01'))
   })
+
+  it('treats debit scan waiver as complete for shift close', () => {
+    const asOf = '2026-07-05'
+    const now = fromZonedTime('2026-07-05T10:00:00', 'America/St_Lucia')
+    const report = emptyDayReport('2026-07-02', {
+      status: 'Complete',
+      totals: {
+        overShortTotal: 0,
+        overShortDisclosedTotal: 0,
+        totalDeposits: 29226,
+        totalCredit: 8347,
+        totalDebit: 547,
+        systemCashTotal: 0,
+        countCashTotal: 0,
+        totalUnleaded: 0,
+        totalDiesel: 0
+      },
+      depositScans: ['/scan-deposit.pdf'],
+      debitScans: [],
+      securityScans: ['/scan-security.pdf'],
+      debitScanWaived: true,
+      shifts: [
+        {
+          id: 'a',
+          date: '2026-07-02',
+          shift: '6-1',
+          supervisor: 'Test',
+          status: 'closed',
+          systemCash: 0,
+          systemChecks: 0,
+          systemCredit: 0,
+          systemDebit: 547,
+          otherCredit: 8347,
+          systemInhouse: 0,
+          systemFleet: 0,
+          systemMassyCoupons: 0,
+          countCash: 0,
+          countChecks: 0,
+          countCredit: 0,
+          countInhouse: 0,
+          countFleet: 0,
+          countMassyCoupons: 0,
+          unleaded: 0,
+          diesel: 0,
+          deposits: [100],
+          notes: '',
+          overShortCash: 0,
+          overShortTotal: 0,
+          totalDeposits: 29226,
+          createdAt: new Date(),
+          hasRedFlag: false
+        },
+        {
+          id: 'b',
+          date: '2026-07-02',
+          shift: '1-9',
+          supervisor: 'Test',
+          status: 'closed',
+          systemCash: 0,
+          systemChecks: 0,
+          systemCredit: 0,
+          systemDebit: 0,
+          otherCredit: 0,
+          systemInhouse: 0,
+          systemFleet: 0,
+          systemMassyCoupons: 0,
+          countCash: 0,
+          countChecks: 0,
+          countCredit: 0,
+          countInhouse: 0,
+          countFleet: 0,
+          countMassyCoupons: 0,
+          unleaded: 0,
+          diesel: 0,
+          deposits: [100],
+          notes: '',
+          overShortCash: 0,
+          overShortTotal: 0,
+          totalDeposits: 0,
+          createdAt: new Date(),
+          hasRedFlag: false
+        }
+      ]
+    })
+
+    const payload = buildOperationsChecklist({
+      asOf,
+      now,
+      role: 'admin',
+      showFinancial: false,
+      dayReportsByDate: new Map([['2026-07-02', report]]),
+      comparisonRowsByDate: new Map(),
+      stationClosedDates: new Set(),
+      bankHolidayDates: new Set(),
+      acknowledgements: [],
+      customerArImportLogs: [],
+      customerCompleteAcks: new Set(),
+      vendorInvoicesTouchedThisWeek: 0,
+      vendorPendingCount: 0
+    })
+
+    const shift = payload.items.find((i) => i.id === 'shift-close')
+    assert.ok(shift)
+    const sub = shift.children?.find((c) => c.workDate === '2026-07-02')
+    assert.equal(sub, undefined, 'waived debit day should not appear as incomplete')
+  })
 })

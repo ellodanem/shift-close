@@ -6,6 +6,7 @@ import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import { isDebitScanComplete } from '@/lib/day-scan-status'
 import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
@@ -676,7 +677,7 @@ export default function DaysPage() {
                                   const note = (dayReport.debitScanWaiverNote ?? '').trim()
                                   return note
                                     ? `No debit scan — missing/misprinted debit slip (${note})`
-                                    : 'No debit scan — missing/misprinted debit slip'
+                                    : 'No debit scan — missing/misprinted debit slip (marked complete)'
                                 }
                                 return 'No debit slips uploaded'
                               })()}
@@ -697,14 +698,10 @@ export default function DaysPage() {
                               </svg>
                               <span
                                 className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${
-                                  dayReport.debitScans.length > 0
-                                    ? 'bg-green-500'
-                                    : dayReport.debitScanWaived
-                                      ? 'bg-amber-500'
-                                      : 'bg-red-500'
+                                  isDebitScanComplete(dayReport) ? 'bg-green-500' : 'bg-red-500'
                                 }`}
                               >
-                                {dayReport.debitScans.length > 0 || dayReport.debitScanWaived ? '✓' : '✕'}
+                                {isDebitScanComplete(dayReport) ? '✓' : '✕'}
                               </span>
                             </div>
                             <div

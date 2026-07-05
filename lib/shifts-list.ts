@@ -25,6 +25,18 @@ export async function buildShiftsList(options?: BuildShiftsListOptions) {
     shiftsByDate.get(shift.date)!.push(shift)
   })
 
+  const allDates = [...shiftsByDate.keys()]
+  const debitWaiverDates = new Set(
+    allDates.length === 0
+      ? []
+      : (
+          await prisma.debitScanDayWaiver.findMany({
+            where: { date: { in: allDates } },
+            select: { date: true }
+          })
+        ).map((r) => r.date)
+  )
+
   const dayDepositScanStatus = new Map<string, boolean>()
   const dayDebitScanStatus = new Map<string, boolean>()
   shiftsByDate.forEach((dayShifts, date) => {
@@ -45,7 +57,7 @@ export async function buildShiftsList(options?: BuildShiftsListOptions) {
       }
     })
     dayDepositScanStatus.set(date, hasDepositScans)
-    dayDebitScanStatus.set(date, hasDebitScans)
+    dayDebitScanStatus.set(date, hasDebitScans || debitWaiverDates.has(date))
   })
 
   return shifts.map((shift) => {
