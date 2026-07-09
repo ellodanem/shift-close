@@ -51,13 +51,48 @@ function subtaskBadgeWeight(status: ChecklistItemStatus): 0 | 1 {
   return status === 'due' || status === 'overdue' || status === 'incomplete' ? 1 : 0
 }
 
-function importLogForWeek(
+function expectedMonthForWeek(weekKey: string): { year: number; month: number } {
+  return calendarMonthFromYmd(weekDueSunday(weekKey))
+}
+
+/** Latest import for a calendar month — any upload in the month satisfies all weeks in that month. */
+function importLogForMonth(
   logs: CustomerArImportRow[],
-  weekKey: string,
   year: number,
   month: number
 ): CustomerArImportRow | undefined {
-  return logs.find((l) => l.weekKey === weekKey && l.year === year && l.month === month)
+  const matching = logs.filter((l) => l.year === year && l.month === month)
+  if (matching.length === 0) return undefined
+  return matching.reduce((best, l) => (l.weekKey > best.weekKey ? l : best))
+}
+
+function priorWeekKeysInSameMonth(weekKey: string): string[] {
+  const { year, month } = expectedMonthForWeek(weekKey)
+  const allKeys = enumerateWeekKeysFromEpoch(weekKey, CHECKLIST_EPOCH_YMD)
+  return allKeys.filter((wk) => {
+    if (compareYmd(wk, weekKey) >= 0) return false
+    const m = expectedMonthForWeek(wk)
+    return m.year === year && m.month === month
+  })
+}
+
+function hasLaterCompletedWeekInMonth(
+  weekKey: string,
+  completeAcks: ReadonlySet<string>,
+  asOf: string
+): boolean {
+  const { year, month } = expectedMonthForWeek(weekKey)
+  const allKeys = enumerateWeekKeysFromEpoch(asOf, CHECKLIST_EPOCH_YMD)
+  return allKeys.some((wk) => {
+    if (compareYmd(wk, weekKey) <= 0) return false
+    const m = expectedMonthForWeek(wk)
+    return m.year === year && m.month === month && completeAcks.has(wk)
+  })
+}
+
+/** Week keys in the same calendar month that should be auto-completed when `weekKey` is ack'd. */
+export function cascadeCompleteWeekKeysForMonth(weekKey: string): string[] {
+  return priorWeekKeysInSameMonth(weekKey)
 }
 
 export type CustomerWeekEval = {
@@ -72,9 +107,8 @@ export function evaluateCustomerAccountsWeek(
   weekKey: string,
   importLogs: CustomerArImportRow[]
 ): CustomerWeekEval {
-  const weekSunday = weekDueSunday(weekKey)
-  const { year, month } = calendarMonthFromYmd(weekSunday)
-  const log = importLogForWeek(importLogs, weekKey, year, month)
+  const { year, month } = expectedMonthForWeek(weekKey)
+  const log = importLogForMonth(importLogs, year, month)
 
   if (!log) {
     return {
@@ -117,6 +151,7 @@ export function buildCustomerAccountsSubtask(params: {
   const { year, month } = calendarMonthFromYmd(weekSunday)
 
   if (completeAcks.has(weekKey)) return null
+  if (hasLaterCompletedWeekInMonth(weekKey, completeAcks, asOf)) return null
 
   const timing = weeklySundayTimingStatus(asOf, weekSunday, now)
   if (timing === 'not_due') return null

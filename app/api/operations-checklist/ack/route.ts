@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCustomerAccountsCompleteAck } from '@/lib/customer-accounts-checklist-ack'
+import { cascadeCompleteWeekKeysForMonth } from '@/lib/operations-checklist-customer-accounts'
 import { canAcknowledgeWeeklyChecklist } from '@/lib/operations-checklist-access'
 import type { ChecklistAckKind } from '@/lib/operations-checklist-types'
 import { CHECKLIST_EPOCH_YMD } from '@/lib/operations-checklist-types'
@@ -75,6 +76,35 @@ export async function POST(request: NextRequest) {
         userId: session.userId
       }
     })
+
+    if (taskId === 'customer-accounts' && kind === 'complete') {
+      const priorWeekKeys = cascadeCompleteWeekKeysForMonth(weekKey)
+      if (priorWeekKeys.length > 0) {
+        await prisma.$transaction(
+          priorWeekKeys.map((priorWeekKey) =>
+            prisma.checklistAcknowledgement.upsert({
+              where: {
+                checklist_ack_task_week_kind: {
+                  taskId,
+                  weekKey: priorWeekKey,
+                  kind
+                }
+              },
+              create: {
+                taskId,
+                weekKey: priorWeekKey,
+                kind,
+                note: note ? `Auto-completed: ${note}` : 'Auto-completed with later week in same month',
+                userId: session.userId
+              },
+              update: {
+                userId: session.userId
+              }
+            })
+          )
+        )
+      }
+    }
 
     return NextResponse.json({ ok: true, acknowledgement: row })
   } catch (error) {

@@ -4,6 +4,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { validateCustomerAccountsCompleteAck } from '../lib/customer-accounts-checklist-ack'
 import {
   buildCustomerAccountsGroup,
+  cascadeCompleteWeekKeysForMonth,
   evaluateCustomerAccountsWeek
 } from '../lib/operations-checklist-customer-accounts'
 import { weeklySundayTimingStatus } from '../lib/operations-checklist-due-dates'
@@ -97,5 +98,38 @@ describe('operations checklist customer accounts', () => {
     })
     assert.equal(payload.id, 'customer-accounts')
     assert.ok((payload.children?.length ?? 0) >= 2)
+  })
+
+  it('accepts month-level import from a later week', () => {
+    const weekKey = '2026-06-01'
+    const evalResult = evaluateCustomerAccountsWeek(weekKey, [
+      {
+        weekKey: '2026-06-22',
+        year: 2026,
+        month: 6,
+        accountCount: 40,
+        accountsWithCharges: 12
+      }
+    ])
+    assert.equal(evalResult.eligible, true)
+  })
+
+  it('hides earlier weeks when a later same-month week is complete', () => {
+    const asOf = '2026-07-05'
+    const now = fromZonedTime('2026-07-05T10:00:00', 'America/St_Lucia')
+    const payload = buildCustomerAccountsGroup({
+      asOf,
+      now,
+      importLogs: [],
+      completeAcks: new Set(['2026-06-22'])
+    })
+    const juneChildren =
+      payload.children?.filter((c) => c.workDate.startsWith('2026-06')) ?? []
+    assert.equal(juneChildren.length, 0)
+  })
+
+  it('returns prior same-month week keys for cascade complete', () => {
+    const prior = cascadeCompleteWeekKeysForMonth('2026-06-22')
+    assert.deepEqual(prior, ['2026-06-01', '2026-06-08', '2026-06-15'])
   })
 })
