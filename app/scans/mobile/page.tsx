@@ -18,13 +18,12 @@ import {
   type ScanTypeFilter
 } from '@/lib/scans-mobile'
 import {
-  buildWhatsAppScanMessage,
   filterScansByType,
   formatScanDayHeading,
   kindLabel,
-  openWhatsAppWithMessage,
   pickDefaultRecipientId,
   scansFromRow,
+  shareScansViaWhatsApp,
   type EmailRecipientOption,
   type SelectableScan
 } from '@/lib/scan-share'
@@ -280,20 +279,35 @@ export default function ScansMobilePage() {
     }
   }
 
-  const handleWhatsApp = (scans: SelectableScan[]) => {
+  const handleWhatsApp = async (scans: SelectableScan[]) => {
     if (scans.length === 0) {
       setToast({ type: 'error', text: 'No scans to share.' })
       return
     }
-    const message = buildWhatsAppScanMessage(scans)
     const phone =
       selectedRecipient?.mobileNumber ??
       recipients.find((r) => /owner|elcock/i.test(r.label))?.mobileNumber ??
       recipients[0]?.mobileNumber ??
       null
-    openWhatsAppWithMessage(message, phone)
-    if (!phone?.replace(/[^0-9]/g, '')) {
-      setToast({ type: 'ok', text: 'Message copied. Paste into WhatsApp if needed.' })
+    try {
+      const result = await shareScansViaWhatsApp(scans, phone)
+      if (result === 'files') {
+        setToast({
+          type: 'ok',
+          text:
+            scans.length === 1
+              ? 'Choose WhatsApp in the share sheet to send the PDF.'
+              : `Shared ${scans.length} PDFs — pick WhatsApp for each if prompted.`
+        })
+      } else if (!phone?.replace(/[^0-9]/g, '')) {
+        setToast({ type: 'ok', text: 'Message copied. Paste into WhatsApp if needed.' })
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      setToast({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Failed to share via WhatsApp'
+      })
     }
   }
 
@@ -486,7 +500,7 @@ export default function ScansMobilePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleWhatsApp(scans)}
+                        onClick={() => void handleWhatsApp(scans)}
                         className="flex-1 rounded-xl border border-emerald-600/60 bg-emerald-950/40 px-3 py-3 text-sm font-semibold text-emerald-200 min-h-[44px] hover:bg-emerald-900/40"
                       >
                         WhatsApp
@@ -699,7 +713,7 @@ export default function ScansMobilePage() {
             </button>
             <button
               type="button"
-              onClick={() => handleWhatsApp([previewScan])}
+              onClick={() => void handleWhatsApp([previewScan])}
               className="flex-1 rounded-xl border border-emerald-600/60 bg-emerald-950/50 py-3 text-sm font-semibold text-emerald-200 min-h-[44px]"
             >
               WhatsApp

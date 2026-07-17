@@ -108,6 +108,91 @@ export function openWhatsAppWithMessage(message: string, phoneE164?: string | nu
   })
 }
 
+export function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
+export function sanitizePdfFilename(label: string): string {
+  const base = label.replace(/[^\w.\-() ]+/g, '_').trim() || 'scan'
+  return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`
+}
+
+export async function fetchScanPdfFile(scan: SelectableScan): Promise<File> {
+  const url = toAbsoluteUrl(scan.url)
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) {
+    throw new Error(`Could not load ${scan.label}`)
+  }
+  const blob = await res.blob()
+  const type =
+    blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'application/pdf'
+  return new File([blob], sanitizePdfFilename(scan.label), { type })
+}
+
+export type WhatsAppShareResult = 'files' | 'links'
+
+/**
+ * Share selected scans via WhatsApp. On phones that support the Web Share API with
+ * files, opens the native share sheet so WhatsApp receives the PDF attachment(s).
+ * Falls back to a wa.me link message when file sharing is unavailable.
+ */
+export async function shareScansViaWhatsApp(
+  scans: SelectableScan[],
+  phoneE164?: string | null
+): Promise<WhatsAppShareResult> {
+  if (scans.length === 0) {
+    throw new Error('No scans to share')
+  }
+
+  const message = buildWhatsAppScanMessage(scans)
+  const title =
+    scans.length === 1
+      ? sanitizePdfFilename(scans[0].label).replace(/\.pdf$/i, '')
+      : `${scans.length} scans — Westline`
+
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      const files = await Promise.all(scans.map(fetchScanPdfFile))
+      const canShare = typeof navigator.canShare === 'function'
+
+      if (canShare && navigator.canShare({ files })) {
+        await navigator.share({ files, title, text: message })
+        return 'files'
+      }
+
+      if (files.length === 1 && canShare && navigator.canShare({ files: [files[0]] })) {
+        await navigator.share({ files: [files[0]], title, text: message })
+        return 'files'
+      }
+
+      if (isMobileDevice() && files.length > 1) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const scan = scans[i]
+          const singleTitle = file.name.replace(/\.pdf$/i, '')
+          const singleMessage = buildWhatsAppScanMessage([scan])
+          if (canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: singleTitle,
+              text: singleMessage || message
+            })
+          }
+        }
+        return 'files'
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error
+      }
+    }
+  }
+
+  openWhatsAppWithMessage(message, phoneE164)
+  return 'links'
+}
+
 export interface EmailRecipientOption {
   id: string
   label: string

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
+import { shareScansViaWhatsApp, type SelectableScan } from '@/lib/scan-share'
 
 interface ScanRow {
   date: string
@@ -13,14 +14,6 @@ interface ScanRow {
 }
 
 type ScanKind = 'deposit' | 'debit' | 'security'
-
-interface SelectableScan {
-  id: string
-  date: string
-  kind: ScanKind
-  url: string
-  label: string
-}
 
 function buildScanId(date: string, kind: ScanKind, url: string): string {
   return `${encodeURIComponent(date)}|${kind}|${encodeURIComponent(url)}`
@@ -182,6 +175,7 @@ export default function DepositDebitScansPage() {
   const [selectedById, setSelectedById] = useState<Record<string, SelectableScan>>({})
   const [emailTo, setEmailTo] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [sharingWhatsApp, setSharingWhatsApp] = useState(false)
   const [shareMessage, setShareMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [previewScan, setPreviewScan] = useState<SelectableScan | null>(null)
 
@@ -305,6 +299,41 @@ export default function DepositDebitScansPage() {
       setSendingEmail(false)
     }
   }, [emailTo, selectedScans])
+
+  const handleWhatsAppShare = useCallback(async () => {
+    if (selectedScans.length === 0) {
+      setShareMessage({ type: 'error', text: 'Select at least one scan to share.' })
+      return
+    }
+
+    setSharingWhatsApp(true)
+    setShareMessage(null)
+    try {
+      const result = await shareScansViaWhatsApp(selectedScans)
+      if (result === 'files') {
+        setShareMessage({
+          type: 'ok',
+          text:
+            selectedScans.length === 1
+              ? 'Choose WhatsApp in the share sheet to send the PDF.'
+              : `Shared ${selectedScans.length} PDFs — choose WhatsApp for each if prompted.`
+        })
+      } else {
+        setShareMessage({
+          type: 'ok',
+          text: 'WhatsApp opened with scan links. On your phone, use this button to attach PDFs directly.'
+        })
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      setShareMessage({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Failed to share via WhatsApp'
+      })
+    } finally {
+      setSharingWhatsApp(false)
+    }
+  }, [selectedScans])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100/80 to-gray-50 p-4 sm:p-6">
@@ -442,11 +471,11 @@ export default function DepositDebitScansPage() {
             </button>
             <button
               type="button"
-              disabled
-              title="WhatsApp sharing coming soon"
-              className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-500 cursor-not-allowed"
+              onClick={() => void handleWhatsAppShare()}
+              disabled={selectedScans.length === 0 || sharingWhatsApp || sendingEmail}
+              className="rounded-lg border border-emerald-600/40 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
             >
-              WhatsApp selected ({selectedScans.length})
+              {sharingWhatsApp ? 'Preparing…' : `WhatsApp selected (${selectedScans.length})`}
             </button>
             <button
               type="button"
@@ -458,7 +487,7 @@ export default function DepositDebitScansPage() {
             </button>
           </div>
           <p className="mt-2 text-xs text-gray-500">
-            Select individual scans below, then send links by email. WhatsApp is shown as a placeholder for now.
+            Select individual scans below. Email sends links; on your phone, WhatsApp opens with the PDF attached.
           </p>
           {shareMessage && (
             <div
