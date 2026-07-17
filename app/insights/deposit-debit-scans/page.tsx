@@ -315,13 +315,8 @@ export default function DepositDebitScansPage() {
           type: 'ok',
           text:
             selectedScans.length === 1
-              ? 'Choose WhatsApp in the share sheet to send the PDF.'
+              ? 'Choose WhatsApp in the share sheet to send the PDF file.'
               : `Shared ${selectedScans.length} PDFs — choose WhatsApp for each if prompted.`
-        })
-      } else {
-        setShareMessage({
-          type: 'ok',
-          text: 'WhatsApp opened with scan links. On your phone, use this button to attach PDFs directly.'
         })
       }
     } catch (e) {
@@ -487,7 +482,7 @@ export default function DepositDebitScansPage() {
             </button>
           </div>
           <p className="mt-2 text-xs text-gray-500">
-            Select individual scans below. Email sends links; on your phone, WhatsApp opens with the PDF attached.
+            Select individual scans below. Email sends links; WhatsApp on your phone attaches the PDF file.
           </p>
           {shareMessage && (
             <div

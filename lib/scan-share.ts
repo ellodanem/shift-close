@@ -119,78 +119,90 @@ export function sanitizePdfFilename(label: string): string {
 }
 
 export async function fetchScanPdfFile(scan: SelectableScan): Promise<File> {
-  const url = toAbsoluteUrl(scan.url)
-  const res = await fetch(url, { credentials: 'include' })
+  // Same-origin proxy avoids CORS when scans live on Vercel Blob.
+  const res = await fetch('/api/insights/scans/share/file', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: scan.url,
+      date: scan.date,
+      label: scan.label
+    })
+  })
   if (!res.ok) {
-    throw new Error(`Could not load ${scan.label}`)
+    const data = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof data?.error === 'string' ? data.error : `Could not load ${scan.label}`
+    )
   }
   const blob = await res.blob()
+  const headerType = res.headers.get('content-type') || ''
   const type =
-    blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'application/pdf'
+    headerType.startsWith('image/') || headerType === 'application/pdf'
+      ? headerType
+      : blob.type && blob.type !== 'application/octet-stream'
+        ? blob.type
+        : 'application/pdf'
   return new File([blob], sanitizePdfFilename(scan.label), { type })
 }
 
-export type WhatsAppShareResult = 'files' | 'links'
+export type WhatsAppShareResult = 'files'
 
 /**
- * Share selected scans via WhatsApp. On phones that support the Web Share API with
- * files, opens the native share sheet so WhatsApp receives the PDF attachment(s).
- * Falls back to a wa.me link message when file sharing is unavailable.
+ * Share selected scans as real PDF files via the native share sheet (WhatsApp on phone).
+ * Shares files only — no link text — so WhatsApp attaches the PDF instead of a URL.
  */
 export async function shareScansViaWhatsApp(
   scans: SelectableScan[],
-  phoneE164?: string | null
+  _phoneE164?: string | null
 ): Promise<WhatsAppShareResult> {
   if (scans.length === 0) {
     throw new Error('No scans to share')
   }
 
-  const message = buildWhatsAppScanMessage(scans)
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    throw new Error(
+      'This browser cannot attach files to WhatsApp. Open this page in Safari or Chrome on your phone.'
+    )
+  }
+
+  const files = await Promise.all(scans.map(fetchScanPdfFile))
+  const canShare = typeof navigator.canShare === 'function'
   const title =
     scans.length === 1
       ? sanitizePdfFilename(scans[0].label).replace(/\.pdf$/i, '')
       : `${scans.length} scans — Westline`
 
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    try {
-      const files = await Promise.all(scans.map(fetchScanPdfFile))
-      const canShare = typeof navigator.canShare === 'function'
-
-      if (canShare && navigator.canShare({ files })) {
-        await navigator.share({ files, title, text: message })
-        return 'files'
-      }
-
-      if (files.length === 1 && canShare && navigator.canShare({ files: [files[0]] })) {
-        await navigator.share({ files: [files[0]], title, text: message })
-        return 'files'
-      }
-
-      if (isMobileDevice() && files.length > 1) {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i]
-          const scan = scans[i]
-          const singleTitle = file.name.replace(/\.pdf$/i, '')
-          const singleMessage = buildWhatsAppScanMessage([scan])
-          if (canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: singleTitle,
-              text: singleMessage || message
-            })
-          }
-        }
-        return 'files'
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw error
-      }
-    }
+  // Share files only. Including text/urls makes WhatsApp send links instead of the PDF.
+  if (!canShare || navigator.canShare({ files })) {
+    await navigator.share({ files, title })
+    return 'files'
   }
 
-  openWhatsAppWithMessage(message, phoneE164)
-  return 'links'
+  if (files.length === 1 && navigator.canShare({ files: [files[0]] })) {
+    await navigator.share({ files: [files[0]], title })
+    return 'files'
+  }
+
+  if (isMobileDevice() && files.length > 1) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: file.name.replace(/\.pdf$/i, '')
+        })
+      } else {
+        throw new Error('This phone cannot share PDF files via WhatsApp from the browser.')
+      }
+    }
+    return 'files'
+  }
+
+  throw new Error(
+    'This browser cannot attach PDFs to WhatsApp. Open Deposit & debit scans on your phone (Safari or Chrome).'
+  )
 }
 
 export interface EmailRecipientOption {

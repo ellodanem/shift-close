@@ -284,23 +284,16 @@ export default function ScansMobilePage() {
       setToast({ type: 'error', text: 'No scans to share.' })
       return
     }
-    const phone =
-      selectedRecipient?.mobileNumber ??
-      recipients.find((r) => /owner|elcock/i.test(r.label))?.mobileNumber ??
-      recipients[0]?.mobileNumber ??
-      null
     try {
-      const result = await shareScansViaWhatsApp(scans, phone)
+      const result = await shareScansViaWhatsApp(scans)
       if (result === 'files') {
         setToast({
           type: 'ok',
           text:
             scans.length === 1
-              ? 'Choose WhatsApp in the share sheet to send the PDF.'
+              ? 'Choose WhatsApp in the share sheet to send the PDF file.'
               : `Shared ${scans.length} PDFs — pick WhatsApp for each if prompted.`
         })
-      } else if (!phone?.replace(/[^0-9]/g, '')) {
-        setToast({ type: 'ok', text: 'Message copied. Paste into WhatsApp if needed.' })
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
