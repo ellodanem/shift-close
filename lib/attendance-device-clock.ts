@@ -222,16 +222,69 @@ export type NormalizePunchUtcResult = {
   reason: string
 }
 
+export type AttendanceDeviceClockOffset = {
+  offsetMs: number
+  isCalibrated: boolean
+}
+
+/** Resolve serial used for clock offset (device SN or agent fallback). */
+export function resolveClockDeviceSerial(
+  deviceSerial: string | null | undefined,
+  settings: AttendanceClockGlobalSettings
+): string {
+  let serial = (deviceSerial ?? '').trim()
+  if (!serial || serial === 'unknown') {
+    if (settings.agentSerialFallback) serial = settings.agentSerialFallback.trim()
+  }
+  return serial
+}
+
+/** One DB read per ingest request; pass the row into normalizePunchUtcWithClockRow. */
+export async function loadAttendanceDeviceClockOffset(
+  deviceSerial: string
+): Promise<AttendanceDeviceClockOffset | null> {
+  const serial = deviceSerial.trim()
+  if (!serial || serial === 'unknown') return null
+  return prisma.attendanceDeviceClock.findUnique({
+    where: { deviceSerial: serial },
+    select: { offsetMs: true, isCalibrated: true }
+  })
+}
+
+/** Sync normalize using a preloaded clock row (avoids N+1 findUnique per punch). */
+export function normalizePunchUtcWithClockRow(params: {
+  deviceParsedUtc: Date
+  settings: AttendanceClockGlobalSettings
+  serial: string
+  clockRow: AttendanceDeviceClockOffset | null
+}): NormalizePunchUtcResult {
+  const { deviceParsedUtc, settings, serial, clockRow } = params
+  if (!settings.apply) {
+    return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'apply_disabled' }
+  }
+  if (!serial || serial === 'unknown') {
+    return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'no_serial' }
+  }
+  if (!clockRow || !clockRow.isCalibrated) {
+    return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'warmup' }
+  }
+  const applied = clockRow.offsetMs
+  return {
+    punchUtc: new Date(deviceParsedUtc.getTime() + applied),
+    offsetMsApplied: applied,
+    reason: 'learned_offset'
+  }
+}
+
 export async function normalizePunchUtcForDevice(params: {
   deviceSerial: string | null
   deviceParsedUtc: Date
   settings: AttendanceClockGlobalSettings
+  /** Optional preloaded row — when set, skips an extra findUnique. */
+  clockRow?: AttendanceDeviceClockOffset | null
 }): Promise<NormalizePunchUtcResult> {
   const { deviceParsedUtc, settings } = params
-  let serial = (params.deviceSerial ?? '').trim()
-  if (!serial || serial === 'unknown') {
-    if (settings.agentSerialFallback) serial = settings.agentSerialFallback.trim()
-  }
+  const serial = resolveClockDeviceSerial(params.deviceSerial, settings)
   if (!settings.apply) {
     return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'apply_disabled' }
   }
@@ -239,19 +292,17 @@ export async function normalizePunchUtcForDevice(params: {
     return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'no_serial' }
   }
 
-  const row = await prisma.attendanceDeviceClock.findUnique({
-    where: { deviceSerial: serial }
-  })
-  if (!row || !row.isCalibrated) {
-    return { punchUtc: deviceParsedUtc, offsetMsApplied: 0, reason: 'warmup' }
-  }
+  const clockRow =
+    params.clockRow !== undefined
+      ? params.clockRow
+      : await loadAttendanceDeviceClockOffset(serial)
 
-  const applied = row.offsetMs
-  return {
-    punchUtc: new Date(deviceParsedUtc.getTime() + applied),
-    offsetMsApplied: applied,
-    reason: 'learned_offset'
-  }
+  return normalizePunchUtcWithClockRow({
+    deviceParsedUtc,
+    settings,
+    serial,
+    clockRow
+  })
 }
 
 export async function loadStationTz(): Promise<string> {

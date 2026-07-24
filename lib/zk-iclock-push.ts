@@ -6,10 +6,12 @@ import {
 import {
   detectBulkUpload,
   getAttendanceClockGlobalSettings,
+  loadAttendanceDeviceClockOffset,
   loadStationTz,
   maybeLearnDeviceClock,
-  normalizePunchUtcForDevice,
+  normalizePunchUtcWithClockRow,
   parseDeviceNaiveTimestampToUtc,
+  resolveClockDeviceSerial,
   serialAllowed
 } from '@/lib/attendance-device-clock'
 import { buildStaffDeviceMap, lookupStaffDevice } from '@/lib/attendance-staff-device-map'
@@ -223,26 +225,32 @@ export async function zkPushPOST(request: NextRequest) {
       })
     }
 
-    const normalized = await Promise.all(
-      rawParsed.map(async (r) => {
-        const norm = await normalizePunchUtcForDevice({
-          deviceSerial: sn,
-          deviceParsedUtc: r.parsedUtc,
-          settings: clockSettings
-        })
-        let reason = norm.reason
-        if (r.parseFallback) reason = `${reason}_parse_fallback`
-        return {
-          deviceUserId: r.deviceUserId,
-          timestampStr: r.timestampStr,
-          state: r.state,
-          parsedUtc: r.parsedUtc,
-          punchUtc: norm.punchUtc,
-          offsetMs: norm.offsetMsApplied,
-          reason
-        }
+    // Load clock offset once per request (after learn) — avoids N+1 findUnique per punch.
+    const clockSerial = resolveClockDeviceSerial(sn, clockSettings)
+    const clockRow =
+      clockSettings.apply && clockSerial && clockSerial !== 'unknown'
+        ? await loadAttendanceDeviceClockOffset(clockSerial)
+        : null
+
+    const normalized = rawParsed.map((r) => {
+      const norm = normalizePunchUtcWithClockRow({
+        deviceParsedUtc: r.parsedUtc,
+        settings: clockSettings,
+        serial: clockSerial,
+        clockRow
       })
-    )
+      let reason = norm.reason
+      if (r.parseFallback) reason = `${reason}_parse_fallback`
+      return {
+        deviceUserId: r.deviceUserId,
+        timestampStr: r.timestampStr,
+        state: r.state,
+        parsedUtc: r.parsedUtc,
+        punchUtc: norm.punchUtc,
+        offsetMs: norm.offsetMsApplied,
+        reason
+      }
+    })
 
     const byUserDay = new Map<string, Array<{ deviceUserId: string; punchTime: Date; state: number }>>()
 

@@ -1,11 +1,15 @@
 /**
  * staffSync.js — polls Vercel API for staff, pushes any to ZKTeco device.
- * Runs every 5 minutes. Only pushes staff who have a deviceUserId assigned.
+ * Default interval is 30 minutes (see config.js). Uses If-None-Match / 304 when
+ * the pending-staff fingerprint is unchanged to skip full payload work.
  */
 
 const DeviceClient = require('./deviceClient')
 
 const log = (msg) => console.log(`[StaffSync] ${new Date().toISOString()} ${msg}`)
+
+/** Last ETag from pending-staff (in-memory for this agent process). */
+let lastStaffEtag = null
 
 async function syncStaffToDevice(config, activityLog) {
   if (!config.deviceIp) {
@@ -21,16 +25,30 @@ async function syncStaffToDevice(config, activityLog) {
   const device = new DeviceClient(config.deviceIp, config.devicePort)
 
   try {
-    // Fetch staff from app
+    const headers = { 'x-agent-secret': config.agentSecret }
+    if (lastStaffEtag) {
+      headers['If-None-Match'] = lastStaffEtag
+    }
+
     const res = await fetch(`${config.vercelUrl}/api/attendance/device/pending-staff`, {
-      headers: { 'x-agent-secret': config.agentSecret }
+      headers
     })
+
+    if (res.status === 304) {
+      const etag = res.headers.get('etag')
+      if (etag) lastStaffEtag = etag
+      log('Staff unchanged (304) — skip device sync')
+      return { pushed: 0, skipped: 0, unchanged: true }
+    }
 
     if (!res.ok) {
       const err = await res.text()
       log(`Failed to fetch staff: ${err}`)
       return { pushed: 0, skipped: 0, error: `API error: ${res.status}` }
     }
+
+    const etag = res.headers.get('etag')
+    if (etag) lastStaffEtag = etag
 
     const { staff } = await res.json()
     if (!staff || staff.length === 0) {

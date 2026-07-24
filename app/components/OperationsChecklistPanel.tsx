@@ -12,7 +12,8 @@ import type {
 import { filterEnabledChecklistItems } from '@/lib/operations-checklist-types'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
-const POLL_MS = 4 * 60 * 1000
+/** Full checklist reload while tab is visible (longer interval reduces Neon wake-ups). */
+const POLL_MS = 12 * 60 * 1000
 const GROUPED_ITEM_IDS = new Set(['shift-close', 'customer-accounts'])
 
 const STATUS_STYLES: Record<string, string> = {
@@ -291,7 +292,10 @@ export default function OperationsChecklistPanel() {
   useEffect(() => {
     if (loading || !user || !canAccessOperationsChecklist({ role: user.role, isSuperAdmin: user.isSuperAdmin })) return
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
+      void load()
+    }, POLL_MS)
     return () => window.clearInterval(id)
   }, [load, loading, user])
 

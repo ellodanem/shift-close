@@ -148,7 +148,7 @@ function start() {
   }, 3000)
 
   const cfg = loadConfig()
-  staffInterval = setInterval(runStaffSync, cfg.staffSyncIntervalMs || 5 * 60 * 1000)
+  staffInterval = setInterval(runStaffSync, cfg.staffSyncIntervalMs || 30 * 60 * 1000)
 }
 
 function stop() {

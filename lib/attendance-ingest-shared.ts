@@ -5,10 +5,12 @@ import { toYmdInBusinessTz } from '@/lib/datetime-policy'
 import {
   detectBulkUpload,
   getAttendanceClockGlobalSettings,
+  loadAttendanceDeviceClockOffset,
   loadStationTz,
   maybeLearnDeviceClock,
-  normalizePunchUtcForDevice,
+  normalizePunchUtcWithClockRow,
   parseIncomingRecordTimeToUtc,
+  resolveClockDeviceSerial,
   serialAllowed
 } from '@/lib/attendance-device-clock'
 
@@ -98,18 +100,24 @@ export async function ingestAttendanceBatch(params: {
     })
   }
 
-  const normalized = await Promise.all(
-    rows.map(async (r) => {
-      const norm = await normalizePunchUtcForDevice({
-        deviceSerial: resolvedSerial || null,
-        deviceParsedUtc: r.parsedUtc,
-        settings: clockSettings
-      })
-      let reason = norm.reason
-      if (r.parseFallback) reason = `${reason}_parse_fallback`
-      return { ...r, punchUtc: norm.punchUtc, offsetMs: norm.offsetMsApplied, reason }
+  // One clock read after learn — avoids N+1 findUnique per punch in the batch.
+  const clockSerial = resolveClockDeviceSerial(resolvedSerial || null, clockSettings)
+  const clockRow =
+    clockSettings.apply && clockSerial && clockSerial !== 'unknown'
+      ? await loadAttendanceDeviceClockOffset(clockSerial)
+      : null
+
+  const normalized = rows.map((r) => {
+    const norm = normalizePunchUtcWithClockRow({
+      deviceParsedUtc: r.parsedUtc,
+      settings: clockSettings,
+      serial: clockSerial,
+      clockRow
     })
-  )
+    let reason = norm.reason
+    if (r.parseFallback) reason = `${reason}_parse_fallback`
+    return { ...r, punchUtc: norm.punchUtc, offsetMs: norm.offsetMsApplied, reason }
+  })
 
   const byUserDay = new Map<string, Array<{ deviceUserId: string; punchTime: Date; state?: number }>>()
   for (const r of normalized) {
