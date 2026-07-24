@@ -32,6 +32,11 @@ import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
  *
  * Override with `ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES`. Set `ZK_ICLOCK_HANDSHAKE_TIMEZONE=0`
  * to omit `TimeZone` (previous behavior).
+ *
+ * Punch upload cadence (Neon cost vs live attendance):
+ * - Default: Realtime=0 + TransInterval=3 → ~3 minute batches (not every punch).
+ * - Override: `ZK_ICLOCK_REALTIME=1` for immediate upload; `ZK_ICLOCK_TRANS_INTERVAL`
+ *   (minutes, default 3) when realtime is off.
  */
 function buildIclockCdataHandshakeBody(serial: string): string {
   const sn = serial.trim() || 'unknown'
@@ -44,6 +49,14 @@ function buildIclockCdataHandshakeBody(serial: string): string {
     if (Number.isFinite(n)) tzMinutes = n
   }
 
+  const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
+  const rawInterval = process.env.ZK_ICLOCK_TRANS_INTERVAL
+  let transInterval = 3
+  if (rawInterval !== undefined && String(rawInterval).trim() !== '') {
+    const n = parseInt(String(rawInterval).trim(), 10)
+    if (Number.isFinite(n) && n >= 1) transInterval = n
+  }
+
   const parts = [
     `GET OPTION FROM: ${sn}`,
     'Stamp=9999',
@@ -54,13 +67,13 @@ function buildIclockCdataHandshakeBody(serial: string): string {
     'ResLogDelCount=10000',
     'ResLogCount=50000',
     'TransTimes=00:00;14:05',
-    'TransInterval=1',
+    `TransInterval=${transInterval}`,
     'TransFlag=1111000000'
   ]
   if (includeTz && Number.isFinite(tzMinutes)) {
     parts.push(`TimeZone=${tzMinutes}`)
   }
-  parts.push('Realtime=1', 'Encrypt=0')
+  parts.push(`Realtime=${realtime}`, 'Encrypt=0')
   return parts.join('\r\n') + '\r\n'
 }
 
@@ -126,7 +139,12 @@ export async function zkPushCDATAGET(request: NextRequest) {
     process.env.ZK_ICLOCK_HANDSHAKE_TIMEZONE === '0'
       ? 'omit'
       : (process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES?.trim() || 'default-240')
-  console.log(`[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} businessTz=${BUSINESS_TIME_ZONE}`)
+  const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
+  const transInterval = process.env.ZK_ICLOCK_TRANS_INTERVAL?.trim() || '3'
+  console.log(
+    `[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} ` +
+      `realtime=${realtime} transInterval=${transInterval} businessTz=${BUSINESS_TIME_ZONE}`
+  )
   return new NextResponse(body, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }
 
