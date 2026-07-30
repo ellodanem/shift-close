@@ -16,6 +16,7 @@ import {
 import {
   buildPayPeriodEmailHtml,
   formatSavedPayPeriodDateRange,
+  payPeriodReportDefaultBcc,
   payPeriodReportDefaultSubject,
   payPeriodReportDefaultTo
 } from '@/lib/pay-period-email'
@@ -388,6 +389,7 @@ export default function PayPeriodPage() {
       return
     }
     setEmailTo(payPeriodReportDefaultTo())
+    setEmailBcc(payPeriodReportDefaultBcc())
     setEmailSubject(payPeriodReportDefaultSubject(data.startDate, data.endDate))
     setEmailHtml(buildPayPeriodEmailHtml(withFullStaffNames(data)))
     setEmailModalData(data)

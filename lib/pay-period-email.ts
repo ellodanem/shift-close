@@ -11,8 +11,18 @@ export const PAY_PERIOD_REPORT_DEFAULT_RECIPIENTS = [
   'elcock@totalauto758.com'
 ] as const
 
+export const PAY_PERIOD_REPORT_DEFAULT_BCC_RECIPIENTS = [
+  'dane.elrus1@gmail.com',
+  'totalarubis@gmail.com',
+  'totalauto_os@outlook.com'
+] as const
+
 export function payPeriodReportDefaultTo(): string {
   return PAY_PERIOD_REPORT_DEFAULT_RECIPIENTS.join(', ')
+}
+
+export function payPeriodReportDefaultBcc(): string {
+  return PAY_PERIOD_REPORT_DEFAULT_BCC_RECIPIENTS.join(', ')
 }
 
 export function escapePayPeriodHtml(s: string): string {

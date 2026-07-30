@@ -12,6 +12,7 @@ import { useAuth } from '@/app/components/AuthContext'
 import {
   buildPayPeriodEmailHtml,
   formatSavedPayPeriodDateRange,
+  payPeriodReportDefaultBcc,
   payPeriodReportDefaultSubject,
   payPeriodReportDefaultTo
 } from '@/lib/pay-period-email'
@@ -171,6 +172,7 @@ export default function MobilePayPeriodPage() {
     setStatusMessage(null)
     const enriched = withFullStaffNames(data)
     setEmailTo(payPeriodReportDefaultTo())
+    setEmailBcc(payPeriodReportDefaultBcc())
     setEmailSubject(payPeriodReportDefaultSubject(data.startDate, data.endDate))
     setEmailHtml(buildPayPeriodEmailHtml(enriched))
     setEmailModalData(enriched)
