@@ -173,6 +173,8 @@ SR+ can simplify to a single admin role initially, but this file documents **pro
 
 - Pay period email pipeline, Windows agent installer, full ADMS/iclock surface, WhatsApp roster broadcast, stakeholder role matrix, Shift Close financial modules.
 
+**When implementing the Windows agent later:** use the companion handoff `docs/WINDOWS_AGENT_ARCHITECTURE_HANDOFF.md` (architecture, APIs, Electron layout, auth, ADMS vs agent role split, SR+ port checklist).
+
 Document any **deliberate** behavior changes (e.g. configurable timezone instead of `America/St_Lucia`).
 
 ---
