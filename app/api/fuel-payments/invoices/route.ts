@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    const validTypes = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty']
+    const validTypes = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment']
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { error: `type must be one of: ${validTypes.join(', ')}` },

@@ -42,6 +42,8 @@ const getInvoiceTypeIcon = (type: string): string => {
       return '👔'
     case 'Loyalty':
       return '⭐'
+    case 'Balance Payment':
+      return '⚖️'
     default:
       return '📄'
   }
@@ -933,6 +935,7 @@ export default function InvoicesPage() {
                       <option value="Rent">Rent</option>
                       <option value="Uniforms">Uniforms</option>
                       <option value="Loyalty">Loyalty</option>
+                      <option value="Balance Payment">Balance Payment</option>
                     </select>
                   </div>
                 </div>

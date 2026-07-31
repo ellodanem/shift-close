@@ -310,7 +310,7 @@ model Invoice {
   invoiceNumber String   @map("invoice_number")
   amount        Float
   // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
-  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent'
+  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent' | 'Uniforms' | 'Loyalty' | 'Balance Payment'
   invoiceDate   DateTime @map("invoice_date")
   dueDate       DateTime @map("due_date") // invoiceDate + 5 days
   status        String   @default("pending") // 'pending' | 'simulated' | 'paid'
@@ -404,7 +404,7 @@ model PaidInvoice {
   // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
   // For now, round to 2 decimals in application layer to prevent precision issues
   // Financial amounts only; fuel/LPG unit cost over time: docs/future-fuel-inventory-and-pricing.md
-  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent'
+  type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent' | 'Uniforms' | 'Loyalty' | 'Balance Payment'
   invoiceDate   DateTime @map("invoice_date")
   dueDate       DateTime @map("due_date")
   notes         String?  @default("")

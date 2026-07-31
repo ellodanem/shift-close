@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
         const paymentDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
 
         // Map invoice types to cashbook categories: LPG+Lubricants+vendor→Rec. Gen, Fuel→Rec. Gas, Rent→Mtnce
-        const recGenTypes = ['LPG', 'Lubricants', 'Uniforms', 'Loyalty']
+        const recGenTypes = ['LPG', 'Lubricants', 'Uniforms', 'Loyalty', 'Balance Payment']
         const recGasTypes = ['Fuel']
         const mtnceTypes = ['Rent']
 

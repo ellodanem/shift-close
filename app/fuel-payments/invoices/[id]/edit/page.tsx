@@ -174,6 +174,7 @@ export default function EditInvoicePage() {
                   <option value="Rent">Rent</option>
                   <option value="Uniforms">Uniforms</option>
                   <option value="Loyalty">Loyalty</option>
+                  <option value="Balance Payment">Balance Payment</option>
                 </select>
               </div>
             </div>
