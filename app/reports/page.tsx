@@ -68,6 +68,14 @@ export default function ReportsPage() {
       route: '/reports/fuel-comparison'
     },
     {
+      id: 'vendor-invoice-payments',
+      title: 'All Invoices Report',
+      description: 'Vendor invoice amounts by month — paid only or paid and pending',
+      icon: '🧾',
+      comingSoon: false,
+      route: '/vendor-payments/monthly-report'
+    },
+    {
       id: 'deposit',
       title: 'Deposit Reports',
       description: 'Deposit patterns, totals, and analysis',

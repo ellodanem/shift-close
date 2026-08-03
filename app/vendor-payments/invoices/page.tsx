@@ -333,6 +333,14 @@ function VendorInvoicesPageInner() {
           <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
+              onClick={() => router.push('/vendor-payments/monthly-report')}
+              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+              title="All Invoices Report"
+            >
+              📄 Reports
+            </button>
+            <button
+              type="button"
               onClick={() => setShowBalanceModal(true)}
               className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
               title="Shared balance with Fuel Payments"
