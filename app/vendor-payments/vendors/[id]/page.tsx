@@ -2,6 +2,7 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 import { VendorAddInvoiceModal } from '../../components/VendorAddInvoiceModal'
 import { VendorRevertPaymentModal } from '../../components/VendorRevertPaymentModal'
@@ -55,9 +56,47 @@ interface Vendor {
 }
 
 type BatchFilterType = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
+type MonthFilterType = 'all' | 'thisMonth' | 'lastMonth' | 'custom'
 
 function vendorInvoiceTotal(amount: number, vat: number | null) {
   return amount + (vat ?? 0)
+}
+
+function monthParamForFilter(filter: MonthFilterType, customMonth: string): string | null {
+  if (filter === 'all') return null
+  if (filter === 'custom') return customMonth || null
+
+  const todayYmd = businessTodayYmd()
+  const [year, month] = todayYmd.split('-').map(Number)
+
+  if (filter === 'thisMonth') {
+    return `${year}-${String(month).padStart(2, '0')}`
+  }
+  if (filter === 'lastMonth') {
+    const last = new Date(Date.UTC(year, month - 2, 1))
+    return `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, '0')}`
+  }
+  return null
+}
+
+function monthFilterLabel(filter: MonthFilterType, customMonth: string): string | null {
+  const param = monthParamForFilter(filter, customMonth)
+  if (!param) return null
+  return new Date(`${param}-01T12:00:00Z`).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  })
+}
+
+function invoiceMatchesMonth(
+  invoiceDate: string,
+  filter: MonthFilterType,
+  customMonth: string
+): boolean {
+  const monthParam = monthParamForFilter(filter, customMonth)
+  if (!monthParam) return true
+  return invoiceDate.slice(0, 7) === monthParam
 }
 
 function VendorDetailPageInner() {
@@ -77,6 +116,8 @@ function VendorDetailPageInner() {
     })
   }
   const [paidSearchQuery, setPaidSearchQuery] = useState('')
+  const [monthFilter, setMonthFilter] = useState<MonthFilterType>('all')
+  const [customMonth, setCustomMonth] = useState('')
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [vatRate, setVatRate] = useState(DEFAULT_VAT_RATE)
@@ -130,24 +171,39 @@ function VendorDetailPageInner() {
     () => vendor?.invoices?.filter((i) => i.status === 'paid') ?? [],
     [vendor?.invoices]
   )
-  const pendingTotal = pendingInvoices.reduce(
+  const filteredPendingInvoices = useMemo(
+    () =>
+      pendingInvoices.filter((inv) =>
+        invoiceMatchesMonth(inv.invoiceDate, monthFilter, customMonth)
+      ),
+    [pendingInvoices, monthFilter, customMonth]
+  )
+  const monthFilteredPaidInvoices = useMemo(
+    () =>
+      paidInvoices.filter((inv) =>
+        invoiceMatchesMonth(inv.invoiceDate, monthFilter, customMonth)
+      ),
+    [paidInvoices, monthFilter, customMonth]
+  )
+  const pendingTotal = filteredPendingInvoices.reduce(
     (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
     0
   )
   const paidQuery = paidSearchQuery.trim().toLowerCase()
   const filteredPaidInvoices = useMemo(() => {
-    if (!paidQuery) return paidInvoices
-    return paidInvoices.filter((inv) => {
+    if (!paidQuery) return monthFilteredPaidInvoices
+    return monthFilteredPaidInvoices.filter((inv) => {
       const num = inv.invoiceNumber.toLowerCase()
       const ref = inv.paidInvoice?.batch.bankRef?.toLowerCase() ?? ''
       const method = inv.paidInvoice?.batch.paymentMethod?.toLowerCase() ?? ''
       return num.includes(paidQuery) || ref.includes(paidQuery) || method.includes(paidQuery)
     })
-  }, [paidInvoices, paidQuery])
+  }, [monthFilteredPaidInvoices, paidQuery])
   const filteredPaidTotal = filteredPaidInvoices.reduce(
     (sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat),
     0
   )
+  const activeMonthLabel = monthFilterLabel(monthFilter, customMonth)
   const allBatches = vendor?.batches ?? []
   const matchesBatchDateFilter = (paymentDate: string) => {
     const dt = new Date(paymentDate)
@@ -341,6 +397,77 @@ function VendorDetailPageInner() {
             </div>
           </div>
 
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Invoice month
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('all')
+                  setCustomMonth('')
+                }}
+                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                  monthFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('thisMonth')
+                  setCustomMonth('')
+                }}
+                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                  monthFilter === 'thisMonth'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter('lastMonth')
+                  setCustomMonth('')
+                }}
+                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                  monthFilter === 'lastMonth'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                Last Month
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMonthFilter('custom')}
+                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                    monthFilter === 'custom'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  Custom
+                </button>
+                {monthFilter === 'custom' && (
+                  <input
+                    type="month"
+                    value={customMonth}
+                    onChange={(e) => setCustomMonth(e.target.value)}
+                    className="rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="mb-4 flex flex-col gap-3 border-b border-gray-200 md:flex-row md:items-end md:justify-between">
             <div className="flex gap-2">
               <button
@@ -385,6 +512,11 @@ function VendorDetailPageInner() {
           {activeInvoiceTab === 'pending' ? (
             pendingInvoices.length === 0 ? (
               <p className="text-sm text-gray-500">No pending invoices.</p>
+            ) : filteredPendingInvoices.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No pending invoices
+                {activeMonthLabel ? ` in ${activeMonthLabel}` : ''}.
+              </p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -397,7 +529,7 @@ function VendorDetailPageInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingInvoices.map((inv) => (
+                  {filteredPendingInvoices.map((inv) => (
                     <tr key={inv.id} className="border-t border-gray-100">
                       <td className="py-2">{inv.invoiceNumber}</td>
                       <td>{formatDate(inv.invoiceDate)}</td>
@@ -441,8 +573,13 @@ function VendorDetailPageInner() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 bg-gray-50">
                     <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
-                      Total ({pendingInvoices.length} invoice
-                      {pendingInvoices.length !== 1 ? 's' : ''})
+                      Total ({filteredPendingInvoices.length} invoice
+                      {filteredPendingInvoices.length !== 1 ? 's' : ''}
+                      {activeMonthLabel &&
+                      filteredPendingInvoices.length !== pendingInvoices.length
+                        ? ` of ${pendingInvoices.length}`
+                        : ''}
+                      )
                     </td>
                     <td className="text-right text-sm font-semibold text-blue-700">
                       {formatAmount(pendingTotal)}
@@ -456,7 +593,9 @@ function VendorDetailPageInner() {
             <p className="text-sm text-gray-500">No paid invoices yet.</p>
           ) : filteredPaidInvoices.length === 0 ? (
             <p className="text-sm text-gray-500">
-              No paid invoices match &quot;{paidSearchQuery}&quot;.
+              {paidQuery
+                ? <>No paid invoices match &quot;{paidSearchQuery}&quot;.</>
+                : `No paid invoices${activeMonthLabel ? ` in ${activeMonthLabel}` : ''}.`}
             </p>
           ) : (
             <table className="w-full text-sm">
@@ -498,7 +637,8 @@ function VendorDetailPageInner() {
                   <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
                     Total ({filteredPaidInvoices.length} invoice
                     {filteredPaidInvoices.length !== 1 ? 's' : ''}
-                    {paidQuery && filteredPaidInvoices.length !== paidInvoices.length
+                    {(paidQuery || activeMonthLabel) &&
+                    filteredPaidInvoices.length !== paidInvoices.length
                       ? ` of ${paidInvoices.length}`
                       : ''}
                     )
