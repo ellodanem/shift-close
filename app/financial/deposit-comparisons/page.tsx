@@ -86,8 +86,35 @@ function getDayStatus(deposits: Row[], debits: Row[]): DayStatus {
   return 'pending'
 }
 
+function getSectionStatus(rows: Row[]): DayStatus {
+  return getDayStatus(rows, [])
+}
+
 function isDayFullyCleared(deposits: Row[], debits: Row[]): boolean {
   return getDayStatus(deposits, debits) === 'cleared'
+}
+
+function sectionBrief(shortLabel: string, rows: Row[]): string | null {
+  if (rows.length === 0) return null
+  const status = getSectionStatus(rows)
+  if (status === 'cleared') return `${shortLabel} cleared`
+  if (status === 'discrepancy') {
+    const n = rows.filter((r) => r.bankStatus === 'discrepancy').length
+    return `${shortLabel}: ${n} issue${n === 1 ? '' : 's'}`
+  }
+  const pending = rows.filter((r) => r.bankStatus === 'pending').length
+  const cleared = rows.filter((r) => r.bankStatus === 'cleared').length
+  if (status === 'mixed') return `${shortLabel}: ${cleared} cleared, ${pending} pending`
+  return `${pending} ${shortLabel} pending`
+}
+
+/** When the day is mixed, spell out which section still needs work. */
+function daySectionProgressLine(deposits: Row[], debits: Row[]): string | null {
+  if (getDayStatus(deposits, debits) !== 'mixed') return null
+  const parts = [sectionBrief('Deposits', deposits), sectionBrief('C&D', debits)].filter(
+    (p): p is string => Boolean(p)
+  )
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function dayHeaderClass(status: DayStatus): string {
@@ -127,6 +154,78 @@ function collapsedDaySummary(deposits: Row[], debits: Row[], dayTotal: number): 
   if (discrepancy > 0) parts.push(`${discrepancy} issue${discrepancy === 1 ? '' : 's'}`)
   parts.push(formatCurrency(dayTotal))
   return parts.join(' · ')
+}
+
+function sectionStatusLabel(kind: 'deposits' | 'debit', status: DayStatus): string {
+  const section = kind === 'deposits' ? 'Deposits' : 'Credit & debit'
+  switch (status) {
+    case 'cleared':
+      return `${section}: all cleared`
+    case 'discrepancy':
+      return `${section}: has discrepancies`
+    case 'mixed':
+      return `${section}: some cleared, some pending`
+    default:
+      return `${section}: all pending`
+  }
+}
+
+/** Compact status chip for Deposits / Credit & debit section labels. */
+function SectionStatusBadge({ kind, status }: { kind: 'deposits' | 'debit'; status: DayStatus }) {
+  const title = sectionStatusLabel(kind, status)
+  const wrap = (className: string, icon: ReactNode) => (
+    <span
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-1 ${className}`}
+      title={title}
+      aria-label={title}
+    >
+      {icon}
+    </span>
+  )
+
+  if (status === 'cleared') {
+    return wrap(
+      'bg-emerald-100 ring-emerald-200',
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-emerald-700" aria-hidden>
+        <path
+          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
+  if (status === 'discrepancy') {
+    return wrap(
+      'bg-red-100 ring-red-200',
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-red-700" aria-hidden>
+        <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+      </svg>
+    )
+  }
+  if (status === 'mixed') {
+    return wrap(
+      'bg-amber-100 ring-amber-200',
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-amber-600" aria-hidden>
+        <circle cx="12" cy="12" r="6" fill="currentColor" />
+      </svg>
+    )
+  }
+  return wrap(
+    'bg-slate-200/80 ring-slate-300',
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-slate-500" aria-hidden>
+      <path
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 function DayStatusGlyph({ status }: { status: DayStatus }) {
@@ -304,17 +403,28 @@ function DayScanDropdowns({
   depositOptions,
   debitOptions,
   securityOptions,
+  depositStatus,
+  debitStatus,
+  hasDeposits,
+  hasDebits,
   onOpenPreview
 }: {
   depositOptions: ScanOption[]
   debitOptions: ScanOption[]
   securityOptions: ScanOption[]
+  depositStatus: DayStatus
+  debitStatus: DayStatus
+  hasDeposits: boolean
+  hasDebits: boolean
   onOpenPreview: (url: string, label: string) => void
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-3 bg-white border-b border-slate-100">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Deposits</span>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+          Deposits
+          {hasDeposits ? <SectionStatusBadge kind="deposits" status={depositStatus} /> : null}
+        </span>
         <IconMenu
           ariaLabel="Choose a deposit slip to preview"
           icon={<IconDepositSlip className="text-blue-700" />}
@@ -328,7 +438,10 @@ function DayScanDropdowns({
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Credit &amp; debit</span>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">
+          Credit &amp; debit
+          {hasDebits ? <SectionStatusBadge kind="debit" status={debitStatus} /> : null}
+        </span>
         <IconMenu
           ariaLabel="Choose an Other Items credit or debit scan to preview"
           icon={<IconDebitCard className="text-violet-700" />}
@@ -894,9 +1007,10 @@ export default function DepositComparisonsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Recent closed shifts first. Days start collapsed — click a date to expand. Status icons: grey circle (all pending), yellow
-            (mixed), red X (discrepancy), green check (all cleared). Use each day&apos;s <strong>Deposits</strong>,{' '}
-            <strong>Credit & debit</strong>, and <strong>Security</strong> scan menus after expanding.
+            Recent closed shifts first. Days start collapsed — click a date to expand. Day status icons: grey circle (all
+            pending), yellow (mixed), red X (discrepancy), green check (all cleared). Each day also shows section badges on{' '}
+            <strong>Deposits</strong> and <strong>Credit & debit</strong> so you can see when deposits are cleared while
+            C&amp;D is still open. Use the scan menus and <strong>Security</strong> after expanding.
           </p>
         </div>
 
@@ -1047,6 +1161,9 @@ export default function DepositComparisonsPage() {
               const securityScanOptions = buildSecurityScanOptions(deposits, debits)
               const hasDiscrepancy = [...deposits, ...debits].some((r) => r.bankStatus === 'discrepancy')
               const dayStatus = getDayStatus(deposits, debits)
+              const depositStatus = getSectionStatus(deposits)
+              const debitStatus = getSectionStatus(debits)
+              const sectionProgress = daySectionProgressLine(deposits, debits)
               const isExpanded = expandedDates.has(date)
               const dayTotal =
                 deposits.reduce((sum, r) => sum + r.amount, 0) + debits.reduce((sum, r) => sum + r.amount, 0)
@@ -1090,6 +1207,9 @@ export default function DepositComparisonsPage() {
                               <span className="text-slate-600"> · {collapsedDaySummary(deposits, debits, dayTotal)}</span>
                             ) : null}
                           </p>
+                          {sectionProgress ? (
+                            <p className="text-xs font-medium text-amber-800/90 mt-1">{sectionProgress}</p>
+                          ) : null}
                         </div>
                       </button>
                       <div className="flex shrink-0 items-center gap-2">
@@ -1127,20 +1247,28 @@ export default function DepositComparisonsPage() {
                         depositOptions={depositScanOptions}
                         debitOptions={debitScanOptions}
                         securityOptions={securityScanOptions}
+                        depositStatus={depositStatus}
+                        debitStatus={debitStatus}
+                        hasDeposits={deposits.length > 0}
+                        hasDebits={debits.length > 0}
                         onOpenPreview={(url, title) => setScanPreview({ url, title })}
                       />
 
                       <div className="divide-y divide-slate-100">
                         {deposits.length > 0 ? (
                           <div className="p-3 md:p-4">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Deposits</h3>
+                            <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                              Deposits
+                              <SectionStatusBadge kind="deposits" status={depositStatus} />
+                            </h3>
                             <ItemTable rows={deposits} savingKey={savingKey} onPatch={patchRow} />
                           </div>
                         ) : null}
                         {debits.length > 0 ? (
                           <div className="p-3 md:p-4 bg-slate-50/50">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                            <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                               Other Items — credit &amp; debit (end-of-day sheet)
+                              <SectionStatusBadge kind="debit" status={debitStatus} />
                             </h3>
                             <ItemTable rows={debits} savingKey={savingKey} onPatch={patchRow} />
                           </div>
