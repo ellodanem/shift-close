@@ -4,11 +4,16 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import {
+  VendorQuickEditInvoiceModal,
+  type VendorQuickEditInvoice
+} from './VendorQuickEditInvoiceModal'
 
 interface Vendor {
   id: string
   name: string
   notificationEmail: string
+  isVatRegistered?: boolean
 }
 
 interface VendorInvoice {
@@ -19,6 +24,7 @@ interface VendorInvoice {
   dueDate: string | null
   vat: number | null
   status: string
+  notes?: string | null
 }
 
 function formatDate(d: string | null) {
@@ -80,6 +86,7 @@ export function VendorMakePaymentModal({
     netBalance: number
   } | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [editingInvoice, setEditingInvoice] = useState<VendorQuickEditInvoice | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -90,6 +97,7 @@ export function VendorMakePaymentModal({
     setAddToCashbook(true)
     setSelectedVendorId(initialVendorId)
     setProcessing(false)
+    setEditingInvoice(null)
   }, [open, initialVendorId])
 
   useEffect(() => {
@@ -182,7 +190,28 @@ export function VendorMakePaymentModal({
     setSelectedInvoiceIds(newSelected)
   }
 
+  const handleQuickEditSaved = (updated: VendorQuickEditInvoice) => {
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.id === updated.id
+          ? {
+              ...inv,
+              invoiceNumber: updated.invoiceNumber,
+              amount: updated.amount,
+              invoiceDate: updated.invoiceDate,
+              dueDate: updated.dueDate,
+              vat: updated.vat,
+              notes: updated.notes
+            }
+          : inv
+      )
+    )
+    setEditingInvoice(null)
+  }
+
   const pendingInvoices = invoices.filter((i) => i.status === 'pending')
+  const selectedVendor = vendors.find((v) => v.id === selectedVendorId)
+  const editingIsVatRegistered = Boolean(selectedVendor?.isVatRegistered)
 
   const handleSelectAll = () => {
     if (selectedInvoiceIds.size === pendingInvoices.length) {
@@ -461,6 +490,7 @@ export function VendorMakePaymentModal({
                             <th className="pb-2 text-right">Amount</th>
                             <th className="pb-2 text-right">VAT</th>
                             <th className="pb-2 text-right">Total</th>
+                            <th className="pb-2 text-right">Edit</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -486,6 +516,26 @@ export function VendorMakePaymentModal({
                               </td>
                               <td className="py-2 text-right font-medium">
                                 {formatAmount(invoiceTotal(inv))}
+                              </td>
+                              <td className="py-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingInvoice({
+                                      id: inv.id,
+                                      invoiceNumber: inv.invoiceNumber,
+                                      amount: inv.amount,
+                                      invoiceDate: inv.invoiceDate,
+                                      dueDate: inv.dueDate,
+                                      vat: inv.vat,
+                                      notes: inv.notes
+                                    })
+                                  }
+                                  disabled={processing}
+                                  className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                >
+                                  Edit
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -545,6 +595,14 @@ export function VendorMakePaymentModal({
           </>
         )}
       </div>
+
+      <VendorQuickEditInvoiceModal
+        open={editingInvoice != null}
+        invoice={editingInvoice}
+        isVatRegistered={editingIsVatRegistered}
+        onClose={() => setEditingInvoice(null)}
+        onSaved={handleQuickEditSaved}
+      />
     </div>
   )
 }

@@ -5,6 +5,10 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import html2canvas from 'html2canvas'
+import {
+  FuelQuickEditInvoiceModal,
+  type FuelQuickEditInvoice
+} from './FuelQuickEditInvoiceModal'
 
 interface Invoice {
   id: string
@@ -14,6 +18,7 @@ interface Invoice {
   invoiceDate: string
   dueDate: string
   status: string
+  notes?: string | null
 }
 
 interface Simulation {
@@ -61,6 +66,7 @@ export function FuelMakePaymentModal({
   const imageRef = useRef<HTMLDivElement>(null)
   const [balance, setBalance] = useState<{ availableFunds: number; balanceAfter: number } | null>(null)
   const [otherUnpaidInvoices, setOtherUnpaidInvoices] = useState<Invoice[]>([])
+  const [editingInvoice, setEditingInvoice] = useState<FuelQuickEditInvoice | null>(null)
 
   const fetchInvoices = async () => {
     setLoading(true)
@@ -100,6 +106,7 @@ export function FuelMakePaymentModal({
     setProcessing(false)
     setSimulation(null)
     setSimulatedKey('')
+    setEditingInvoice(null)
     void fetchInvoices()
   }, [open, initialSelectedCsv])
 
@@ -133,6 +140,28 @@ export function FuelMakePaymentModal({
     if (next.has(invoiceId)) next.delete(invoiceId)
     else next.add(invoiceId)
     setSelectedInvoiceIds(next)
+  }
+
+  const handleQuickEditSaved = (updated: FuelQuickEditInvoice) => {
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.id === updated.id
+          ? {
+              ...inv,
+              invoiceNumber: updated.invoiceNumber,
+              amount: updated.amount,
+              type: updated.type,
+              invoiceDate: updated.invoiceDate,
+              dueDate: updated.dueDate,
+              notes: updated.notes
+            }
+          : inv
+      )
+    )
+    // Force simulation refresh — same IDs can still have new amounts/numbers
+    setSimulation(null)
+    setSimulatedKey('')
+    setEditingInvoice(null)
   }
 
   const handleSelectAll = () => {
@@ -488,6 +517,9 @@ export function FuelMakePaymentModal({
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
                     </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Edit
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -521,6 +553,26 @@ export function FuelMakePaymentModal({
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {invoice.type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingInvoice({
+                                id: invoice.id,
+                                invoiceNumber: invoice.invoiceNumber,
+                                amount: invoice.amount,
+                                type: invoice.type,
+                                invoiceDate: invoice.invoiceDate,
+                                dueDate: invoice.dueDate,
+                                notes: invoice.notes
+                              })
+                            }
+                            disabled={processing}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
                         </td>
                       </tr>
                     )
@@ -762,6 +814,13 @@ export function FuelMakePaymentModal({
           </div>
         )}
       </div>
+
+      <FuelQuickEditInvoiceModal
+        open={editingInvoice != null}
+        invoice={editingInvoice}
+        onClose={() => setEditingInvoice(null)}
+        onSaved={handleQuickEditSaved}
+      />
     </div>
   )
 }
