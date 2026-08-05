@@ -12,6 +12,7 @@ import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH } from '@/lib/scans-mobile'
 import { formatAppUserDisplayName } from '@/lib/roles'
 import OperationsChecklistPanel from './OperationsChecklistPanel'
+import RentDueBanner from './RentDueBanner'
 
 export default function LayoutWrapper({
   children
@@ -40,6 +41,7 @@ export default function LayoutWrapper({
     <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50">
       <AppNav />
       <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
+        <RentDueBanner />
         {!loading && user && (
           <header className="flex h-11 shrink-0 items-center justify-end gap-3 border-b border-gray-200 bg-white px-3 sm:px-4">
             <span className="truncate text-sm text-gray-700 max-w-[60vw] sm:max-w-md" title={user.email}>
