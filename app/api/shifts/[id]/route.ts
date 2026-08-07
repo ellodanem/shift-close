@@ -150,7 +150,7 @@ export async function PATCH(
         'systemCash', 'systemChecks', 'systemCredit', 'systemDebit', 'otherCredit',
         'systemInhouse', 'systemFleet', 'systemMassyCoupons',
         'countCash', 'countChecks', 'countCredit', 'countInhouse', 'countFleet', 'countMassyCoupons',
-        'unleaded', 'diesel', 'deposits', 'notes',
+        'unleaded', 'diesel', 'deposits', 'depositBagNumbers', 'notes',
         'overShortExplanation'
       ]
       
@@ -158,6 +158,25 @@ export async function PATCH(
         if (field in body) {
           if (field === 'deposits') {
             updateData.deposits = typeof body.deposits === 'string' ? body.deposits : JSON.stringify(body.deposits)
+          } else if (field === 'depositBagNumbers') {
+            const bags = Array.isArray(body.depositBagNumbers)
+              ? body.depositBagNumbers
+                  .map((b: unknown) => String(b ?? '').trim())
+                  .filter((b: string) => b.length > 0)
+                  .slice(0, 4)
+              : typeof body.depositBagNumbers === 'string'
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(body.depositBagNumbers)
+                      return Array.isArray(parsed)
+                        ? parsed.map((b: unknown) => String(b ?? '').trim()).filter((b: string) => b.length > 0).slice(0, 4)
+                        : []
+                    } catch {
+                      return []
+                    }
+                  })()
+                : []
+            updateData.depositBagNumbers = JSON.stringify(bags)
           } else if (['systemCash', 'systemChecks', 'systemCredit', 'systemDebit', 'otherCredit', 
                        'systemInhouse', 'systemFleet', 'systemMassyCoupons',
                        'countCash', 'countChecks', 'countCredit', 'countInhouse', 'countFleet', 'countMassyCoupons',
@@ -190,7 +209,7 @@ export async function PATCH(
         'systemCash', 'systemChecks', 'systemCredit', 'systemDebit', 'otherCredit',
         'systemInhouse', 'systemFleet', 'systemMassyCoupons',
         'countCash', 'countChecks', 'countCredit', 'countInhouse', 'countFleet', 'countMassyCoupons',
-        'unleaded', 'diesel', 'deposits', 'notes',
+        'unleaded', 'diesel', 'deposits', 'depositBagNumbers', 'notes',
         'overShortExplanation'
       ]
       
@@ -205,6 +224,30 @@ export async function PATCH(
             const oldDeposits = typeof oldValue === 'string' ? oldValue : JSON.stringify(oldValue || [])
             if (oldDeposits !== newValue) {
               changes.push({ field, oldValue: oldDeposits, newValue })
+            }
+          } else if (field === 'depositBagNumbers') {
+            const bags = Array.isArray(body.depositBagNumbers)
+              ? body.depositBagNumbers
+                  .map((b: unknown) => String(b ?? '').trim())
+                  .filter((b: string) => b.length > 0)
+                  .slice(0, 4)
+              : typeof body.depositBagNumbers === 'string'
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(body.depositBagNumbers)
+                      return Array.isArray(parsed)
+                        ? parsed.map((b: unknown) => String(b ?? '').trim()).filter((b: string) => b.length > 0).slice(0, 4)
+                        : []
+                    } catch {
+                      return []
+                    }
+                  })()
+                : []
+            newValue = JSON.stringify(bags)
+            updateData.depositBagNumbers = newValue
+            const oldBags = typeof oldValue === 'string' ? oldValue : JSON.stringify(oldValue || [])
+            if (oldBags !== newValue) {
+              changes.push({ field, oldValue: oldBags, newValue })
             }
           } else if (['systemCash', 'systemChecks', 'systemCredit', 'systemDebit', 'otherCredit', 
                        'systemInhouse', 'systemFleet', 'systemMassyCoupons',

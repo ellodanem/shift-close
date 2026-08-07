@@ -6,6 +6,7 @@ import { ShiftType, ShiftCloseInput, ShiftStatus } from '@/lib/types'
 import { calculateShiftClose, getMissingFields, canCloseShift } from '@/lib/calculations'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
+import { MAX_DEPOSIT_BAGS, normalizeBagNumbers } from '@/lib/deposit-comparison-rows'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
@@ -33,6 +34,7 @@ export default function NewShiftPage() {
     unleaded: 0,
     diesel: 0,
     deposits: [0],
+    depositBagNumbers: [''],
     notes: '',
     depositScanUrls: [] as string[],
     debitScanUrls: [] as string[],
@@ -68,7 +70,14 @@ export default function NewShiftPage() {
     if (savedDraft) {
       try {
         const draft = JSON.parse(savedDraft)
-        setFormData(draft)
+        setFormData({
+          ...draft,
+          depositBagNumbers: Array.isArray(draft.depositBagNumbers)
+            ? draft.depositBagNumbers.length > 0
+              ? draft.depositBagNumbers
+              : ['']
+            : ['']
+        })
         setHasDraft(true)
       } catch (error) {
         console.error('Error loading draft:', error)
@@ -182,6 +191,7 @@ export default function NewShiftPage() {
         deposits: formData.deposits
           .map(d => safeNum(d))
           .filter(d => d > 0), // Remove 0 values (empty/placeholder deposits)
+        depositBagNumbers: normalizeBagNumbers(formData.depositBagNumbers),
         notes: formData.notes,
         depositScanUrls: formData.depositScanUrls,
         debitScanUrls: formData.debitScanUrls,
@@ -239,6 +249,7 @@ export default function NewShiftPage() {
       unleaded: 0,
       diesel: 0,
       deposits: [0],
+      depositBagNumbers: [''],
       notes: '',
       depositScanUrls: [],
       debitScanUrls: [],
@@ -259,6 +270,26 @@ export default function NewShiftPage() {
       ...formData,
       deposits: formData.deposits.filter((_, i) => i !== index)
     })
+  }
+
+  const addBag = () => {
+    if (formData.depositBagNumbers.length < MAX_DEPOSIT_BAGS) {
+      setFormData({ ...formData, depositBagNumbers: [...formData.depositBagNumbers, ''] })
+    }
+  }
+
+  const removeBag = (index: number) => {
+    const next = formData.depositBagNumbers.filter((_, i) => i !== index)
+    setFormData({
+      ...formData,
+      depositBagNumbers: next.length > 0 ? next : ['']
+    })
+  }
+
+  const updateBag = (index: number, value: string) => {
+    const next = [...formData.depositBagNumbers]
+    next[index] = value
+    setFormData({ ...formData, depositBagNumbers: next })
   }
   
   const updateDeposit = (index: number, value: number | typeof Number.NaN) => {
@@ -661,6 +692,44 @@ export default function NewShiftPage() {
                 <div className="border border-gray-300 px-4 py-2 text-right font-semibold">
                   {calculated.totalDeposits.toFixed(2)}
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="bg-slate-100 px-4 py-2 font-semibold mb-1">Night deposit bags</h3>
+                <p className="text-xs text-slate-500 mb-2 px-1">
+                  Optional. Usually one bag for the shift; add a second when needed. Applies to all deposits above.
+                </p>
+                {formData.depositBagNumbers.map((bag, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <label className="bg-slate-200 px-4 py-2 min-w-[100px]">Bag {index + 1}</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={bag}
+                      onChange={(e) => updateBag(index, e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-3 py-2 font-mono text-sm"
+                      placeholder="Bag number (optional)"
+                    />
+                    {formData.depositBagNumbers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeBag(index)}
+                        className="px-3 py-2 bg-red-500 text-white rounded"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {formData.depositBagNumbers.length < MAX_DEPOSIT_BAGS && (
+                  <button
+                    type="button"
+                    onClick={addBag}
+                    className="mt-1 px-4 py-2 bg-slate-500 text-white rounded text-sm"
+                  >
+                    + Add bag
+                  </button>
+                )}
               </div>
             </div>
             

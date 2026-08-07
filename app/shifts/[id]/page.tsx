@@ -12,6 +12,7 @@ import {
 } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
+import { MAX_DEPOSIT_BAGS, normalizeBagNumbers, parseBagNumbers } from '@/lib/deposit-comparison-rows'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -37,6 +38,7 @@ interface Shift {
   unleaded: number
   diesel: number
   deposits: string
+  depositBagNumbers?: string
   notes: string
   depositScanUrls: string
   debitScanUrls: string
@@ -123,6 +125,7 @@ export default function ShiftDetailPage() {
     unleaded: 0,
     diesel: 0,
     deposits: [] as number[],
+    depositBagNumbers: [''] as string[],
     notes: ''
   })
   
@@ -146,6 +149,7 @@ export default function ShiftDetailPage() {
           setEditedNotes(data.notes || '')
           // Initialize editData when shift loads
           const deposits = JSON.parse(data.deposits || '[]')
+          const bagNumbers = parseBagNumbers(data.depositBagNumbers)
           setEditData({
             date: data.date || '',
             shift: data.shift || '',
@@ -168,6 +172,7 @@ export default function ShiftDetailPage() {
             unleaded: data.unleaded || 0,
             diesel: data.diesel || 0,
             deposits: deposits,
+            depositBagNumbers: bagNumbers.length > 0 ? bagNumbers : [''],
             notes: data.notes || ''
           })
           setSupervisorId((data as any).supervisorId || '')
@@ -180,6 +185,9 @@ export default function ShiftDetailPage() {
               try {
                 const draft = JSON.parse(savedDraft)
                 if (draft.id === data.id) {
+                  const draftBags = Array.isArray(draft.depositBagNumbers)
+                    ? draft.depositBagNumbers
+                    : bagNumbers
                   setEditData({
                     date: draft.date || data.date || '',
                     shift: draft.shift || data.shift || '',
@@ -202,6 +210,8 @@ export default function ShiftDetailPage() {
                     unleaded: draft.unleaded ?? data.unleaded ?? 0,
                     diesel: draft.diesel ?? data.diesel ?? 0,
                     deposits: draft.deposits || deposits,
+                    depositBagNumbers:
+                      Array.isArray(draftBags) && draftBags.length > 0 ? draftBags : [''],
                     notes: draft.notes ?? data.notes ?? ''
                   })
                   if (draft.hasMissingHardCopyData !== undefined) setHasMissingHardCopyData(draft.hasMissingHardCopyData)
@@ -373,7 +383,8 @@ export default function ShiftDetailPage() {
         body: JSON.stringify({
           ...editData,
           supervisorId: supervisorId || null,
-          deposits: JSON.stringify(editData.deposits)
+          deposits: JSON.stringify(editData.deposits),
+          depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers)
         })
       })
       if (res.ok) {
@@ -425,6 +436,7 @@ export default function ShiftDetailPage() {
           ...editData,
           supervisorId: supervisorId || null,
           deposits: JSON.stringify(editData.deposits),
+          depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers),
           status: statusToSet
         })
       })
@@ -509,7 +521,8 @@ export default function ShiftDetailPage() {
                         body: JSON.stringify({
                           ...editData,
                           supervisorId: supervisorId || null,
-                          deposits: JSON.stringify(editData.deposits)
+                          deposits: JSON.stringify(editData.deposits),
+                          depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers)
                         })
                       })
                       if (res.ok) {
@@ -548,6 +561,7 @@ export default function ShiftDetailPage() {
                           ...recloseData,
                           supervisorId: supervisorId || null,
                           deposits: JSON.stringify(recloseData.deposits),
+                          depositBagNumbers: normalizeBagNumbers(recloseData.depositBagNumbers),
                           status: 'closed'
                         })
                       })
@@ -1071,6 +1085,66 @@ export default function ShiftDetailPage() {
                   (shift.totalDeposits || 0).toFixed(2)
                 )}
               </div>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="bg-slate-100 px-4 py-2 font-semibold mb-1">Night deposit bags</h3>
+              <p className="text-xs text-slate-500 mb-2 px-1">
+                Optional. Shift-level bag number(s) — covers all deposits above.
+              </p>
+              {(isEditable ? editData.depositBagNumbers : (() => {
+                const bags = parseBagNumbers(shift.depositBagNumbers)
+                return bags.length > 0 ? bags : ['—']
+              })()).map((bag: string, index: number) => (
+                <div key={index} className="mb-2 flex gap-2 items-center">
+                  <label className="bg-slate-200 px-4 py-2 min-w-[100px] inline-block">Bag {index + 1}</label>
+                  {isEditable ? (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={bag}
+                      onChange={(e) => {
+                        const next = [...editData.depositBagNumbers]
+                        next[index] = e.target.value
+                        setEditData({ ...editData, depositBagNumbers: next })
+                      }}
+                      className="ml-0 border border-gray-300 rounded px-2 py-1 flex-1 font-mono text-sm bg-white"
+                      placeholder="Bag number (optional)"
+                    />
+                  ) : (
+                    <span className="ml-2 px-2 py-1 inline-block font-mono text-sm">{bag}</span>
+                  )}
+                  {isEditable && editData.depositBagNumbers.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = editData.depositBagNumbers.filter((_, i) => i !== index)
+                        setEditData({
+                          ...editData,
+                          depositBagNumbers: next.length > 0 ? next : ['']
+                        })
+                      }}
+                      className="px-2 py-1 bg-red-500 text-white rounded text-sm"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isEditable && editData.depositBagNumbers.length < MAX_DEPOSIT_BAGS && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditData({
+                      ...editData,
+                      depositBagNumbers: [...editData.depositBagNumbers, '']
+                    })
+                  }
+                  className="text-slate-600 text-sm mt-1"
+                >
+                  + Add bag
+                </button>
+              )}
             </div>
           </div>
           

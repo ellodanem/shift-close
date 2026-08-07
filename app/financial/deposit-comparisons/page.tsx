@@ -33,6 +33,8 @@ interface Row {
   /** True when this row aggregates all shifts that calendar day (one credit/debit reconciliation per date). */
   debitDayAggregate?: boolean
   contributingShifts?: Array<{ shiftId: string; shift: string }>
+  /** Shift-level night deposit bag number(s); on deposit rows only. */
+  bagNumbers?: string[]
   scanUrls: string[]
   securitySlipUrl: string | null
   bankStatus: BankStatus
@@ -284,7 +286,8 @@ function computeTotals(rows: Row[]): Totals {
 function applyClientFilters(
   rows: Row[],
   hideCleared: boolean,
-  statusFilter: BankStatus | 'all'
+  statusFilter: BankStatus | 'all',
+  bagQuery = ''
 ): Row[] {
   let out = rows
   if (hideCleared) {
@@ -305,6 +308,22 @@ function applyClientFilters(
   }
   if (statusFilter !== 'all') {
     out = out.filter((r) => r.bankStatus === statusFilter)
+  }
+  const needle = bagQuery.trim().toLowerCase()
+  if (needle) {
+    const matchDates = new Set<string>()
+    for (const r of out) {
+      if (r.recordKind !== 'deposit') continue
+      const bags = r.bagNumbers ?? []
+      if (bags.some((b) => b.toLowerCase().includes(needle))) {
+        matchDates.add(r.date)
+      }
+    }
+    out = out.filter((r) => {
+      if (!matchDates.has(r.date)) return false
+      if (r.recordKind === 'debit') return true
+      return (r.bagNumbers ?? []).some((b) => b.toLowerCase().includes(needle))
+    })
   }
   return out
 }
@@ -848,6 +867,7 @@ export default function DepositComparisonsPage() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set())
   const prevFullyClearedRef = useRef<Map<string, boolean>>(new Map())
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]['value']>('all')
+  const [bagQuery, setBagQuery] = useState('')
   const [useDateRange, setUseDateRange] = useState(false)
   const todayStr = useMemo(() => ymd(new Date()), [])
   const [from, setFrom] = useState(() => {
@@ -919,11 +939,16 @@ export default function DepositComparisonsPage() {
     void load()
   }, [load])
 
-  const totals = useMemo(() => computeTotals(rows), [rows])
+  const displayRows = useMemo(
+    () => applyClientFilters(rows, false, 'all', bagQuery),
+    [rows, bagQuery]
+  )
+
+  const totals = useMemo(() => computeTotals(displayRows), [displayRows])
 
   const byDate = useMemo(() => {
     const m = new Map<string, Row[]>()
-    for (const r of rows) {
+    for (const r of displayRows) {
       if (!m.has(r.date)) m.set(r.date, [])
       m.get(r.date)!.push(r)
     }
@@ -933,7 +958,7 @@ export default function DepositComparisonsPage() {
       deposits: (m.get(date) ?? []).filter((x) => x.recordKind === 'deposit'),
       debits: (m.get(date) ?? []).filter((x) => x.recordKind === 'debit')
     }))
-  }, [rows])
+  }, [displayRows])
 
   useEffect(() => {
     setExpandedDates((prev) => {
@@ -1039,6 +1064,19 @@ export default function DepositComparisonsPage() {
               <span className="text-sm text-slate-600" title="Current filter">
                 {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All'}
               </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 min-w-[12rem] flex-1">
+              <label htmlFor="bag-search" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                Bag #
+              </label>
+              <input
+                id="bag-search"
+                type="search"
+                value={bagQuery}
+                onChange={(e) => setBagQuery(e.target.value)}
+                placeholder="Search bag number…"
+                className="flex-1 min-w-[10rem] max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Load</label>
@@ -1310,6 +1348,7 @@ function ItemTable({
             <th className="px-2 py-2 pr-3">Shift</th>
             <th className="px-2 py-2">Who</th>
             <th className="px-2 py-2">Detail</th>
+            <th className="px-2 py-2">Bag #</th>
             <th className="px-2 py-2 text-right">Amount</th>
             <th className="px-2 py-2">Bank</th>
             <th className="px-2 py-2 min-w-[8rem]">Notes</th>
@@ -1320,6 +1359,7 @@ function ItemTable({
           {rows.map((r) => {
             const key = rowKey(r)
             const busy = savingKey === key
+            const bags = r.bagNumbers ?? []
             return (
               <tr key={key} className="align-middle hover:bg-slate-50/80">
                 <td className="px-2 py-2.5 text-slate-900 whitespace-nowrap font-medium">{r.shift}</td>
@@ -1336,6 +1376,17 @@ function ItemTable({
                     >
                       O.I.
                     </span>
+                  )}
+                </td>
+                <td className="px-2 py-2.5 text-slate-700 text-xs font-mono max-w-[9rem]">
+                  {r.recordKind === 'deposit' ? (
+                    bags.length > 0 ? (
+                      <span title={bags.join(', ')}>{bags.join(', ')}</span>
+                    ) : (
+                      <span className="text-slate-400 font-sans">—</span>
+                    )
+                  ) : (
+                    <span className="text-slate-400 font-sans">—</span>
                   )}
                 </td>
                 <td className="px-2 py-2.5 text-right text-slate-900">

@@ -143,6 +143,10 @@ model ShiftClose {
   // Deposits (stored as JSON string, parsed in app)
   deposits String // JSON array of numbers
 
+  /// Night deposit bag number(s) for the whole shift (JSON string[]; optional; typically 1–2).
+  /// All deposit lines on the shift are covered by these bags — not 1:1 with deposit lines.
+  depositBagNumbers String @default("[]") @map("deposit_bag_numbers")
+
   // Derived (computed)
   overShortCash  Float? @map("over_short_cash")
   overShortTotal Float? @map("over_short_total")

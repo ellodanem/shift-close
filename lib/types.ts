@@ -28,6 +28,8 @@ export interface ShiftCloseInput {
   unleaded: number
   diesel: number
   deposits: number[]
+  /** Optional night deposit bag number(s) for the shift (all deposits share these). */
+  depositBagNumbers?: string[]
   notes: string
   depositScanUrls?: string[]
   debitScanUrls?: string[]

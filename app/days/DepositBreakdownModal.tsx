@@ -355,6 +355,12 @@ export default function DepositBreakdownModal({
                         <div>
                           <span className="font-semibold text-gray-900">{shift.shift} Shift</span>
                           <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
+                          {Array.isArray(shift.depositBagNumbers) && shift.depositBagNumbers.length > 0 ? (
+                            <div className="mt-0.5 text-xs text-slate-500 font-mono">
+                              Bag{shift.depositBagNumbers.length > 1 ? 's' : ''}:{' '}
+                              {shift.depositBagNumbers.join(', ')}
+                            </div>
+                          ) : null}
                         </div>
                         <span className="text-sm font-semibold text-gray-700">
                           Subtotal: {formatCurrency(shift.totalDeposits || 0)}

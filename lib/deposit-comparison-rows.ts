@@ -18,10 +18,42 @@ export type ComparisonRow = {
   otherCredit?: number
   debitDayAggregate?: boolean
   contributingShifts?: Array<{ shiftId: string; shift: string }>
+  /** Shift-level night deposit bag number(s); repeated on each deposit line for that shift. */
+  bagNumbers: string[]
   scanUrls: string[]
   securitySlipUrl: string | null
   bankStatus: BankStatus
   notes: string
+}
+
+/** Max bag numbers captured per shift (ops usually use 1–2). */
+export const MAX_DEPOSIT_BAGS = 4
+
+/** Parse JSON bag list from ShiftClose.depositBagNumbers (or pass-through array). */
+export function parseBagNumbers(raw: string | string[] | null | undefined): string[] {
+  if (Array.isArray(raw)) {
+    return normalizeBagNumbers(raw)
+  }
+  try {
+    const arr = JSON.parse(raw || '[]')
+    return Array.isArray(arr) ? normalizeBagNumbers(arr) : []
+  } catch {
+    return []
+  }
+}
+
+/** Trim, drop empties, cap length — empty list is valid (bags are optional). */
+export function normalizeBagNumbers(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  const out: string[] = []
+  for (const item of input) {
+    if (typeof item !== 'string' && typeof item !== 'number') continue
+    const s = String(item).trim()
+    if (!s) continue
+    out.push(s)
+    if (out.length >= MAX_DEPOSIT_BAGS) break
+  }
+  return out
 }
 
 export type ShiftWithDepositRecords = ShiftClose & { depositRecords: DepositRecord[] }
@@ -72,6 +104,7 @@ export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[])
 
   for (const s of shifts) {
     const amounts = parseDeposits(s.deposits)
+    const bagNumbers = parseBagNumbers(s.depositBagNumbers)
     const depositScanUrls = parseUrlList(s.depositScanUrls)
     const debitScanUrls = parseUrlList(s.debitScanUrls)
     const daySheetDebit = Number(s.systemDebit) || 0
@@ -92,6 +125,7 @@ export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[])
         recordKind: 'deposit',
         lineIndex: i,
         amount: amounts[i],
+        bagNumbers,
         scanUrls: depositScanUrls,
         securitySlipUrl,
         bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
@@ -157,6 +191,7 @@ export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[])
       otherCredit: bucket.sumOtherCredit,
       debitDayAggregate: true,
       contributingShifts: bucket.shifts.map((x) => ({ shiftId: x.id, shift: x.shift })),
+      bagNumbers: [],
       scanUrls: bucket.scanUrls,
       securitySlipUrl,
       bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',

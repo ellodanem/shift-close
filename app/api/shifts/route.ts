@@ -91,6 +91,14 @@ export async function POST(request: NextRequest) {
         unleaded: Number(body.unleaded) || 0,
         diesel: Number(body.diesel) || 0,
         deposits: JSON.stringify(Array.isArray(body.deposits) ? body.deposits : []),
+        depositBagNumbers: JSON.stringify(
+          Array.isArray(body.depositBagNumbers)
+            ? body.depositBagNumbers
+                .map((b: unknown) => String(b ?? '').trim())
+                .filter((b: string) => b.length > 0)
+                .slice(0, 4)
+            : []
+        ),
         notes: String(body.notes || ''),
         depositScanUrls: JSON.stringify(depositUrls),
         debitScanUrls: JSON.stringify(debitUrls),

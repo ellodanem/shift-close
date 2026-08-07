@@ -190,6 +190,17 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
         unleaded: s.unleaded,
         diesel: s.diesel,
         deposits: JSON.parse(s.deposits),
+        depositBagNumbers: (() => {
+          try {
+            const raw = (s as { depositBagNumbers?: string }).depositBagNumbers
+            const arr = JSON.parse(raw || '[]')
+            return Array.isArray(arr)
+              ? arr.map((b) => String(b ?? '').trim()).filter((b: string) => b.length > 0)
+              : []
+          } catch {
+            return []
+          }
+        })(),
         notes: s.notes,
         overShortCash: s.overShortCash || 0,
         overShortTotal: s.overShortTotal || 0,
