@@ -12,7 +12,7 @@ import {
 } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
-import { MAX_DEPOSIT_BAGS, normalizeBagNumbers, parseBagNumbers } from '@/lib/deposit-comparison-rows'
+import { MAX_DEPOSIT_BAGS, normalizeBagNumbers, parseBagNumbers, parseDeposits } from '@/lib/deposit-comparison-rows'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -148,7 +148,7 @@ export default function ShiftDetailPage() {
           // Initialize edited notes
           setEditedNotes(data.notes || '')
           // Initialize editData when shift loads
-          const deposits = JSON.parse(data.deposits || '[]')
+          const deposits = parseDeposits(typeof data.deposits === 'string' ? data.deposits : JSON.stringify(data.deposits ?? []))
           const bagNumbers = parseBagNumbers(data.depositBagNumbers)
           setEditData({
             date: data.date || '',
@@ -171,7 +171,7 @@ export default function ShiftDetailPage() {
             countMassyCoupons: data.countMassyCoupons || 0,
             unleaded: data.unleaded || 0,
             diesel: data.diesel || 0,
-            deposits: deposits,
+            deposits,
             depositBagNumbers: bagNumbers.length > 0 ? bagNumbers : [''],
             notes: data.notes || ''
           })
@@ -209,7 +209,7 @@ export default function ShiftDetailPage() {
                     countMassyCoupons: draft.countMassyCoupons ?? data.countMassyCoupons ?? 0,
                     unleaded: draft.unleaded ?? data.unleaded ?? 0,
                     diesel: draft.diesel ?? data.diesel ?? 0,
-                    deposits: draft.deposits || deposits,
+                    deposits: parseDeposits(JSON.stringify(Array.isArray(draft.deposits) ? draft.deposits : [])),
                     depositBagNumbers:
                       Array.isArray(draftBags) && draftBags.length > 0 ? draftBags : [''],
                     notes: draft.notes ?? data.notes ?? ''
@@ -312,7 +312,7 @@ export default function ShiftDetailPage() {
     }
   }, [editData, shift?.id, hasMissingHardCopyData, missingDataNotes])
   
-  const deposits = shift ? JSON.parse(shift.deposits) : []
+  const deposits = shift ? parseDeposits(typeof shift.deposits === 'string' ? shift.deposits : JSON.stringify((shift as any).deposits ?? [])) : []
   const rawOverShort = shift ? shift.overShortTotal || 0 : 0
   const displayOverShort = shift ? getListDisplayOverShort(shift) : 0
   const hasRedFlag = shift
@@ -1055,7 +1055,9 @@ export default function ShiftDetailPage() {
                         const v = e.target.value
                         const n = parseFloat(v)
                         const newDeposits = [...editData.deposits]
-                        newDeposits[index] = v === '' || Number.isNaN(n) ? (Number.NaN as any) : n
+                        // Important: never persist `NaN` into `deposits` (JSON.stringify(NaN) => null),
+                        // because later we render non-editable shifts with `deposit.toFixed(2)`.
+                        newDeposits[index] = v === '' || Number.isNaN(n) ? 0 : n
                         setEditData({ ...editData, deposits: newDeposits })
                       }}
                       className="ml-2 border border-gray-300 rounded px-2 py-1 w-32 text-right bg-white"
