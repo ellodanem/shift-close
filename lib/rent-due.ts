@@ -46,6 +46,9 @@ export function parseYmdParts(ymd: string): { year: number; month: number; day: 
   return { year: y, month: m, day: d }
 }
 
+const RENT_DUE_STATUS_CACHE_MS = 60_000
+let rentDueStatusCache: { at: number; status: RentDueStatus } | null = null
+
 /** Inclusive UTC noon bounds for dueDate / invoiceDate stored as date-only. */
 export function monthDueDateBounds(year: number, month: number): { gte: Date; lte: Date } {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
@@ -90,13 +93,17 @@ export async function hasRentInvoiceForMonth(year: number, month: number): Promi
 }
 
 export async function getRentDueStatus(now = new Date()): Promise<RentDueStatus> {
+  if (rentDueStatusCache && Date.now() - rentDueStatusCache.at < RENT_DUE_STATUS_CACHE_MS) {
+    return rentDueStatusCache.status
+  }
+
   const todayYmd = businessTodayYmd(now)
   const { year, month, day } = parseYmdParts(todayYmd)
   const alertFromDay = 2
   const label = monthLabel(year, month)
 
   if (day < alertFromDay) {
-    return {
+    const status: RentDueStatus = {
       due: false,
       todayYmd,
       year,
@@ -105,10 +112,12 @@ export async function getRentDueStatus(now = new Date()): Promise<RentDueStatus>
       dayOfMonth: day,
       alertFromDay
     }
+    rentDueStatusCache = { at: Date.now(), status }
+    return status
   }
 
   const hasRent = await hasRentInvoiceForMonth(year, month)
-  return {
+  const status: RentDueStatus = {
     due: !hasRent,
     todayYmd,
     year,
@@ -117,6 +126,8 @@ export async function getRentDueStatus(now = new Date()): Promise<RentDueStatus>
     dayOfMonth: day,
     alertFromDay
   }
+  rentDueStatusCache = { at: Date.now(), status }
+  return status
 }
 
 export function buildRentDueEmailHtml(status: RentDueStatus, kind: 'first' | 'daily'): string {

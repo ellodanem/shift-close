@@ -1,13 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
 
 type RentDueStatus = {
   due: boolean
   monthLabel: string
 }
+
+const POLL_MS = 5 * 60 * 1000
+/** Skip focus/tab-switch refetches that pile up on the 5-minute poll. */
+const MIN_REFETCH_MS = 2 * 60 * 1000
 
 /**
  * Sticky site-wide banner while Rubis rent is due and no matching Fuel Payments
@@ -16,10 +20,13 @@ type RentDueStatus = {
 export default function RentDueBanner() {
   const { user, loading: authLoading } = useAuth()
   const [status, setStatus] = useState<RentDueStatus | null>(null)
+  const lastLoadAtRef = useRef(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastLoadAtRef.current < MIN_REFETCH_MS) return
+    lastLoadAtRef.current = Date.now()
     try {
-      const res = await fetch('/api/rent-due/status', { cache: 'no-store' })
+      const res = await fetch('/api/rent-due/status')
       if (!res.ok) {
         setStatus(null)
         return
@@ -36,9 +43,9 @@ export default function RentDueBanner() {
       setStatus(null)
       return
     }
-    void load()
-    const id = window.setInterval(() => void load(), 5 * 60 * 1000)
-    const onFocus = () => void load()
+    void load(true)
+    const id = window.setInterval(() => void load(true), POLL_MS)
+    const onFocus = () => void load(false)
     window.addEventListener('focus', onFocus)
     return () => {
       window.clearInterval(id)

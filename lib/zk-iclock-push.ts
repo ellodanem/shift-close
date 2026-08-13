@@ -37,7 +37,19 @@ import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
  * - Default: Realtime=0 + TransInterval=3 → ~3 minute batches (not every punch).
  * - Override: `ZK_ICLOCK_REALTIME=1` for immediate upload; `ZK_ICLOCK_TRANS_INTERVAL`
  *   (minutes, default 3) when realtime is off.
+ *
+ * Command-poll cadence (`Delay`, seconds): default 120. This app never queues
+ * getrequest commands, so a 2-minute poll is enough to keep the session alive.
+ * Override with `ZK_ICLOCK_DELAY_SECONDS` (30–600). Takes effect on the next
+ * options handshake (GET /iclock/cdata, typically after a device reboot).
  */
+function parseBoundedIntEnv(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || String(raw).trim() === '') return fallback
+  const n = parseInt(String(raw).trim(), 10)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, n))
+}
+
 function buildIclockCdataHandshakeBody(serial: string): string {
   const sn = serial.trim() || 'unknown'
   const opStamp = Math.floor(Date.now() / 1000)
@@ -50,19 +62,15 @@ function buildIclockCdataHandshakeBody(serial: string): string {
   }
 
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
-  const rawInterval = process.env.ZK_ICLOCK_TRANS_INTERVAL
-  let transInterval = 3
-  if (rawInterval !== undefined && String(rawInterval).trim() !== '') {
-    const n = parseInt(String(rawInterval).trim(), 10)
-    if (Number.isFinite(n) && n >= 1) transInterval = n
-  }
+  const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
+  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, 120, 30, 600)
 
   const parts = [
     `GET OPTION FROM: ${sn}`,
     'Stamp=9999',
     `OpStamp=${opStamp}`,
     'ErrorDelay=60',
-    'Delay=30',
+    `Delay=${delaySeconds}`,
     'ResLogDay=18250',
     'ResLogDelCount=10000',
     'ResLogCount=50000',
@@ -123,13 +131,6 @@ type ParsedRow = {
   parseFallback: boolean
 }
 
-export async function zkPushGET(request: NextRequest) {
-  const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
-  const path = request.nextUrl.pathname
-  console.log(`[ADMS] GET ${path} SN=${sn}`)
-  return new NextResponse('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } })
-}
-
 /** GET /iclock/cdata — options handshake (not the same as getrequest polling). */
 export async function zkPushCDATAGET(request: NextRequest) {
   const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
@@ -140,10 +141,11 @@ export async function zkPushCDATAGET(request: NextRequest) {
       ? 'omit'
       : (process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES?.trim() || 'default-240')
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
-  const transInterval = process.env.ZK_ICLOCK_TRANS_INTERVAL?.trim() || '3'
+  const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
+  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, 120, 30, 600)
   console.log(
     `[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} ` +
-      `realtime=${realtime} transInterval=${transInterval} businessTz=${BUSINESS_TIME_ZONE}`
+      `realtime=${realtime} transInterval=${transInterval} delay=${delaySeconds} businessTz=${BUSINESS_TIME_ZONE}`
   )
   return new NextResponse(body, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }

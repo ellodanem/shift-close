@@ -107,6 +107,7 @@ function NavLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`group relative block rounded-lg font-medium transition-all ${
         nested ? 'ml-3 px-3 py-2 text-xs' : 'px-3.5 py-2.5 text-sm'
       } ${
@@ -315,7 +316,7 @@ export default function AppNav() {
   const sidebar = (
     <nav className={`flex h-full min-h-0 flex-col bg-slate-900 text-white shadow-lg shadow-slate-950/30 shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-[85vw] max-w-72 lg:w-64'}`}>
       <div className={`border-b border-slate-700/80 min-h-[64px] flex-shrink-0 flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 py-3 px-2' : 'flex-row justify-between px-4 py-3.5 gap-2'}`}>
-        <Link href="/dashboard" className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
+        <Link href="/dashboard" prefetch={false} className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
           {sidebarCollapsed ? (
             <span className="text-base font-semibold text-slate-200">SC</span>
           ) : (

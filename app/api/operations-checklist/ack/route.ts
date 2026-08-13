@@ -5,6 +5,7 @@ import { canAcknowledgeWeeklyChecklist } from '@/lib/operations-checklist-access
 import type { ChecklistAckKind } from '@/lib/operations-checklist-types'
 import { CHECKLIST_EPOCH_YMD } from '@/lib/operations-checklist-types'
 import { weekKeyMonday } from '@/lib/operations-checklist-due-dates'
+import { invalidateOperationsChecklistCache } from '@/lib/operations-checklist-data'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    invalidateOperationsChecklistCache()
     return NextResponse.json({ ok: true, acknowledgement: row })
   } catch (error) {
     console.error('operations-checklist ack POST', error)

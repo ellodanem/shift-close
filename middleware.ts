@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // getrequest is excluded from `matcher` (high-frequency poll). Log cdata/adms only.
   if (pathname.startsWith('/iclock') || pathname.startsWith('/api/attendance/adms')) {
     console.log(`[ADMS] edge ${request.method} ${pathname}${search}`)
   }
@@ -58,5 +59,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
+  // Skip the device command poll — it is public, returns OK, and is the majority of production traffic.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|iclock/getrequest).*)']
 }

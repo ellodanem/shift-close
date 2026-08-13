@@ -15,12 +15,27 @@ import {
   CHECKLIST_ENABLE_DEPOSIT_COMPARISON
 } from '@/lib/operations-checklist-types'
 
+/** Collapse remount / dual-tab bursts. Ack POST clears this. */
+const CHECKLIST_CACHE_TTL_MS = 90_000
+type ChecklistCacheEntry = { expiresAt: number; payload: OperationsChecklistPayload }
+const checklistCache = new Map<string, ChecklistCacheEntry>()
+
+export function invalidateOperationsChecklistCache() {
+  checklistCache.clear()
+}
+
 export async function loadOperationsChecklist(
   role: string,
   accessUser: OperationsChecklistUser
 ): Promise<OperationsChecklistPayload> {
   const now = new Date()
   const asOf = businessTodayYmd(now)
+  const showFinancial = canSeeFinancialChecklistItems(accessUser)
+  const cacheKey = `${asOf}:${role}:${showFinancial ? '1' : '0'}`
+  const cached = checklistCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload
+  }
   const epochWeekKey = weekKeyMonday(CHECKLIST_EPOCH_YMD)
   const latestWorkDate = addCalendarDaysYmd(asOf, -1)
   const datesInWindow =
@@ -81,11 +96,11 @@ export async function loadOperationsChecklist(
       .map((a) => a.weekKey)
   )
 
-  return buildOperationsChecklist({
+  const payload = buildOperationsChecklist({
     asOf,
     now,
     role,
-    showFinancial: canSeeFinancialChecklistItems(accessUser),
+    showFinancial,
     dayReportsByDate,
     comparisonRowsByDate,
     stationClosedDates,
@@ -107,4 +122,6 @@ export async function loadOperationsChecklist(
     vendorInvoicesTouchedThisWeek: vendorTouched,
     vendorPendingCount
   })
+  checklistCache.set(cacheKey, { expiresAt: Date.now() + CHECKLIST_CACHE_TTL_MS, payload })
+  return payload
 }

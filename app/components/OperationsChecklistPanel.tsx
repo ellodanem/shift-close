@@ -287,7 +287,7 @@ export default function OperationsChecklistPanel() {
     } finally {
       setFetching(false)
     }
-  }, [user])
+  }, [user?.id, user?.role, user?.isSuperAdmin])
 
   useEffect(() => {
     if (loading || !user || !canAccessOperationsChecklist({ role: user.role, isSuperAdmin: user.isSuperAdmin })) return
@@ -297,7 +297,7 @@ export default function OperationsChecklistPanel() {
       void load()
     }, POLL_MS)
     return () => window.clearInterval(id)
-  }, [load, loading, user])
+  }, [load, loading, user?.id, user?.role, user?.isSuperAdmin])
 
   useEffect(() => {
     const onVisible = () => {
