@@ -36,6 +36,94 @@ function getOsColor(amount: number): string {
 
 type ShiftFilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
 
+function shiftListWeight(shift: string) {
+  if (shift === '6-1') return 1
+  if (shift === '1-9') return 2
+  return 0
+}
+
+function sortShiftList(data: Shift[]): Shift[] {
+  return [...data].sort((a, b) => {
+    if (a.date !== b.date) {
+      return a.date > b.date ? -1 : 1
+    }
+    return shiftListWeight(b.shift) - shiftListWeight(a.shift)
+  })
+}
+
+function mergeShiftList(prev: Shift[], incoming: Shift[]): Shift[] {
+  const byId = new Map(prev.map((s) => [s.id, s]))
+  for (const s of incoming) byId.set(s.id, s)
+  return sortShiftList([...byId.values()])
+}
+
+function lastDayOfMonthYmd(year: number, month1to12: number): string {
+  const last = new Date(Date.UTC(year, month1to12, 0)).getUTCDate()
+  return `${year}-${String(month1to12).padStart(2, '0')}-${String(last).padStart(2, '0')}`
+}
+
+function padMonth(month: number): string {
+  return String(month).padStart(2, '0')
+}
+
+function shiftsQueryForFilter(
+  filter: ShiftFilterType,
+  customDate: string
+): { key: string; url: string } | null {
+  const todayYmd = businessTodayYmd()
+  if (filter === 'custom') {
+    if (!customDate) return null
+    return {
+      key: `custom:${customDate}`,
+      url: `/api/shifts?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`
+    }
+  }
+  if (filter === 'all') {
+    return { key: 'all:120', url: '/api/shifts?recentDays=120' }
+  }
+  const [y, m] = todayYmd.split('-').map(Number)
+  if (filter === 'thisMonth') {
+    const from = `${y}-${padMonth(m)}-01`
+    const to = lastDayOfMonthYmd(y, m)
+    return { key: `month:${from}`, url: `/api/shifts?from=${from}&to=${to}` }
+  }
+  if (filter === 'lastMonth') {
+    const ly = m === 1 ? y - 1 : y
+    const lm = m === 1 ? 12 : m - 1
+    const from = `${ly}-${padMonth(lm)}-01`
+    const to = lastDayOfMonthYmd(ly, lm)
+    return { key: `month:${from}`, url: `/api/shifts?from=${from}&to=${to}` }
+  }
+
+  const today = ymdToUtcNoonDate(todayYmd)
+  const startOfWeek = (date: Date): Date => {
+    const d = new Date(date)
+    const day = d.getDay() || 7
+    if (day !== 1) d.setDate(d.getDate() - (day - 1))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const ymd = (d: Date) => toYmdInBusinessTz(d)
+
+  if (filter === 'thisWeek') {
+    const from = ymd(startOfWeek(today))
+    const end = new Date(startOfWeek(today))
+    end.setDate(end.getDate() + 6)
+    const to = ymd(end)
+    return { key: `week:${from}`, url: `/api/shifts?from=${from}&to=${to}` }
+  }
+  if (filter === 'lastWeek') {
+    const thisWeekStart = startOfWeek(today)
+    const lastWeekEnd = new Date(thisWeekStart)
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 1)
+    const lastWeekStart = startOfWeek(lastWeekEnd)
+    const from = ymd(lastWeekStart)
+    const to = ymd(lastWeekEnd)
+    return { key: `week:${from}`, url: `/api/shifts?from=${from}&to=${to}` }
+  }
+  return null
+}
+
 export default function ShiftsPage() {
   const router = useRouter()
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -45,10 +133,12 @@ export default function ShiftsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [clearing, setClearing] = useState(false)
   const [showNotesModal, setShowNotesModal] = useState<string | null>(null) // shift ID to show notes for
-  const [activeFilter, setActiveFilter] = useState<ShiftFilterType>('all')
+  const [activeFilter, setActiveFilter] = useState<ShiftFilterType>('thisMonth')
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const [rangeLoading, setRangeLoading] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
+  const loadedRangeKeys = useRef(new Set<string>())
   // Close custom picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -67,29 +157,40 @@ export default function ShiftsPage() {
   }, [showCustomPicker])
   
   useEffect(() => {
-    fetch('/api/shifts?recentDays=120')
-      .then(res => res.json())
-      .then(data => {
-        // Sort by date desc, and for the same date put 1-9 after 6-1 (since it happens later)
-        const weight = (shift: string) => {
-          if (shift === '6-1') return 1
-          if (shift === '1-9') return 2
-          return 0
+    const query = shiftsQueryForFilter(activeFilter, customDate)
+    if (!query) return
+    if (loadedRangeKeys.current.has('all:120') && activeFilter !== 'custom') return
+    if (loadedRangeKeys.current.has(query.key)) return
+
+    let cancelled = false
+    const initial = loadedRangeKeys.current.size === 0
+    if (initial) setLoading(true)
+    else setRangeLoading(true)
+
+    fetch(query.url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (!Array.isArray(data)) {
+          console.error('Error fetching shifts:', data)
+          return
         }
-        const sorted = [...data].sort((a: Shift, b: Shift) => {
-          if (a.date !== b.date) {
-            return a.date > b.date ? -1 : 1
-          }
-          return weight(b.shift) - weight(a.shift)
-        })
-        setShifts(sorted)
-        setLoading(false)
+        loadedRangeKeys.current.add(query.key)
+        setShifts((prev) => mergeShiftList(prev, data))
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error fetching shifts:', err)
-        setLoading(false)
       })
-  }, [])
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+        setRangeLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeFilter, customDate])
 
   const formatDate = (date: Date): string => {
     return toYmdInBusinessTz(date)
@@ -340,7 +441,13 @@ export default function ShiftsPage() {
               </tr>
             </thead>
             <tbody>
-              {shifts.length === 0 ? (
+              {rangeLoading && filteredShifts.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                    Loading…
+                  </td>
+                </tr>
+              ) : shifts.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                     No shifts found. Create your first shift to get started.

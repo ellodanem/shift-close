@@ -100,27 +100,32 @@ export default function NewShiftPage() {
       })
   }, [])
 
-  // Fetch existing shifts to prevent duplicate date+shift combinations
+  // Fetch existing shifts for the selected date only (duplicate date+shift guard).
   useEffect(() => {
-    fetch('/api/shifts?recentDays=120')
-      .then(res => res.json())
-      .then(data => {
-        // Build a map of date -> shift types that already exist (any status)
-        const shiftMap = new Map<string, Set<string>>()
-        data.forEach((shift: any) => {
-          // Include all statuses: draft, closed, reviewed
-          const date = shift.date
-          if (!shiftMap.has(date)) {
-            shiftMap.set(date, new Set())
-          }
-          shiftMap.get(date)!.add(shift.shift)
+    const date = formData.date
+    if (!date) return
+    let cancelled = false
+    fetch(`/api/shifts?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !Array.isArray(data)) return
+        const types = new Set<string>()
+        data.forEach((shift: { shift: string }) => {
+          types.add(shift.shift)
         })
-        setExistingShifts(shiftMap)
+        setExistingShifts((prev) => {
+          const next = new Map(prev)
+          next.set(date, types)
+          return next
+        })
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error fetching existing shifts:', err)
       })
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [formData.date])
   
   // Auto-save draft to localStorage whenever formData changes
   useEffect(() => {

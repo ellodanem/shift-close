@@ -38,11 +38,13 @@ import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
  * - Override: `ZK_ICLOCK_REALTIME=1` for immediate upload; `ZK_ICLOCK_TRANS_INTERVAL`
  *   (minutes, default 3) when realtime is off.
  *
- * Command-poll cadence (`Delay`, seconds): default 120. This app never queues
- * getrequest commands, so a 2-minute poll is enough to keep the session alive.
+ * Command-poll cadence (`Delay`, seconds): default 300. This app never queues
+ * getrequest commands, so a 5-minute poll is enough to keep the session alive.
  * Override with `ZK_ICLOCK_DELAY_SECONDS` (30–600). Takes effect on the next
  * options handshake (GET /iclock/cdata, typically after a device reboot).
  */
+const DEFAULT_ICLOCK_DELAY_SECONDS = 300
+
 function parseBoundedIntEnv(raw: string | undefined, fallback: number, min: number, max: number): number {
   if (raw === undefined || String(raw).trim() === '') return fallback
   const n = parseInt(String(raw).trim(), 10)
@@ -63,7 +65,7 @@ function buildIclockCdataHandshakeBody(serial: string): string {
 
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
   const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
-  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, 120, 30, 600)
+  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, DEFAULT_ICLOCK_DELAY_SECONDS, 30, 600)
 
   const parts = [
     `GET OPTION FROM: ${sn}`,
@@ -142,7 +144,7 @@ export async function zkPushCDATAGET(request: NextRequest) {
       : (process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES?.trim() || 'default-240')
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
   const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
-  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, 120, 30, 600)
+  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, DEFAULT_ICLOCK_DELAY_SECONDS, 30, 600)
   console.log(
     `[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} ` +
       `realtime=${realtime} transInterval=${transInterval} delay=${delaySeconds} businessTz=${BUSINESS_TIME_ZONE}`
