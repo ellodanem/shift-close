@@ -596,12 +596,12 @@ export default function PayPeriodPage() {
               <table className="w-full text-sm border-collapse overflow-visible">
                 <thead>
                   <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-2">Staff</th>
-                    <th className="text-right py-2">Trans Ttl</th>
-                    <th className="text-center py-2">Vacation</th>
-                    <th className="text-right py-2">Sick Days</th>
-                    <th className="text-left py-2">Sick Leave</th>
-                    <th className="text-right py-2">Shortage</th>
+                    <th className="text-left py-2 pr-3">Staff</th>
+                    <th className="text-right py-2 px-3">Trans Ttl</th>
+                    <th className="text-center py-2 px-3">Vacation</th>
+                    <th className="text-center py-2 px-4 min-w-[5.5rem]">Sick Days</th>
+                    <th className="text-left py-2 pl-4 pr-3 min-w-[9rem]">Sick Leave</th>
+                    <th className="text-right py-2 pl-3">Shortage</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -643,14 +643,14 @@ export default function PayPeriodPage() {
                           justify="center"
                         />
                       </td>
-                      <td className="text-right align-top">
+                      <td className="text-center align-top px-4">
                         <HoverPreviousValue
                           currentDisplay={curSickDays}
                           previousDisplay={prevSickDays}
-                          justify="end"
+                          justify="center"
                         />
                       </td>
-                      <td className="text-left align-top text-gray-600">
+                      <td className="text-left align-top pl-4 pr-3 text-gray-600">
                         <HoverPreviousValue
                           currentDisplay={curRanges}
                           previousDisplay={prevRanges}
@@ -676,11 +676,11 @@ export default function PayPeriodPage() {
                       />
                     </td>
                     <td></td>
-                    <td className="text-right align-top">
+                    <td className="text-center align-top px-4">
                       <HoverPreviousValue
                         currentDisplay={String(totalSick)}
                         previousDisplay={prevTotalSick !== null ? String(prevTotalSick) : null}
-                        justify="end"
+                        justify="center"
                       />
                     </td>
                     <td></td>
@@ -718,12 +718,12 @@ export default function PayPeriodPage() {
               <table className="w-full text-sm border-collapse mb-6">
                 <thead>
                   <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-2">Staff</th>
-                    <th className="text-right py-2 w-24">Trans Ttl</th>
-                    <th className="text-center py-2 w-24">Vacation</th>
-                    <th className="text-right py-2 w-20">Sick Days</th>
-                    <th className="text-left py-2 min-w-[140px]">Sick Leave</th>
-                    <th className="text-right py-2 w-28">Shortage</th>
+                    <th className="text-left py-2 pr-3">Staff</th>
+                    <th className="text-right py-2 px-3 w-24">Trans Ttl</th>
+                    <th className="text-center py-2 px-3 w-24">Vacation</th>
+                    <th className="text-center py-2 px-4 w-24">Sick Days</th>
+                    <th className="text-left py-2 pl-4 pr-3 min-w-[140px]">Sick Leave</th>
+                    <th className="text-right py-2 pl-3 w-28">Shortage</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -782,17 +782,17 @@ export default function PayPeriodPage() {
                           className="w-full text-center border border-gray-300 rounded px-2 py-1"
                         />
                       </td>
-                      <td className="text-right">
+                      <td className="text-center px-4">
                         <input
                           type="number"
                           min={0}
                           value={r.sickLeaveDays ?? ''}
                           onChange={(e) => updateRow(i, 'sickLeaveDays', e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
-                          className="w-full text-right border border-gray-300 rounded px-2 py-1"
+                          className="w-full text-center border border-gray-300 rounded px-2 py-1"
                           placeholder="0"
                         />
                       </td>
-                      <td>
+                      <td className="pl-4 pr-3">
                         <input
                           type="text"
                           value={r.sickLeaveRanges ?? ''}
@@ -830,7 +830,7 @@ export default function PayPeriodPage() {
                     </td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
                     <td></td>
-                    <td className="text-right">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
+                    <td className="text-center px-4">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                     <td></td>
                     <td className="text-right">
                       {reportData.rows.reduce((s, r) => s + r.shortage, 0) > 0

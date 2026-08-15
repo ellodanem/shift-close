@@ -371,11 +371,11 @@ export default function MobilePayPeriodPage() {
                           <thead>
                             <tr className="border-b border-slate-600 text-slate-400">
                               <th className="text-left py-1 pr-2 font-medium">Staff</th>
-                              <th className="text-right py-1 px-1 font-medium">Trans</th>
-                              <th className="text-center py-1 px-1 font-medium">Vac</th>
-                              <th className="text-right py-1 px-1 font-medium">Sick</th>
-                              <th className="text-left py-1 px-1 font-medium">Leave</th>
-                              <th className="text-right py-1 pl-1 font-medium">Short</th>
+                              <th className="text-right py-1 px-2 font-medium">Trans</th>
+                              <th className="text-center py-1 px-2 font-medium">Vac</th>
+                              <th className="text-center py-1 px-3 font-medium min-w-[3rem]">Sick</th>
+                              <th className="text-left py-1 pl-3 pr-1 font-medium min-w-[5rem]">Leave</th>
+                              <th className="text-right py-1 pl-2 font-medium">Short</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -384,8 +384,8 @@ export default function MobilePayPeriodPage() {
                                 <td className="py-1.5 pr-2 text-slate-200">{r.staffName}</td>
                                 <td className="py-1.5 text-right tabular-nums">{r.transTtl.toFixed(2)}</td>
                                 <td className="py-1.5 text-center">{r.vacation || '—'}</td>
-                                <td className="py-1.5 text-right tabular-nums">{r.sickLeaveDays ?? 0}</td>
-                                <td className="py-1.5 text-slate-400 max-w-[6rem] truncate">
+                                <td className="py-1.5 text-center tabular-nums px-3">{r.sickLeaveDays ?? 0}</td>
+                                <td className="py-1.5 pl-3 pr-1 text-slate-400 max-w-[6rem] truncate">
                                   {r.sickLeaveRanges || '—'}
                                 </td>
                                 <td className="py-1.5 text-right tabular-nums">
@@ -397,7 +397,7 @@ export default function MobilePayPeriodPage() {
                               <td className="py-2 pr-2">Total</td>
                               <td className="py-2 text-right tabular-nums">{totalTrans.toFixed(1)}</td>
                               <td className="py-2" />
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2 text-center tabular-nums px-3">
                                 {data.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}
                               </td>
                               <td className="py-2" />

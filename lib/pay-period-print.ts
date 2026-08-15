@@ -23,12 +23,12 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="border-bottom: 2px solid #000;">
-                <th style="text-align: left; padding: 8px;">Staff</th>
-                <th style="text-align: right; padding: 8px;">Trans Ttl</th>
-                <th style="text-align: center; padding: 8px;">Vacation</th>
-                <th style="text-align: right; padding: 8px;">Sick Days</th>
-                <th style="text-align: left; padding: 8px;">Sick Leave</th>
-                <th style="text-align: right; padding: 8px;">Shortage</th>
+                <th style="text-align: left; padding: 8px 12px 8px 8px;">Staff</th>
+                <th style="text-align: right; padding: 8px 12px;">Trans Ttl</th>
+                <th style="text-align: center; padding: 8px 12px;">Vacation</th>
+                <th style="text-align: center; padding: 8px 16px; min-width: 5.5rem;">Sick Days</th>
+                <th style="text-align: left; padding: 8px 8px 8px 16px; min-width: 9rem;">Sick Leave</th>
+                <th style="text-align: right; padding: 8px 8px 8px 12px;">Shortage</th>
               </tr>
             </thead>
             <tbody>
@@ -36,23 +36,23 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
                 .map(
                   (r) => `
                 <tr style="border-bottom: 1px solid #ddd;">
-                  <td style="padding: 8px;">${r.staffName}</td>
-                  <td style="text-align: right; padding: 8px;">${r.transTtl.toFixed(2)}</td>
-                  <td style="text-align: center; padding: 8px;">${r.vacation || ''}</td>
-                  <td style="text-align: right; padding: 8px;">${r.sickLeaveDays ?? 0}</td>
-                  <td style="text-align: left; padding: 8px;">${r.sickLeaveRanges ?? ''}</td>
-                  <td style="text-align: right; padding: 8px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
+                  <td style="padding: 8px 12px 8px 8px;">${r.staffName}</td>
+                  <td style="text-align: right; padding: 8px 12px;">${r.transTtl.toFixed(2)}</td>
+                  <td style="text-align: center; padding: 8px 12px;">${r.vacation || ''}</td>
+                  <td style="text-align: center; padding: 8px 16px;">${r.sickLeaveDays ?? 0}</td>
+                  <td style="text-align: left; padding: 8px 8px 8px 16px;">${r.sickLeaveRanges ?? ''}</td>
+                  <td style="text-align: right; padding: 8px 8px 8px 12px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
                 </tr>
               `
                 )
                 .join('')}
               <tr style="border-top: 2px solid #000; font-weight: bold;">
-                <td style="padding: 8px;">Total</td>
-                <td style="text-align: right; padding: 8px;">${totalTrans.toFixed(1)}</td>
-                <td style="padding: 8px;"></td>
-                <td style="text-align: right; padding: 8px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
-                <td style="padding: 8px;"></td>
-                <td style="text-align: right; padding: 8px;">${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</td>
+                <td style="padding: 8px 12px 8px 8px;">Total</td>
+                <td style="text-align: right; padding: 8px 12px;">${totalTrans.toFixed(1)}</td>
+                <td style="padding: 8px 12px;"></td>
+                <td style="text-align: center; padding: 8px 16px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
+                <td style="padding: 8px 8px 8px 16px;"></td>
+                <td style="text-align: right; padding: 8px 8px 8px 12px;">${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</td>
               </tr>
             </tbody>
           </table>
