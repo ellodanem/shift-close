@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { roundMoney } from '@/lib/fuelPayments'
+import { vendorInvoiceTotal } from '@/lib/vendorVat'
 import {
   aggregateVendorInvoiceRows,
   buildReportTotals,
@@ -48,24 +48,17 @@ export async function GET(request: NextRequest) {
         },
         include: {
           vendor: { select: { id: true, name: true } },
-          invoices: {
-            include: {
-              vendorInvoice: { select: { amount: true, status: true } }
-            }
-          }
+          invoices: true
         }
       })
 
       const inputs = batches.flatMap((batch) =>
         batch.invoices.map((paid) => {
-          // Paid snapshot stores total (amount + VAT); report uses amount-only.
-          const amountOnly =
-            paid.vendorInvoice?.amount ??
-            roundMoney(paid.amount - (paid.vat ?? 0))
+          // Paid snapshot stores total (amount + VAT), matching paper All Invoices.
           return {
             vendorId: batch.vendor.id,
             vendorName: batch.vendor.name,
-            amount: amountOnly,
+            amount: paid.amount,
             status: 'paid' as const
           }
         })
@@ -100,7 +93,7 @@ export async function GET(request: NextRequest) {
         invoices.map((inv) => ({
           vendorId: inv.vendor.id,
           vendorName: inv.vendor.name,
-          amount: inv.amount,
+          amount: vendorInvoiceTotal(inv.amount, inv.vat),
           status: inv.status === 'paid' ? ('paid' as const) : ('pending' as const)
         }))
       )

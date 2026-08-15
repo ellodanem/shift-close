@@ -7,6 +7,7 @@ export interface VendorInvoicePaymentRow {
   vendorName: string
   /** Placeholder until cashbook expenses are wired in. */
   expenses: number
+  /** Invoice total including VAT (amount + vat). */
   invoiceAmount: number
   /** Show "Paid" when every invoice in the row is paid. */
   paidLabel: boolean
@@ -41,6 +42,7 @@ export function monthUtcBounds(month: string): { start: Date; endExclusive: Date
 interface AggregateInput {
   vendorId: string
   vendorName: string
+  /** Per-invoice total including VAT. */
   amount: number
   status: 'pending' | 'paid'
 }
