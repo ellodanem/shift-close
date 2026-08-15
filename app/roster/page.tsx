@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconCallOut, useDropdownFixedPosition } from '@/app/components/IconDropdown'
+import RosterPayPeriodHoursBadge from '@/app/roster/RosterPayPeriodHoursBadge'
+import {
+  buildPayPeriodHoursByStaff,
+  rosterHoursEntryKey
+} from '@/lib/roster-pay-period-hours'
 import {
   countOffDaysForStaffInWeek,
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
@@ -380,6 +385,8 @@ export default function RosterPage() {
   const [callOutCalledAtParts, setCallOutCalledAtParts] = useState<CalledAtParts>(EMPTY_CALLED_AT_PARTS)
   const [savingCallOut, setSavingCallOut] = useState(false)
   const [minOffDaysPerWeek, setMinOffDaysPerWeek] = useState(ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT)
+  const [openPayPeriodStart, setOpenPayPeriodStart] = useState<string | null>(null)
+  const [periodPriorEntries, setPeriodPriorEntries] = useState<RosterEntry[]>([])
 
   const weekDates = useMemo(
     () => dayLabels.map((_, idx) => addDays(weekStart, idx)),
@@ -561,6 +568,12 @@ export default function RosterPage() {
         )
         setPublicHolidays(
           Array.isArray(data.publicHolidays) ? (data.publicHolidays as PublicHolidayRow[]) : []
+        )
+        setOpenPayPeriodStart(
+          typeof data.openPayPeriodStart === 'string' ? data.openPayPeriodStart : null
+        )
+        setPeriodPriorEntries(
+          Array.isArray(data.periodPriorEntries) ? (data.periodPriorEntries as RosterEntry[]) : []
         )
       } catch (err) {
         console.error('Error loading roster week', err)
@@ -791,6 +804,49 @@ export default function RosterPage() {
       }),
     [displayStaff, weekDates, entries, stationClosedDates, minOffDaysPerWeek, sickLeaves]
   )
+
+  const payPeriodHoursByStaff = useMemo(() => {
+    if (!openPayPeriodStart || weekDates.length === 0) return new Map()
+    const weekEnd = weekDates[6]
+    const zeroHourKeys = new Set<string>()
+    for (const s of displayStaff) {
+      for (const date of [...periodPriorEntries.map((e) => e.date), ...weekDates]) {
+        if (date < openPayPeriodStart || date > weekEnd) continue
+        if (
+          isOnVacation(s, date) ||
+          isOnSickLeave(s.id, date) ||
+          stationClosedDates.has(date)
+        ) {
+          zeroHourKeys.add(rosterHoursEntryKey(s.id, date))
+        }
+      }
+    }
+    const templatesById = new Map(
+      templates.map((t) => [t.id, { startTime: t.startTime, endTime: t.endTime }])
+    )
+    return buildPayPeriodHoursByStaff({
+      staffIds: displayStaff.map((s) => s.id),
+      periodStart: openPayPeriodStart,
+      periodEnd: weekEnd,
+      weekStart,
+      weekEnd,
+      entries: [...periodPriorEntries, ...entries],
+      templatesById,
+      zeroHourKeys
+    })
+  }, [
+    openPayPeriodStart,
+    weekDates,
+    weekStart,
+    displayStaff,
+    periodPriorEntries,
+    entries,
+    templates,
+    stationClosedDates,
+    sickLeaves
+  ])
+
+  const showPayPeriodHours = Boolean(canEditRoster && !rosterLockedEdit && openPayPeriodStart)
 
   const staffOffDaysWarningTitle = (staff: Staff): string | undefined => {
     if (!staffBelowMinOff.has(staff.id) || minOffDaysPerWeek <= 0) return undefined
@@ -2070,7 +2126,18 @@ export default function RosterPage() {
                         </div>
                       </div>
                       {!rosterLockedEdit && !ghost && (
-                        <div className="relative shrink-0">
+                        <div className="relative shrink-0 flex items-center gap-1.5">
+                          {showPayPeriodHours && openPayPeriodStart ? (
+                            <RosterPayPeriodHoursBadge
+                              hours={
+                                payPeriodHoursByStaff.get(s.id) ?? {
+                                  periodHours: 0,
+                                  weekHours: 0
+                                }
+                              }
+                              periodStart={openPayPeriodStart}
+                            />
+                          ) : null}
                           <button
                             type="button"
                             title="Fill entire week"
@@ -2481,7 +2548,19 @@ export default function RosterPage() {
                           </div>
                         </div>
                         {!rosterLockedEdit && !ghost && (
-                          <div className="relative ml-0 pl-7 sm:pl-8">
+                          <div className="relative ml-0 pl-7 sm:pl-8 flex items-center gap-1">
+                            {showPayPeriodHours && openPayPeriodStart ? (
+                              <RosterPayPeriodHoursBadge
+                                compact
+                                hours={
+                                  payPeriodHoursByStaff.get(s.id) ?? {
+                                    periodHours: 0,
+                                    weekHours: 0
+                                  }
+                                }
+                                periodStart={openPayPeriodStart}
+                              />
+                            ) : null}
                             <button
                               type="button"
                               title="Fill entire week"

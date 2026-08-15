@@ -1,10 +1,17 @@
 import { prisma } from '@/lib/prisma'
+import {
+  resolveOpenPayPeriodStart,
+  ROSTER_OPEN_PERIOD_MAX_DAYS
+} from '@/lib/roster-pay-period-hours'
 import { addDays, isFutureRosterWeek, formatInputDate } from '@/lib/roster-week-client'
 
 /** One server pass for roster grid: week entries + day-off + sick leave + holidays + prior week. */
 export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) {
   const previousWeekStart = addDays(weekStart, -7)
-  const [week, previousWeek, dayOffRequests, sickLeaves, callOuts, publicHolidays] = await Promise.all([
+  const todayYmd = formatInputDate(new Date())
+  const lookbackStart = addDays(weekEnd, -(ROSTER_OPEN_PERIOD_MAX_DAYS - 1))
+  const [week, previousWeek, lastPayPeriod, dayOffRequests, sickLeaves, callOuts, publicHolidays] =
+    await Promise.all([
     prisma.rosterWeek.findFirst({
       where: { weekStart },
       include: { entries: true }
@@ -13,6 +20,10 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
       where: { weekStart: previousWeekStart },
       include: { entries: true }
     }),
+    prisma.payPeriod.findFirst({
+      orderBy: [{ endDate: 'desc' }, { createdAt: 'desc' }],
+      select: { endDate: true }
+    }),
     prisma.staffDayOff.findMany({
       where: { date: { gte: weekStart, lte: weekEnd } },
       orderBy: [{ date: 'asc' }, { staffId: 'asc' }]
@@ -20,7 +31,7 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
     prisma.staffSickLeave.findMany({
       where: {
         startDate: { lte: weekEnd },
-        endDate: { gte: weekStart }
+        endDate: { gte: lookbackStart }
       },
       orderBy: { startDate: 'asc' }
     }),
@@ -36,11 +47,31 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
     prisma.publicHoliday.findMany({
       where: {
         countryCode: 'LC',
-        date: { gte: weekStart, lte: weekEnd }
+        date: { gte: lookbackStart, lte: weekEnd }
       },
       orderBy: { date: 'asc' }
     })
   ])
+
+  const openPayPeriodStart = resolveOpenPayPeriodStart({
+    lastPeriodEndDate: lastPayPeriod?.endDate ?? null,
+    todayYmd,
+    weekEndYmd: weekEnd
+  })
+  const priorPeriodEnd = addDays(weekStart, -1)
+  const periodPriorEntries =
+    openPayPeriodStart <= priorPeriodEnd
+      ? await prisma.rosterEntry.findMany({
+          where: {
+            date: { gte: openPayPeriodStart, lte: priorPeriodEnd }
+          },
+          select: {
+            staffId: true,
+            date: true,
+            shiftTemplateId: true
+          }
+        })
+      : []
 
   let entries = week?.entries ?? []
 
@@ -71,6 +102,8 @@ export async function fetchRosterWeekBundle(weekStart: string, weekEnd: string) 
     entries,
     previousWeekStart,
     previousWeekEntries: previousWeek?.entries ?? [],
+    openPayPeriodStart,
+    periodPriorEntries,
     dayOffRequests,
     sickLeaves,
     callOuts,
