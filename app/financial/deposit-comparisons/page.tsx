@@ -2,18 +2,19 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import CustomDatePicker from '../../days/CustomDatePicker'
 import {
   BankStatusGlyph,
   IconDebitCard,
   IconDepositSlip,
   IconFilter,
-  IconLayers,
   IconMenu,
   IconSelect,
   IconShield
 } from '@/app/components/IconDropdown'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
+import { businessTodayYmd, toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 
 type BankStatus = 'pending' | 'cleared' | 'discrepancy'
 type RecordKind = 'deposit' | 'debit'
@@ -48,20 +49,6 @@ interface Totals {
   pending: number
   cleared: number
   discrepancy: number
-}
-
-interface LoadMeta {
-  shiftCount: number
-  shiftTake: number
-  truncated: boolean
-  dateFiltered: boolean
-}
-
-function ymd(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 function formatDayHeading(isoDate: string): string {
@@ -860,7 +847,90 @@ const BANK_ROW_STATUS_OPTIONS: { value: BankStatus; label: string }[] = [
   { value: 'discrepancy', label: 'Discrepancy' }
 ]
 
-const SHIFT_LIMIT_OPTIONS = [400, 600, 1200, 3000] as const
+type DateFilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
+
+function mergeRowList(prev: Row[], incoming: Row[]): Row[] {
+  const byKey = new Map(prev.map((r) => [rowKey(r), r]))
+  for (const r of incoming) byKey.set(rowKey(r), r)
+  return [...byKey.values()].sort((a, b) => {
+    if (a.date !== b.date) return a.date > b.date ? -1 : 1
+    if (a.recordKind !== b.recordKind) return a.recordKind === 'deposit' ? -1 : 1
+    return a.lineIndex - b.lineIndex
+  })
+}
+
+function lastDayOfMonthYmd(year: number, month1to12: number): string {
+  const last = new Date(Date.UTC(year, month1to12, 0)).getUTCDate()
+  return `${year}-${String(month1to12).padStart(2, '0')}-${String(last).padStart(2, '0')}`
+}
+
+function padMonth(month: number): string {
+  return String(month).padStart(2, '0')
+}
+
+function depositComparisonsQueryForFilter(
+  filter: DateFilterType,
+  customDate: string
+): { key: string; url: string } | null {
+  const todayYmd = businessTodayYmd()
+  if (filter === 'custom') {
+    if (!customDate) return null
+    return {
+      key: `custom:${customDate}`,
+      url: `/api/financial/deposit-comparisons?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`
+    }
+  }
+  if (filter === 'all') {
+    return { key: 'all:120', url: '/api/financial/deposit-comparisons?recentDays=120' }
+  }
+  const [y, m] = todayYmd.split('-').map(Number)
+  if (filter === 'thisMonth') {
+    const from = `${y}-${padMonth(m)}-01`
+    const to = lastDayOfMonthYmd(y, m)
+    return { key: `month:${from}`, url: `/api/financial/deposit-comparisons?from=${from}&to=${to}` }
+  }
+  if (filter === 'lastMonth') {
+    const ly = m === 1 ? y - 1 : y
+    const lm = m === 1 ? 12 : m - 1
+    const from = `${ly}-${padMonth(lm)}-01`
+    const to = lastDayOfMonthYmd(ly, lm)
+    return { key: `month:${from}`, url: `/api/financial/deposit-comparisons?from=${from}&to=${to}` }
+  }
+
+  const today = ymdToUtcNoonDate(todayYmd)
+  const startOfWeek = (date: Date): Date => {
+    const d = new Date(date)
+    const day = d.getDay() || 7
+    if (day !== 1) d.setDate(d.getDate() - (day - 1))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const ymdLocal = (d: Date) => toYmdInBusinessTz(d)
+
+  if (filter === 'thisWeek') {
+    const from = ymdLocal(startOfWeek(today))
+    const end = new Date(startOfWeek(today))
+    end.setDate(end.getDate() + 6)
+    const to = ymdLocal(end)
+    return { key: `week:${from}`, url: `/api/financial/deposit-comparisons?from=${from}&to=${to}` }
+  }
+  if (filter === 'lastWeek') {
+    const thisWeekStart = startOfWeek(today)
+    const lastWeekEnd = new Date(thisWeekStart)
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 1)
+    const lastWeekStart = startOfWeek(lastWeekEnd)
+    const from = ymdLocal(lastWeekStart)
+    const to = ymdLocal(lastWeekEnd)
+    return { key: `week:${from}`, url: `/api/financial/deposit-comparisons?from=${from}&to=${to}` }
+  }
+  return null
+}
+
+function filterButtonClass(active: boolean): string {
+  return `px-3 py-1.5 rounded-lg font-semibold text-sm transition-colors ${
+    active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+  }`
+}
 
 export default function DepositComparisonsPage() {
   const [hideCleared, setHideCleared] = useState(false)
@@ -868,19 +938,15 @@ export default function DepositComparisonsPage() {
   const prevFullyClearedRef = useRef<Map<string, boolean>>(new Map())
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]['value']>('all')
   const [bagQuery, setBagQuery] = useState('')
-  const [useDateRange, setUseDateRange] = useState(false)
-  const todayStr = useMemo(() => ymd(new Date()), [])
-  const [from, setFrom] = useState(() => {
-    const t = new Date()
-    t.setMonth(t.getMonth() - 3)
-    return ymd(t)
-  })
-  const [to, setTo] = useState(todayStr)
-  const [shiftLimit, setShiftLimit] = useState<(typeof SHIFT_LIMIT_OPTIONS)[number]>(600)
+  const [activeFilter, setActiveFilter] = useState<DateFilterType>('thisMonth')
+  const [customDate, setCustomDate] = useState('')
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const customPickerRef = useRef<HTMLDivElement>(null)
+  const loadedRangeKeys = useRef(new Set<string>())
 
   const [rows, setRows] = useState<Row[]>([])
-  const [meta, setMeta] = useState<LoadMeta | null>(null)
   const [loading, setLoading] = useState(true)
+  const [rangeLoading, setRangeLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const rowCountRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
@@ -903,45 +969,119 @@ export default function DepositComparisonsPage() {
       .catch(() => setSmtpConfigured(false))
   }, [])
 
-  const load = useCallback(async () => {
-    setError(null)
-    const firstLoad = rowCountRef.current === 0
-    if (firstLoad) setLoading(true)
-    else setRefreshing(true)
-    try {
-      const q = new URLSearchParams()
-      if (useDateRange) {
-        if (from) q.set('from', from)
-        if (to) q.set('to', to)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customPickerRef.current && !customPickerRef.current.contains(event.target as Node)) {
+        setShowCustomPicker(false)
       }
-      if (statusFilter !== 'all') q.set('status', statusFilter)
-      if (hideCleared) q.set('hideCleared', 'true')
-      q.set('shiftLimit', String(shiftLimit))
-      const res = await fetch(`/api/financial/deposit-comparisons?${q.toString()}`, { cache: 'no-store' })
+    }
+    if (showCustomPicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCustomPicker])
+
+  const fetchRange = useCallback(async (filter: DateFilterType, custom: string, force = false) => {
+    const query = depositComparisonsQueryForFilter(filter, custom)
+    if (!query) return
+    if (!force && loadedRangeKeys.current.has('all:120') && filter !== 'custom') return
+    if (!force && loadedRangeKeys.current.has(query.key)) return
+
+    setError(null)
+    const initial = loadedRangeKeys.current.size === 0
+    if (force) setRefreshing(true)
+    else if (initial) setLoading(true)
+    else setRangeLoading(true)
+
+    try {
+      const res = await fetch(`${query.url}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load')
       const nextRows = Array.isArray(data.rows) ? data.rows : []
-      setRows(nextRows)
+      loadedRangeKeys.current.add(query.key)
+      setRows((prev) => mergeRowList(prev, nextRows))
       rowCountRef.current = nextRows.length
-      setMeta(data.meta ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
-      setRows([])
-      rowCountRef.current = 0
-      setMeta(null)
+      if (initial) {
+        setRows([])
+        rowCountRef.current = 0
+      }
     } finally {
       setLoading(false)
+      setRangeLoading(false)
       setRefreshing(false)
     }
-  }, [from, to, statusFilter, hideCleared, shiftLimit, useDateRange])
+  }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void fetchRange(activeFilter, customDate)
+  }, [activeFilter, customDate, fetchRange])
+
+  const refresh = useCallback(async () => {
+    const query = depositComparisonsQueryForFilter(activeFilter, customDate)
+    if (!query) return
+    loadedRangeKeys.current.delete(query.key)
+    await fetchRange(activeFilter, customDate, true)
+  }, [activeFilter, customDate, fetchRange])
+
+  const formatDate = (date: Date): string => toYmdInBusinessTz(date)
+
+  const getStartOfWeek = (date: Date): Date => {
+    const d = new Date(date)
+    const day = d.getDay() || 7
+    if (day !== 1) d.setDate(d.getDate() - (day - 1))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+
+  const getEndOfWeek = (date: Date): Date => {
+    const start = getStartOfWeek(date)
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    end.setHours(23, 59, 59, 999)
+    return end
+  }
+
+  const dateFilteredRows = useMemo(() => {
+    if (activeFilter === 'all') return rows
+
+    const today = ymdToUtcNoonDate(businessTodayYmd())
+    const inRange = (rowDate: string, start: Date, end: Date) => {
+      const startStr = formatDate(start)
+      const endStr = formatDate(end)
+      return rowDate >= startStr && rowDate <= endStr
+    }
+
+    if (activeFilter === 'thisWeek') {
+      return rows.filter((r) => inRange(r.date, getStartOfWeek(today), getEndOfWeek(today)))
+    }
+    if (activeFilter === 'lastWeek') {
+      const thisWeekStart = getStartOfWeek(today)
+      const lastWeekEnd = new Date(thisWeekStart)
+      lastWeekEnd.setDate(lastWeekEnd.getDate() - 1)
+      const lastWeekStart = getStartOfWeek(lastWeekEnd)
+      return rows.filter((r) => inRange(r.date, lastWeekStart, lastWeekEnd))
+    }
+    if (activeFilter === 'thisMonth') {
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      return rows.filter((r) => inRange(r.date, monthStart, monthEnd))
+    }
+    if (activeFilter === 'lastMonth') {
+      const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+      return rows.filter((r) => inRange(r.date, monthStart, monthEnd))
+    }
+    if (activeFilter === 'custom' && customDate) {
+      return rows.filter((r) => r.date === customDate)
+    }
+    return rows
+  }, [rows, activeFilter, customDate])
 
   const displayRows = useMemo(
-    () => applyClientFilters(rows, false, 'all', bagQuery),
-    [rows, bagQuery]
+    () => applyClientFilters(dateFilteredRows, hideCleared, statusFilter, bagQuery),
+    [dateFilteredRows, hideCleared, statusFilter, bagQuery]
   )
 
   const totals = useMemo(() => computeTotals(displayRows), [displayRows])
@@ -994,8 +1134,8 @@ export default function DepositComparisonsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Save failed')
-      setRows((prev) => {
-        const updated = prev.map((r) =>
+      setRows((prev) =>
+        prev.map((r) =>
           r.shiftId === shiftId && r.recordKind === recordKind && r.lineIndex === lineIndex
             ? {
                 ...r,
@@ -1004,10 +1144,7 @@ export default function DepositComparisonsPage() {
               }
             : r
         )
-        const filtered = applyClientFilters(updated, hideCleared, statusFilter)
-        rowCountRef.current = filtered.length
-        return filtered
-      })
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -1032,7 +1169,7 @@ export default function DepositComparisonsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Recent closed shifts first. Days start collapsed — click a date to expand. Day status icons: grey circle (all
+            Current month loads by default. Days start collapsed — click a date to expand. Day status icons: grey circle (all
             pending), yellow (mixed), red X (discrepancy), green check (all cleared). Each day also shows section badges on{' '}
             <strong>Deposits</strong> and <strong>Credit & debit</strong> so you can see when deposits are cleared while
             C&amp;D is still open. Use the scan menus and <strong>Security</strong> after expanding.
@@ -1078,83 +1215,101 @@ export default function DepositComparisonsPage() {
                 className="flex-1 min-w-[10rem] max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Load</label>
-              <IconSelect
-                ariaLabel="Maximum shifts to load"
-                value={String(shiftLimit)}
-                onChange={(v) =>
-                  setShiftLimit(parseInt(v, 10) as (typeof SHIFT_LIMIT_OPTIONS)[number])
-                }
-                options={SHIFT_LIMIT_OPTIONS.map((n) => ({
-                  value: String(n),
-                  label: `${n} shifts (max)`
-                }))}
-                renderTrigger={() => <IconLayers />}
-              />
-              <span className="text-sm text-slate-600" title="Shift load limit">
-                {shiftLimit} shifts (max)
-              </span>
-            </div>
             <button
               type="button"
-              onClick={() => void load()}
-              disabled={refreshing}
+              onClick={() => void refresh()}
+              disabled={refreshing || rangeLoading}
               className="ml-auto rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60"
             >
               {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
 
-          <details className="group rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm">
-            <summary className="cursor-pointer font-medium text-slate-700 list-none flex items-center gap-2">
-              <span className="text-slate-400 group-open:rotate-90 transition-transform">›</span>
-              Filter by date (optional)
-            </summary>
-            <div className="mt-3 flex flex-wrap items-end gap-3 pl-5">
-              <label className="flex items-center gap-2 text-sm mb-2 w-full sm:w-auto">
-                <input
-                  type="checkbox"
-                  checked={useDateRange}
-                  onChange={(e) => setUseDateRange(e.target.checked)}
-                  className="rounded border-slate-300"
-                />
-                Use date range
-              </label>
-              {useDateRange ? (
-                <>
-                  <div>
-                    <span className="block text-xs text-slate-500 mb-1">From</span>
-                    <input
-                      type="date"
-                      value={from}
-                      onChange={(e) => setFrom(e.target.value)}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-xs text-slate-500 mb-1">To</span>
-                    <input
-                      type="date"
-                      value={to}
-                      onChange={(e) => setTo(e.target.value)}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                    />
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs text-slate-500 mb-2">Showing the most recent shifts up to the limit above (newest days first).</p>
-              )}
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Period</span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter('all')
+                setShowCustomPicker(false)
+              }}
+              className={filterButtonClass(activeFilter === 'all')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter('thisWeek')
+                setShowCustomPicker(false)
+              }}
+              className={filterButtonClass(activeFilter === 'thisWeek')}
+            >
+              This Week
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter('lastWeek')
+                setShowCustomPicker(false)
+              }}
+              className={filterButtonClass(activeFilter === 'lastWeek')}
+            >
+              Last Week
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter('thisMonth')
+                setShowCustomPicker(false)
+              }}
+              className={filterButtonClass(activeFilter === 'thisMonth')}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter('lastMonth')
+                setShowCustomPicker(false)
+              }}
+              className={filterButtonClass(activeFilter === 'lastMonth')}
+            >
+              Last Month
+            </button>
+            <div className="relative" ref={customPickerRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveFilter('custom')
+                  setShowCustomPicker(!showCustomPicker)
+                }}
+                className={filterButtonClass(activeFilter === 'custom')}
+              >
+                Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
+              </button>
+              {showCustomPicker ? (
+                <div className="absolute top-full left-0 z-50 mt-2 min-w-[320px] rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
+                  <CustomDatePicker
+                    selectedDate={customDate}
+                    onDateSelect={(date) => {
+                      setCustomDate(date)
+                      setActiveFilter('custom')
+                      setShowCustomPicker(false)
+                    }}
+                    onClose={() => setShowCustomPicker(false)}
+                  />
+                </div>
+              ) : null}
             </div>
-          </details>
+            {rangeLoading ? <span className="text-sm text-slate-500">Loading…</span> : null}
+            {activeFilter !== 'all' ? (
+              <span className="text-sm text-slate-600">
+                ({displayRows.length} item{displayRows.length !== 1 ? 's' : ''})
+              </span>
+            ) : null}
+          </div>
         </div>
-
-        {meta?.truncated ? (
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-            Loaded the maximum number of shifts ({meta.shiftTake}). Older history may be hidden — raise &quot;Load&quot; or
-            narrow with a date filter.
-          </p>
-        ) : null}
 
         {!loading ? (
           <div className="flex flex-wrap gap-3 text-sm">
@@ -1190,7 +1345,7 @@ export default function DepositComparisonsPage() {
             <p className="text-sm text-slate-500 py-8 text-center">Loading…</p>
           ) : byDate.length === 0 ? (
             <p className="text-sm text-slate-600 py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white px-4">
-              No items match your filters. Try turning off &quot;Hide fully cleared days&quot;, widen the status filter, or load more shifts.
+              No items match your filters. Try turning off &quot;Hide fully cleared days&quot;, widen the status filter, or choose a wider period.
             </p>
           ) : (
             byDate.map(({ date, deposits, debits }) => {

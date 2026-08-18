@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { addCalendarDaysYmd, businessTodayYmd, isYmd } from '@/lib/datetime-policy'
 import {
   BANK_STATUSES,
   buildComparisonRowsFromShifts,
@@ -15,27 +16,58 @@ export const dynamic = 'force-dynamic'
 
 export type { BankStatus }
 
+const DEFAULT_RECENT_DAYS = 120
+const MIN_RECENT_DAYS = 30
+const MAX_RECENT_DAYS = 365
 const DEFAULT_SHIFT_TAKE = 600
 const MAX_SHIFT_TAKE = 3000
 
 /**
- * GET ?status= &: optional from,to; hideCleared=true; shiftLimit= (default 600, max 3000)
- * No from/to = most recent shifts first (by shift close date), capped by shiftLimit.
+ * GET ?status= &: optional from,to or recentDays; hideCleared=true; shiftLimit= (legacy cap when no date range)
+ * from/to or recentDays = all matching closed/reviewed shifts in range (no take cap).
+ * shiftLimit only applies when no date range is specified (legacy clients).
  * hideCleared: omit entire calendar days where every deposit line and the day debit row are cleared
  * (pending or discrepancy on any line keeps the day visible). Applied before status filter.
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const from = searchParams.get('from')
-    const to = searchParams.get('to')
+    const fromRaw = searchParams.get('from')?.trim() || ''
+    const toRaw = searchParams.get('to')?.trim() || ''
     const statusFilter = searchParams.get('status')
     const hideCleared = searchParams.get('hideCleared') === 'true'
     const shiftLimitRaw = searchParams.get('shiftLimit')
-    const shiftTake = Math.min(
-      MAX_SHIFT_TAKE,
-      Math.max(1, parseInt(shiftLimitRaw || String(DEFAULT_SHIFT_TAKE), 10) || DEFAULT_SHIFT_TAKE)
-    )
+    const recentDaysRaw = searchParams.get('recentDays')
+
+    let from = fromRaw
+    let to = toRaw
+    let dateRanged = Boolean(from || to)
+
+    if (from || to) {
+      if (from && !isYmd(from)) {
+        return NextResponse.json({ error: 'from must be YYYY-MM-DD' }, { status: 400 })
+      }
+      if (to && !isYmd(to)) {
+        return NextResponse.json({ error: 'to must be YYYY-MM-DD' }, { status: 400 })
+      }
+      if (from && to && from > to) {
+        return NextResponse.json({ error: 'from must be on or before to' }, { status: 400 })
+      }
+    } else if (recentDaysRaw) {
+      const raw = Number(recentDaysRaw)
+      const days = Number.isFinite(raw)
+        ? Math.min(MAX_RECENT_DAYS, Math.max(MIN_RECENT_DAYS, Math.floor(raw)))
+        : DEFAULT_RECENT_DAYS
+      from = addCalendarDaysYmd(businessTodayYmd(), -days)
+      dateRanged = true
+    }
+
+    const shiftTake = dateRanged
+      ? undefined
+      : Math.min(
+          MAX_SHIFT_TAKE,
+          Math.max(1, parseInt(shiftLimitRaw || String(DEFAULT_SHIFT_TAKE), 10) || DEFAULT_SHIFT_TAKE)
+        )
 
     const where: {
       status: { in: string[] }
@@ -52,7 +84,7 @@ export async function GET(request: NextRequest) {
     const shifts = await prisma.shiftClose.findMany({
       where,
       orderBy: [{ date: 'desc' }, { shift: 'asc' }],
-      take: shiftTake,
+      ...(shiftTake ? { take: shiftTake } : {}),
       include: {
         depositRecords: true
       }
@@ -95,9 +127,9 @@ export async function GET(request: NextRequest) {
       totals,
       meta: {
         shiftCount: shifts.length,
-        shiftTake,
-        truncated: shifts.length >= shiftTake,
-        dateFiltered: Boolean(from || to)
+        shiftTake: shiftTake ?? null,
+        truncated: shiftTake != null && shifts.length >= shiftTake,
+        dateFiltered: dateRanged
       }
     })
   } catch (e) {
