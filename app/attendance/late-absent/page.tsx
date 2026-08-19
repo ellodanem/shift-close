@@ -25,6 +25,28 @@ function statusClass(status: string): string {
   }
 }
 
+function shiftBadgeStyle(color: string | null): { backgroundColor: string; color: string } | undefined {
+  const raw = color?.trim()
+  if (!raw) return undefined
+  let hex = raw
+  const short = /^#?([0-9a-f]{3})$/i.exec(raw)
+  const full = /^#?([0-9a-f]{6})$/i.exec(raw)
+  if (short) {
+    const [r, g, b] = short[1].split('')
+    hex = `${r}${r}${g}${g}${b}${b}`
+  } else if (full) {
+    hex = full[1]
+  } else {
+    return { backgroundColor: raw, color: '#111827' }
+  }
+  const n = parseInt(hex, 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000
+  return { backgroundColor: `#${hex}`, color: luminance > 155 ? '#111827' : '#ffffff' }
+}
+
 function statusLabel(status: string): string {
   switch (status) {
     case 'late':
@@ -258,9 +280,14 @@ export default function LateAbsentReportPage() {
                 {selected.days.map((d) => (
                   <tr key={d.dateYmd} className="border-b border-gray-100">
                     <td className="px-4 py-2 text-gray-900">{d.dateLabel}</td>
-                    <td className="px-4 py-2 text-gray-700">
-                      {d.shiftName} {d.shiftStartTime}
-                      {d.shiftEndTime ? `–${d.shiftEndTime}` : ''}
+                    <td className="px-4 py-2">
+                      <span
+                        className="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold"
+                        style={shiftBadgeStyle(d.shiftColor) ?? { backgroundColor: '#e5e7eb', color: '#111827' }}
+                      >
+                        {d.shiftName} {d.shiftStartTime}
+                        {d.shiftEndTime ? `–${d.shiftEndTime}` : ''}
+                      </span>
                     </td>
                     <td className="px-4 py-2">
                       <span

@@ -4,6 +4,7 @@ export interface LateAbsentDayRow {
   dateYmd: string
   dateLabel: string
   shiftName: string
+  shiftColor: string | null
   shiftStartTime: string
   shiftEndTime: string | null
   status: LateAbsentDayStatus

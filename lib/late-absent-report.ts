@@ -92,7 +92,7 @@ export async function buildLateAbsentReport(params: {
           vacationEnd: true
         }
       },
-      shiftTemplate: { select: { name: true, startTime: true, endTime: true } }
+      shiftTemplate: { select: { name: true, startTime: true, endTime: true, color: true } }
     }
   })
 
@@ -241,6 +241,7 @@ export async function buildLateAbsentReport(params: {
     const shiftStartTime = e.shiftTemplate?.startTime ?? '06:00'
     const shiftEndTime = e.shiftTemplate?.endTime ?? null
     const shiftName = e.shiftTemplate?.name ?? 'Shift'
+    const shiftColor = e.shiftTemplate?.color ?? null
     const key = `${staffId}|${dateYmd}`
     const noteExcused = excusedNote(staffId, dateYmd)
     const ov = overrideByKey.get(key)
@@ -279,6 +280,7 @@ export async function buildLateAbsentReport(params: {
       dateYmd,
       dateLabel: formatDateOnlyForDisplay(dateYmd),
       shiftName,
+      shiftColor,
       shiftStartTime,
       shiftEndTime,
       status,
