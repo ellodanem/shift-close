@@ -285,8 +285,7 @@ export default function LateAbsentReportPage() {
                         className="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold"
                         style={shiftBadgeStyle(d.shiftColor) ?? { backgroundColor: '#e5e7eb', color: '#111827' }}
                       >
-                        {d.shiftName} {d.shiftStartTime}
-                        {d.shiftEndTime ? `–${d.shiftEndTime}` : ''}
+                        {d.shiftName}
                       </span>
                     </td>
                     <td className="px-4 py-2">
