@@ -40,7 +40,8 @@ export async function GET() {
       dateYmd: todayYmd,
       tz,
       now,
-      graceMinutes: settings.graceMinutes
+      lateMinutes: settings.lateMinutes,
+      absentMinutes: settings.absentMinutes
     })
 
     const scheduled = built.scheduled.map((s) => {
@@ -74,7 +75,9 @@ export async function GET() {
       onVacation: built.onVacation,
       off: built.off,
       presentAbsenceEnabled: true,
-      presentAbsenceGraceMinutes: settings.graceMinutes
+      presentAbsenceGraceMinutes: settings.lateMinutes,
+      presentAbsenceLateMinutes: settings.lateMinutes,
+      presentAbsenceAbsentMinutes: settings.absentMinutes
     })
   } catch (error) {
     console.error('Error fetching dashboard today:', error)

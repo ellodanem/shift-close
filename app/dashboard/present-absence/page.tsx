@@ -101,8 +101,14 @@ export default function PresentAbsencePage() {
           <h1 className="mt-3 text-2xl font-bold text-gray-900">Present / Absent</h1>
           <p className="mt-1 text-sm text-gray-600">
             Scheduled staff for the selected day (station timezone{stationTimeZone ? `: ${stationTimeZone}` : ''}).
-            {todayYmd ? ` Today in station time: ${todayYmd}.` : ''}
+            {todayYmd ? ` Today in station time: ${todayYmd}.` : ''} Late after 15 min · Absent after 60 min.
           </p>
+          <Link
+            href="/attendance/late-absent"
+            className="inline-block mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            Period late & absent report →
+          </Link>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 mb-6">

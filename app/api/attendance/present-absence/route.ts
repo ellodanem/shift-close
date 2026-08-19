@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     const built = await buildPresenceForDate({
       dateYmd,
       tz,
-      graceMinutes: settings.graceMinutes
+      lateMinutes: settings.lateMinutes,
+      absentMinutes: settings.absentMinutes
     })
 
     const byStaff = new Map<string, (typeof built.scheduled)[0]>()
@@ -62,7 +63,9 @@ export async function GET(request: NextRequest) {
       date: dateYmd,
       stationTimeZone: tz,
       todayYmd: built.todayYmd,
-      graceMinutes: settings.graceMinutes,
+      graceMinutes: settings.lateMinutes,
+      lateMinutes: settings.lateMinutes,
+      absentMinutes: settings.absentMinutes,
       rows
     })
   } catch (e) {

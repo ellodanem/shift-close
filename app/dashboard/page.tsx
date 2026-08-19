@@ -132,6 +132,8 @@ interface TodayRoster {
   off: TodayOnVacation[]
   presentAbsenceEnabled?: boolean
   presentAbsenceGraceMinutes?: number
+  presentAbsenceLateMinutes?: number
+  presentAbsenceAbsentMinutes?: number
 }
 
 interface CashbookSummary {
@@ -536,14 +538,18 @@ export default function DashboardPage() {
       case 'present':
         return { char: '✓', title: 'Present', className: 'text-emerald-600' }
       case 'late':
-        return { char: '!', title: 'Late / no punch yet', className: 'text-amber-600' }
+        return { char: '!', title: 'Late', className: 'text-amber-600' }
       case 'absent':
         return { char: '✗', title: 'Absent', className: 'text-red-600' }
       case 'off':
         return { char: '—', title: 'Not expected today', className: 'text-slate-400' }
       case 'pending':
       default:
-        return { char: '…', title: 'Before grace or waiting', className: 'text-slate-400' }
+        return {
+          char: '…',
+          title: `Before ${todayRoster?.presentAbsenceLateMinutes ?? todayRoster?.presentAbsenceGraceMinutes ?? 15} min after shift start`,
+          className: 'text-slate-400'
+        }
     }
   }
 

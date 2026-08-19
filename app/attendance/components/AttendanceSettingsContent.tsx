@@ -25,7 +25,8 @@ export default function AttendanceSettingsContent() {
   const [asumTimeZone, setAsumTimeZone] = useState('America/St_Lucia')
 
   const [paEnabled, setPaEnabled] = useState(false)
-  const [paGraceMinutes, setPaGraceMinutes] = useState(60)
+  const [paLateMinutes, setPaLateMinutes] = useState(15)
+  const [paAbsentMinutes, setPaAbsentMinutes] = useState(60)
   const [paNotifyEmail, setPaNotifyEmail] = useState(false)
   const [paNotifyWhatsApp, setPaNotifyWhatsApp] = useState(false)
   const [paNotifyEmailRecipients, setPaNotifyEmailRecipients] = useState('')
@@ -43,6 +44,8 @@ export default function AttendanceSettingsContent() {
         showExtractedPunches?: boolean
         presentAbsenceEnabled?: boolean
         graceMinutes?: number
+        lateMinutes?: number
+        absentMinutes?: number
         absenceNotifyEmail?: boolean
         absenceNotifyWhatsApp?: boolean
         absenceNotifyEmailRecipients?: string
@@ -55,8 +58,13 @@ export default function AttendanceSettingsContent() {
         setShowExtractedPunches(data.showExtractedPunches)
       }
       if (typeof data.presentAbsenceEnabled === 'boolean') setPaEnabled(data.presentAbsenceEnabled)
-      if (typeof data.graceMinutes === 'number' && data.graceMinutes >= 1) {
-        setPaGraceMinutes(data.graceMinutes)
+      if (typeof data.lateMinutes === 'number' && data.lateMinutes >= 1) {
+        setPaLateMinutes(data.lateMinutes)
+      } else if (typeof data.graceMinutes === 'number' && data.graceMinutes >= 1) {
+        setPaLateMinutes(data.graceMinutes)
+      }
+      if (typeof data.absentMinutes === 'number' && data.absentMinutes >= 1) {
+        setPaAbsentMinutes(data.absentMinutes)
       }
       if (typeof data.absenceNotifyEmail === 'boolean') setPaNotifyEmail(data.absenceNotifyEmail)
       if (typeof data.absenceNotifyWhatsApp === 'boolean') setPaNotifyWhatsApp(data.absenceNotifyWhatsApp)
@@ -106,7 +114,8 @@ export default function AttendanceSettingsContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           presentAbsenceEnabled: paEnabled,
-          graceMinutes: paGraceMinutes,
+          lateMinutes: paLateMinutes,
+          absentMinutes: paAbsentMinutes,
           absenceNotifyEmail: paNotifyEmail,
           absenceNotifyWhatsApp: paNotifyWhatsApp,
           absenceNotifyEmailRecipients: paNotifyEmailRecipients,
@@ -285,9 +294,10 @@ export default function AttendanceSettingsContent() {
       <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Present / absent (roster day)</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Track scheduled staff vs punches for each calendar day (same timezone as end-of-day email). After the grace
-          period from shift start, staff with no punch show as late until they clock in; past days without a punch are
-          absent. Optional email and WhatsApp alerts when someone is late (no punch after grace).
+          Track scheduled staff vs punches for each calendar day (same timezone as end-of-day email). After{' '}
+          {paLateMinutes} minutes past shift start, no punch (or a punch after that) is late. After{' '}
+          {paAbsentMinutes} minutes with no punch, they are absent. Optional email and WhatsApp alerts when
+          someone has no punch after the late window.
         </p>
         <div className="space-y-4">
           <label className="flex items-center gap-3 cursor-pointer">
@@ -299,27 +309,44 @@ export default function AttendanceSettingsContent() {
             />
             <span className="font-medium text-gray-900">Enable present / absent on dashboard</span>
           </label>
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-6">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                Grace after shift start (minutes)
+                Late after (minutes)
               </label>
               <input
                 type="number"
                 min={1}
                 max={1440}
-                value={paGraceMinutes}
+                value={paLateMinutes}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10)
                   if (!Number.isFinite(v)) return
-                  setPaGraceMinutes(Math.min(1440, Math.max(1, v)))
+                  setPaLateMinutes(Math.min(1440, Math.max(1, v)))
+                }}
+                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                Absent after (minutes)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={paAbsentMinutes}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10)
+                  if (!Number.isFinite(v)) return
+                  setPaAbsentMinutes(Math.min(1440, Math.max(1, v)))
                 }}
                 className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm tabular-nums"
               />
             </div>
             <p className="text-xs text-gray-600 max-w-lg pb-0.5">
-              No late/absent until at least this long after the roster shift start. Any punch that day (station time)
-              counts as present.
+              Late = first punch after the late window, or no punch once that window ends. Absent = still no punch
+              after the absent window. Defaults 15 / 60.
             </p>
           </div>
           <div className="border-t border-gray-100 pt-4 space-y-3">
@@ -331,7 +358,7 @@ export default function AttendanceSettingsContent() {
                 onChange={(e) => setPaNotifyEmail(e.target.checked)}
                 className="h-4 w-4 rounded border-gray-300"
               />
-              <span className="text-gray-900">Email when someone is past grace with no punch</span>
+              <span className="text-gray-900">Email when someone has no punch after the late window</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input

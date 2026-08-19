@@ -223,7 +223,8 @@ export async function fetchDashboardToday() {
     dateYmd: todayYmd,
     tz,
     now,
-    graceMinutes: settings.graceMinutes
+    lateMinutes: settings.lateMinutes,
+    absentMinutes: settings.absentMinutes
   })
 
   const scheduled = built.scheduled.map((s) => {
@@ -257,7 +258,9 @@ export async function fetchDashboardToday() {
     onVacation: built.onVacation,
     off: built.off,
     presentAbsenceEnabled: true,
-    presentAbsenceGraceMinutes: settings.graceMinutes
+    presentAbsenceGraceMinutes: settings.lateMinutes,
+    presentAbsenceLateMinutes: settings.lateMinutes,
+    presentAbsenceAbsentMinutes: settings.absentMinutes
   }
 }
 

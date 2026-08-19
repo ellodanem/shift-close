@@ -3,7 +3,9 @@ import { parseExpectedPunchesPerDay } from '@/lib/attendance-irregularity'
 import {
   getPresentAbsenceSettings,
   PRESENT_ABSENCE_ENABLED_KEY,
-  PRESENT_ABSENCE_GRACE_MINUTES_KEY,
+  PRESENT_ABSENCE_LATE_MINUTES_KEY,
+  PRESENT_ABSENCE_ABSENT_MINUTES_KEY,
+  clampLateAbsentMinutes,
   PRESENT_ABSENCE_NOTIFY_EMAIL_KEY,
   PRESENT_ABSENCE_NOTIFY_EMAIL_RECIPIENTS_KEY,
   PRESENT_ABSENCE_NOTIFY_WHATSAPP_KEY,
@@ -30,7 +32,9 @@ async function readAll() {
     expectedPunchesPerDay: parseExpectedPunchesPerDay(map.get(KEY)),
     showExtractedPunches: parseShowExtracted(map.get(SHOW_EXTRACTED_KEY)),
     presentAbsenceEnabled: pa.enabled,
-    graceMinutes: pa.graceMinutes,
+    graceMinutes: pa.lateMinutes,
+    lateMinutes: pa.lateMinutes,
+    absentMinutes: pa.absentMinutes,
     absenceNotifyEmail: pa.notifyEmail,
     absenceNotifyWhatsApp: pa.notifyWhatsApp,
     absenceNotifyEmailRecipients: pa.notifyEmailRecipients,
@@ -87,15 +91,33 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (body.graceMinutes !== undefined) {
-      const g = typeof body.graceMinutes === 'number' ? body.graceMinutes : parseInt(String(body.graceMinutes), 10)
-      if (!Number.isFinite(g) || g < 1 || g > 24 * 60) {
-        return NextResponse.json({ error: 'graceMinutes must be between 1 and 1440' }, { status: 400 })
+    if (body.lateMinutes !== undefined || body.absentMinutes !== undefined || body.graceMinutes !== undefined) {
+      const current = await getPresentAbsenceSettings()
+      const rawLate =
+        body.lateMinutes !== undefined
+          ? body.lateMinutes
+          : body.graceMinutes !== undefined
+            ? body.graceMinutes
+            : current.lateMinutes
+      const rawAbsent = body.absentMinutes !== undefined ? body.absentMinutes : current.absentMinutes
+      const lateN = typeof rawLate === 'number' ? rawLate : parseInt(String(rawLate), 10)
+      const absentN = typeof rawAbsent === 'number' ? rawAbsent : parseInt(String(rawAbsent), 10)
+      if (!Number.isFinite(lateN) || lateN < 1 || lateN > 24 * 60) {
+        return NextResponse.json({ error: 'lateMinutes must be between 1 and 1440' }, { status: 400 })
       }
+      if (!Number.isFinite(absentN) || absentN < 1 || absentN > 24 * 60) {
+        return NextResponse.json({ error: 'absentMinutes must be between 1 and 1440' }, { status: 400 })
+      }
+      const { lateMinutes, absentMinutes } = clampLateAbsentMinutes(lateN, absentN)
       await prisma.appSettings.upsert({
-        where: { key: PRESENT_ABSENCE_GRACE_MINUTES_KEY },
-        update: { value: String(g) },
-        create: { key: PRESENT_ABSENCE_GRACE_MINUTES_KEY, value: String(g) }
+        where: { key: PRESENT_ABSENCE_LATE_MINUTES_KEY },
+        update: { value: String(lateMinutes) },
+        create: { key: PRESENT_ABSENCE_LATE_MINUTES_KEY, value: String(lateMinutes) }
+      })
+      await prisma.appSettings.upsert({
+        where: { key: PRESENT_ABSENCE_ABSENT_MINUTES_KEY },
+        update: { value: String(absentMinutes) },
+        create: { key: PRESENT_ABSENCE_ABSENT_MINUTES_KEY, value: String(absentMinutes) }
       })
     }
 

@@ -15,6 +15,14 @@ export default function ReportsPage() {
       route: '/roster/staff-report'
     },
     {
+      id: 'late-absent',
+      title: 'Late & Absent Summary',
+      description: 'How often rostered staff were late or absent over a pay period',
+      icon: '⏱️',
+      comingSoon: false,
+      route: '/attendance/late-absent'
+    },
+    {
       id: 'weekly',
       title: 'Weekly Reports',
       description: 'Aggregate all days in a week with totals and summaries',

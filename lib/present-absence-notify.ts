@@ -22,7 +22,7 @@ function pruneNotifyLog(log: Record<string, string[]>, keepMostRecent = 30): Rec
 }
 
 /**
- * Notify managers about staff who are past grace with no punch (status "late").
+ * Notify managers about scheduled staff with no punch after the late (or absent) window.
  * Idempotent per staff per calendar day via PRESENT_ABSENCE_NOTIFY_LOG_KEY.
  */
 export async function runPresentAbsenceNotifications(): Promise<{
@@ -47,11 +47,12 @@ export async function runPresentAbsenceNotifications(): Promise<{
     dateYmd: todayYmd,
     tz,
     now,
-    graceMinutes: settings.graceMinutes
+    lateMinutes: settings.lateMinutes,
+    absentMinutes: settings.absentMinutes
   })
 
   const lateIds = Object.entries(built.presenceByStaffId)
-    .filter(([, p]) => p.status === 'late' && p.isExpected)
+    .filter(([, p]) => p.isExpected && !p.hasPunch && (p.status === 'late' || p.status === 'absent'))
     .map(([id]) => id)
 
   const logRow = await prisma.appSettings.findUnique({ where: { key: PRESENT_ABSENCE_NOTIFY_LOG_KEY } })

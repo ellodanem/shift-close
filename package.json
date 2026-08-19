@@ -19,6 +19,7 @@
     "db:backfill-extracted": "node scripts/backfill-attendance-extracted.cjs",
     "db:normalize-dateonly": "node scripts/normalize-dateonly-datetime.cjs",
     "test:datetime": "tsx --test scripts/test-datetime-policy.ts",
+    "test:late-absent": "tsx --test scripts/test-late-absent.ts",
     "test:checklist": "tsx --test scripts/test-operations-checklist-due-dates.ts",
     "test:roster-hours": "tsx --test scripts/test-roster-pay-period-hours.ts"
   },

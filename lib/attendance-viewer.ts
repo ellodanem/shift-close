@@ -224,18 +224,20 @@ async function loadPunchesForDay(
 async function summaryForDate(
   dateYmd: string,
   tz: string,
-  graceMinutes: number,
+  lateMinutes: number,
+  absentMinutes: number,
   options: {
     includePunches: boolean
     roster?: Awaited<ReturnType<typeof loadRosterForCalendarYmd>>
-    punchMap?: Map<string, boolean>
+    punchMap?: Map<string, Date | null>
     overrideMap?: Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>
   }
 ) {
   const built = await buildPresenceForDate({
     dateYmd,
     tz,
-    graceMinutes,
+    lateMinutes,
+    absentMinutes,
     roster: options.roster,
     punchMap: options.punchMap,
     overrideMap: options.overrideMap
@@ -370,14 +372,14 @@ export async function buildAttendanceViewerSummary(dateYmd: string) {
   })
 
   const [dayData, ...weekSummaries] = await Promise.all([
-    summaryForDate(dateYmd, tz, settings.graceMinutes, {
+    summaryForDate(dateYmd, tz, settings.lateMinutes, settings.absentMinutes, {
       includePunches: true,
       ...prefetchFor(dateYmd)
     }),
     ...weekDayDates
       .filter((d) => d !== dateYmd)
       .map((d) =>
-        summaryForDate(d, tz, settings.graceMinutes, {
+        summaryForDate(d, tz, settings.lateMinutes, settings.absentMinutes, {
           includePunches: false,
           ...prefetchFor(d)
         })
@@ -405,7 +407,9 @@ export async function buildAttendanceViewerSummary(dateYmd: string) {
     date: dateYmd,
     todayYmd,
     stationTimeZone: tz,
-    graceMinutes: settings.graceMinutes,
+    graceMinutes: settings.lateMinutes,
+    lateMinutes: settings.lateMinutes,
+    absentMinutes: settings.absentMinutes,
     weekStart,
     weekDays,
     summary: dayData.summary,

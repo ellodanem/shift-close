@@ -5,7 +5,10 @@ import { deviceUserIdLookupKeys, expandDeviceUserIdsForDbMatch } from '@/lib/dev
 import { prisma } from '@/lib/prisma'
 
 export const PRESENT_ABSENCE_ENABLED_KEY = 'attendance_present_absence_enabled'
+/** @deprecated Use late/absent minute keys. Kept so old settings rows still load. */
 export const PRESENT_ABSENCE_GRACE_MINUTES_KEY = 'attendance_grace_minutes'
+export const PRESENT_ABSENCE_LATE_MINUTES_KEY = 'attendance_late_minutes'
+export const PRESENT_ABSENCE_ABSENT_MINUTES_KEY = 'attendance_absent_minutes'
 export const PRESENT_ABSENCE_NOTIFY_EMAIL_KEY = 'attendance_absence_notify_email'
 export const PRESENT_ABSENCE_NOTIFY_WHATSAPP_KEY = 'attendance_absence_notify_whatsapp'
 export const PRESENT_ABSENCE_NOTIFY_EMAIL_RECIPIENTS_KEY = 'attendance_absence_notify_email_recipients'
@@ -16,6 +19,13 @@ export type PresenceStatus = 'pending' | 'present' | 'late' | 'absent' | 'off'
 
 export interface PresentAbsenceSettings {
   enabled: boolean
+  /** Minutes after shift start before a no-punch or tardy punch is Late. */
+  lateMinutes: number
+  /** Minutes after shift start before a no-punch day is Absent. */
+  absentMinutes: number
+  /**
+   * Alias of `lateMinutes` (pending window). Older APIs/UI used a single grace value.
+   */
   graceMinutes: number
   notifyEmail: boolean
   notifyWhatsApp: boolean
@@ -28,10 +38,23 @@ function parseBool(v: string | undefined, defaultVal = false): boolean {
   return v === 'true' || v === '1'
 }
 
-function parseGraceMinutes(v: string | undefined): number {
-  const n = parseInt(String(v ?? '60'), 10)
-  if (!Number.isFinite(n)) return 60
+export const DEFAULT_LATE_MINUTES = 15
+export const DEFAULT_ABSENT_MINUTES = 60
+
+function parseThresholdMinutes(v: string | undefined, fallback: number): number {
+  const n = parseInt(String(v ?? fallback), 10)
+  if (!Number.isFinite(n)) return fallback
   return Math.min(24 * 60, Math.max(1, n))
+}
+
+export function clampLateAbsentMinutes(lateMinutes: number, absentMinutes: number): {
+  lateMinutes: number
+  absentMinutes: number
+} {
+  const absent = parseThresholdMinutes(String(absentMinutes), DEFAULT_ABSENT_MINUTES)
+  let late = parseThresholdMinutes(String(lateMinutes), DEFAULT_LATE_MINUTES)
+  if (late >= absent) late = Math.max(1, absent - 1)
+  return { lateMinutes: late, absentMinutes: absent }
 }
 
 export async function readStationTimeZone(): Promise<string> {
@@ -41,6 +64,8 @@ export async function readStationTimeZone(): Promise<string> {
 export async function getPresentAbsenceSettings(): Promise<PresentAbsenceSettings> {
   const keys = [
     PRESENT_ABSENCE_ENABLED_KEY,
+    PRESENT_ABSENCE_LATE_MINUTES_KEY,
+    PRESENT_ABSENCE_ABSENT_MINUTES_KEY,
     PRESENT_ABSENCE_GRACE_MINUTES_KEY,
     PRESENT_ABSENCE_NOTIFY_EMAIL_KEY,
     PRESENT_ABSENCE_NOTIFY_WHATSAPP_KEY,
@@ -49,9 +74,15 @@ export async function getPresentAbsenceSettings(): Promise<PresentAbsenceSetting
   ]
   const rows = await prisma.appSettings.findMany({ where: { key: { in: keys } } })
   const map = new Map(rows.map((r) => [r.key, r.value]))
+  const { lateMinutes, absentMinutes } = clampLateAbsentMinutes(
+    parseThresholdMinutes(map.get(PRESENT_ABSENCE_LATE_MINUTES_KEY), DEFAULT_LATE_MINUTES),
+    parseThresholdMinutes(map.get(PRESENT_ABSENCE_ABSENT_MINUTES_KEY), DEFAULT_ABSENT_MINUTES)
+  )
   return {
     enabled: parseBool(map.get(PRESENT_ABSENCE_ENABLED_KEY)),
-    graceMinutes: parseGraceMinutes(map.get(PRESENT_ABSENCE_GRACE_MINUTES_KEY)),
+    lateMinutes,
+    absentMinutes,
+    graceMinutes: lateMinutes,
     notifyEmail: parseBool(map.get(PRESENT_ABSENCE_NOTIFY_EMAIL_KEY)),
     notifyWhatsApp: parseBool(map.get(PRESENT_ABSENCE_NOTIFY_WHATSAPP_KEY)),
     notifyEmailRecipients: map.get(PRESENT_ABSENCE_NOTIFY_EMAIL_RECIPIENTS_KEY) ?? '',
@@ -95,10 +126,11 @@ export function computePresenceStatus(params: {
   dateYmd: string
   todayYmd: string
   now: Date
-  graceMinutes: number
+  lateMinutes: number
+  absentMinutes: number
   shiftStartHHmm: string
   tz: string
-  hasPunch: boolean
+  firstPunchAt: Date | null
   manualPresent: boolean
   isExpected: boolean
   /** No punch clock: auto-present when expected unless manualAbsent */
@@ -109,10 +141,11 @@ export function computePresenceStatus(params: {
     dateYmd,
     todayYmd,
     now,
-    graceMinutes,
+    lateMinutes,
+    absentMinutes,
     shiftStartHHmm,
     tz,
-    hasPunch,
+    firstPunchAt,
     manualPresent,
     isExpected,
     punchExempt = false,
@@ -123,16 +156,23 @@ export function computePresenceStatus(params: {
   if (punchExempt && manualAbsent) return 'absent'
   if (manualPresent) return 'present'
   if (punchExempt && !manualAbsent) return 'present'
-  if (hasPunch) return 'present'
 
+  const { lateMinutes: lateM, absentMinutes: absentM } = clampLateAbsentMinutes(
+    lateMinutes,
+    absentMinutes
+  )
   const shiftStart = shiftStartInstantOnDate(dateYmd, shiftStartHHmm, tz)
-  const graceEnd = addMinutes(shiftStart, graceMinutes)
+  const lateAt = addMinutes(shiftStart, lateM)
+  const absentAt = addMinutes(shiftStart, absentM)
+
+  if (firstPunchAt) {
+    return firstPunchAt.getTime() > lateAt.getTime() ? 'late' : 'present'
+  }
 
   if (dateYmd > todayYmd) return 'pending'
-  if (dateYmd < todayYmd) return 'absent'
-
-  if (now < graceEnd) return 'pending'
-  return 'late'
+  if (now < lateAt) return 'pending'
+  if (now < absentAt) return 'late'
+  return 'absent'
 }
 
 export interface ScheduledRow {
@@ -286,9 +326,9 @@ export async function loadPunchFlagsForStaffOnDate(
   staffIds: string[],
   ymd: string,
   tz: string
-): Promise<Map<string, boolean>> {
-  const result = new Map<string, boolean>()
-  staffIds.forEach((id) => result.set(id, false))
+): Promise<Map<string, Date | null>> {
+  const result = new Map<string, Date | null>()
+  staffIds.forEach((id) => result.set(id, null))
   if (staffIds.length === 0) return result
 
   const staffRows = await prisma.staff.findMany({
@@ -324,18 +364,23 @@ export async function loadPunchFlagsForStaffOnDate(
     }
   }
 
+  const consider = (sid: string, punchTime: Date) => {
+    const prev = result.get(sid)
+    if (!prev || punchTime < prev) result.set(sid, punchTime)
+  }
+
   for (const log of logs) {
     const day = calendarYmdInTz(log.punchTime, tz)
     if (day !== ymd) continue
     if (log.staffId && staffIds.includes(log.staffId)) {
-      result.set(log.staffId, true)
+      consider(log.staffId, log.punchTime)
     } else {
       let sid: string | undefined
       for (const k of deviceUserIdLookupKeys(log.deviceUserId)) {
         sid = deviceToStaff.get(k)
         if (sid) break
       }
-      if (sid) result.set(sid, true)
+      if (sid) consider(sid, log.punchTime)
     }
   }
 
@@ -386,16 +431,16 @@ export async function loadOverridesForDates(
   return byDate
 }
 
-/** Punch flags for a week range in one attendance_log query (date → staffId → hasPunch). */
+/** First punch time per staff for a week range in one attendance_log query (date → staffId → punch). */
 export async function loadPunchFlagsForStaffWeek(
   staffIds: string[],
   weekDates: string[],
   tz: string
-): Promise<Map<string, Map<string, boolean>>> {
-  const byDate = new Map<string, Map<string, boolean>>()
+): Promise<Map<string, Map<string, Date | null>>> {
+  const byDate = new Map<string, Map<string, Date | null>>()
   for (const d of weekDates) {
     byDate.set(d, new Map())
-    staffIds.forEach((id) => byDate.get(d)!.set(id, false))
+    staffIds.forEach((id) => byDate.get(d)!.set(id, null))
   }
   if (staffIds.length === 0 || weekDates.length === 0) return byDate
 
@@ -432,18 +477,23 @@ export async function loadPunchFlagsForStaffWeek(
     }
   }
 
+  const consider = (dayMap: Map<string, Date | null>, sid: string, punchTime: Date) => {
+    const prev = dayMap.get(sid)
+    if (!prev || punchTime < prev) dayMap.set(sid, punchTime)
+  }
+
   for (const log of logs) {
     const day = calendarYmdInTz(log.punchTime, tz)
     const dayMap = byDate.get(day)
     if (!dayMap) continue
     if (log.staffId && staffIds.includes(log.staffId)) {
-      dayMap.set(log.staffId, true)
+      consider(dayMap, log.staffId, log.punchTime)
       continue
     }
     for (const k of deviceUserIdLookupKeys(log.deviceUserId)) {
       const sid = deviceToStaff.get(k)
       if (sid) {
-        dayMap.set(sid, true)
+        consider(dayMap, sid, log.punchTime)
         break
       }
     }
@@ -492,13 +542,15 @@ export interface PresenceDetail {
   punchExempt: boolean
   /** Punch-exempt only: explicitly absent this day. */
   manualAbsent: boolean
+  hasPunch: boolean
 }
 
 export async function buildPresenceForDate(params: {
   dateYmd: string
   tz: string
   now?: Date
-  graceMinutes: number
+  lateMinutes: number
+  absentMinutes: number
   /** Skip roster load when already resolved for this date. */
   roster?: {
     weekStart: string
@@ -506,8 +558,8 @@ export async function buildPresenceForDate(params: {
     off: { staffId: string; staffName: string; staffFirstName: string }[]
     onVacation: { staffId: string; staffName: string; staffFirstName: string }[]
   }
-  /** Preloaded punch flags for this date (from loadPunchFlagsForStaffWeek). */
-  punchMap?: Map<string, boolean>
+  /** Preloaded first punch times for this date (from loadPunchFlagsForStaffWeek). */
+  punchMap?: Map<string, Date | null>
   /** Preloaded overrides for this date (from loadOverridesForDates). */
   overrideMap?: Map<string, { manualPresent: boolean; lateReason: string; manualAbsent: boolean }>
 }): Promise<{
@@ -519,7 +571,7 @@ export async function buildPresenceForDate(params: {
   todayYmd: string
 }> {
   const now = params.now ?? new Date()
-  const { dateYmd, tz, graceMinutes } = params
+  const { dateYmd, tz, lateMinutes, absentMinutes } = params
   const { weekStart, scheduled, off, onVacation } = params.roster
     ? params.roster
     : await loadRosterForCalendarYmd(dateYmd, tz)
@@ -545,7 +597,7 @@ export async function buildPresenceForDate(params: {
   for (const staffId of uniqueStaffIds) {
     const isExpected = !excluded.has(staffId)
     const shiftStartHHmm = earliestShiftStartForStaff(scheduled, staffId)
-    const hasPunch = punchMap.get(staffId) === true
+    const firstPunchAt = punchMap.get(staffId) ?? null
     const ov = overrideMap.get(staffId)
     const manualPresent = ov?.manualPresent === true
     const manualAbsent = ov?.manualAbsent === true
@@ -553,16 +605,17 @@ export async function buildPresenceForDate(params: {
     const punchExempt = punchExemptById.get(staffId) === true
 
     const shiftStart = shiftStartInstantOnDate(dateYmd, shiftStartHHmm, tz)
-    const graceEnd = addMinutes(shiftStart, graceMinutes)
+    const lateAt = addMinutes(shiftStart, lateMinutes)
 
     const status = computePresenceStatus({
       dateYmd,
       todayYmd,
       now,
-      graceMinutes,
+      lateMinutes,
+      absentMinutes,
       shiftStartHHmm,
       tz,
-      hasPunch,
+      firstPunchAt,
       manualPresent,
       isExpected,
       punchExempt,
@@ -576,7 +629,8 @@ export async function buildPresenceForDate(params: {
       manualPresent,
       punchExempt,
       manualAbsent,
-      graceEndsAtIso: status === 'pending' && isExpected ? graceEnd.toISOString() : undefined
+      hasPunch: firstPunchAt != null,
+      graceEndsAtIso: status === 'pending' && isExpected ? lateAt.toISOString() : undefined
     }
   }
 
