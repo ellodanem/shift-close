@@ -7,6 +7,7 @@ import {
   previousBiweeklyPeriodBounds
 } from '@/lib/current-pay-period'
 import { lateAbsentReportToCsv, type LateAbsentReport, type LateAbsentStaffRow } from '@/lib/late-absent-report-shared'
+import { downloadLateAbsentStaffPdf, printLateAbsentStaffDrilldown } from '@/lib/late-absent-report-print'
 
 function statusClass(status: string): string {
   switch (status) {
@@ -265,6 +266,24 @@ export default function LateAbsentReportPage() {
                   {report?.periodLabel} · {selected.lateCount} late · {selected.absentCount} absent
                 </p>
               </div>
+              {report ? (
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => printLateAbsentStaffDrilldown(report, selected)}
+                    className="px-3 py-1.5 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200 font-medium"
+                  >
+                    Print
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadLateAbsentStaffPdf(report, selected)}
+                    className="px-3 py-1.5 text-sm border border-slate-300 bg-white text-slate-800 rounded hover:bg-slate-50 font-medium"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              ) : null}
             </div>
             <table className="min-w-full text-sm">
               <thead>
