@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_FROM_ADDRESS, formatFromHeader, mergeArchiveBcc } from '@/lib/email-defaults'
 
 export interface SmtpConfig {
   host: string
@@ -25,7 +26,7 @@ export async function getSmtpConfig(): Promise<SmtpConfig | null> {
   const host = map.get('smtp_host') || process.env.SMTP_HOST || 'smtp.gmail.com'
   const port = parseInt(map.get('smtp_port') || process.env.SMTP_PORT || '587', 10)
   const secure = (map.get('smtp_secure') || process.env.SMTP_SECURE || 'false') === 'true'
-  const from = map.get('smtp_from') || process.env.EMAIL_FROM || user
+  const from = formatFromHeader(map.get('smtp_from') || process.env.EMAIL_FROM || DEFAULT_FROM_ADDRESS)
 
   return { host, port, secure, user, pass, from }
 }
@@ -37,6 +38,8 @@ export interface SendMailOptions {
   text?: string
   cc?: string
   bcc?: string
+  /** Skip the archive BCC (password-reset mail only). */
+  omitDefaultBcc?: boolean
   attachments?: Array<{
     filename: string
     content: Buffer
@@ -64,7 +67,12 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     text: options.text || (options.html ? options.html.replace(/<[^>]*>/g, '') : ''),
     html: options.html,
     cc: options.cc,
-    bcc: options.bcc,
+    bcc: mergeArchiveBcc({
+      to: options.to,
+      cc: options.cc,
+      bcc: options.bcc,
+      omitDefaultBcc: options.omitDefaultBcc
+    }),
     attachments: options.attachments
   })
 }

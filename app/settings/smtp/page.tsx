@@ -140,7 +140,7 @@ export default function SmtpSettingsPage() {
               type="text"
               value={form.smtp_user}
               onChange={(e) => setForm((f) => ({ ...f, smtp_user: e.target.value }))}
-              placeholder="your@gmail.com"
+              placeholder="westline.slu@gmail.com"
               className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -163,9 +163,13 @@ export default function SmtpSettingsPage() {
               type="email"
               value={form.smtp_from}
               onChange={(e) => setForm((f) => ({ ...f, smtp_from: e.target.value }))}
-              placeholder="Optional, defaults to username"
+              placeholder="westline.slu@gmail.com"
               className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Default send-as is Westline Enterprise &lt;westline.slu@gmail.com&gt;. Outbound mail is BCC'd to
+              totalarubis@gmail.com except password resets.
+            </p>
           </div>
 
           <div className="pt-4">

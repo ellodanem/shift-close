@@ -21,7 +21,8 @@
     "test:datetime": "tsx --test scripts/test-datetime-policy.ts",
     "test:late-absent": "tsx --test scripts/test-late-absent.ts",
     "test:checklist": "tsx --test scripts/test-operations-checklist-due-dates.ts",
-    "test:roster-hours": "tsx --test scripts/test-roster-pay-period-hours.ts"
+    "test:roster-hours": "tsx --test scripts/test-roster-pay-period-hours.ts",
+    "test:email": "tsx --test scripts/test-email-defaults.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

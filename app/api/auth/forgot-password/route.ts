@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
         to: user.email,
         subject: 'Reset your Shift Close password',
         text: `You requested a password reset.\n\nOpen this link (valid 1 hour):\n${link}\n\nIf you did not request this, ignore this email.`,
-        html: `<p>You requested a password reset.</p><p><a href="${link}">Reset password</a> (valid 1 hour)</p><p>If you did not request this, ignore this email.</p>`
+        html: `<p>You requested a password reset.</p><p><a href="${link}">Reset password</a> (valid 1 hour)</p><p>If you did not request this, ignore this email.</p>`,
+        omitDefaultBcc: true
       })
     } catch (e) {
       console.error('forgot-password sendMail', e)

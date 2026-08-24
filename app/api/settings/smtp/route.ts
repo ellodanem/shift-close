@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_FROM_ADDRESS, extractEmailAddress } from '@/lib/email-defaults'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +17,10 @@ export async function GET() {
       smtp_host: map.get('smtp_host') || process.env.SMTP_HOST || 'smtp.gmail.com',
       smtp_port: map.get('smtp_port') || process.env.SMTP_PORT || '587',
       smtp_secure: map.get('smtp_secure') || process.env.SMTP_SECURE || 'false',
-      smtp_user: map.get('smtp_user') || process.env.SMTP_USER || '',
+      smtp_user: map.get('smtp_user') || process.env.SMTP_USER || DEFAULT_FROM_ADDRESS,
       smtp_pass: map.get('smtp_pass') || process.env.SMTP_PASS ? '********' : '',
-      smtp_from: map.get('smtp_from') || process.env.EMAIL_FROM || map.get('smtp_user') || process.env.SMTP_USER || ''
+      smtp_from:
+        extractEmailAddress(map.get('smtp_from') || process.env.EMAIL_FROM || '') || DEFAULT_FROM_ADDRESS
     }
 
     return NextResponse.json(result)
