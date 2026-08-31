@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import {
+  balanceAfterFromAvailable,
+  sumPendingFuelInvoiceAmounts
+} from '@/lib/fuelBalance'
 
 // POST mark invoices as paid (create/update batch)
 export async function POST(request: NextRequest) {
@@ -141,30 +145,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Update overall fuel balance: subtract the amount just paid
-    if (existingBalance) {
-      const updatedAvailable = roundMoney(existingBalance.availableFunds - paidNow)
-      await prisma.balance.update({
-        where: { id: 'balance' },
-        data: {
-          availableFunds: updatedAvailable,
-          balanceAfter: roundMoney(updatedAvailable - existingBalance.planned)
-        }
-      })
-    } else {
-      // If no balance record exists yet, create one starting from zero minus this payment
-      const updatedAvailable = roundMoney(0 - paidNow)
-      await prisma.balance.create({
-        data: {
-          id: 'balance',
-          currentBalance: 0,
-          availableFunds: updatedAvailable,
-          planned: 0,
-          balanceAfter: updatedAvailable
-        }
-      })
-    }
-
     // Delete any simulations that included these invoices
     const allSimulations = await prisma.paymentSimulation.findMany()
     for (const sim of allSimulations) {
@@ -175,6 +155,33 @@ export async function POST(request: NextRequest) {
           where: { id: sim.id }
         })
       }
+    }
+
+    const planned = await sumPendingFuelInvoiceAmounts()
+
+    // Update overall fuel balance: subtract the amount just paid
+    if (existingBalance) {
+      const updatedAvailable = roundMoney(existingBalance.availableFunds - paidNow)
+      await prisma.balance.update({
+        where: { id: 'balance' },
+        data: {
+          availableFunds: updatedAvailable,
+          planned,
+          balanceAfter: balanceAfterFromAvailable(updatedAvailable)
+        }
+      })
+    } else {
+      // If no balance record exists yet, create one starting from zero minus this payment
+      const updatedAvailable = roundMoney(0 - paidNow)
+      await prisma.balance.create({
+        data: {
+          id: 'balance',
+          currentBalance: 0,
+          availableFunds: updatedAvailable,
+          planned,
+          balanceAfter: balanceAfterFromAvailable(updatedAvailable)
+        }
+      })
     }
 
     // Add to Cashbook as expense when requested (split by Rec. Gen / Rec. Gas / Mtnce)

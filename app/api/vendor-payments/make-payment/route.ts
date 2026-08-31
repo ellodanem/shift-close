@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
 
 function vendorInvoiceTotal(amount: number, vat: number | null) {
   return roundMoney(amount + (vat ?? 0))
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
           where: { id: 'balance' },
           data: {
             availableFunds: updatedAvailable,
-            balanceAfter: roundMoney(updatedAvailable - existingBalance.planned)
+            balanceAfter: balanceAfterFromAvailable(updatedAvailable)
           }
         })
       } else {

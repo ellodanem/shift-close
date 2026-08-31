@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { formatAmount } from '@/lib/fuelPayments'
+import { formatAmount, roundMoney } from '@/lib/fuelPayments'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import html2canvas from 'html2canvas'
 import {
@@ -263,6 +263,17 @@ export function FuelMakePaymentModal({
     void ensureSimulation(selectedIds, paymentDate)
   }, [paymentDate, selectedInvoiceIds, simulatedKey, simulating])
 
+  const handleClose = async () => {
+    if (simulation?.id) {
+      try {
+        await fetch(`/api/fuel-payments/simulate/${simulation.id}`, { method: 'DELETE' })
+      } catch (error) {
+        console.error('Error deleting payment simulation:', error)
+      }
+    }
+    onClose()
+  }
+
   useEffect(() => {
     if (!simulation) {
       setOtherUnpaidInvoices([])
@@ -270,12 +281,15 @@ export function FuelMakePaymentModal({
       return
     }
 
-    const fetchBalance = async () => {
+    const fetchAvailable = async () => {
       try {
         const res = await fetch('/api/fuel-payments/balance')
         if (res.ok) {
           const data = await res.json()
-          setBalance(data)
+          setBalance({
+            availableFunds: data.availableFunds,
+            balanceAfter: roundMoney(data.availableFunds - simulation.totalAmount)
+          })
         }
       } catch (error) {
         console.error('Error fetching balance:', error)
@@ -294,7 +308,7 @@ export function FuelMakePaymentModal({
       }
     }
 
-    void fetchBalance()
+    void fetchAvailable()
     void fetchOtherUnpaid()
   }, [simulation])
 
@@ -592,7 +606,7 @@ export function FuelMakePaymentModal({
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void handleClose()}
               disabled={processing}
               className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
             >

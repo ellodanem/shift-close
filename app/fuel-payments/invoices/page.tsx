@@ -823,8 +823,12 @@ export default function InvoicesPage() {
         <FuelMakePaymentModal
           open={showPayModal}
           initialSelectedCsv={payModalSelectedCsv}
-          onClose={() => setShowPayModal(false)}
+          onClose={() => {
+            setShowPayModal(false)
+            void fetchBalance()
+          }}
           onSuccess={(batchId) => {
+            void fetchBalance()
             void fetchInvoices()
             void Promise.all([
               fetch('/api/fuel-payments/invoices?status=pending').then(async (res) => {

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
 
 export type UncashedCheckSource = 'vendor' | 'cashbook'
 
@@ -54,7 +55,7 @@ async function deductFromBalance(amount: number) {
       where: { id: 'balance' },
       data: {
         availableFunds: updatedAvailable,
-        balanceAfter: roundMoney(updatedAvailable - existingBalance.planned)
+        balanceAfter: balanceAfterFromAvailable(updatedAvailable)
       }
     })
   } else {

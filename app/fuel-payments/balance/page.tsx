@@ -147,7 +147,7 @@ export default function BalancePage() {
                 {formatAmount(balance.planned)}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                (From active simulation)
+                (Total pending invoices)
               </p>
             </div>
             <div>
@@ -158,7 +158,7 @@ export default function BalancePage() {
                 {formatAmount(balance.balanceAfter)}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                (Available - Planned)
+                (Available funds after payments made)
               </p>
             </div>
           </div>

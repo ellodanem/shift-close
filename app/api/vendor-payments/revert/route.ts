@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
 
 // POST revert vendor payment by bank reference/check number
 export async function POST(request: NextRequest) {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
           where: { id: 'balance' },
           data: {
             availableFunds: updatedAvailable,
-            balanceAfter: roundMoney(updatedAvailable - existingBalance.planned)
+            balanceAfter: balanceAfterFromAvailable(updatedAvailable)
           }
         })
       } else {

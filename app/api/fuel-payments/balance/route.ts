@@ -1,67 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import {
+  balanceAfterFromAvailable,
+  refreshBalanceSnapshot,
+  sumPendingFuelInvoiceAmounts
+} from '@/lib/fuelBalance'
 import { sumUncashedChecks } from '@/lib/uncashedChecks'
 
 // GET current balance
 export async function GET() {
   try {
-    // Use upsert to ensure balance record exists
-    let balance = await prisma.balance.upsert({
-      where: { id: 'balance' },
-      update: {},
-      create: {
-        id: 'balance',
-        currentBalance: 0,
-        availableFunds: 0,
-        planned: 0,
-        balanceAfter: 0
-      }
-    })
-
-    // Calculate planned from active simulations
-    const simulations = await prisma.paymentSimulation.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 1 // Most recent simulation
-    })
-
-    let planned = 0
-    if (simulations.length > 0) {
-      const sim = simulations[0]
-      const invoiceIds = JSON.parse(sim.selectedInvoiceIds)
-      // Get invoices from simulation (they remain pending, no status filter needed)
-      const invoices = await prisma.invoice.findMany({
-        where: {
-          id: { in: invoiceIds },
-          status: 'pending' // Invoices in simulation remain pending
-        }
-      })
-      planned = roundMoney(
-        invoices.reduce((sum, inv) => sum + roundMoney(inv.amount), 0)
-      )
-    }
-
-    // Calculate balance after
-    const balanceAfter = roundMoney(balance.availableFunds - planned)
-
-    // Update if planned changed
-    if (planned !== balance.planned) {
-      balance = await prisma.balance.update({
-        where: { id: 'balance' },
-        data: {
-          planned,
-          balanceAfter
-        }
-      })
-    } else {
-      balance = {
-        ...balance,
-        planned,
-        balanceAfter
-      }
-    }
+    const balance = await refreshBalanceSnapshot()
 
     // Uncashed checks reduce spendable balance (vendor batches + cashbook check expenses).
     const uncashedChecksTotal = await sumUncashedChecks()
@@ -120,9 +70,9 @@ export async function PATCH(request: NextRequest) {
         updateData.availableFunds = roundMoney(Number(availableFunds))
       }
 
-      // Recalculate balanceAfter
       const finalAvailableFunds = updateData.availableFunds ?? existingBalance.availableFunds
-      updateData.balanceAfter = roundMoney(finalAvailableFunds - existingBalance.planned)
+      updateData.planned = await sumPendingFuelInvoiceAmounts()
+      updateData.balanceAfter = balanceAfterFromAvailable(finalAvailableFunds)
 
       const balance = await prisma.balance.update({
         where: { id: 'balance' },

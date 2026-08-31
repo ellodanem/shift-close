@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
-import { formatAmount } from '@/lib/fuelPayments'
+import { formatAmount, roundMoney } from '@/lib/fuelPayments'
 import html2canvas from 'html2canvas'
 
 interface Invoice {
@@ -135,7 +135,17 @@ function SimulatePaymentPageInner() {
       const res = await fetch('/api/fuel-payments/balance')
       if (res.ok) {
         const data = await res.json()
-        setBalance(data)
+        if (simulation) {
+          setBalance({
+            availableFunds: data.availableFunds,
+            balanceAfter: roundMoney(data.availableFunds - simulation.totalAmount)
+          })
+        } else {
+          setBalance({
+            availableFunds: data.availableFunds,
+            balanceAfter: data.balanceAfter
+          })
+        }
       }
     } catch (error) {
       console.error('Error fetching balance:', error)
