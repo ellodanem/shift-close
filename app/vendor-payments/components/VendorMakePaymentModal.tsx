@@ -315,7 +315,7 @@ export function VendorMakePaymentModal({
               onClick={() => router.push('/vendor-payments/uncashed-checks')}
               className="rounded bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"
             >
-              Uncashed checks
+              Check Management
             </button>
           </div>
         </div>

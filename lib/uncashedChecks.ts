@@ -14,6 +14,10 @@ export type UncashedCheckRecord = {
   detail: string
 }
 
+export type ClearedCheckRecord = UncashedCheckRecord & {
+  clearedAt: string
+}
+
 export function parseUncashedCheckId(
   compositeId: string
 ): { source: UncashedCheckSource; rawId: string } | null {
@@ -123,6 +127,74 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
 
   return [...vendorItems, ...cashbookItems].sort((a, b) => {
     const dateCmp = a.paymentDate.localeCompare(b.paymentDate)
+    if (dateCmp !== 0) return dateCmp
+    const refCmp = a.bankRef.localeCompare(b.bankRef)
+    if (refCmp !== 0) return refCmp
+    return a.id.localeCompare(b.id)
+  })
+}
+
+export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
+  const [vendorBatches, cashbookEntries] = await Promise.all([
+    prisma.vendorPaymentBatch.findMany({
+      where: {
+        paymentMethod: 'check',
+        clearedAt: { not: null }
+      },
+      include: {
+        vendor: true,
+        invoices: true
+      },
+      orderBy: { paymentDate: 'desc' }
+    }),
+    prisma.cashbookEntry.findMany({
+      where: {
+        debitCheck: { gt: 0 },
+        clearedAt: { not: null },
+        vendorPaymentBatchId: null
+      },
+      include: {
+        allocations: { include: { category: true } }
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
+    })
+  ])
+
+  const vendorItems: ClearedCheckRecord[] = vendorBatches.map((batch) => ({
+    id: uncashedCheckId('vendor', batch.id),
+    source: 'vendor',
+    vendorId: batch.vendorId,
+    paymentDate: batch.paymentDate.toISOString(),
+    payee: batch.vendor.name,
+    bankRef: batch.bankRef,
+    totalAmount: batch.totalAmount,
+    detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', '),
+    clearedAt: batch.clearedAt!.toISOString()
+  }))
+
+  const cashbookItems: ClearedCheckRecord[] = cashbookEntries.map((entry) => {
+    const categories = entry.allocations
+      .map((a) => a.category.name)
+      .filter(Boolean)
+      .join(', ')
+
+    return {
+      id: uncashedCheckId('cashbook', entry.id),
+      source: 'cashbook',
+      vendorId: null,
+      paymentDate: entry.date,
+      payee: entry.description.trim() || 'Cashbook expense',
+      bankRef: entry.ref?.trim() || '—',
+      totalAmount: roundMoney(entry.debitCheck),
+      detail: categories || entry.description.trim() || '—',
+      clearedAt: entry.clearedAt!.toISOString()
+    }
+  })
+
+  return [...vendorItems, ...cashbookItems].sort((a, b) => {
+    const clearedCmp = b.clearedAt.localeCompare(a.clearedAt)
+    if (clearedCmp !== 0) return clearedCmp
+    const dateCmp = b.paymentDate.localeCompare(a.paymentDate)
     if (dateCmp !== 0) return dateCmp
     const refCmp = a.bankRef.localeCompare(b.bankRef)
     if (refCmp !== 0) return refCmp

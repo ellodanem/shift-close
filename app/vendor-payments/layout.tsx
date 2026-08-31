@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 const tabs = [
   { label: 'Invoices', href: '/vendor-payments/invoices' },
   { label: 'Vendors', href: '/vendor-payments/vendors' },
-  { label: 'Uncashed Checks', href: '/vendor-payments/uncashed-checks' },
+  { label: 'Check Management', href: '/vendor-payments/uncashed-checks' },
   { label: 'All Invoices Report', href: '/vendor-payments/monthly-report' }
 ]
 
