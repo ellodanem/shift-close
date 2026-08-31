@@ -850,6 +850,22 @@ model CashbookAllocation {
   @@map("cashbook_allocations")
 }
 
+// Extra expense lines on the All Invoices monthly report (not tied to a vendor invoice)
+model MonthlyReportExpense {
+  id              String   @id @default(cuid())
+  month           String   // YYYY-MM — unique to that month’s report
+  description     String   // Payee / what it is — not necessarily a vendor
+  amount          Float
+  paymentMethod   String?  @map("payment_method") // cash | check | eft | debit_credit | deposit | direct_debit
+  ref             String?  // Optional check # / bank reference
+  cashbookEntryId String?  @unique @map("cashbook_entry_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([month])
+  @@map("monthly_report_expenses")
+}
+
 // Descriptions to hide from the suggestion dropdown (typos, one-offs)
 model CashbookDescriptionExclusion {
   id          String   @id @default(cuid())

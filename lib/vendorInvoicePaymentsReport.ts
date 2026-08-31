@@ -15,6 +15,15 @@ export interface VendorInvoicePaymentRow {
   paidCount: number
 }
 
+export interface MonthlyReportExpenseRow {
+  id: string
+  description: string
+  amount: number
+  paymentMethod: string | null
+  ref: string | null
+  inCashbook: boolean
+}
+
 export interface VendorInvoicePaymentsReport {
   month: string
   monthName: string
@@ -22,6 +31,8 @@ export interface VendorInvoicePaymentsReport {
   /** How the month filter was applied. */
   monthMeaning: 'payment' | 'invoice'
   rows: VendorInvoicePaymentRow[]
+  /** Extra expense lines unique to this month’s report (not vendor invoices). */
+  additionalExpenses: MonthlyReportExpenseRow[]
   totalExpenses: number
   totalInvoiceAmount: number
 }
@@ -90,12 +101,50 @@ export function aggregateVendorInvoiceRows(inputs: AggregateInput[]): VendorInvo
     .sort((a, b) => a.vendorName.localeCompare(b.vendorName, undefined, { sensitivity: 'base' }))
 }
 
-export function buildReportTotals(rows: VendorInvoicePaymentRow[]): {
+export function serializeMonthlyReportExpense(row: {
+  id: string
+  description: string
+  amount: number
+  paymentMethod: string | null
+  ref: string | null
+  cashbookEntryId: string | null
+}): MonthlyReportExpenseRow {
+  return {
+    id: row.id,
+    description: row.description,
+    amount: roundMoney(row.amount),
+    paymentMethod: row.paymentMethod,
+    ref: row.ref,
+    inCashbook: Boolean(row.cashbookEntryId)
+  }
+}
+
+export function dateInReportMonth(dateYmd: string, month: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateYmd) && dateYmd.startsWith(`${month}-`)
+}
+
+export function monthDateBoundsYmd(month: string): { min: string; max: string } {
+  const [yearStr, monthStr] = month.split('-')
+  const year = parseInt(yearStr, 10)
+  const monthIndex = parseInt(monthStr, 10) - 1
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0, 12, 0, 0, 0)).getUTCDate()
+  return {
+    min: `${month}-01`,
+    max: `${month}-${String(lastDay).padStart(2, '0')}`
+  }
+}
+
+export function buildReportTotals(
+  rows: VendorInvoicePaymentRow[],
+  additionalExpenses: { amount: number }[] = []
+): {
   totalExpenses: number
   totalInvoiceAmount: number
 } {
+  const vendorExpenses = rows.reduce((sum, r) => sum + r.expenses, 0)
+  const extraExpenses = additionalExpenses.reduce((sum, e) => sum + e.amount, 0)
   return {
-    totalExpenses: roundMoney(rows.reduce((sum, r) => sum + r.expenses, 0)),
+    totalExpenses: roundMoney(vendorExpenses + extraExpenses),
     totalInvoiceAmount: roundMoney(rows.reduce((sum, r) => sum + r.invoiceAmount, 0))
   }
 }

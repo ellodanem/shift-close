@@ -5,6 +5,7 @@ import {
   aggregateVendorInvoiceRows,
   buildReportTotals,
   monthUtcBounds,
+  serializeMonthlyReportExpense,
   type VendorInvoicePaymentsInclude,
   type VendorInvoicePaymentsReport
 } from '@/lib/vendorInvoicePaymentsReport'
@@ -34,6 +35,17 @@ export async function GET(request: NextRequest) {
     }
 
     const { start, endExclusive, monthName } = monthUtcBounds(month)
+
+    let additionalExpenses: ReturnType<typeof serializeMonthlyReportExpense>[] = []
+    try {
+      const additionalExpenseRecords = await prisma.monthlyReportExpense.findMany({
+        where: { month },
+        orderBy: [{ createdAt: 'asc' }]
+      })
+      additionalExpenses = additionalExpenseRecords.map(serializeMonthlyReportExpense)
+    } catch (expenseErr) {
+      console.error('Additional monthly expenses unavailable:', expenseErr)
+    }
 
     let report: VendorInvoicePaymentsReport
 
@@ -65,13 +77,14 @@ export async function GET(request: NextRequest) {
       )
 
       const rows = aggregateVendorInvoiceRows(inputs)
-      const totals = buildReportTotals(rows)
+      const totals = buildReportTotals(rows, additionalExpenses)
       report = {
         month,
         monthName,
         include,
         monthMeaning: 'payment',
         rows,
+        additionalExpenses,
         ...totals
       }
     } else {
@@ -97,13 +110,14 @@ export async function GET(request: NextRequest) {
           status: inv.status === 'paid' ? ('paid' as const) : ('pending' as const)
         }))
       )
-      const totals = buildReportTotals(rows)
+      const totals = buildReportTotals(rows, additionalExpenses)
       report = {
         month,
         monthName,
         include,
         monthMeaning: 'invoice',
         rows,
+        additionalExpenses,
         ...totals
       }
     }
