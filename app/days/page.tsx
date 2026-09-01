@@ -14,7 +14,6 @@ import {
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
-import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
@@ -37,18 +36,43 @@ function mergeDayReports(prev: DayReport[], incoming: DayReport[]): DayReport[] 
   return [...byDate.values()].sort((a, b) => (a.date > b.date ? -1 : 1))
 }
 
+function formatCustomMonthLabel(yyyyMm: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(yyyyMm)
+  if (!match) return yyyyMm
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return yyyyMm
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC'
+  })
+}
+
+function monthRangeFromYyyyMm(yyyyMm: string): { from: string; to: string } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(yyyyMm)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return null
+  const from = `${year}-${padMonth(month)}-01`
+  const to = lastDayOfMonthYmd(year, month)
+  return { from, to }
+}
+
 function daysQueryForFilter(
   filter: FilterType,
-  customDate: string
+  customMonth: string
 ): { key: string; url: string; from?: string; to?: string } | null {
   const todayYmd = businessTodayYmd()
   if (filter === 'custom') {
-    if (!customDate) return null
+    const range = monthRangeFromYyyyMm(customMonth)
+    if (!range) return null
     return {
-      key: `custom:${customDate}`,
-      url: `/api/days?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`,
-      from: customDate,
-      to: customDate
+      key: `month:${range.from}`,
+      url: `/api/days?from=${range.from}&to=${range.to}`,
+      from: range.from,
+      to: range.to
     }
   }
   if (filter === 'all') {
@@ -105,7 +129,7 @@ export default function DaysPage() {
   const [rangeLoading, setRangeLoading] = useState(false)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [activeFilter, setActiveFilter] = useState<FilterType>('month')
-  const [customDate, setCustomDate] = useState<string>('')
+  const [customMonth, setCustomMonth] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const loadedRangeKeys = useRef(new Set<string>())
@@ -172,8 +196,8 @@ export default function DaysPage() {
   }, [])
 
   useEffect(() => {
-    fetchRange(activeFilter, customDate)
-  }, [activeFilter, customDate, fetchRange])
+    fetchRange(activeFilter, customMonth)
+  }, [activeFilter, customMonth, fetchRange])
 
   useEffect(() => {
     if (!scanPreview) return
@@ -203,12 +227,12 @@ export default function DaysPage() {
         shouldRefetchOnVisibility(tabHiddenAtRef.current)
       ) {
         tabHiddenAtRef.current = null
-        fetchRange(activeFilter, customDate, true)
+        fetchRange(activeFilter, customMonth, true)
       }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [activeFilter, customDate, fetchRange])
+  }, [activeFilter, customMonth, fetchRange])
   
   const toggleExpand = (date: string) => {
     const newExpanded = new Set(expandedDates)
@@ -221,9 +245,9 @@ export default function DaysPage() {
   }
 
   const refreshDayReports = () => {
-    const query = daysQueryForFilter(activeFilter, customDate)
+    const query = daysQueryForFilter(activeFilter, customMonth)
     if (query) loadedRangeKeys.current.delete(query.key)
-    fetchRange(activeFilter, customDate, true)
+    fetchRange(activeFilter, customMonth, true)
   }
 
   const toAbsoluteUrl = (url: string) =>
@@ -301,10 +325,11 @@ export default function DaysPage() {
 
   const filteredReports = useMemo(() => {
     if (activeFilter === 'all') return dayReports
-    const query = daysQueryForFilter(activeFilter, customDate)
+    if (activeFilter === 'custom' && !monthRangeFromYyyyMm(customMonth)) return []
+    const query = daysQueryForFilter(activeFilter, customMonth)
     if (!query?.from || !query.to) return dayReports
     return dayReports.filter((r) => r.date >= query.from! && r.date <= query.to!)
-  }, [dayReports, activeFilter, customDate])
+  }, [dayReports, activeFilter, customMonth])
   
   const getOsColor = (amount: number) => {
     if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
@@ -586,25 +611,30 @@ export default function DaysPage() {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
+              Custom {activeFilter === 'custom' && customMonth
+                ? `(${formatCustomMonthLabel(customMonth)})`
+                : '▼'}
             </button>
-            
-            {/* Custom Date Picker */}
             {showCustomPicker && (
-              <div className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[320px]">
-                <CustomDatePicker
-                  selectedDate={customDate}
-                  onDateSelect={(date) => {
-                    setCustomDate(date)
+              <div className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
+                <div className="mb-2 text-sm font-semibold text-gray-700">
+                  Select Month
+                </div>
+                <input
+                  type="month"
+                  autoFocus
+                  value={customMonth}
+                  onChange={(e) => {
+                    setCustomMonth(e.target.value)
                     setActiveFilter('custom')
                     setShowCustomPicker(false)
                   }}
-                  onClose={() => setShowCustomPicker(false)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                 />
               </div>
             )}
           </div>
-          {activeFilter !== 'all' && (
+          {activeFilter !== 'all' && !(activeFilter === 'custom' && !customMonth) && (
             <span className="text-sm text-gray-600 ml-2">
               ({filteredReports.length} end of day{filteredReports.length !== 1 ? 's' : ''})
             </span>
@@ -621,6 +651,10 @@ export default function DaysPage() {
         {(loading || rangeLoading) && filteredReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
             Loading…
+          </div>
+        ) : activeFilter === 'custom' && !customMonth ? (
+          <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
+            Select a month to load end of day records.
           </div>
         ) : filteredReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
