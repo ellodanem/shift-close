@@ -4,7 +4,10 @@ import {
   BUSINESS_TIME_ZONE,
   addCalendarDaysYmd,
   businessTodayYmd,
+  isQuietHours,
+  isQuietHoursMorningRestore,
   normalizeToUtcString,
+  secondsUntilQuietHoursEnd,
   toYmdInBusinessTz,
   ymdToUtcNoonDate,
   zonedEndExclusiveUtc,
@@ -46,5 +49,36 @@ describe('datetime policy', () => {
   it('returns today ymd in business timezone', () => {
     const today = businessTodayYmd(new Date('2026-05-05T03:00:00.000Z'))
     assert.equal(today, '2026-05-04')
+  })
+
+  it('treats 11:00pm–5:30am as quiet hours in the business timezone', () => {
+    assert.equal(isQuietHours(new Date('2026-09-02T03:00:00.000Z')), true)
+    assert.equal(isQuietHours(new Date('2026-09-01T09:29:00.000Z')), true)
+    assert.equal(isQuietHours(new Date('2026-09-01T09:30:00.000Z')), false)
+    assert.equal(isQuietHours(new Date('2026-09-01T16:00:00.000Z')), false)
+    assert.equal(isQuietHours(new Date('2026-09-02T02:59:00.000Z')), false)
+    assert.equal(isQuietHoursMorningRestore(new Date('2026-09-01T09:30:00.000Z')), true)
+    assert.equal(isQuietHoursMorningRestore(new Date('2026-09-01T10:29:00.000Z')), true)
+    assert.equal(isQuietHoursMorningRestore(new Date('2026-09-01T10:30:00.000Z')), false)
+    const untilEnd = secondsUntilQuietHoursEnd(new Date('2026-09-02T03:00:00.000Z'))
+    assert.equal(untilEnd, 6.5 * 60 * 60)
+  })
+})
+
+describe('iclock quiet-hours delay', () => {
+  it('asks the clock to Delay until 5:30am during quiet hours', async () => {
+    const { buildGetrequestBody, iclockPollDelaySeconds } = await import('../lib/zk-iclock-delay')
+    const now = new Date('2026-09-02T03:00:00.000Z')
+    assert.equal(iclockPollDelaySeconds(now), 6.5 * 60 * 60)
+    const { body, delay } = buildGetrequestBody(now)
+    assert.equal(delay, 6.5 * 60 * 60)
+    assert.match(body, /DATA UPDATE OPTIONS Delay=23400/)
+  })
+
+  it('returns OK during the day', async () => {
+    const { buildGetrequestBody } = await import('../lib/zk-iclock-delay')
+    const { body, delay } = buildGetrequestBody(new Date('2026-09-01T16:00:00.000Z'))
+    assert.equal(body, 'OK')
+    assert.equal(delay, null)
   })
 })

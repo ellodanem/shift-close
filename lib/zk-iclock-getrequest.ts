@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { buildGetrequestBody } from '@/lib/zk-iclock-delay'
 
 /**
  * GET /iclock/getrequest — device command poll.
- * Always returns OK (this app does not queue remote device commands).
- * Kept in a Prisma-free module so the 30–120s heartbeat does not boot the query engine.
+ * Prisma-free. By day the body is OK. From 11:00pm–5:30am the body tells the
+ * clock to Delay until 5:30am so it stops heartbeating; punch upload is unchanged.
  */
 export async function zkPushGET(request: NextRequest) {
   const info = request.nextUrl.searchParams.get('INFO')
+  const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
+  const { body, delay } = buildGetrequestBody()
   if (info) {
-    const sn = request.nextUrl.searchParams.get('SN') || 'unknown'
     console.log(`[ADMS] GET ${request.nextUrl.pathname} SN=${sn} INFO=${info.slice(0, 80)}`)
   }
-  return new NextResponse('OK', {
+  if (delay != null) {
+    console.log(`[ADMS] GET ${request.nextUrl.pathname} SN=${sn} quietHours delay=${delay}`)
+  }
+  return new NextResponse(body, {
     status: 200,
     headers: {
       'Content-Type': 'text/plain',
-      // Harmless if the device bypasses caches; helps when Vercel can serve a HIT.
-      'Cache-Control': 'public, s-maxage=20, stale-while-revalidate=40'
+      'Cache-Control': 'private, no-store'
     }
   })
 }

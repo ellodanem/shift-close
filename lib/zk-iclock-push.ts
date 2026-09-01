@@ -18,6 +18,7 @@ import { buildStaffDeviceMap, lookupStaffDevice } from '@/lib/attendance-staff-d
 import { insertAttendancePunchesSkippingDuplicates } from '@/lib/attendance-punch-ingest'
 import { prisma } from '@/lib/prisma'
 import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
+import { iclockPollDelaySeconds, parseBoundedIntEnv } from '@/lib/zk-iclock-delay'
 
 /**
  * ZKTeco iClock / ADMS push protocol (HTTPS).
@@ -38,20 +39,12 @@ import { BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
  * - Override: `ZK_ICLOCK_REALTIME=1` for immediate upload; `ZK_ICLOCK_TRANS_INTERVAL`
  *   (minutes, default 3) when realtime is off.
  *
- * Command-poll cadence (`Delay`, seconds): default 300. This app never queues
- * getrequest commands, so a 5-minute poll is enough to keep the session alive.
- * Override with `ZK_ICLOCK_DELAY_SECONDS` (30–600). Takes effect on the next
- * options handshake (GET /iclock/cdata, typically after a device reboot).
+ * Command-poll cadence (`Delay`, seconds): default 300 by day. From 11:00pm–5:30am
+ * (America/St_Lucia) Delay is the remaining seconds until 5:30am so the clock
+ * stops heartbeating while Neon can scale to zero. Punch upload is still
+ * TransInterval, not Delay. Override daytime Delay with `ZK_ICLOCK_DELAY_SECONDS`
+ * (30–600). Quiet hours: set `QUIET_HOURS_DISABLED=1` to turn off.
  */
-const DEFAULT_ICLOCK_DELAY_SECONDS = 300
-
-function parseBoundedIntEnv(raw: string | undefined, fallback: number, min: number, max: number): number {
-  if (raw === undefined || String(raw).trim() === '') return fallback
-  const n = parseInt(String(raw).trim(), 10)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, n))
-}
-
 function buildIclockCdataHandshakeBody(serial: string): string {
   const sn = serial.trim() || 'unknown'
   const opStamp = Math.floor(Date.now() / 1000)
@@ -65,7 +58,7 @@ function buildIclockCdataHandshakeBody(serial: string): string {
 
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
   const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
-  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, DEFAULT_ICLOCK_DELAY_SECONDS, 30, 600)
+  const delaySeconds = iclockPollDelaySeconds()
 
   const parts = [
     `GET OPTION FROM: ${sn}`,
@@ -144,7 +137,7 @@ export async function zkPushCDATAGET(request: NextRequest) {
       : (process.env.ZK_ICLOCK_TIMEZONE_OFFSET_MINUTES?.trim() || 'default-240')
   const realtime = process.env.ZK_ICLOCK_REALTIME === '1' ? '1' : '0'
   const transInterval = parseBoundedIntEnv(process.env.ZK_ICLOCK_TRANS_INTERVAL, 3, 1, 60)
-  const delaySeconds = parseBoundedIntEnv(process.env.ZK_ICLOCK_DELAY_SECONDS, DEFAULT_ICLOCK_DELAY_SECONDS, 30, 600)
+  const delaySeconds = iclockPollDelaySeconds()
   console.log(
     `[ADMS] GET ${path} SN=${sn.trim() || 'unknown'} handshake=options tz=${tzMode} ` +
       `realtime=${realtime} transInterval=${transInterval} delay=${delaySeconds} businessTz=${BUSINESS_TIME_ZONE}`

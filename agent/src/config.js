@@ -16,7 +16,7 @@ const DEFAULTS = {
   devicePort: 4370,
   vercelUrl: '',
   agentSecret: '',
-  /** Poll app for staff to push to device. Longer interval lets Neon scale to zero overnight. */
+  /** Poll app for staff to push to device. Skipped 11:00pm–5:30am (quiet hours). */
   staffSyncIntervalMs: 30 * 60 * 1000, // 30 minutes
   /** TCP/SDK reachability check for dashboard status (min 60s if overridden in config). */
   devicePingIntervalMs: 5 * 60 * 1000,

@@ -92,3 +92,39 @@ export function formatInstantForDisplay(
   const d = typeof instant === 'string' ? new Date(normalizeToUtcString(instant)) : instant
   return d.toLocaleString(locale, options)
 }
+
+/** 11:00pm–5:30am in the business timezone. Overnight Neon scale-to-zero window. */
+export const QUIET_HOURS_START_MINUTES = 23 * 60
+export const QUIET_HOURS_END_MINUTES = 5 * 60 + 30
+
+export function quietHoursDisabled(): boolean {
+  return process.env.QUIET_HOURS_DISABLED === '1'
+}
+
+/** Minutes since local midnight in the business timezone (0–1439). */
+export function minutesInBusinessTz(now = new Date()): number {
+  const hm = formatInTimeZone(now, BUSINESS_TIME_ZONE, 'HH:mm')
+  const [h, m] = hm.split(':').map((part) => parseInt(part, 10))
+  return h * 60 + m
+}
+
+export function isQuietHours(now = new Date()): boolean {
+  if (quietHoursDisabled()) return false
+  const mins = minutesInBusinessTz(now)
+  return mins >= QUIET_HOURS_START_MINUTES || mins < QUIET_HOURS_END_MINUTES
+}
+
+/** True for the first hour after 5:30am, used to restore iClock daytime Delay. */
+export function isQuietHoursMorningRestore(now = new Date()): boolean {
+  if (quietHoursDisabled()) return false
+  const mins = minutesInBusinessTz(now)
+  return mins >= QUIET_HOURS_END_MINUTES && mins < QUIET_HOURS_END_MINUTES + 60
+}
+
+export function secondsUntilQuietHoursEnd(now = new Date()): number {
+  const ymd = toYmdInBusinessTz(now)
+  const mins = minutesInBusinessTz(now)
+  const endYmd = mins >= QUIET_HOURS_START_MINUTES ? addCalendarDaysYmd(ymd, 1) : ymd
+  const end = fromZonedTime(`${endYmd}T05:30:00`, BUSINESS_TIME_ZONE)
+  return Math.max(30, Math.ceil((end.getTime() - now.getTime()) / 1000))
+}

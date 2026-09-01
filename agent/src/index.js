@@ -100,6 +100,11 @@ function start() {
   }
 
   async function runStaffSync() {
+    const { isQuietHours } = require('./quietHours')
+    if (isQuietHours()) {
+      console.log('[Agent] Quiet hours (11:00pm–5:30am) — skip Vercel staff poll')
+      return
+    }
     const cfg = loadConfig()
     Object.assign(config, cfg)
     const result = await syncStaffToDevice(cfg, activityLog)

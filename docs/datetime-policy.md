@@ -18,6 +18,7 @@ This project uses a single business timezone and strict date semantics.
 - Use `zonedStartOfDayUtc()` and `zonedEndExclusiveUtc()` for day windows.
 - Use `ymdToUtcNoonDate()` when storing date-only values in `DateTime` columns.
 - Use `normalizeToUtcString()` when parsing inbound ISO-like strings.
+- Use `isQuietHours()` / `secondsUntilQuietHoursEnd()` for the 11:00pm–5:30am Neon scale-to-zero window.
 
 ## Review checklist
 
