@@ -122,6 +122,38 @@ function daysQueryForFilter(
   return null
 }
 
+function uniqueDayBagNumbers(dayReport: DayReport): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const shift of dayReport.shifts) {
+    for (const raw of shift.depositBagNumbers ?? []) {
+      const bag = String(raw).trim()
+      if (!bag || seen.has(bag)) continue
+      seen.add(bag)
+      out.push(bag)
+    }
+  }
+  return out
+}
+
+function BagNumberChips({ bags }: { bags: string[] }) {
+  if (bags.length === 0) return null
+  return (
+    <span className="inline-flex items-center gap-1 min-w-0 flex-wrap">
+      <span className="text-[11px] font-medium text-slate-400">Bags</span>
+      {bags.map((bag) => (
+        <span
+          key={bag}
+          className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-700"
+          title={`Night deposit bag ${bag}`}
+        >
+          {bag}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export default function DaysPage() {
   const router = useRouter()
   const [dayReports, setDayReports] = useState<DayReport[]>([])
@@ -666,6 +698,7 @@ export default function DaysPage() {
           <div className="space-y-4">
             {filteredReports.map((dayReport) => {
               const isExpanded = expandedDates.has(dayReport.date)
+              const dayBags = uniqueDayBagNumbers(dayReport)
               
               return (
                 <div key={dayReport.date} className="bg-white shadow-sm border border-gray-200 rounded">
@@ -678,7 +711,10 @@ export default function DaysPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-gray-400 text-lg flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
                         <div className="min-w-0">
-                          <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
+                            <BagNumberChips bags={dayBags} />
+                          </div>
                           <div className="mt-1 flex flex-wrap gap-3 items-center">
                             {getStatusBadge(dayReport.status)}
                             <span className="text-sm text-gray-600">
@@ -1013,9 +1049,18 @@ export default function DaysPage() {
                                       : '—'}
                                 </span>
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <span className="text-gray-600">Deposits: </span>
                                 <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
+                                <span className="text-gray-400 mx-2">•</span>
+                                <span className="text-gray-600">Bags: </span>
+                                {Array.isArray(shift.depositBagNumbers) && shift.depositBagNumbers.length > 0 ? (
+                                  <span className="font-mono font-semibold text-slate-800">
+                                    {shift.depositBagNumbers.join(', ')}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
                               </div>
                               <div>
                                 <span className="text-gray-600">Notes: </span>
