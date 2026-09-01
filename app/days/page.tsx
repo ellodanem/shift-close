@@ -1,13 +1,18 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter } from 'next/navigation'
 import { DayReport } from '@/lib/types'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { isDebitScanComplete } from '@/lib/day-scan-status'
-import { toYmdInBusinessTz } from '@/lib/datetime-policy'
+import {
+  businessTodayYmd,
+  businessYesterdayYmd,
+  toYmdInBusinessTz,
+  ymdToUtcNoonDate
+} from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
 import CustomDatePicker from './CustomDatePicker'
 import DayScanStrip from './DayScanStrip'
@@ -17,15 +22,94 @@ import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
 type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
 
+function lastDayOfMonthYmd(year: number, month1to12: number): string {
+  const last = new Date(Date.UTC(year, month1to12, 0)).getUTCDate()
+  return `${year}-${String(month1to12).padStart(2, '0')}-${String(last).padStart(2, '0')}`
+}
+
+function padMonth(month: number): string {
+  return String(month).padStart(2, '0')
+}
+
+function mergeDayReports(prev: DayReport[], incoming: DayReport[]): DayReport[] {
+  const byDate = new Map(prev.map((d) => [d.date, d]))
+  for (const d of incoming) byDate.set(d.date, d)
+  return [...byDate.values()].sort((a, b) => (a.date > b.date ? -1 : 1))
+}
+
+function daysQueryForFilter(
+  filter: FilterType,
+  customDate: string
+): { key: string; url: string; from?: string; to?: string } | null {
+  const todayYmd = businessTodayYmd()
+  if (filter === 'custom') {
+    if (!customDate) return null
+    return {
+      key: `custom:${customDate}`,
+      url: `/api/days?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`,
+      from: customDate,
+      to: customDate
+    }
+  }
+  if (filter === 'all') {
+    return { key: 'all:120', url: '/api/days?recentDays=120' }
+  }
+  if (filter === 'today') {
+    return {
+      key: `day:${todayYmd}`,
+      url: `/api/days?from=${todayYmd}&to=${todayYmd}`,
+      from: todayYmd,
+      to: todayYmd
+    }
+  }
+  if (filter === 'yesterday') {
+    const yesterdayYmd = businessYesterdayYmd()
+    return {
+      key: `day:${yesterdayYmd}`,
+      url: `/api/days?from=${yesterdayYmd}&to=${yesterdayYmd}`,
+      from: yesterdayYmd,
+      to: yesterdayYmd
+    }
+  }
+  const [y, m] = todayYmd.split('-').map(Number)
+  if (filter === 'month') {
+    const from = `${y}-${padMonth(m)}-01`
+    const to = lastDayOfMonthYmd(y, m)
+    return { key: `month:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
+  }
+
+  const today = ymdToUtcNoonDate(todayYmd)
+  const startOfWeek = (date: Date): Date => {
+    const d = new Date(date)
+    const day = d.getDay() || 7
+    if (day !== 1) d.setDate(d.getDate() - (day - 1))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const ymd = (d: Date) => toYmdInBusinessTz(d)
+
+  if (filter === 'thisWeek') {
+    const from = ymd(startOfWeek(today))
+    const end = new Date(startOfWeek(today))
+    end.setDate(end.getDate() + 6)
+    const to = ymd(end)
+    return { key: `week:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
+  }
+  return null
+}
+
 export default function DaysPage() {
   const router = useRouter()
   const [dayReports, setDayReports] = useState<DayReport[]>([])
   const [loading, setLoading] = useState(true)
+  const [rangeLoading, setRangeLoading] = useState(false)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [activeFilter, setActiveFilter] = useState<FilterType>('month')
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
+  const loadedRangeKeys = useRef(new Set<string>())
+  const fetchSeq = useRef(0)
   const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
   const [showOtherItemsBreakdown, setShowOtherItemsBreakdown] = useState<string | null>(null)
   const [emailModal, setEmailModal] = useState<{ subject: string; body: string; urls: string[] } | null>(null)
@@ -52,30 +136,44 @@ export default function DaysPage() {
     }
   }, [showCustomPicker])
   
-  const fetchDayReports = () => {
-    setLoading(true)
-    fetch('/api/days?recentDays=120', { cache: 'no-store' })
+  const fetchRange = useCallback((filter: FilterType, custom: string, force = false) => {
+    const query = daysQueryForFilter(filter, custom)
+    if (!query) return
+    if (!force && loadedRangeKeys.current.has('all:120') && filter !== 'custom') return
+    if (!force && loadedRangeKeys.current.has(query.key)) return
+
+    const initial = loadedRangeKeys.current.size === 0
+    const seq = ++fetchSeq.current
+    if (force || initial) setLoading(true)
+    else setRangeLoading(true)
+
+    fetch(query.url, { cache: 'no-store' })
       .then(async (res) => {
         const data: unknown = await res.json()
+        if (seq !== fetchSeq.current) return
         if (!res.ok || !Array.isArray(data)) {
           console.error('Error fetching day reports:', !res.ok ? res.status : 'invalid payload', data)
-          setDayReports([])
+          if (initial) setDayReports([])
           return
         }
-        setDayReports(data as DayReport[])
+        loadedRangeKeys.current.add(query.key)
+        setDayReports((prev) => mergeDayReports(prev, data as DayReport[]))
       })
       .catch((err) => {
+        if (seq !== fetchSeq.current) return
         console.error('Error fetching day reports:', err)
-        setDayReports([])
+        if (initial) setDayReports([])
       })
       .finally(() => {
+        if (seq !== fetchSeq.current) return
         setLoading(false)
+        setRangeLoading(false)
       })
-  }
+  }, [])
 
   useEffect(() => {
-    fetchDayReports()
-  }, [])
+    fetchRange(activeFilter, customDate)
+  }, [activeFilter, customDate, fetchRange])
 
   useEffect(() => {
     if (!scanPreview) return
@@ -105,12 +203,12 @@ export default function DaysPage() {
         shouldRefetchOnVisibility(tabHiddenAtRef.current)
       ) {
         tabHiddenAtRef.current = null
-        fetchDayReports()
+        fetchRange(activeFilter, customDate, true)
       }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
+  }, [activeFilter, customDate, fetchRange])
   
   const toggleExpand = (date: string) => {
     const newExpanded = new Set(expandedDates)
@@ -122,7 +220,11 @@ export default function DaysPage() {
     setExpandedDates(newExpanded)
   }
 
-  const refreshDayReports = () => fetchDayReports()
+  const refreshDayReports = () => {
+    const query = daysQueryForFilter(activeFilter, customDate)
+    if (query) loadedRangeKeys.current.delete(query.key)
+    fetchRange(activeFilter, customDate, true)
+  }
 
   const toAbsoluteUrl = (url: string) =>
     url.startsWith('http') ? url : (typeof window !== 'undefined' ? `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}` : url)
@@ -197,72 +299,12 @@ export default function DaysPage() {
     }
   }
 
-  // Get start of week (Monday)
-  const getStartOfWeek = (date: Date): Date => {
-    const d = new Date(date)
-    const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Adjust when day is Sunday
-    return new Date(d.setDate(diff))
-  }
-
-  // Get end of week (Sunday)
-  const getEndOfWeek = (date: Date): Date => {
-    const start = getStartOfWeek(date)
-    const end = new Date(start)
-    end.setDate(start.getDate() + 6)
-    return end
-  }
-
-  // Format date as YYYY-MM-DD
-  const formatDate = (date: Date): string => {
-    return toYmdInBusinessTz(date)
-  }
-
-  // Filter day reports based on active filter
-  const getFilteredReports = (): DayReport[] => {
-    if (activeFilter === 'all') {
-      return dayReports
-    }
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayStr = formatDate(today)
-
-    if (activeFilter === 'today') {
-      return dayReports.filter(r => r.date === todayStr)
-    }
-
-    if (activeFilter === 'yesterday') {
-      const yesterday = new Date(today)
-      yesterday.setDate(yesterday.getDate() - 1)
-      const yesterdayStr = formatDate(yesterday)
-      return dayReports.filter(r => r.date === yesterdayStr)
-    }
-
-    if (activeFilter === 'thisWeek') {
-      const weekStart = getStartOfWeek(today)
-      const weekEnd = getEndOfWeek(today)
-      const weekStartStr = formatDate(weekStart)
-      const weekEndStr = formatDate(weekEnd)
-      return dayReports.filter(r => r.date >= weekStartStr && r.date <= weekEndStr)
-    }
-
-    if (activeFilter === 'month') {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-      const monthStartStr = formatDate(monthStart)
-      const monthEndStr = formatDate(monthEnd)
-      return dayReports.filter(r => r.date >= monthStartStr && r.date <= monthEndStr)
-    }
-
-    if (activeFilter === 'custom' && customDate) {
-      return dayReports.filter(r => r.date === customDate)
-    }
-
-    return dayReports
-  }
-
-  const filteredReports = getFilteredReports()
+  const filteredReports = useMemo(() => {
+    if (activeFilter === 'all') return dayReports
+    const query = daysQueryForFilter(activeFilter, customDate)
+    if (!query?.from || !query.to) return dayReports
+    return dayReports.filter((r) => r.date >= query.from! && r.date <= query.to!)
+  }, [dayReports, activeFilter, customDate])
   
   const getOsColor = (amount: number) => {
     if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
@@ -576,13 +618,15 @@ export default function DaysPage() {
           </button>
         </div>
         
-        {dayReports.length === 0 ? (
+        {(loading || rangeLoading) && filteredReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
-            No end of day records found. Create shifts to generate end of day records.
+            Loading…
           </div>
         ) : filteredReports.length === 0 ? (
           <div className="bg-white shadow-sm border border-gray-200 rounded p-8 text-center text-gray-500">
-            No end of day records found for the selected filter.
+            {activeFilter === 'all'
+              ? 'No end of day records found. Create shifts to generate end of day records.'
+              : 'No end of day records found for the selected filter.'}
           </div>
         ) : (
           <div className="space-y-4">
