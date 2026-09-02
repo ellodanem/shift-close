@@ -47,6 +47,11 @@ const navConfig: NavGroupConfig[] = [
     label: 'Financial',
     items: [
       { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook' },
+      {
+        label: 'Deposit comparisons',
+        href: '/financial/deposit-comparisons',
+        permission: 'financial.depositComparisons'
+      },
       { label: 'Customer Accounts', href: '/customer-accounts', permission: 'financial.accounts' },
       { label: 'Fuel Payments', href: '/fuel-payments', permission: 'financial.fuel' },
       { label: 'Vendor Payments', href: '/vendor-payments', permission: 'financial.vendor' },
