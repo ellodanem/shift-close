@@ -249,18 +249,18 @@ export default function CustomerAccountLedgerPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-2 sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="customer-ledger-modal-title"
     >
       <div
-        className="mt-4 mb-8 w-full max-w-5xl bg-white rounded-lg shadow-xl border border-indigo-200"
+        className="mb-8 mt-2 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-indigo-200 bg-white shadow-xl sm:mt-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-indigo-50/80 px-4 py-3 rounded-t-lg backdrop-blur-sm">
-          <div>
+        <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-gray-200 bg-indigo-50/80 px-4 py-3 backdrop-blur-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:rounded-t-lg">
+          <div className="min-w-0">
             <h3 id="customer-ledger-modal-title" className="text-lg font-semibold text-gray-900">
               {account}
             </h3>
@@ -269,52 +269,52 @@ export default function CustomerAccountLedgerPanel({
               Customer Credit Report (Details) to see charge and payment dates.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <Link
               href={`/customer-accounts/statement?account=${encodeURIComponent(account)}&startDate=${startDate}&endDate=${endDate}&mode=detail`}
-              className="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-white border border-indigo-300 rounded hover:bg-indigo-50"
+              className="min-h-[44px] rounded border border-indigo-300 bg-white px-3 py-2 text-center text-sm font-medium text-indigo-700 hover:bg-indigo-50 sm:min-h-0 sm:py-1.5"
             >
               Full statement
             </Link>
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+              className="min-h-[44px] rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0 sm:py-1.5"
             >
               Close
             </button>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6">
-      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div className="overflow-y-auto p-4 sm:p-6">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">From</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
+            className="min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:w-auto sm:py-1"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">To</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
+            className="min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:w-auto sm:py-1"
           />
         </div>
         <button
           type="button"
           onClick={() => loadLedger()}
-          className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+          className="min-h-[44px] rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 sm:min-h-0 sm:py-1.5"
         >
           Apply range
         </button>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
+          <label className="mb-1 block text-xs font-medium text-gray-700">
             Opening balance
           </label>
           <input
@@ -322,21 +322,21 @@ export default function CustomerAccountLedgerPanel({
             step="0.01"
             value={openingInput}
             onChange={(e) => setOpeningInput(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm w-32"
+            className="min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:w-32 sm:py-1"
           />
         </div>
         <button
           type="button"
           onClick={() => loadLedger(openingInput)}
-          className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
+          className="min-h-[44px] rounded bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:min-h-0 sm:py-1.5"
         >
           Apply opening
         </button>
         <label
-          className={`px-3 py-1.5 border-2 border-dashed rounded text-sm ${
+          className={`min-h-[44px] rounded border-2 border-dashed px-3 py-2 text-center text-sm sm:min-h-0 sm:py-1.5 ${
             importUsed
-              ? 'border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50'
-              : 'border-indigo-400 cursor-pointer hover:bg-white'
+              ? 'cursor-not-allowed border-gray-300 bg-gray-50 text-gray-400'
+              : 'cursor-pointer border-indigo-400 hover:bg-white'
           }`}
           title={
             importUsed
@@ -359,19 +359,19 @@ export default function CustomerAccountLedgerPanel({
         </label>
       </div>
 
-      <div className="bg-white rounded border border-gray-200 p-3 mb-4">
-        <p className="text-xs font-semibold text-gray-700 mb-2">Add line manually</p>
-        <div className="flex flex-wrap items-end gap-2">
+      <div className="mb-4 rounded border border-gray-200 bg-white p-3">
+        <p className="mb-2 text-xs font-semibold text-gray-700">Add line manually</p>
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-end">
           <input
             type="date"
             value={lineDate}
             onChange={(e) => setLineDate(e.target.value)}
-            className="px-2 py-1 border rounded text-sm"
+            className="min-h-[44px] rounded border px-2 py-2 text-sm sm:min-h-0 sm:py-1"
           />
           <select
             value={lineType}
             onChange={(e) => setLineType(e.target.value as 'charge' | 'payment')}
-            className="px-2 py-1 border rounded text-sm bg-white"
+            className="min-h-[44px] rounded border bg-white px-2 py-2 text-sm sm:min-h-0 sm:py-1"
           >
             <option value="charge">Charge</option>
             <option value="payment">Payment</option>
@@ -381,12 +381,12 @@ export default function CustomerAccountLedgerPanel({
             placeholder="Amount"
             value={lineAmount}
             onChange={(e) => setLineAmount(e.target.value)}
-            className="px-2 py-1 border rounded text-sm w-24"
+            className="min-h-[44px] w-full rounded border px-2 py-2 text-sm sm:min-h-0 sm:w-24 sm:py-1"
           />
           <select
             value={linePaymentMethod}
             onChange={(e) => setLinePaymentMethod(e.target.value)}
-            className="px-2 py-1 border rounded text-sm bg-white"
+            className="min-h-[44px] rounded border bg-white px-2 py-2 text-sm sm:min-h-0 sm:py-1"
             title="Payment type (optional)"
           >
             <option value="">Type —</option>
@@ -399,13 +399,13 @@ export default function CustomerAccountLedgerPanel({
             placeholder="Memo / invoice #"
             value={lineMemo}
             onChange={(e) => setLineMemo(e.target.value)}
-            className="px-2 py-1 border rounded text-sm flex-1 min-w-[120px]"
+            className="min-h-[44px] min-w-0 flex-1 rounded border px-2 py-2 text-sm sm:min-h-0 sm:min-w-[120px] sm:py-1"
           />
           <button
             type="button"
             onClick={handleAddLine}
             disabled={savingLine}
-            className="px-3 py-1.5 bg-green-600 text-white rounded text-sm disabled:opacity-50"
+            className="min-h-[44px] rounded bg-green-600 px-3 py-2 text-sm text-white disabled:opacity-50 sm:min-h-0 sm:py-1.5"
           >
             Add
           </button>
@@ -418,7 +418,117 @@ export default function CustomerAccountLedgerPanel({
         <p className="text-sm text-gray-500">Could not load ledger.</p>
       ) : (
         <>
-          <div className="overflow-x-auto bg-white rounded border border-gray-200">
+          <div className="mb-3 rounded border border-gray-200 bg-gray-100 p-3 text-center text-sm font-medium text-gray-800 md:hidden">
+            Opening balance: {formatAmount(view.opening)}
+          </div>
+
+          {view.rows.length === 0 ? (
+            <div className="rounded border border-gray-200 bg-white p-4 text-center text-sm text-gray-600 md:hidden">
+              <p className="mb-1 font-medium text-gray-800">
+                No dated lines for {formatStatementDateRange(startDate, endDate)}
+              </p>
+              <p>
+                Import a Cstore Customer Credit Report (Details) to see charge and payment dates.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-4 space-y-3 md:hidden">
+              {view.rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-medium text-gray-900">
+                      {formatCstoreDisplayDate(row.date)}
+                    </div>
+                    <div className="font-mono font-semibold text-gray-900">
+                      {formatAmount(row.runningTotal)}
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                    <div>
+                      Charges{' '}
+                      <span className="font-mono text-gray-900">
+                        {row.charges > 0 ? formatAmount(row.charges) : formatAmount(0)}
+                      </span>
+                    </div>
+                    <div>
+                      Payments{' '}
+                      <span className="font-mono text-gray-900">
+                        {row.payments > 0 ? formatAmount(row.payments) : formatAmount(0)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-700">
+                    {row.memo || '—'}
+                    {row.lineType === 'payment' && (
+                      <span className="mt-1 block sm:ml-2 sm:mt-0 sm:inline">
+                        <select
+                          className="mt-1 rounded border bg-white px-1 py-1 text-xs sm:mt-0"
+                          value={row.paymentMethod || ''}
+                          onChange={(e) =>
+                            handleUpdatePaymentMethod(row.id, e.target.value)
+                          }
+                          disabled={row.source === 'payment_record'}
+                          title={
+                            row.source === 'payment_record'
+                              ? 'Edit via Record Payment'
+                              : 'Payment type (optional)'
+                          }
+                        >
+                          <option value="">—</option>
+                          <option value="cash">Cash</option>
+                          <option value="check">Check</option>
+                          <option value="eft">EFT</option>
+                        </select>
+                        {row.source === 'payment_record' && (
+                          <span className="ml-1 text-xs text-gray-400">
+                            ({formatPaymentTypeLabel(row.paymentMethod)})
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {row.source !== 'payment_record' && (
+                    <div className="mt-2 border-t border-gray-100 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLine(row.id)}
+                        className="min-h-[44px] text-xs text-red-600 hover:text-red-800"
+                      >
+                        Delete line
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="rounded-lg border border-gray-300 bg-gray-100 p-3 text-sm font-semibold">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-normal text-gray-600">
+                  <div>
+                    Charges{' '}
+                    <span className="font-mono font-semibold text-gray-900">
+                      {formatAmount(view.totals.charges)}
+                    </span>
+                  </div>
+                  <div>
+                    Payments{' '}
+                    <span className="font-mono font-semibold text-gray-900">
+                      {formatAmount(view.totals.payments)}
+                    </span>
+                  </div>
+                  <div className="col-span-2 border-t border-gray-200 pt-2">
+                    Closing{' '}
+                    <span className="font-mono font-semibold text-gray-900">
+                      {formatAmount(view.totals.closing)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="hidden overflow-x-auto rounded border border-gray-200 bg-white md:block">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -535,7 +645,7 @@ export default function CustomerAccountLedgerPanel({
             </table>
           </div>
 
-          <div className="mt-4 max-w-sm bg-white border border-gray-200 rounded p-3 text-sm">
+          <div className="mt-4 max-w-sm rounded border border-gray-200 bg-white p-3 text-sm">
             <p className="font-semibold text-gray-800 mb-2 border-b pb-1">Summary</p>
             <div className="flex justify-between py-1">
               <span>Opening balance</span>
