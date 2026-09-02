@@ -314,27 +314,27 @@ function VendorInvoicesPageInner() {
 
   if (loading && !showPayModal) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading invoices...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Vendor invoices</h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Vendor invoices</h1>
+            <p className="mt-1 text-sm text-gray-600">
               All vendors in one list — filter by vendor, then pay in batch
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 justify-end">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <button
               type="button"
               onClick={() => router.push('/vendor-payments/monthly-report')}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+              className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
               title="All Invoices Report"
             >
               📄 Reports
@@ -342,7 +342,7 @@ function VendorInvoicesPageInner() {
             <button
               type="button"
               onClick={() => setShowBalanceModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+              className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
               title="Shared balance with Fuel Payments"
             >
               Balance
@@ -350,14 +350,14 @@ function VendorInvoicesPageInner() {
             <button
               type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
-              className="px-4 py-2 bg-slate-600 text-white rounded font-semibold hover:bg-slate-700"
+              className="min-h-[44px] rounded bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 sm:min-h-0"
             >
               Vendors
             </button>
             <button
               type="button"
               onClick={() => openMakePaymentModal(vendorFilter, '')}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >
               Make payment
             </button>
@@ -365,7 +365,7 @@ function VendorInvoicesPageInner() {
               <button
                 type="button"
                 onClick={() => setShowAddInvoiceModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                className="col-span-2 min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:col-span-1 sm:min-h-0"
               >
                 + Add invoice
               </button>
@@ -374,7 +374,7 @@ function VendorInvoicesPageInner() {
         </div>
 
         {balance && (
-          <div className="mb-4 inline-flex flex-wrap items-baseline gap-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
+          <div className="mb-4 inline-flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
             <span className="font-semibold">Available:</span>
             <span>{formatAmount(balance.availableFunds)}</span>
             <span className="text-gray-400">|</span>
@@ -385,28 +385,24 @@ function VendorInvoicesPageInner() {
             <span
               className={
                 balance.balanceAfter >= 0
-                  ? 'text-green-600 font-semibold'
-                  : 'text-red-600 font-semibold'
+                  ? 'font-semibold text-green-600'
+                  : 'font-semibold text-red-600'
               }
             >
               {formatAmount(balance.balanceAfter)}
             </span>
             <span className="text-gray-400">|</span>
-            <span className="text-xs text-gray-500">
-              (shared with Fuel Payments)
-            </span>
+            <span className="text-xs text-gray-500">(shared with Fuel Payments)</span>
           </div>
         )}
 
         <div className="mb-4 flex flex-col gap-3">
           <div className="w-full md:w-72">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              Vendor
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Vendor</label>
             <select
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
             >
               <option value="">All vendors</option>
               {vendors.map((v) => (
@@ -418,17 +414,17 @@ function VendorInvoicesPageInner() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="mb-1 block text-xs font-medium text-gray-500">
               Invoice month
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={() => {
                   setMonthFilter('all')
                   setCustomMonth('')
                 }}
-                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                   monthFilter === 'all'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -442,7 +438,7 @@ function VendorInvoicesPageInner() {
                   setMonthFilter('thisMonth')
                   setCustomMonth('')
                 }}
-                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                   monthFilter === 'thisMonth'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -456,7 +452,7 @@ function VendorInvoicesPageInner() {
                   setMonthFilter('lastMonth')
                   setCustomMonth('')
                 }}
-                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                   monthFilter === 'lastMonth'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -464,40 +460,38 @@ function VendorInvoicesPageInner() {
               >
                 Last Month
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMonthFilter('custom')}
-                  className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                    monthFilter === 'custom'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Custom
-                </button>
-                {monthFilter === 'custom' && (
-                  <input
-                    type="month"
-                    value={customMonth}
-                    onChange={(e) => setCustomMonth(e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => setMonthFilter('custom')}
+                className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
+                  monthFilter === 'custom'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Custom
+              </button>
+              {monthFilter === 'custom' && (
+                <input
+                  type="month"
+                  value={customMonth}
+                  onChange={(e) => setCustomMonth(e.target.value)}
+                  className="col-span-2 min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:w-auto"
+                />
+              )}
             </div>
           </div>
         </div>
 
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('pending')
                 setSearchQuery('')
               }}
-              className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+              className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                 activeTab === 'pending'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -508,7 +502,7 @@ function VendorInvoicesPageInner() {
             <button
               type="button"
               onClick={() => setActiveTab('paid')}
-              className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+              className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                 activeTab === 'paid'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -520,7 +514,7 @@ function VendorInvoicesPageInner() {
 
           {activeTab === 'paid' && (
             <div className="w-full md:w-64">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
                 Search paid
               </label>
               <input
@@ -528,41 +522,41 @@ function VendorInvoicesPageInner() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Invoice #, vendor, or ref"
-                className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:py-1.5"
               />
             </div>
           )}
         </div>
 
         {activeTab === 'pending' && selectedInvoiceIds.size > 0 && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-blue-900">
                   {selectedInvoiceIds.size} invoice
                   {selectedInvoiceIds.size !== 1 ? 's' : ''} selected
                   {selectedVendorIds.size > 1 && (
-                    <span className="block text-xs text-red-700 mt-1">
+                    <span className="mt-1 block text-xs text-red-700">
                       Different vendors selected — pay one vendor at a time.
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-blue-700 mt-1">
+                <p className="mt-1 text-xs text-blue-700">
                   Total: {formatAmount(selectedTotal)}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="button"
                   onClick={handleMakePaymentSelected}
-                  className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 text-sm"
+                  className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
                 >
                   Mark selected as paid
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedInvoiceIds(new Set())}
-                  className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600 text-sm"
+                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 sm:min-h-0"
                 >
                   Clear
                 </button>
@@ -572,8 +566,8 @@ function VendorInvoicesPageInner() {
         )}
 
         {invoices.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 mb-4">
+          <div className="rounded-lg bg-white p-8 text-center shadow">
+            <p className="mb-4 text-gray-600">
               No {activeTab === 'paid' ? 'paid' : 'pending'} invoices
               {vendorFilter ? ' for this vendor' : ''}
               {monthFilterLabel(monthFilter, customMonth)
@@ -585,19 +579,141 @@ function VendorInvoicesPageInner() {
               <button
                 type="button"
                 onClick={() => setShowAddInvoiceModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
               >
                 Add invoice
               </button>
             )}
           </div>
+        ) : activeTab === 'paid' && searchQuery.trim() && filteredInvoices.length === 0 ? (
+          <div className="rounded-lg bg-white p-6 text-sm text-gray-600 shadow">
+            No paid invoices match &quot;{searchQuery}&quot;.
+          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            {activeTab === 'paid' && searchQuery.trim() && filteredInvoices.length === 0 ? (
-              <div className="p-6 text-sm text-gray-600">
-                No paid invoices match &quot;{searchQuery}&quot;.
-              </div>
-            ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {activeTab === 'pending' && filteredInvoices.length > 0 && (
+                <label className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedInvoiceIds.size === invoices.length &&
+                      invoices.length > 0
+                    }
+                    onChange={handleSelectAll}
+                    className="rounded border-gray-300"
+                  />
+                  Select all
+                </label>
+              )}
+              {filteredInvoices.map((invoice) => {
+                const dueStatus =
+                  invoice.dueDate != null ? getDueDateStatus(invoice.dueDate) : null
+                const total = vendorInvoiceTotal(invoice.amount, invoice.vat)
+                return (
+                  <div
+                    key={invoice.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      {activeTab === 'pending' && (
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoiceIds.has(invoice.id)}
+                          onChange={() => handleToggleInvoice(invoice.id)}
+                          className="mt-1 rounded border-gray-300"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900">
+                              {invoice.vendor?.name ?? '—'}
+                            </div>
+                            <div className="mt-0.5 font-mono text-sm text-gray-700">
+                              {invoice.invoiceNumber}
+                            </div>
+                          </div>
+                          <span className="shrink-0 font-mono font-semibold text-gray-900">
+                            {formatAmount(total)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          {formatInvoiceDate(invoice.invoiceDate)}
+                          {activeTab === 'pending' && invoice.vat != null
+                            ? ` · Amt ${formatAmount(invoice.amount)} · VAT ${formatAmount(invoice.vat)}`
+                            : ''}
+                        </div>
+                        {activeTab === 'pending' && invoice.dueDate != null && dueStatus && (
+                          <div className="mt-2">
+                            <span
+                              className={`rounded border px-2 py-1 text-xs font-semibold ${dueStatus.className}`}
+                            >
+                              Due {formatInvoiceDate(invoice.dueDate)}
+                              {dueStatus.status === 'overdue' &&
+                                ` (${dueStatus.daysUntil}d overdue)`}
+                              {dueStatus.status === 'due' && ' (today)'}
+                              {dueStatus.status === 'warning' && ' (tomorrow)'}
+                            </span>
+                          </div>
+                        )}
+                        {activeTab === 'paid' && invoice.paidInvoice && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            Paid {formatInvoiceDate(invoice.paidInvoice.batch.paymentDate)}
+                            <div className="font-mono text-gray-500">
+                              {invoice.paidInvoice.batch.paymentMethod === 'check'
+                                ? 'Check'
+                                : 'EFT'}{' '}
+                              · Ref {invoice.paidInvoice.batch.bankRef}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
+                      {activeTab === 'pending' && invoice.status === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(`/vendor-payments/invoices/${invoice.id}/edit`)
+                            }
+                            className="min-h-[44px] text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(invoice.id, invoice.invoiceNumber)
+                            }
+                            className="min-h-[44px] text-sm font-medium text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                      {activeTab === 'paid' && invoice.paidInvoice && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(
+                              invoice.paidInvoice!.batch.bankRef
+                            )
+                            setCopyNotification('Reference copied')
+                          }}
+                          className="min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-900"
+                        >
+                          Copy ref
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden overflow-hidden rounded-lg bg-white shadow md:block">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -615,42 +731,42 @@ function VendorInvoicesPageInner() {
                         />
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Vendor
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Invoice #
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Date
                     </th>
                     {activeTab === 'pending' && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                         Due
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Amount
                     </th>
                     {activeTab === 'pending' && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                         VAT
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Total
                     </th>
                     {activeTab === 'paid' && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                         Payment
                       </th>
                     )}
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 bg-white">
                   {filteredInvoices.map((invoice) => {
                     const dueStatus =
                       invoice.dueDate != null
@@ -668,20 +784,20 @@ function VendorInvoicesPageInner() {
                             />
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
                           {invoice.vendor?.name ?? '—'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                        <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-gray-900">
                           {invoice.invoiceNumber}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                           {formatInvoiceDate(invoice.invoiceDate)}
                         </td>
                         {activeTab === 'pending' && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                             {invoice.dueDate != null && dueStatus ? (
                               <span
-                                className={`px-2 py-1 rounded text-xs font-semibold border ${dueStatus.className}`}
+                                className={`rounded border px-2 py-1 text-xs font-semibold ${dueStatus.className}`}
                               >
                                 {formatInvoiceDate(invoice.dueDate)}
                                 {dueStatus.status === 'overdue' &&
@@ -694,23 +810,23 @@ function VendorInvoicesPageInner() {
                             )}
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-gray-900">
                           {formatAmount(invoice.amount)}
                         </td>
                         {activeTab === 'pending' && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                             {invoice.vat != null ? formatAmount(invoice.vat) : '—'}
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-gray-900">
                           {formatAmount(vendorInvoiceTotal(invoice.amount, invoice.vat))}
                         </td>
                         {activeTab === 'paid' && invoice.paidInvoice && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                             <div>
                               {formatInvoiceDate(invoice.paidInvoice.batch.paymentDate)}
                             </div>
-                            <div className="text-xs text-gray-500 font-mono">
+                            <div className="font-mono text-xs text-gray-500">
                               {invoice.paidInvoice.batch.paymentMethod === 'check'
                                 ? 'Check'
                                 : 'EFT'}{' '}
@@ -718,7 +834,7 @@ function VendorInvoicesPageInner() {
                             </div>
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                           <div className="flex justify-end gap-2">
                             {activeTab === 'pending' && invoice.status === 'pending' && (
                               <>
@@ -729,7 +845,7 @@ function VendorInvoicesPageInner() {
                                       `/vendor-payments/invoices/${invoice.id}/edit`
                                     )
                                   }
-                                  className="text-indigo-600 hover:text-indigo-900 p-1 rounded transition-colors"
+                                  className="rounded p-1 text-indigo-600 transition-colors hover:text-indigo-900"
                                   title="Edit"
                                 >
                                   <svg
@@ -752,7 +868,7 @@ function VendorInvoicesPageInner() {
                                   onClick={() =>
                                     handleDelete(invoice.id, invoice.invoiceNumber)
                                   }
-                                  className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
+                                  className="rounded p-1 text-red-600 transition-colors hover:text-red-900"
                                   title="Delete"
                                 >
                                   <svg
@@ -781,7 +897,7 @@ function VendorInvoicesPageInner() {
                                   )
                                   setCopyNotification('Reference copied')
                                 }}
-                                className="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors"
+                                className="rounded p-1 text-blue-600 transition-colors hover:text-blue-900"
                                 title="Copy reference"
                               >
                                 <svg
@@ -807,8 +923,8 @@ function VendorInvoicesPageInner() {
                   })}
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+          </>
         )}
 
         <VendorAddInvoiceModal
@@ -840,14 +956,14 @@ function VendorInvoicesPageInner() {
         />
 
         {showBalanceModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+            <div className="my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Balance (shared)</h2>
                 <button
                   type="button"
                   onClick={() => setShowBalanceModal(false)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                  className="min-h-[44px] min-w-[44px] text-2xl text-gray-500 hover:text-gray-700 sm:min-h-0 sm:min-w-0"
                   aria-label="Close"
                 >
                   ×
@@ -855,7 +971,7 @@ function VendorInvoicesPageInner() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Current balance
                   </label>
                   <input
@@ -868,11 +984,11 @@ function VendorInvoicesPageInner() {
                         currentBalance: e.target.value
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Available funds
                   </label>
                   <input
@@ -885,11 +1001,11 @@ function VendorInvoicesPageInner() {
                         availableFunds: e.target.value
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
                 {balance && (
-                  <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">
+                  <div className="space-y-1 rounded bg-gray-50 p-3 text-sm">
                     <div>
                       <span className="text-gray-600">Planned: </span>
                       <span className="font-semibold text-blue-600">
@@ -909,19 +1025,19 @@ function VendorInvoicesPageInner() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-4 mt-6">
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
                 <button
                   type="button"
                   onClick={() => void handleSaveBalance()}
                   disabled={savingBalance}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
                 >
                   {savingBalance ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowBalanceModal(false)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
                 >
                   Cancel
                 </button>
@@ -932,7 +1048,7 @@ function VendorInvoicesPageInner() {
 
         {copyNotification && (
           <div className="fixed bottom-6 right-6 z-50">
-            <div className="bg-gray-900 text-white text-sm px-4 py-2 rounded shadow-lg">
+            <div className="rounded bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">
               {copyNotification}
             </div>
           </div>
@@ -946,7 +1062,7 @@ export default function VendorInvoicesPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
           <p className="text-gray-600">Loading…</p>
         </div>
       }
