@@ -927,7 +927,7 @@ function depositComparisonsQueryForFilter(
 }
 
 function filterButtonClass(active: boolean): string {
-  return `px-3 py-1.5 rounded-lg font-semibold text-sm transition-colors ${
+  return `min-h-[44px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors sm:py-1.5 sm:text-sm ${
     active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
   }`
 }
@@ -1153,7 +1153,7 @@ export default function DepositComparisonsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 px-4 py-4 pb-10 md:p-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
@@ -1167,9 +1167,9 @@ export default function DepositComparisonsPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bank deposit & debit comparisons</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight sm:text-3xl">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Current month loads by default. Days start collapsed — click a date to expand. Day status icons: grey circle (all
+            Current month loads by default. Days start collapsed — tap a date to expand. Day status icons: grey circle (all
             pending), yellow (mixed), red X (discrepancy), green check (all cleared). Each day also shows section badges on{' '}
             <strong>Deposits</strong> and <strong>Credit & debit</strong> so you can see when deposits are cleared while
             C&amp;D is still open. Use the scan menus and <strong>Security</strong> after expanding.
@@ -1177,8 +1177,8 @@ export default function DepositComparisonsPage() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-800">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-slate-800 sm:min-h-0">
               <input
                 type="checkbox"
                 checked={hideCleared}
@@ -1189,7 +1189,7 @@ export default function DepositComparisonsPage() {
                 Hide fully cleared days
               </span>
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
               <IconSelect
                 ariaLabel="Filter by bank status"
@@ -1202,7 +1202,7 @@ export default function DepositComparisonsPage() {
                 {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All'}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 min-w-[12rem] flex-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-1 sm:min-w-[12rem] sm:flex-row sm:items-center sm:gap-2">
               <label htmlFor="bag-search" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                 Bag #
               </label>
@@ -1212,21 +1212,22 @@ export default function DepositComparisonsPage() {
                 value={bagQuery}
                 onChange={(e) => setBagQuery(e.target.value)}
                 placeholder="Search bag number…"
-                className="flex-1 min-w-[10rem] max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="min-h-[44px] w-full max-w-none flex-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:min-h-0 sm:max-w-xs"
               />
             </div>
             <button
               type="button"
               onClick={() => void refresh()}
               disabled={refreshing || rangeLoading}
-              className="ml-auto rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60"
+              className="min-h-[44px] w-full rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-60 sm:ml-auto sm:w-auto"
             >
               {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Period</span>
+          <div className="space-y-2 border-t border-slate-100 pt-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Period</span>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1277,19 +1278,19 @@ export default function DepositComparisonsPage() {
             >
               Last Month
             </button>
-            <div className="relative" ref={customPickerRef}>
+            <div className="relative col-span-2 sm:col-span-1" ref={customPickerRef}>
               <button
                 type="button"
                 onClick={() => {
                   setActiveFilter('custom')
                   setShowCustomPicker(!showCustomPicker)
                 }}
-                className={filterButtonClass(activeFilter === 'custom')}
+                className={`${filterButtonClass(activeFilter === 'custom')} w-full sm:w-auto`}
               >
                 Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
               </button>
               {showCustomPicker ? (
-                <div className="absolute top-full left-0 z-50 mt-2 min-w-[320px] rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
+                <div className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-slate-200 bg-white p-4 shadow-xl sm:left-0 sm:right-auto">
                   <CustomDatePicker
                     selectedDate={customDate}
                     onDateSelect={(date) => {
@@ -1302,17 +1303,20 @@ export default function DepositComparisonsPage() {
                 </div>
               ) : null}
             </div>
-            {rangeLoading ? <span className="text-sm text-slate-500">Loading…</span> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+            {rangeLoading ? <span className="text-slate-500">Loading…</span> : null}
             {activeFilter !== 'all' ? (
-              <span className="text-sm text-slate-600">
+              <span className="text-slate-600">
                 ({displayRows.length} item{displayRows.length !== 1 ? 's' : ''})
               </span>
             ) : null}
+            </div>
           </div>
         </div>
 
         {!loading ? (
-          <div className="flex flex-wrap gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap sm:gap-3">
             <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1.5 font-medium tabular-nums">
               <span className="text-slate-500 mr-2">Items</span>
               {totals.count}
@@ -1367,7 +1371,7 @@ export default function DepositComparisonsPage() {
                       isExpanded ? 'border-b border-slate-200' : ''
                     }`}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                       <button
                         type="button"
                         className="flex min-w-0 flex-1 items-start gap-2 text-left cursor-pointer hover:opacity-90"
@@ -1405,11 +1409,11 @@ export default function DepositComparisonsPage() {
                           ) : null}
                         </div>
                       </button>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
                         {hasDiscrepancy ? (
                           smtpConfigured === false ? (
                             <span
-                              className="text-xs text-slate-600 max-w-[14rem] text-right"
+                              className="text-xs text-slate-600 sm:max-w-[14rem] sm:text-right"
                               title="Email not configured. Set SMTP settings in Settings → Email (SMTP)."
                             >
                               Email requires SMTP — Settings → Email (SMTP)
@@ -1423,7 +1427,7 @@ export default function DepositComparisonsPage() {
                                 setEmailSuccess(null)
                                 setDiscrepancyEmail({ date, deposits, debits })
                               }}
-                              className="rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200"
+                              className="min-h-[44px] flex-1 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-200 sm:flex-none sm:min-h-0"
                             >
                               Email about discrepancies
                             </button>
@@ -1486,6 +1490,61 @@ export default function DepositComparisonsPage() {
   )
 }
 
+function ItemRowAmount({ r }: { r: Row }) {
+  if (r.recordKind === 'debit') {
+    return (
+      <>
+        <div className="font-semibold tabular-nums text-slate-900">{formatCurrency(r.amount)}</div>
+        <div className="mt-0.5 text-[11px] leading-tight tabular-nums text-slate-600">
+          <span>Debit </span>
+          <span className="font-bold text-[#4169E1]">{formatCurrency(r.systemDebit ?? 0)}</span>
+          <span> · Credit </span>
+          <span className="font-bold text-[#4169E1]">{formatCurrency(r.otherCredit ?? 0)}</span>
+        </div>
+      </>
+    )
+  }
+  return <div className="font-semibold tabular-nums">{formatCurrency(r.amount)}</div>
+}
+
+function ItemRowDetail({ r }: { r: Row }) {
+  if (r.recordKind === 'deposit') {
+    return <span className="text-xs text-slate-500">Line #{r.lineIndex + 1}</span>
+  }
+  return (
+    <span
+      className="inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-900"
+      title="Other Items on the end-of-day sheet: Credit line + Debit line. Total = both; day row sums each shift that closed that date."
+    >
+      O.I.
+    </span>
+  )
+}
+
+function ItemRowRecordLinks({ r }: { r: Row }) {
+  if (r.recordKind === 'debit' && r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1) {
+    return (
+      <div className="flex flex-wrap gap-x-2 gap-y-1 md:max-w-[14rem]">
+        {r.contributingShifts.map((cs) => (
+          <Link
+            key={cs.shiftId}
+            href={`/shifts/${cs.shiftId}`}
+            className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline"
+            title="Open shift record"
+          >
+            {cs.shift}
+          </Link>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <Link href={`/shifts/${r.shiftId}`} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
+      Open shift
+    </Link>
+  )
+}
+
 function ItemTable({
   rows,
   savingKey,
@@ -1496,7 +1555,68 @@ function ItemTable({
   onPatch: (shiftId: string, recordKind: RecordKind, lineIndex: number, body: Partial<{ bankStatus: BankStatus; notes: string }>) => void
 }) {
   return (
-    <div className="overflow-x-auto -mx-1">
+    <>
+      <div className="space-y-3 md:hidden">
+        {rows.map((r) => {
+          const key = rowKey(r)
+          const busy = savingKey === key
+          const bags = r.bagNumbers ?? []
+          return (
+            <div key={key} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-900">{r.shift}</div>
+                  <div className="truncate text-xs text-slate-600" title={r.supervisor}>
+                    {r.supervisor}
+                  </div>
+                </div>
+                <IconSelect<BankStatus>
+                  ariaLabel="Bank reconciliation status"
+                  disabled={busy}
+                  value={r.bankStatus}
+                  onChange={(v) => void onPatch(r.shiftId, r.recordKind, r.lineIndex, { bankStatus: v })}
+                  options={BANK_ROW_STATUS_OPTIONS}
+                  renderTrigger={({ value }) => <BankStatusGlyph status={value} />}
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <div>
+                  <span className="text-xs text-slate-500">Detail </span>
+                  <ItemRowDetail r={r} />
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-500">Bag # </span>
+                  {r.recordKind === 'deposit' && bags.length > 0 ? (
+                    <span className="font-mono text-xs text-slate-700" title={bags.join(', ')}>
+                      {bags.join(', ')}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </div>
+                <div className="col-span-2 border-t border-slate-100 pt-2">
+                  <span className="text-xs text-slate-500">Amount </span>
+                  <ItemRowAmount r={r} />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-medium text-slate-500">Notes</label>
+                <NotesCell
+                  initial={r.notes}
+                  disabled={busy}
+                  onSave={(notes) => void onPatch(r.shiftId, r.recordKind, r.lineIndex, { notes })}
+                  fullWidth
+                />
+              </div>
+              <div className="mt-3 border-t border-slate-100 pt-2">
+                <ItemRowRecordLinks r={r} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="-mx-1 hidden overflow-x-auto md:block">
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-100">
@@ -1522,16 +1642,7 @@ function ItemTable({
                   {r.supervisor}
                 </td>
                 <td className="px-2 py-2.5 text-slate-600 tabular-nums">
-                  {r.recordKind === 'deposit' ? (
-                    <span className="text-xs text-slate-500">Line #{r.lineIndex + 1}</span>
-                  ) : (
-                    <span
-                      className="inline-flex rounded bg-violet-100 text-violet-900 text-[10px] font-bold px-1.5 py-0.5"
-                      title="Other Items on the end-of-day sheet: Credit line + Debit line. Total = both; day row sums each shift that closed that date."
-                    >
-                      O.I.
-                    </span>
-                  )}
+                  <ItemRowDetail r={r} />
                 </td>
                 <td className="px-2 py-2.5 text-slate-700 text-xs font-mono max-w-[9rem]">
                   {r.recordKind === 'deposit' ? (
@@ -1545,19 +1656,7 @@ function ItemTable({
                   )}
                 </td>
                 <td className="px-2 py-2.5 text-right text-slate-900">
-                  {r.recordKind === 'debit' ? (
-                    <>
-                      <div className="font-semibold tabular-nums text-slate-900">{formatCurrency(r.amount)}</div>
-                      <div className="mt-0.5 text-[11px] leading-tight tabular-nums text-slate-600">
-                        <span>Debit </span>
-                        <span className="font-bold text-[#4169E1]">{formatCurrency(r.systemDebit ?? 0)}</span>
-                        <span> · Credit </span>
-                        <span className="font-bold text-[#4169E1]">{formatCurrency(r.otherCredit ?? 0)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="font-semibold tabular-nums">{formatCurrency(r.amount)}</div>
-                  )}
+                  <ItemRowAmount r={r} />
                 </td>
                 <td className="px-2 py-2.5">
                   <IconSelect<BankStatus>
@@ -1579,42 +1678,28 @@ function ItemTable({
                   />
                 </td>
                 <td className="px-2 py-2.5">
-                  {r.recordKind === 'debit' && r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1 ? (
-                    <div className="flex flex-wrap gap-x-2 gap-y-1 max-w-[14rem]">
-                      {r.contributingShifts.map((cs) => (
-                        <Link
-                          key={cs.shiftId}
-                          href={`/shifts/${cs.shiftId}`}
-                          className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
-                          title="Open shift record"
-                        >
-                          {cs.shift}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <Link href={`/shifts/${r.shiftId}`} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
-                      Open shift
-                    </Link>
-                  )}
+                  <ItemRowRecordLinks r={r} />
                 </td>
               </tr>
             )
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   )
 }
 
 function NotesCell({
   initial,
   disabled,
-  onSave
+  onSave,
+  fullWidth = false
 }: {
   initial: string
   disabled: boolean
   onSave: (notes: string) => void
+  fullWidth?: boolean
 }) {
   const [value, setValue] = useState(initial)
   useEffect(() => {
@@ -1634,7 +1719,9 @@ function NotesCell({
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
       }}
       placeholder="Ref, variance…"
-      className="w-full min-w-[7rem] max-w-[14rem] rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400"
+      className={`rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 ${
+        fullWidth ? 'w-full' : 'w-full min-w-[7rem] max-w-[14rem]'
+      }`}
     />
   )
 }
