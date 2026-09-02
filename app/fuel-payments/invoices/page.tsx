@@ -393,27 +393,27 @@ export default function InvoicesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading invoices...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Invoices</h1>
             <p className="text-sm text-gray-600 mt-1">
               Manage pending and paid invoices
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             <button
               onClick={() => setShowBalanceModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+              className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
               title="Quick Balance Entry"
             >
               Balance
@@ -422,7 +422,7 @@ export default function InvoicesPage() {
               <button
                 type="button"
                 onClick={openAddInvoiceModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
               >
                 + Add Invoice
               </button>
@@ -430,7 +430,7 @@ export default function InvoicesPage() {
             {activeTab === 'paid' && (
               <button
                 onClick={() => setShowRevertModal(true)}
-                className="px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-700"
+                className="min-h-[44px] rounded bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 sm:min-h-0"
               >
                 ↩️ Revert Payment
               </button>
@@ -440,8 +440,8 @@ export default function InvoicesPage() {
 
         {/* Alert for stuck simulated invoices */}
         {showFixAlert && simulatedCount > 0 && (
-          <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex justify-between items-center">
+          <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-yellow-900">
                   ⚠️ Found {simulatedCount} invoice(s) stuck in 'simulated' status
@@ -452,7 +452,7 @@ export default function InvoicesPage() {
               </div>
               <button
                 onClick={handleFixSimulatedInvoices}
-                className="px-4 py-2 bg-yellow-600 text-white rounded font-semibold hover:bg-yellow-700 text-sm"
+                className="min-h-[44px] shrink-0 rounded bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700 sm:min-h-0"
               >
                 Fix Now
               </button>
@@ -463,7 +463,7 @@ export default function InvoicesPage() {
         {/* At-a-glance balance summary */}
         {balance && (
           <>
-            <div className="inline-flex flex-wrap items-baseline gap-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
+            <div className="inline-flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
               <span className="font-semibold">Available:</span>
               <span>{formatAmount(balance.availableFunds)}</span>
               <span className="text-gray-400">|</span>
@@ -542,35 +542,35 @@ export default function InvoicesPage() {
 
         {/* Tabs + Paid search */}
         <div className="mb-6 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2">
             <button
               onClick={() => {
                 setActiveTab('pending')
                 setSearchQuery('')
               }}
-              className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+              className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                 activeTab === 'pending'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Pending Invoices ({pendingCount})
+              Pending ({pendingCount})
             </button>
             <button
               onClick={() => setActiveTab('paid')}
-              className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+              className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                 activeTab === 'paid'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              Paid Invoices ({paidCount})
+              Paid ({paidCount})
             </button>
           </div>
 
           {activeTab === 'paid' && (
             <div className="w-full md:w-64">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
                 Search paid invoices
               </label>
               <input
@@ -578,7 +578,7 @@ export default function InvoicesPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Invoice # or Ref #"
-                className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:py-1.5"
               />
             </div>
           )}
@@ -586,8 +586,8 @@ export default function InvoicesPage() {
 
         {/* Contextual Action Bar - appears when invoices are selected on Pending tab */}
         {activeTab === 'pending' && selectedInvoiceIds.size > 0 && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex justify-between items-center">
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-blue-900">
                   {selectedInvoiceIds.size} invoice{selectedInvoiceIds.size !== 1 ? 's' : ''} selected
@@ -596,16 +596,16 @@ export default function InvoicesPage() {
                   Total: {formatAmount(selectedTotal)}
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:gap-3">
                 <button
                   onClick={handleMakePaymentSelected}
-                  className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 text-sm"
+                  className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
                 >
                   💰 Make payment
                 </button>
                 <button
                   onClick={() => setSelectedInvoiceIds(new Set())}
-                  className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600 text-sm"
+                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 sm:min-h-0"
                 >
                   Clear Selection
                 </button>
@@ -624,19 +624,122 @@ export default function InvoicesPage() {
               <button
                 type="button"
                 onClick={openAddInvoiceModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
               >
                 Add First Invoice
               </button>
             )}
           </div>
+        ) : activeTab === 'paid' && searchQuery.trim() && filteredInvoices.length === 0 ? (
+          <div className="rounded-lg bg-white p-6 text-sm text-gray-600 shadow">
+            No paid invoices match &quot;<span className="font-mono">{searchQuery}</span>&quot;.
+          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            {activeTab === 'paid' && searchQuery.trim() && filteredInvoices.length === 0 ? (
-              <div className="p-6 text-sm text-gray-600">
-                No paid invoices match "<span className="font-mono">{searchQuery}</span>".
-              </div>
-            ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {activeTab === 'pending' && filteredInvoices.length > 0 && (
+                <label className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedInvoiceIds.size === filteredInvoices.length &&
+                      filteredInvoices.length > 0
+                    }
+                    onChange={handleSelectAll}
+                    className="rounded border-gray-300"
+                  />
+                  Select all
+                </label>
+              )}
+              {filteredInvoices.map((invoice) => {
+                const dueStatus = getDueDateStatus(invoice.dueDate)
+                return (
+                  <div
+                    key={invoice.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      {activeTab === 'pending' && (
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoiceIds.has(invoice.id)}
+                          onChange={() => handleToggleInvoice(invoice.id)}
+                          className="mt-1 rounded border-gray-300"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-mono text-sm font-medium text-gray-900">
+                            {invoice.invoiceNumber}
+                          </div>
+                          <span className="shrink-0 font-mono font-semibold text-gray-900">
+                            {formatAmount(invoice.amount)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          {formatInvoiceDate(invoice.invoiceDate)}
+                          {' · '}
+                          {getInvoiceTypeIcon(invoice.type)} {invoice.type}
+                        </div>
+                        {activeTab === 'pending' && (
+                          <div className="mt-2">
+                            <span
+                              className={`rounded border px-2 py-1 text-xs font-semibold ${dueStatus.className}`}
+                            >
+                              Due {formatInvoiceDate(invoice.dueDate)}
+                              {dueStatus.status === 'overdue' &&
+                                ` (${dueStatus.daysUntil}d overdue)`}
+                              {dueStatus.status === 'due' && ' (today)'}
+                              {dueStatus.status === 'warning' && ' (tomorrow)'}
+                            </span>
+                          </div>
+                        )}
+                        {activeTab === 'paid' && invoice.paidInvoice && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            Paid {formatInvoiceDate(invoice.paidInvoice.batch.paymentDate)}
+                            <div className="font-mono text-gray-500">
+                              Ref: {invoice.paidInvoice.batch.bankRef}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
+                      {activeTab === 'pending' && invoice.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() =>
+                              router.push(`/fuel-payments/invoices/${invoice.id}/edit`)
+                            }
+                            className="min-h-[44px] text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(invoice.id, invoice.invoiceNumber)}
+                            className="min-h-[44px] text-sm font-medium text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                      {activeTab === 'paid' && invoice.paidInvoice && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(invoice.paidInvoice!.batch.bankRef)
+                            setCopyNotification('Reference copied')
+                          }}
+                          className="min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-900"
+                        >
+                          Copy ref
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="hidden overflow-hidden rounded-lg bg-white shadow md:block">
               <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -807,8 +910,8 @@ export default function InvoicesPage() {
                 })}
               </tbody>
             </table>
-            )}
-          </div>
+            </div>
+          </>
         )}
 
         <FuelMakePaymentModal
@@ -859,13 +962,13 @@ export default function InvoicesPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="add-fuel-invoice-title"
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <div className="mb-6">
                 <h2
                   id="add-fuel-invoice-title"
-                  className="text-3xl font-bold text-gray-900"
+                  className="text-2xl font-bold text-gray-900 sm:text-3xl"
                 >
                   Add invoice
                 </h2>
@@ -891,7 +994,7 @@ export default function InvoicesPage() {
                       })
                     }
                     placeholder="e.g., 1146248"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
 
@@ -909,7 +1012,7 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAddInvoiceForm({ ...addInvoiceForm, amount: e.target.value })
                       }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                     />
                   </div>
                   <div>
@@ -922,7 +1025,7 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAddInvoiceForm({ ...addInvoiceForm, type: e.target.value })
                       }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                     >
                       <option value="Fuel">Fuel</option>
                       <option value="LPG">LPG</option>
@@ -971,11 +1074,11 @@ export default function InvoicesPage() {
                   />
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-4">
+                <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:gap-4">
                   <button
                     type="submit"
                     disabled={addInvoiceSaving}
-                    className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
                   >
                     {addInvoiceSaving ? 'Creating…' : 'Create invoice'}
                   </button>
@@ -983,7 +1086,7 @@ export default function InvoicesPage() {
                     type="button"
                     onClick={closeAddInvoiceModal}
                     disabled={addInvoiceSaving}
-                    className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                    className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
                   >
                     Cancel
                   </button>
@@ -995,13 +1098,13 @@ export default function InvoicesPage() {
 
         {/* Balance Modal */}
         {showBalanceModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+            <div className="my-4 w-full max-h-[90vh] max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Quick Balance Entry</h2>
                 <button
                   onClick={() => setShowBalanceModal(false)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                  className="min-h-[44px] min-w-[44px] text-2xl text-gray-500 hover:text-gray-700 sm:min-h-0 sm:min-w-0"
                 >
                   ×
                 </button>
@@ -1009,7 +1112,7 @@ export default function InvoicesPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Current Balance
                   </label>
                   <input
@@ -1017,12 +1120,12 @@ export default function InvoicesPage() {
                     step="0.01"
                     value={balanceFormData.currentBalance}
                     onChange={(e) => setBalanceFormData({ ...balanceFormData, currentBalance: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Available Funds
                   </label>
                   <input
@@ -1030,7 +1133,7 @@ export default function InvoicesPage() {
                     step="0.01"
                     value={balanceFormData.availableFunds}
                     onChange={(e) => setBalanceFormData({ ...balanceFormData, availableFunds: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
 
@@ -1050,17 +1153,17 @@ export default function InvoicesPage() {
                 )}
               </div>
 
-              <div className="flex gap-4 mt-6">
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
                 <button
                   onClick={handleSaveBalance}
                   disabled={savingBalance}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
                 >
                   {savingBalance ? 'Saving...' : 'Save Balance'}
                 </button>
                 <button
                   onClick={() => setShowBalanceModal(false)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
                 >
                   Cancel
                 </button>

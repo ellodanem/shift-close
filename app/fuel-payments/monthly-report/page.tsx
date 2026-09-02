@@ -104,7 +104,7 @@ export default function MonthlyFuelPaymentReportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
@@ -112,35 +112,37 @@ export default function MonthlyFuelPaymentReportPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">No data available</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6 no-print">
-          <h1 className="text-3xl font-bold text-gray-900">Monthly Fuel Payment Report</h1>
-          <div className="flex gap-4">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between no-print">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+            Monthly Fuel Payment Report
+          </h1>
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >
               Print
             </button>
             <button
               onClick={openEmailModal}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
+              className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
             >
               Email Report
             </button>
             <button
               disabled
               title="Coming soon – share PDF via WhatsApp"
-              className="px-4 py-2 bg-slate-300 text-slate-500 rounded font-semibold cursor-not-allowed"
+              className="min-h-[44px] cursor-not-allowed rounded bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-500 sm:min-h-0"
             >
               WhatsApp (PDF)
             </button>
@@ -148,28 +150,26 @@ export default function MonthlyFuelPaymentReportPage() {
         </div>
 
         {/* Month Selector */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 no-print">
-          <div className="flex items-center gap-4">
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm no-print">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Month</label>
               <input
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
             </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => {
-                  const now = new Date()
-                  setMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
-              >
-                Current Month
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                const now = new Date()
+                setMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+              }}
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
+            >
+              Current Month
+            </button>
           </div>
         </div>
 
@@ -186,7 +186,7 @@ export default function MonthlyFuelPaymentReportPage() {
         )}
 
         {/* Report Content - Monospace */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 print:p-4 print-content">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm print:p-4 print-content sm:p-8">
           {/* Title */}
           <div className="text-center mb-8 print:mb-6">
             <h2 className="text-2xl font-bold print:text-xl">
@@ -213,14 +213,17 @@ export default function MonthlyFuelPaymentReportPage() {
                     <div key={blockIndex} className="mb-4 print:mb-3">
                       {/* Invoice Lines */}
                       {block.invoices.map((invoice, invIndex) => (
-                        <div key={invIndex} className="mb-1">
-                          <span className="inline-block w-16 text-left">
+                        <div
+                          key={invIndex}
+                          className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 sm:block"
+                        >
+                          <span className="font-mono sm:inline-block sm:w-16 sm:text-left">
                             {padInvoiceNumber(invoice.invoiceNumber)}
                           </span>
-                          <span className="inline-block w-24 text-right ml-4">
+                          <span className="font-mono sm:ml-4 sm:inline-block sm:w-24 sm:text-right">
                             {formatAmount(invoice.amount)}
                           </span>
-                          <span className="ml-4">{invoice.type}</span>
+                          <span className="sm:ml-4">{invoice.type}</span>
                         </div>
                       ))}
 
@@ -228,9 +231,9 @@ export default function MonthlyFuelPaymentReportPage() {
                       <div className="mb-1">------------------------</div>
 
                       {/* Subtotal */}
-                      <div className="mb-1">
-                        <span className="inline-block w-16"></span>
-                        <span className="inline-block w-24 text-right ml-4 font-semibold">
+                      <div className="mb-1 flex flex-wrap items-baseline gap-x-3 sm:block">
+                        <span className="hidden sm:inline-block sm:w-16" />
+                        <span className="font-mono font-semibold sm:ml-4 sm:inline-block sm:w-24 sm:text-right">
                           {formatAmount(block.subtotal)}
                         </span>
                       </div>
@@ -267,16 +270,16 @@ export default function MonthlyFuelPaymentReportPage() {
 
       {/* Email modal: select recipient, review message, then send */}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Email Monthly Report</h3>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+          <div className="my-4 w-full max-h-[90vh] max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Email Monthly Report</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Send to</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Send to</label>
                 <select
                   value={emailToId}
                   onChange={(e) => setEmailToId(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 sm:min-h-0"
                 >
                   <option value="">Choose a recipient…</option>
                   {emailRecipients.map((r) => (
@@ -291,34 +294,34 @@ export default function MonthlyFuelPaymentReportPage() {
                     placeholder="e.g. someone@example.com"
                     value={emailOther}
                     onChange={(e) => setEmailOther(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 sm:min-h-0"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Subject</label>
                 <input
                   type="text"
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 sm:min-h-0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Message</label>
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
                   rows={4}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
                 />
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowEmailModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                className="min-h-[44px] rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
               >
                 Cancel
               </button>
@@ -326,7 +329,7 @@ export default function MonthlyFuelPaymentReportPage() {
                 type="button"
                 onClick={sendEmailReport}
                 disabled={emailing || !(emailOther.trim() || (emailToId && emailToId !== 'other' && emailRecipients.some((r) => r.id === emailToId)))}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
               >
                 {emailing ? 'Sending…' : 'Send email'}
               </button>

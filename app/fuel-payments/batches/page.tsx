@@ -111,19 +111,19 @@ export default function BatchesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading batches...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Payment Batches</h1>
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Payment Batches</h1>
             <p className="text-sm text-gray-600 mt-1">
               Manage fuel payment batches and invoices
             </p>
@@ -131,14 +131,14 @@ export default function BatchesPage() {
         </div>
 
         {/* Filters + search + summary */}
-        <div className="mb-6 flex flex-wrap items-center gap-4 justify-between">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               onClick={() => {
               setActiveFilter('all')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
               activeFilter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -151,7 +151,7 @@ export default function BatchesPage() {
               setActiveFilter('thisMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
               activeFilter === 'thisMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -164,7 +164,7 @@ export default function BatchesPage() {
               setActiveFilter('lastMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
               activeFilter === 'lastMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -177,7 +177,7 @@ export default function BatchesPage() {
               setActiveFilter('custom')
               setShowCustomPicker(true)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
               activeFilter === 'custom'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -185,38 +185,38 @@ export default function BatchesPage() {
             >
               Custom Range
             </button>
+          </div>
 
-            {showCustomPicker && activeFilter === 'custom' && (
-              <div className="flex gap-2 items-center ml-4">
+          {showCustomPicker && activeFilter === 'custom' && (
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center sm:gap-2">
               <input
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded text-sm"
+                className="min-h-[44px] rounded border border-gray-300 px-3 py-2 text-sm sm:min-h-0"
                 placeholder="Start date"
               />
-              <span className="text-gray-600">to</span>
+              <span className="hidden text-gray-600 sm:inline">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded text-sm"
+                className="min-h-[44px] rounded border border-gray-300 px-3 py-2 text-sm sm:min-h-0"
                 placeholder="End date"
               />
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <div className="w-full sm:w-auto">
+              <label className="mb-1 block text-[11px] font-semibold text-gray-500">
                 Search (Bank Ref, Category, Count)
               </label>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-56 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:w-56 sm:py-1.5"
                 placeholder="e.g. 19397997 or LPG"
               />
             </div>
@@ -244,7 +244,74 @@ export default function BatchesPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <>
+            <div className="space-y-3 md:hidden">
+              {filteredBatches.map((batch) => {
+                const count = batch._count?.invoices ?? batch.invoices?.length ?? 0
+                const categories = Array.from(
+                  new Set((batch.invoices || []).map((inv: any) => inv.type || ''))
+                ).join(', ')
+                return (
+                  <div
+                    key={batch.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatInvoiceDate(batch.paymentDate)}
+                        </div>
+                        <div className="mt-0.5 font-mono text-xs text-gray-600">
+                          {batch.bankRef || '(No Ref)'}
+                        </div>
+                      </div>
+                      <span className="shrink-0 font-mono font-semibold text-gray-900">
+                        {formatAmount(batch.totalAmount)}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      {count} invoice{count !== 1 ? 's' : ''}
+                      {categories ? ` · ${categories}` : ''}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
+                      <button
+                        onClick={() => router.push(`/fuel-payments/batches/${batch.id}`)}
+                        className="min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-900"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() =>
+                          router.push(`/fuel-payments/make-payment/share/${batch.id}`)
+                        }
+                        className="min-h-[44px] text-sm font-medium text-green-600 hover:text-green-900"
+                      >
+                        Share
+                      </button>
+                      <button
+                        onClick={() => {
+                          const summary = `Fuel Payment Batch\n\nDate: ${formatInvoiceDate(
+                            batch.paymentDate
+                          )}\nBank Ref: ${
+                            batch.bankRef || '(No Ref)'
+                          }\nTotal Paid: ${formatAmount(
+                            batch.totalAmount
+                          )}\nInvoices: ${count}\nCategories: ${categories || '-'}`
+                          navigator.clipboard
+                            .writeText(summary)
+                            .then(() => alert('Batch summary copied to clipboard'))
+                            .catch(() => alert('Failed to copy summary'))
+                        }}
+                        className="min-h-[44px] text-sm font-medium text-gray-600 hover:text-gray-900"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="hidden overflow-hidden rounded-lg bg-white shadow md:block">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -322,7 +389,8 @@ export default function BatchesPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
