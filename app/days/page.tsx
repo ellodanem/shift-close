@@ -9,7 +9,6 @@ import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { isDebitScanComplete } from '@/lib/day-scan-status'
 import {
   businessTodayYmd,
-  businessYesterdayYmd,
   toYmdInBusinessTz,
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
@@ -19,7 +18,7 @@ import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
-type FilterType = 'all' | 'yesterday' | 'today' | 'thisWeek' | 'month' | 'custom'
+type FilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
 
 function lastDayOfMonthYmd(year: number, month1to12: number): string {
   const last = new Date(Date.UTC(year, month1to12, 0)).getUTCDate()
@@ -78,27 +77,17 @@ function daysQueryForFilter(
   if (filter === 'all') {
     return { key: 'all:120', url: '/api/days?recentDays=120' }
   }
-  if (filter === 'today') {
-    return {
-      key: `day:${todayYmd}`,
-      url: `/api/days?from=${todayYmd}&to=${todayYmd}`,
-      from: todayYmd,
-      to: todayYmd
-    }
-  }
-  if (filter === 'yesterday') {
-    const yesterdayYmd = businessYesterdayYmd()
-    return {
-      key: `day:${yesterdayYmd}`,
-      url: `/api/days?from=${yesterdayYmd}&to=${yesterdayYmd}`,
-      from: yesterdayYmd,
-      to: yesterdayYmd
-    }
-  }
   const [y, m] = todayYmd.split('-').map(Number)
-  if (filter === 'month') {
+  if (filter === 'thisMonth') {
     const from = `${y}-${padMonth(m)}-01`
     const to = lastDayOfMonthYmd(y, m)
+    return { key: `month:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
+  }
+  if (filter === 'lastMonth') {
+    const ly = m === 1 ? y - 1 : y
+    const lm = m === 1 ? 12 : m - 1
+    const from = `${ly}-${padMonth(lm)}-01`
+    const to = lastDayOfMonthYmd(ly, lm)
     return { key: `month:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
   }
 
@@ -117,6 +106,15 @@ function daysQueryForFilter(
     const end = new Date(startOfWeek(today))
     end.setDate(end.getDate() + 6)
     const to = ymd(end)
+    return { key: `week:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
+  }
+  if (filter === 'lastWeek') {
+    const thisWeekStart = startOfWeek(today)
+    const lastWeekEnd = new Date(thisWeekStart)
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 1)
+    const lastWeekStart = startOfWeek(lastWeekEnd)
+    const from = ymd(lastWeekStart)
+    const to = ymd(lastWeekEnd)
     return { key: `week:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
   }
   return null
@@ -160,7 +158,7 @@ export default function DaysPage() {
   const [loading, setLoading] = useState(true)
   const [rangeLoading, setRangeLoading] = useState(false)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
-  const [activeFilter, setActiveFilter] = useState<FilterType>('month')
+  const [activeFilter, setActiveFilter] = useState<FilterType>('thisMonth')
   const [customMonth, setCustomMonth] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
@@ -581,32 +579,6 @@ export default function DaysPage() {
           </button>
           <button
             onClick={() => {
-              setActiveFilter('yesterday')
-              setShowCustomPicker(false)
-            }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-              activeFilter === 'yesterday'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Yesterday
-          </button>
-          <button
-            onClick={() => {
-              setActiveFilter('today')
-              setShowCustomPicker(false)
-            }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-              activeFilter === 'today'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Today
-          </button>
-          <button
-            onClick={() => {
               setActiveFilter('thisWeek')
               setShowCustomPicker(false)
             }}
@@ -620,16 +592,42 @@ export default function DaysPage() {
           </button>
           <button
             onClick={() => {
-              setActiveFilter('month')
+              setActiveFilter('lastWeek')
               setShowCustomPicker(false)
             }}
             className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-              activeFilter === 'month'
+              activeFilter === 'lastWeek'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            Month
+            Last Week
+          </button>
+          <button
+            onClick={() => {
+              setActiveFilter('thisMonth')
+              setShowCustomPicker(false)
+            }}
+            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+              activeFilter === 'thisMonth'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            This Month
+          </button>
+          <button
+            onClick={() => {
+              setActiveFilter('lastMonth')
+              setShowCustomPicker(false)
+            }}
+            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+              activeFilter === 'lastMonth'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Last Month
           </button>
           <div className="relative" ref={customPickerRef}>
             <button
