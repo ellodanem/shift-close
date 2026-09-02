@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
 import AppUtilityBar from './AppUtilityBar'
+import NavPickerPanel from './NavPickerPanel'
+import { NavProvider } from './NavContext'
 import { useAuth } from './AuthContext'
 import {
   ATTENDANCE_VIEWER_PATH,
@@ -16,11 +18,7 @@ import OperationsChecklistPanel from './OperationsChecklistPanel'
 import RentDueBanner from './RentDueBanner'
 import { recordShortcutVisit } from '@/lib/home-shortcuts'
 
-export default function LayoutWrapper({
-  children
-}: {
-  children: React.ReactNode
-}) {
+function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, loading } = useAuth()
   const isApplyRoute = pathname?.startsWith('/apply')
@@ -52,9 +50,20 @@ export default function LayoutWrapper({
       <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
         <RentDueBanner />
         {!loading && user ? <AppUtilityBar /> : null}
-        <main className="min-h-0 flex-1 min-w-0 overflow-y-auto">{children}</main>
+        <main className="relative min-h-0 flex-1 min-w-0 overflow-y-auto">
+          <NavPickerPanel />
+          {children}
+        </main>
         <OperationsChecklistPanel />
       </div>
     </div>
+  )
+}
+
+export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <NavProvider>
+      <AppShell>{children}</AppShell>
+    </NavProvider>
   )
 }
