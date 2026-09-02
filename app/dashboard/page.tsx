@@ -310,6 +310,7 @@ export default function DashboardPage() {
   const [presenceSaving, setPresenceSaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
+  const [upcomingExpanded, setUpcomingExpanded] = useState(false)
   const [staleArAccounts, setStaleArAccounts] = useState<StaleArPayload | null>(null)
 
   useEffect(() => {
@@ -599,18 +600,24 @@ export default function DashboardPage() {
     return true
   })
 
+  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
+  const showRecentFuelPaymentHero = visibleLayout.includes('recent-fuel-payment')
+
   /** Widgets that participate in reorder controls and the scrollable list (excludes pinned top). */
   const reorderableVisibleLayout = useMemo(
-    () => visibleLayout.filter((id) => !isPinnedTopDashboardWidget(id)),
-    [visibleLayout]
+    () =>
+      visibleLayout.filter((id) => {
+        if (isPinnedTopDashboardWidget(id)) return false
+        if (id === 'recent-fuel-payment' && showRecentFuelPaymentHero) return false
+        return true
+      }),
+    [visibleLayout, showRecentFuelPaymentHero]
   )
 
   const dashboardSegments = useMemo(
     () => buildDashboardSegments(reorderableVisibleLayout),
     [reorderableVisibleLayout]
   )
-
-  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
 
   const handleMoveUp = (id: DashboardWidgetId) => {
     const next = moveWidgetUp(layout, id)
@@ -629,6 +636,70 @@ export default function DashboardPage() {
   const lastUpdatedLabel = summary?.status.lastShift?.createdAt
     ? `Updated ${formatDateTime(summary.status.lastShift.createdAt)}`
     : null
+
+  const renderRecentFuelPaymentCard = () => {
+    if (!recentPayment) {
+      return (
+        <div className={insightCardClass}>
+          <h2 className="text-base font-semibold text-gray-900">Recent fuel payment</h2>
+          <p className="mt-3 text-sm text-gray-400 italic">No recent fuel payment recorded</p>
+        </div>
+      )
+    }
+    return (
+      <div className={insightCardClass}>
+        <h2 className="text-base font-semibold text-gray-900">
+          Fuel Payment – {recentPayment.datePaid}
+        </h2>
+        <div className="mt-3 text-xs tabular-nums text-gray-800">
+          {recentPayment.invoices.map((inv, idx) => (
+            <div
+              key={`${inv.invoiceNumber}-${idx}`}
+              className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-0.5 items-baseline"
+            >
+              <span className="font-mono">{inv.invoiceNumber}</span>
+              <span className="text-right">{inv.amount}</span>
+              <span className="text-right text-gray-600">{inv.type}</span>
+            </div>
+          ))}
+          <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-x-4 items-baseline">
+            <span />
+            <span className="text-right font-semibold text-gray-900">{recentPayment.totalPaid}</span>
+            <span />
+          </div>
+        </div>
+        <div className="pl-[40%] text-[11px] text-slate-500 space-y-0.5">
+          <div>paid {recentPayment.datePaid}</div>
+          <div>
+            Ref{' '}
+            <span className="font-mono text-blue-600">{recentPayment.referenceNumber}</span>
+          </div>
+        </div>
+        {(recentPayment.balanceBefore || recentPayment.balanceAfter) && (
+          <div className="mt-3 pt-2 border-t border-gray-100">
+            <div className="text-xs font-semibold text-gray-900">Balance Information</div>
+            <div className="mt-1 space-y-0.5 text-xs text-gray-700 tabular-nums">
+              {recentPayment.balanceBefore ? (
+                <div>Balance Before (Available): {recentPayment.balanceBefore}</div>
+              ) : null}
+              {recentPayment.balanceAfter ? (
+                <div>Balance After (Available – Paid): {recentPayment.balanceAfter}</div>
+              ) : null}
+            </div>
+          </div>
+        )}
+        {!isStakeholder ? (
+          <button
+            type="button"
+            onClick={() => router.push('/fuel-payments/invoices')}
+            className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left"
+          >
+            View all payments →
+          </button>
+        ) : null}
+      </div>
+    )
+  }
 
   const renderThisMonthCard = () => {
     if (!summary) return null
@@ -724,32 +795,42 @@ export default function DashboardPage() {
           Litres from shift close · {summary.monthName} {summary.year}
         </p>
         {fuelMtdLoadState !== 'done' ? (
-          <p className="mt-6 text-sm text-slate-400 italic">Loading fuel volumes…</p>
+          <div className="mt-3 grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="py-2 sm:py-0 sm:pr-4">
+              <div className="text-xs text-slate-500">Fuel volume</div>
+              <p className="mt-1 text-sm text-slate-400 italic">Loading…</p>
+            </div>
+            <div className="py-2 sm:py-0 sm:pl-4">
+              <div className="text-xs text-slate-500">Deposit</div>
+              <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
+                ${formatCurrency(summary.totals.deposits)}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">MTD</div>
+            </div>
+          </div>
         ) : fuelMtdSold?.isFutureMonth ? (
           <p className="mt-6 text-sm text-slate-400 italic">No data for a future month.</p>
         ) : fuelMtdSold ? (
           <>
             <div className="mt-3 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               <div className="py-2 sm:py-0 sm:pr-4">
-                <div className="text-xs text-slate-500">Unleaded</div>
+                <div className="text-xs text-slate-500">Fuel volume</div>
                 <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
-                  {formatLitres(fuelMtdSold.totalUnleaded)} L
+                  {formatLitres(fuelMtdSold.totalUnleaded + fuelMtdSold.totalDiesel)} L
                 </div>
-                <div className="mt-1 text-xs text-slate-400">
-                  {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L / day
-                </div>
+                <div className="mt-1 text-xs text-slate-400">MTD total</div>
               </div>
               <div className="py-2 sm:py-0 sm:pl-4">
-                <div className="text-xs text-slate-500">Diesel</div>
-                <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
-                  {formatLitres(fuelMtdSold.totalDiesel)} L
+                <div className="text-xs text-slate-500">Deposit</div>
+                <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
+                  ${formatCurrency(summary.totals.deposits)}
                 </div>
-                <div className="mt-1 text-xs text-slate-400">
-                  {formatLitres(fuelMtdSold.avgDieselPerDay)} L / day
-                </div>
+                <div className="mt-1 text-xs text-slate-400">MTD</div>
               </div>
             </div>
-            <p className="mt-4 text-[11px] text-slate-400">{fuelMtdSold.periodLabel}</p>
+            {lastUpdatedLabel ? (
+              <p className="mt-4 text-[11px] text-slate-400">{lastUpdatedLabel}</p>
+            ) : null}
           </>
         ) : (
           <p className="mt-6 text-sm text-amber-800">Could not load fuel volumes.</p>
@@ -882,7 +963,7 @@ export default function DashboardPage() {
           <p className="py-6 text-center text-sm text-slate-400 italic">No events in the next 7 days</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {upcoming.slice(0, 3).map((event, index) => {
+            {(upcomingExpanded ? upcoming : upcoming.slice(0, 3)).map((event, index) => {
               const formatEventDate = (dateStr: string) => {
                 const [y, m, d] = dateStr.split('-').map(Number)
                 if (!y || !m || !d) return dateStr
@@ -953,9 +1034,13 @@ export default function DashboardPage() {
           </div>
         )}
         {upcoming.length > 3 ? (
-          <p className="mt-auto pt-3 text-xs font-medium text-indigo-600">
-            +{upcoming.length - 3} more
-          </p>
+          <button
+            type="button"
+            onClick={() => setUpcomingExpanded((v) => !v)}
+            className="mt-auto pt-3 text-left text-xs font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            {upcomingExpanded ? 'Show less' : `View all → (${upcoming.length})`}
+          </button>
         ) : null}
       </div>
     </div>
@@ -1152,86 +1237,75 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-slate-500">Shortcuts stay on top. Dashboard insights stay below.</p>
         </div>
         <HomeShortcutStrip />
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Month</h2>
-        <div className="mb-4">
-          <div className="mt-0 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  setActiveFilter('currentMonth')
-                  setCustomStartDate('')
-                  setCustomEndDate('')
-                  setShowCustomPicker(false)
-                }}
-                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                  activeFilter === 'currentMonth'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+
+        <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setActiveFilter('currentMonth')
+              setCustomStartDate('')
+              setCustomEndDate('')
+              setShowCustomPicker(false)
+            }}
+            className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+              activeFilter === 'currentMonth'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Current Month
+          </button>
+          <button
+            onClick={() => {
+              setActiveFilter('previousMonth')
+              setCustomStartDate('')
+              setCustomEndDate('')
+              setShowCustomPicker(false)
+            }}
+            className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+              activeFilter === 'previousMonth'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Previous Month
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setActiveFilter('custom')
+                setShowCustomPicker(!showCustomPicker)
+              }}
+              className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+                activeFilter === 'custom'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Custom{' '}
+              {activeFilter === 'custom' && customStartDate ? `(${customStartDate})` : '▼'}
+            </button>
+            {showCustomPicker && (
+              <div
+                ref={customPickerRef}
+                className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]"
               >
-                Current Month
-              </button>
-              <button
-                onClick={() => {
-                  setActiveFilter('previousMonth')
-                  setCustomStartDate('')
-                  setCustomEndDate('')
-                  setShowCustomPicker(false)
-                }}
-                className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                  activeFilter === 'previousMonth'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Previous Month
-              </button>
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setActiveFilter('custom')
-                    setShowCustomPicker(!showCustomPicker)
-                  }}
-                  className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                    activeFilter === 'custom'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Custom{' '}
-                  {activeFilter === 'custom' && customStartDate
-                    ? `(${customStartDate})`
-                    : '▼'}
-                </button>
-                {showCustomPicker && (
-                  <div ref={customPickerRef} className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
-                    <div className="mb-2 text-sm font-semibold text-gray-700">
-                      Select Month
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          Month
-                        </label>
-                        <input
-                          type="month"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="mb-2 text-sm font-semibold text-gray-700">Select Month</div>
+                <input
+                  type="month"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                />
               </div>
-              {activeFilter !== 'currentMonth' && summary && (
-                <span className="text-sm text-gray-600 ml-2">
-                  Showing: {summary.monthName} {summary.year}
-                </span>
-              )}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">{dashboardScopeHint}</p>
+            )}
           </div>
+          {activeFilter !== 'currentMonth' && summary ? (
+            <span className="text-xs text-gray-600">
+              Showing: {summary.monthName} {summary.year}
+            </span>
+          ) : null}
+          <span className="w-full text-xs text-slate-500 sm:w-auto sm:ml-auto">{dashboardScopeHint}</span>
         </div>
 
         {summary && summary.status.pendingReviewCount > 0 && (
@@ -1250,13 +1324,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
         <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
           {renderUpcomingCard()}
         </div>
+
+        {showRecentFuelPaymentHero ? (
+          <div className="mb-6">{renderRecentFuelPaymentCard()}</div>
+        ) : null}
 
         {/* Moveable widgets */}
         {(() => {
