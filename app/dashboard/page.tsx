@@ -1308,22 +1308,6 @@ export default function DashboardPage() {
           <span className="w-full text-xs text-slate-500 sm:w-auto sm:ml-auto">{dashboardScopeHint}</span>
         </div>
 
-        {summary && summary.status.pendingReviewCount > 0 && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-            <span className="text-sm font-medium text-amber-950">
-              {summary.status.pendingReviewCount} shift
-              {summary.status.pendingReviewCount === 1 ? '' : 's'} need review
-            </span>
-            <button
-              type="button"
-              onClick={() => router.push('/shifts')}
-              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-            >
-              Go to Shift List →
-            </button>
-          </div>
-        )}
-
         <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
