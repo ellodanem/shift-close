@@ -30,7 +30,19 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'time-off': '#0f766e',
   applications: '#a21caf',
   'reports-center': '#ca8a04',
-  settings: '#64748b'
+  settings: '#64748b',
+  'settings-users': '#475569',
+  'settings-fuel-data': '#2563eb',
+  'settings-smtp': '#0891b2',
+  'settings-email-recipients': '#0284c7',
+  'settings-end-of-day-email': '#0d9488',
+  'settings-missing-deposit-slip': '#b45309',
+  'settings-pay-days': '#ca8a04',
+  'settings-public-holidays': '#7c3aed',
+  'settings-roster': '#16a34a',
+  'settings-staff-roles': '#64748b',
+  'settings-vendor-vat': '#0f766e',
+  'settings-harvest-agent': '#334155'
 }
 
 const HREF_TILE_BG: Record<string, string> = {

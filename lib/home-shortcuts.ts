@@ -40,6 +40,18 @@ export type HomeShortcutId =
   | 'roster-mobile'
   | 'attendance-viewer'
   | 'settings'
+  | 'settings-users'
+  | 'settings-fuel-data'
+  | 'settings-smtp'
+  | 'settings-email-recipients'
+  | 'settings-end-of-day-email'
+  | 'settings-missing-deposit-slip'
+  | 'settings-pay-days'
+  | 'settings-public-holidays'
+  | 'settings-roster'
+  | 'settings-staff-roles'
+  | 'settings-vendor-vat'
+  | 'settings-harvest-agent'
 
 export type HomeShortcut = {
   id: HomeShortcutId

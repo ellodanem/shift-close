@@ -13,6 +13,7 @@ import {
   isPathBlockedForOperationsManager,
   normalizeAppRole
 } from '@/lib/roles'
+import { filterSettingsNavItems } from '@/lib/settings-nav'
 
 export type NavItemConfig = {
   label: string
@@ -90,7 +91,7 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
   },
   {
     label: 'Setup',
-    items: [{ label: 'Settings', href: '/settings', permission: 'settings' }]
+    items: []
   }
 ]
 
@@ -101,7 +102,19 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/fuel-payments/monthly-report': 'fuel-monthly',
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
-  '/financial/deposit-comparisons': 'deposit-comparisons'
+  '/financial/deposit-comparisons': 'deposit-comparisons',
+  '/settings/users': 'settings-users',
+  '/settings/fuel-data': 'settings-fuel-data',
+  '/settings/smtp': 'settings-smtp',
+  '/settings/email-recipients': 'settings-email-recipients',
+  '/settings/end-of-day-email': 'settings-end-of-day-email',
+  '/settings/missing-deposit-slip-alerts': 'settings-missing-deposit-slip',
+  '/settings/pay-days': 'settings-pay-days',
+  '/settings/public-holidays': 'settings-public-holidays',
+  '/settings/roster': 'settings-roster',
+  '/settings/staff-roles': 'settings-staff-roles',
+  '/settings/vendor-vat': 'settings-vendor-vat',
+  '/settings/harvest-agent': 'settings-harvest-agent'
 }
 
 const FALLBACK_TILE_CLASS = 'bg-slate-600'
@@ -231,22 +244,49 @@ export function isPathActive(pathname: string, href: string): boolean {
     return pathname.startsWith('/attendance')
   }
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
-  if (href === '/settings') return pathname.startsWith('/settings')
+  if (href === '/settings/users') return pathname.startsWith('/settings/users')
+  if (href === '/settings/fuel-data') return pathname.startsWith('/settings/fuel-data')
+  if (href === '/settings/smtp') return pathname.startsWith('/settings/smtp')
+  if (href === '/settings/email-recipients') return pathname.startsWith('/settings/email-recipients')
+  if (href === '/settings/end-of-day-email') return pathname.startsWith('/settings/end-of-day-email')
+  if (href === '/settings/missing-deposit-slip-alerts') {
+    return pathname.startsWith('/settings/missing-deposit-slip-alerts')
+  }
+  if (href === '/settings/pay-days') return pathname.startsWith('/settings/pay-days')
+  if (href === '/settings/public-holidays') return pathname.startsWith('/settings/public-holidays')
+  if (href === '/settings/roster') return pathname.startsWith('/settings/roster')
+  if (href === '/settings/staff-roles') return pathname.startsWith('/settings/staff-roles')
+  if (href === '/settings/vendor-vat') return pathname.startsWith('/settings/vendor-vat')
+  if (href === '/settings/harvest-agent') return pathname.startsWith('/settings/harvest-agent')
+  if (href === '/settings') return pathname === '/settings'
   if (href === '/insights/expected-revenue') return pathname.startsWith('/insights/expected-revenue')
   if (href === '/insights/deposit-debit-scans') return pathname.startsWith('/insights/deposit-debit-scans')
   return pathname === href
 }
 
 export function isGroupActive(group: NavGroupConfig, pathname: string): boolean {
+  if (group.label === 'Setup' && pathname === '/settings') return true
   return flattenNavItems(group.items).some((item) => isPathActive(pathname, item.href))
 }
 
 export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   const nr = normalizeAppRole(role)
-  const groups = BASE_NAV_CONFIG.map((group) => ({
-    ...group,
-    items: filterNavItems(group.items, role)
-  })).filter((g) => g.items.length > 0)
+  const groups = BASE_NAV_CONFIG.map((group) => {
+    if (group.label === 'Setup') {
+      return {
+        ...group,
+        items: filterSettingsNavItems(role).map((item) => ({
+          label: item.label,
+          href: item.href,
+          permission: item.permission
+        }))
+      }
+    }
+    return {
+      ...group,
+      items: filterNavItems(group.items, role)
+    }
+  }).filter((g) => g.items.length > 0)
 
   if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)) {
     const insightsItems = filterNavItems(
