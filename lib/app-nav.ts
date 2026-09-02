@@ -100,7 +100,8 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/fuel-payments/batches': 'fuel-batches',
   '/fuel-payments/monthly-report': 'fuel-monthly',
   '/insights/expected-revenue': 'expected-revenue',
-  '/insights/deposit-debit-scans': 'deposit-scans'
+  '/insights/deposit-debit-scans': 'deposit-scans',
+  '/financial/deposit-comparisons': 'deposit-comparisons'
 }
 
 const FALLBACK_TILE_CLASS = 'bg-slate-600'
@@ -248,15 +249,26 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   })).filter((g) => g.items.length > 0)
 
   if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)) {
-    const opsIdx = groups.findIndex((g) => g.label === 'Operations')
-    const insertAt = opsIdx >= 0 ? opsIdx + 1 : 1
-    groups.splice(insertAt, 0, {
-      label: 'Insights',
-      items: [
+    const insightsItems = filterNavItems(
+      [
         { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
-        { label: 'Deposit & debit scans', href: '/insights/deposit-debit-scans', permission: 'insights' }
-      ]
-    })
+        { label: 'Deposit & debit scans', href: '/insights/deposit-debit-scans', permission: 'insights' },
+        {
+          label: 'Deposit comparisons',
+          href: '/financial/deposit-comparisons',
+          permission: 'financial.depositComparisons'
+        }
+      ],
+      role
+    )
+    if (insightsItems.length > 0) {
+      const opsIdx = groups.findIndex((g) => g.label === 'Operations')
+      const insertAt = opsIdx >= 0 ? opsIdx + 1 : 1
+      groups.splice(insertAt, 0, {
+        label: 'Insights',
+        items: insightsItems
+      })
+    }
   }
 
   return groups
