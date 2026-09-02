@@ -37,6 +37,21 @@ async function openCustomerAccountsReport(page) {
   const already = await page.getByText(/customer account report/i).count()
   if (already > 0) return
 
+  const reportUrl =
+    'https://secure.cstorepro.com/EmagineNETCOSM/Content/Reports/CustomerCreditReport.aspx?enetFoundationMenuID=1912'
+  await page.goto(reportUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  await sleep(1000)
+  if ((await page.getByText(/customer account report/i).count()) > 0) return
+  if ((await page.getByLabel(/credit account/i).count()) > 0) return
+  if ((await page.locator('select').count()) > 0) return
+
+  const viewLocal = page.locator('a[href*="CustomerCreditReport"]')
+  if ((await viewLocal.count()) > 0) {
+    await viewLocal.first().click()
+    await sleep(1200)
+    if ((await page.getByText(/customer account report/i).count()) > 0) return
+  }
+
   const paths = [
     [/report center/i, /other entries/i, /customer accounts/i],
     [/other entries/i, /customer accounts/i],
