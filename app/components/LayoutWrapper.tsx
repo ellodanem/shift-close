@@ -23,6 +23,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const [pickerGroup, setPickerGroup] = useState<string | null>(null)
   const prevPathRef = useRef(pathname)
+  const mainRef = useRef<HTMLElement>(null)
 
   const isApplyRoute = pathname?.startsWith('/apply')
   const isAuthRoute =
@@ -50,6 +51,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [pathname])
 
+  useEffect(() => {
+    if (pickerGroup) {
+      mainRef.current?.scrollTo({ top: 0 })
+    }
+  }, [pickerGroup])
+
   if (isApplyRoute || isAuthRoute || isMinimalMobileShell) {
     return <>{children}</>
   }
@@ -60,9 +67,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
         <RentDueBanner />
         {!loading && user ? <AppUtilityBar /> : null}
-        <main className="relative min-h-0 flex-1 min-w-0 overflow-y-auto">
-          <NavPickerPanel pickerGroup={pickerGroup} onClose={() => setPickerGroup(null)} />
-          {children}
+        <main ref={mainRef} className="relative min-h-0 flex-1 min-w-0 overflow-y-auto">
+          {pickerGroup ? (
+            <NavPickerPanel pickerGroup={pickerGroup} onClose={() => setPickerGroup(null)} />
+          ) : (
+            children
+          )}
         </main>
         <OperationsChecklistPanel />
       </div>
