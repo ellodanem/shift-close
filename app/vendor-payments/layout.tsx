@@ -21,7 +21,7 @@ export default function VendorPaymentsLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="border-b border-gray-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl pl-14 pr-4 lg:px-8">
           <nav
             className="-mb-px flex gap-1 overflow-x-auto sm:gap-6"
             aria-label="Vendor payments tabs"
