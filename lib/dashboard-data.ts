@@ -581,15 +581,25 @@ export async function fetchRecentFuelPayment() {
   })
   if (!recentBatch) return null
 
-  const balance = await prisma.balance.findUnique({ where: { id: 'balance' } })
+  const balanceBefore =
+    recentBatch.balanceBefore ??
+    (recentBatch.balanceAfter != null
+      ? recentBatch.balanceAfter + recentBatch.totalAmount
+      : null)
+  const balanceAfter =
+    recentBatch.balanceAfter ??
+    (balanceBefore != null ? balanceBefore - recentBatch.totalAmount : null)
+
   return {
     datePaid: formatInvoiceDate(recentBatch.paymentDate),
     referenceNumber: recentBatch.bankRef,
     totalPaid: formatAmount(recentBatch.totalAmount),
-    availableBalance: balance ? formatAmount(balance.availableFunds) : '-',
+    balanceBefore: balanceBefore != null ? formatAmount(balanceBefore) : null,
+    balanceAfter: balanceAfter != null ? formatAmount(balanceAfter) : null,
     invoices: recentBatch.invoices.map((inv) => ({
       invoiceNumber: inv.invoiceNumber,
-      amount: formatAmount(inv.amount)
+      amount: formatAmount(inv.amount),
+      type: inv.type
     }))
   }
 }

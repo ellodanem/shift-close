@@ -75,11 +75,13 @@ interface RecentFuelPayment {
   invoices: {
     invoiceNumber: string
     amount: string
+    type: string
   }[]
   datePaid: string
   referenceNumber: string
   totalPaid: string
-  availableBalance: string
+  balanceBefore: string | null
+  balanceAfter: string | null
 }
 
 interface CustomerArSummary {
@@ -253,7 +255,7 @@ const TRENDS_WIDGET_IDS: DashboardWidgetId[] = [
 
 function DashboardSectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 mt-1">
+    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 mt-0.5">
       {children}
     </h2>
   )
@@ -308,7 +310,6 @@ export default function DashboardPage() {
   const [presenceSaving, setPresenceSaving] = useState(false)
   const [layout, setLayout] = useState<DashboardWidgetId[]>(getDefaultLayout)
   const [customerAccountsFuelNetExpanded, setCustomerAccountsFuelNetExpanded] = useState(false)
-  const [recentPaymentExpanded, setRecentPaymentExpanded] = useState(false)
   const [staleArAccounts, setStaleArAccounts] = useState<StaleArPayload | null>(null)
 
   useEffect(() => {
@@ -623,7 +624,7 @@ export default function DashboardPage() {
     saveDashboardLayout(next)
   }
 
-  const insightCardClass = 'bg-white rounded-xl border border-gray-200 p-5 sm:p-6 h-full min-w-0 flex flex-col'
+  const insightCardClass = 'bg-white rounded-xl border border-gray-200 p-4 sm:p-5 h-full min-w-0 flex flex-col'
 
   const lastUpdatedLabel = summary?.status.lastShift?.createdAt
     ? `Updated ${formatDateTime(summary.status.lastShift.createdAt)}`
@@ -637,30 +638,30 @@ export default function DashboardPage() {
         <p className="mt-0.5 text-xs text-slate-500">
           {summary.monthName} {summary.year}
         </p>
-        <div className="mt-5 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <div className="py-3 sm:py-0 sm:pr-5">
+        <div className="mt-3 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="py-2 sm:py-0 sm:pr-4">
             <div className="text-xs text-slate-500">Deposit</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">
+            <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
               ${formatCurrency(summary.totals.deposits)}
             </div>
           </div>
-          <div className="py-3 sm:px-5 sm:py-0">
+          <div className="py-2 sm:px-4 sm:py-0">
             <div className="text-xs text-slate-500">Debit / Credit</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-blue-600">
+            <div className="mt-0.5 text-xl font-semibold tabular-nums text-blue-600">
               ${formatCurrency(summary.totals.debitAndCredit)}
             </div>
           </div>
-          <div className="py-3 sm:py-0 sm:pl-5">
+          <div className="py-2 sm:py-0 sm:pl-4">
             <div className="text-xs text-slate-500">Grand total</div>
             <div
-              className="mt-1 text-2xl font-semibold tabular-nums text-gray-900"
+              className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900"
               title="Does not include Customer Charges (In-House)."
             >
               ${formatCurrency(summary.totals.grandTotal)}
             </div>
           </div>
         </div>
-        <div className="mt-4 border-t border-gray-100 pt-3">
+        <div className="mt-3 border-t border-gray-100 pt-2">
           <button
             type="button"
             onClick={() => setCustomerAccountsFuelNetExpanded(!customerAccountsFuelNetExpanded)}
@@ -728,19 +729,19 @@ export default function DashboardPage() {
           <p className="mt-6 text-sm text-slate-400 italic">No data for a future month.</p>
         ) : fuelMtdSold ? (
           <>
-            <div className="mt-5 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-              <div className="py-3 sm:py-0 sm:pr-5">
+            <div className="mt-3 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="py-2 sm:py-0 sm:pr-4">
                 <div className="text-xs text-slate-500">Unleaded</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+                <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
                   {formatLitres(fuelMtdSold.totalUnleaded)} L
                 </div>
                 <div className="mt-1 text-xs text-slate-400">
                   {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L / day
                 </div>
               </div>
-              <div className="py-3 sm:py-0 sm:pl-5">
+              <div className="py-2 sm:py-0 sm:pl-4">
                 <div className="text-xs text-slate-500">Diesel</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+                <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
                   {formatLitres(fuelMtdSold.totalDiesel)} L
                 </div>
                 <div className="mt-1 text-xs text-slate-400">
@@ -772,7 +773,7 @@ export default function DashboardPage() {
     const idx = reorderableVisibleLayout.indexOf(id)
     const canMoveUp = idx > 0
     const canMoveDown = idx >= 0 && idx < reorderableVisibleLayout.length - 1
-    const marginClass = className.includes('mb-') ? '' : 'mb-6'
+    const marginClass = className.includes('mb-') ? '' : 'mb-4'
     return (
       <div className={`flex gap-3 items-start ${marginClass} ${className}`.trim()}>
         <div className={contentClassName ?? 'flex-1 min-w-0'}>
@@ -1143,16 +1144,16 @@ export default function DashboardPage() {
     : 'Select a month to load summary data'
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Home</h1>
           <p className="mt-1 text-sm text-slate-500">Shortcuts stay on top. Dashboard insights stay below.</p>
         </div>
         <HomeShortcutStrip />
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Month</h2>
-        <div className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Month</h2>
+        <div className="mb-4">
           <div className="mt-0 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -1250,7 +1251,7 @@ export default function DashboardPage() {
         )}
 
         <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
-        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+        <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
@@ -1729,51 +1730,48 @@ export default function DashboardPage() {
           )
         })()}
             {id === 'recent-fuel-payment' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Recent Fuel Payment</h3>
-              <p className="text-xs text-gray-500 mt-1">Most recent batch of paid fuel invoices</p>
-            </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3.5 sm:p-4">
             {recentPayment ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-gray-900 tabular-nums">
-                    <span className="font-medium">{recentPayment.datePaid}</span>
-                    {' · '}
-                    <span className="font-semibold">{recentPayment.totalPaid}</span>
-                    {' · Ref '}
-                    <span className="font-mono text-gray-700">{recentPayment.referenceNumber}</span>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setRecentPaymentExpanded(!recentPaymentExpanded)}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-                  >
-                    {recentPaymentExpanded ? 'Hide details' : 'Details'}
-                  </button>
+              <div className="space-y-2.5">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Fuel Payment – {recentPayment.datePaid}
+                </h3>
+                <div className="text-xs tabular-nums text-gray-800">
+                  {recentPayment.invoices.map((inv, idx) => (
+                    <div
+                      key={`${inv.invoiceNumber}-${idx}`}
+                      className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-0.5 items-baseline"
+                    >
+                      <span className="font-mono">{inv.invoiceNumber}</span>
+                      <span className="text-right">{inv.amount}</span>
+                      <span className="text-right text-gray-600">{inv.type}</span>
+                    </div>
+                  ))}
+                  <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-x-4 items-baseline">
+                    <span />
+                    <span className="text-right font-semibold text-gray-900">{recentPayment.totalPaid}</span>
+                    <span />
+                  </div>
                 </div>
-                {recentPaymentExpanded && (
-                  <>
-                    <div className="text-xs text-green-600 font-semibold">
-                      Available balance: {recentPayment.availableBalance}
+                <div className="pl-[40%] text-[11px] text-slate-500 space-y-0.5">
+                  <div>paid {recentPayment.datePaid}</div>
+                  <div>
+                    Ref{' '}
+                    <span className="font-mono text-blue-600">{recentPayment.referenceNumber}</span>
+                  </div>
+                </div>
+                {(recentPayment.balanceBefore || recentPayment.balanceAfter) && (
+                  <div className="pt-1">
+                    <div className="text-xs font-semibold text-gray-900">Balance Information</div>
+                    <div className="mt-1 space-y-0.5 text-xs text-gray-700 tabular-nums">
+                      {recentPayment.balanceBefore ? (
+                        <div>Balance Before (Available): {recentPayment.balanceBefore}</div>
+                      ) : null}
+                      {recentPayment.balanceAfter ? (
+                        <div>Balance After (Available – Paid): {recentPayment.balanceAfter}</div>
+                      ) : null}
                     </div>
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">
-                        Invoices in this payment ({recentPayment.invoices.length})
-                      </div>
-                      <div className="max-h-32 overflow-y-auto rounded border border-gray-100 bg-gray-50">
-                        {recentPayment.invoices.map((inv, idx) => (
-                          <div
-                            key={`${inv.invoiceNumber}-${idx}`}
-                            className="flex items-center justify-between px-2 py-1 text-xs border-b border-gray-100 last:border-b-0"
-                          >
-                            <span className="font-mono text-gray-900">{inv.invoiceNumber}</span>
-                            <span className="text-gray-500">{inv.amount}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
               </div>
             ) : (
@@ -1782,7 +1780,7 @@ export default function DashboardPage() {
             {recentPayment && !isStakeholder && (
               <button
                 onClick={() => router.push('/fuel-payments/invoices')}
-                className="mt-3 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                className="mt-2.5 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left"
               >
                 View All Payments →
               </button>
@@ -1795,7 +1793,7 @@ export default function DashboardPage() {
             return (
               <Fragment key={`dashboard-pair-${segment[0]}-${segment[1]}`}>
                 {sectionLabel}
-                <div className="flex flex-col lg:flex-row gap-6 mb-6 w-full items-stretch">
+                <div className="flex flex-col lg:flex-row gap-4 mb-4 w-full items-stretch">
                   {segment.map((id) => (
                     <WidgetWrapper
                       key={id}
