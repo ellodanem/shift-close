@@ -710,23 +710,23 @@ export default function DashboardPage() {
         <p className="mt-0.5 text-xs text-slate-500">
           {summary.monthName} {summary.year}
         </p>
-        <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200">
+        <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 sm:grid-cols-3">
           <div className="min-w-0 pr-2 sm:pr-4">
             <div className="text-[11px] text-slate-500 sm:text-xs">Deposit</div>
             <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-600 sm:text-xl">
               ${formatCurrency(summary.totals.deposits)}
             </div>
           </div>
-          <div className="min-w-0 px-2 sm:px-4">
+          <div className="min-w-0 pl-2 sm:px-4">
             <div className="text-[11px] text-slate-500 sm:text-xs">Debit / Credit</div>
             <div className="mt-0.5 text-lg font-semibold tabular-nums text-blue-600 sm:text-xl">
               ${formatCurrency(summary.totals.debitAndCredit)}
             </div>
           </div>
-          <div className="min-w-0 pl-2 sm:pl-4">
+          <div className="col-span-2 min-w-0 border-t border-gray-200 pt-3 sm:col-span-1 sm:border-t-0 sm:pt-0 sm:pl-4">
             <div className="text-[11px] text-slate-500 sm:text-xs">Grand total</div>
             <div
-              className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900 sm:text-xl"
+              className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900 sm:text-xl"
               title="Does not include Customer Charges (In-House)."
             >
               ${formatCurrency(summary.totals.grandTotal)}
