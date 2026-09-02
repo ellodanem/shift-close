@@ -276,6 +276,7 @@ export default function DashboardPage() {
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [fuelMtdSold, setFuelMtdSold] = useState<FuelMtdSoldPayload | null>(null)
   const [fuelMtdLoadState, setFuelMtdLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [fuelMtdView, setFuelMtdView] = useState<'mtd' | 'avg'>('mtd')
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<MonthFilterType>('currentMonth')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -788,12 +789,56 @@ export default function DashboardPage() {
 
   const renderFuelMtdDepositBlock = () => {
     if (!summary) return null
+    const showAvg = fuelMtdView === 'avg'
+    const fuelVolumeMtd = fuelMtdSold ? fuelMtdSold.totalUnleaded + fuelMtdSold.totalDiesel : 0
+    const fuelVolumeAvg = fuelMtdSold ? fuelMtdSold.avgUnleadedPerDay + fuelMtdSold.avgDieselPerDay : 0
+    const depositMtd = summary.totals.deposits
+    const depositAvg =
+      averageDeposit?.avgDepositMTD ??
+      (fuelMtdSold && fuelMtdSold.daysInAverage > 0 ? depositMtd / fuelMtdSold.daysInAverage : 0)
+    const avgDaysLabel =
+      averageDeposit?.daysElapsed != null
+        ? `${averageDeposit.daysElapsed} day${averageDeposit.daysElapsed === 1 ? '' : 's'}`
+        : fuelMtdSold?.daysInAverage
+          ? `${fuelMtdSold.daysInAverage} day${fuelMtdSold.daysInAverage === 1 ? '' : 's'}`
+          : null
+
     return (
       <div className={insightCardClass}>
-        <h2 className="text-base font-semibold text-gray-900">Fuel MTD</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Litres from shift close · {summary.monthName} {summary.year}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-gray-900">Fuel MTD</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Litres from shift close · {summary.monthName} {summary.year}
+            </p>
+          </div>
+          <div
+            className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold"
+            role="group"
+            aria-label="Fuel MTD view"
+          >
+            <button
+              type="button"
+              onClick={() => setFuelMtdView('mtd')}
+              className={`rounded-md px-2 py-1 transition-colors ${
+                !showAvg ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              aria-pressed={!showAvg}
+            >
+              MTD
+            </button>
+            <button
+              type="button"
+              onClick={() => setFuelMtdView('avg')}
+              className={`rounded-md px-2 py-1 transition-colors ${
+                showAvg ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              aria-pressed={showAvg}
+            >
+              Avg/day
+            </button>
+          </div>
+        </div>
         {fuelMtdLoadState !== 'done' ? (
           <div className="mt-3 grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
             <div className="py-2 sm:py-0 sm:pr-4">
@@ -805,7 +850,7 @@ export default function DashboardPage() {
               <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
                 ${formatCurrency(summary.totals.deposits)}
               </div>
-              <div className="mt-1 text-xs text-slate-400">MTD</div>
+              <div className="mt-1 text-xs text-slate-400">{showAvg ? 'Avg per day' : 'MTD'}</div>
             </div>
           </div>
         ) : fuelMtdSold?.isFutureMonth ? (
@@ -816,16 +861,32 @@ export default function DashboardPage() {
               <div className="py-2 sm:py-0 sm:pr-4">
                 <div className="text-xs text-slate-500">Fuel volume</div>
                 <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
-                  {formatLitres(fuelMtdSold.totalUnleaded + fuelMtdSold.totalDiesel)} L
+                  {formatLitres(showAvg ? fuelVolumeAvg : fuelVolumeMtd)} L
                 </div>
-                <div className="mt-1 text-xs text-slate-400">MTD total</div>
+                <div className="mt-1 text-xs text-slate-400">
+                  {showAvg ? (avgDaysLabel ? `Avg per day · ${avgDaysLabel}` : 'Avg per day') : 'MTD total'}
+                </div>
               </div>
               <div className="py-2 sm:py-0 sm:pl-4">
                 <div className="text-xs text-slate-500">Deposit</div>
-                <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
-                  ${formatCurrency(summary.totals.deposits)}
-                </div>
-                <div className="mt-1 text-xs text-slate-400">MTD</div>
+                {showAvg && averageDeposit && !averageDeposit.lastShiftDate ? (
+                  <p className="mt-1 text-sm text-slate-400 italic">
+                    {averageDeposit.periodLabel ?? 'No shift closes this month yet.'}
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
+                      ${formatCurrency(showAvg ? depositAvg : depositMtd)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {showAvg
+                        ? avgDaysLabel
+                          ? `Avg per day · through last close (${avgDaysLabel})`
+                          : 'Avg per day'
+                        : 'MTD'}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             {lastUpdatedLabel ? (
