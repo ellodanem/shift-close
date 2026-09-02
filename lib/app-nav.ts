@@ -81,6 +81,10 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
     ]
   },
   {
+    label: 'Promotions',
+    items: [{ label: 'Promotions', href: '/promotions', permission: 'promotions' }]
+  },
+  {
     label: 'Mobile',
     items: [
       { label: 'Manager hub', href: MANAGER_HUB_PATH, permission: 'operations.managerHub' },
@@ -110,6 +114,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
+  '/promotions': 'promotions',
   '/settings/users': 'settings-users',
   '/settings/fuel-data': 'settings-fuel-data',
   '/settings/smtp': 'settings-smtp',
@@ -307,6 +312,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/settings') return pathname === '/settings'
   if (href === '/insights/expected-revenue') return pathname.startsWith('/insights/expected-revenue')
   if (href === '/insights/deposit-debit-scans') return pathname.startsWith('/insights/deposit-debit-scans')
+  if (href === '/promotions') return pathname === '/promotions' || pathname.startsWith('/promotions/')
   return pathname === href
 }
 
@@ -391,6 +397,8 @@ export const NAV_GROUP_ICON: Record<string, string> = {
     'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
   People:
     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  Promotions:
+    'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7',
   Mobile:
     'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z',
   Setup:

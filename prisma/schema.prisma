@@ -41,6 +41,8 @@ model Staff {
   sickLeaves     StaffSickLeave[]
   callOuts       StaffCallOut[]
   attendanceDayOverrides AttendanceDayOverride[]
+  promotionWinners PromotionWinner[]
+  promotionEntries PromotionEntry[]
 
   @@map("staff")
 }
@@ -1071,6 +1073,74 @@ model ChecklistAcknowledgement {
   @@unique([taskId, weekKey, kind], name: "checklist_ack_task_week_kind")
   @@index([weekKey])
   @@map("checklist_acknowledgements")
+}
+
+// Staff promotions / giveaways (e.g. biweekly bus driver gas)
+model Promotion {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  details     String   @default("")
+  /// Schedule / how draws work (e.g. "Every other week")
+  drawDetails String   @default("") @map("draw_details")
+  status      String   @default("active") // active | completed
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  draws PromotionDraw[]
+
+  @@index([status])
+  @@map("promotions")
+}
+
+model PromotionDraw {
+  id          String   @id @default(cuid())
+  promotionId String   @map("promotion_id")
+  drawDate    String   @map("draw_date") // YYYY-MM-DD
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  promotion Promotion         @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  winners   PromotionWinner[]
+  /// Phase 2: entrant tally for regularity rewards (no UI yet)
+  entries   PromotionEntry[]
+
+  @@index([promotionId, drawDate])
+  @@map("promotion_draws")
+}
+
+model PromotionWinner {
+  id         String   @id @default(cuid())
+  drawId     String   @map("draw_id")
+  staffId    String?  @map("staff_id")
+  winnerName String   @map("winner_name")
+  prizeNotes String   @default("") @map("prize_notes")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  draw  PromotionDraw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  staff Staff?        @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([drawId])
+  @@index([staffId])
+  @@map("promotion_winners")
+}
+
+/// Phase 2: capture who entered each draw for year-end regularity rewards
+model PromotionEntry {
+  id          String   @id @default(cuid())
+  drawId      String   @map("draw_id")
+  staffId     String?  @map("staff_id")
+  entrantName String   @map("entrant_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  draw  PromotionDraw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  staff Staff?        @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([drawId])
+  @@index([staffId])
+  @@map("promotion_entries")
 }
 
 // Local harvest agent (Cstore Pro browser jobs on a dedicated PC / Pi)

@@ -51,7 +51,8 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'report-fuel-comparison': '#2563eb',
   'report-vendor-invoices': '#ea580c',
   'report-deposit': '#0d9488',
-  'report-exception': '#dc2626'
+  'report-exception': '#dc2626',
+  promotions: '#d97706'
 }
 
 const HREF_TILE_BG: Record<string, string> = {

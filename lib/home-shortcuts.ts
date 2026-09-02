@@ -61,6 +61,7 @@ export type HomeShortcutId =
   | 'report-vendor-invoices'
   | 'report-deposit'
   | 'report-exception'
+  | 'promotions'
 
 export type HomeShortcut = {
   id: HomeShortcutId
@@ -267,6 +268,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     href: '/applications',
     tileClass: 'bg-fuchsia-700',
     matchPrefixes: ['/applications']
+  },
+  {
+    id: 'promotions',
+    label: 'Promotions',
+    href: '/promotions',
+    tileClass: 'bg-amber-600',
+    matchPrefixes: ['/promotions']
   },
   {
     id: 'reports-center',
