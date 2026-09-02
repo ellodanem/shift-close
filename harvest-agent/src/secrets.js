@@ -47,7 +47,7 @@ function encryptWithDpapi(plaintext) {
     'powershell',
     '-NoProfile',
     '-Command',
-    `$b=[Convert]::FromBase64String('${inputB64}');$e=[System.Security.Cryptography.ProtectedData]::Protect($b,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Convert]::ToBase64String($e)`
+    `$b=[Convert]::FromBase64String('${inputB64}'); Add-Type -AssemblyName System.Security; $e=[System.Security.Cryptography.ProtectedData]::Protect($b,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Convert]::ToBase64String($e)`
   ].join(' ')
   const out = execSync(cmd, { encoding: 'utf8', windowsHide: true }).trim()
   fs.writeFileSync(SECRET_DPAPI_FILE, out, 'utf8')
@@ -61,7 +61,7 @@ function decryptFromDpapi() {
     'powershell',
     '-NoProfile',
     '-Command',
-    `$e=[Convert]::FromBase64String('${enc}');$d=[System.Security.Cryptography.ProtectedData]::Unprotect($e,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Text.Encoding]::UTF8.GetString($d)`
+    `$e=[Convert]::FromBase64String('${enc}'); Add-Type -AssemblyName System.Security; $d=[System.Security.Cryptography.ProtectedData]::Unprotect($e,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Text.Encoding]::UTF8.GetString($d)`
   ].join(' ')
   return execSync(cmd, { encoding: 'utf8', windowsHide: true }).trim()
 }

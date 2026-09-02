@@ -26,6 +26,25 @@ export function harvestPresence(lastHeartbeatAt: Date, now = new Date()): Harves
   return 'offline'
 }
 
+let harvestSchemaReady = false
+
+export async function ensureHarvestSchema() {
+  if (harvestSchemaReady) return
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "harvest_agents" ADD COLUMN IF NOT EXISTS "paused" BOOLEAN NOT NULL DEFAULT false`
+  )
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "harvest_agents" ADD COLUMN IF NOT EXISTS "pause_reason" TEXT`
+  )
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "harvest_agents" ADD COLUMN IF NOT EXISTS "paused_at" TIMESTAMPTZ`
+  )
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "cstore_name" TEXT`
+  )
+  harvestSchemaReady = true
+}
+
 export async function upsertHarvestHeartbeat(params: {
   agentKey: string
   hostname?: string | null
@@ -37,6 +56,8 @@ export async function upsertHarvestHeartbeat(params: {
 }) {
   const key = params.agentKey.trim()
   if (!key) throw new Error('agentKey is required')
+
+  await ensureHarvestSchema()
 
   const now = params.heartbeatAt ?? new Date()
   const sessionTouched = typeof params.cstoreSessionOk === 'boolean'

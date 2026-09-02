@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { ensureHarvestSchema } from '@/lib/harvest-agent'
 import { parseInvoiceDateToUTC, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 import {
   calculateAmountVatFromTotal,
@@ -124,6 +125,8 @@ export async function importHarvestVendorInvoices(params: {
   if (!cstoreName) {
     throw new Error('cstoreVendorName is required')
   }
+
+  await ensureHarvestSchema()
 
   const vendors = await prisma.vendor.findMany({
     select: { id: true, name: true, cstoreName: true, isVatRegistered: true }

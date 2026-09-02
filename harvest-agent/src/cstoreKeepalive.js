@@ -29,7 +29,7 @@ async function pageLooksLoggedIn(page) {
 
   const path = urlPathname(url)
   if (path.includes('customercreditreport')) return true
-  if (path.includes('purchaseinvoice') || path.includes('managepurchases')) return true
+  if (path.includes('grocerypurchase') || path.includes('purchaseinvoice')) return true
   if (path.includes('taskdashboard') || path.includes('/content/tasks')) return true
 
   const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase()

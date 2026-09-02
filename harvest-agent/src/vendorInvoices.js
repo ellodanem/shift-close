@@ -80,10 +80,17 @@ function usableVendorName(text) {
 async function pageTextLooksLikeInvoices(frame) {
   const url = frame.url() || ''
   if (isCstoreLoginUrl(url)) return false
+  let path = url.toLowerCase()
+  try {
+    path = new URL(url).pathname.toLowerCase()
+  } catch {
+    // keep raw url
+  }
+  if (path.includes('grocerypurchase')) return true
   const text = ((await frame.locator('body').innerText().catch(() => '')) || '').toLowerCase()
   if (text.includes('manage purchases')) return true
   if (text.includes('purchase invoice list')) return true
-  if (text.includes('your store\'s purchase invoice list')) return true
+  if (text.includes('all purchases') && text.includes('invoice')) return true
   return false
 }
 
@@ -104,20 +111,20 @@ async function invoicesScope(page) {
   return page
 }
 
-async function openViaGroceryMenu(page) {
-  const grocery = page.getByText(/^Grocery$/i).filter({ visible: true })
+async function openViaGroceryFlyout(page) {
+  const grocery = page.locator('#EWF-Menu-Link-1322')
+  const purchases = page.locator('#EWF-Menu-Link-1704')
+  const invoices = page.locator('#EWF-Menu-Link-2050')
   if ((await grocery.count()) === 0) return false
-  await grocery.first().click({ timeout: 8000 })
-  await sleep(600)
 
-  const purchases = page.getByText(/^Purchases$/i).filter({ visible: true })
-  if ((await purchases.count()) === 0) return false
-  await purchases.first().hover({ force: true })
+  await grocery.hover()
   await sleep(500)
-
-  const invoices = page.getByText(/^Invoices$/i).filter({ visible: true })
+  if ((await purchases.count()) > 0) {
+    await purchases.hover({ force: true })
+    await sleep(500)
+  }
   if ((await invoices.count()) === 0) return false
-  await invoices.first().click({ force: true, timeout: 8000 })
+  await invoices.click({ force: true, timeout: 8000 })
   await sleep(1500)
   return onPurchaseInvoices(page)
 }
@@ -125,35 +132,64 @@ async function openViaGroceryMenu(page) {
 async function openPurchaseInvoices(page, config, hooks = {}) {
   if (await onPurchaseInvoices(page)) return
 
-  if (await openViaGroceryMenu(page)) return
-
-  const candidates = [
-    '/EmagineNETCOSM/Content/Grocery/PurchaseInvoices.aspx',
-    '/EmagineNETCOSM/Content/BackOffice/PurchaseInvoices.aspx'
-  ]
-  for (const reportPath of candidates) {
-    await page.goto(new URL(reportPath, page.url()).href, {
-      waitUntil: 'domcontentloaded',
-      timeout: 30_000
-    }).catch(() => {})
-    await sleep(800)
-    if (isCstoreLoginUrl(page.url())) {
-      const login = await waitForSession(page, config, hooks)
-      if (!login.ok) throw new Error(login.message)
+  const invoicesPath =
+    '/EmagineNETCOSM/Content/Grocery/GroceryPurchase.aspx?enetFoundationMenuID=2050'
+  await page.goto(new URL(invoicesPath, page.url()).href, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  })
+  await sleep(1500)
+  await page
+    .getByText(/manage purchases|purchase invoice list|all purchases/i)
+    .first()
+    .waitFor({ timeout: 20_000 })
+    .catch(() => {})
+  if (isCstoreLoginUrl(page.url())) {
+    const login = await waitForSession(page, config, hooks)
+    if (!login.ok) throw new Error(login.message)
+    if (!(await onPurchaseInvoices(page))) {
+      await page.goto(new URL(invoicesPath, page.url()).href, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60_000
+      })
+      await sleep(1200)
     }
-    if (await onPurchaseInvoices(page)) return
   }
+  if (await onPurchaseInvoices(page)) return
 
-  if (await openViaGroceryMenu(page)) return
+  const debugDir = path.join(process.cwd(), 'downloads')
+  if (await openViaGroceryFlyout(page)) return
 
+  await saveDebug(page, debugDir, 'vendor-invoices-nav-failed')
   throw new Error('Could not open Grocery → Purchases → Invoices')
 }
 
+function parseLooseUsDate(value) {
+  const m = String(value || '')
+    .trim()
+    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  return { month: Number(m[1]), day: Number(m[2]), year: Number(m[3]) }
+}
+
+async function hiddenDateRange(scope) {
+  const from = await scope.locator('#GroceryPurchases_Form_PurchaseDateFrom').inputValue().catch(() => '')
+  const to = await scope.locator('#GroceryPurchases_Form_PurchaseDateTo').inputValue().catch(() => '')
+  return { from: parseLooseUsDate(from), to: parseLooseUsDate(to) }
+}
+
 async function monthAlreadySet(scope, year, month) {
-  const from = formatUsDate(year, month, 1)
-  const to = formatUsDate(year, month, lastDayOfMonth(year, month))
-  const text = await scope.locator('body').innerText().catch(() => '')
-  return text.includes(from) && text.includes(to)
+  const { from, to } = await hiddenDateRange(scope)
+  if (!from || !to) return false
+  const last = lastDayOfMonth(year, month)
+  return (
+    from.year === year &&
+    from.month === month &&
+    from.day === 1 &&
+    to.year === year &&
+    to.month === month &&
+    to.day === last
+  )
 }
 
 async function clickDateSubmit(scope) {
@@ -165,49 +201,52 @@ async function clickDateSubmit(scope) {
   ])
 }
 
-async function openDatePicker(scope) {
-  await clickFirstVisible(scope, [
-    scope.getByText(/purchase date/i),
-    scope.getByLabel(/purchase date/i),
-    scope.locator('input').filter({ hasText: /\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4}/ }),
-    scope.locator('input[value*="/"]').first()
-  ])
-  await sleep(400)
-}
-
 async function setInvoiceMonth(scope, year, month) {
   if (await monthAlreadySet(scope, year, month)) {
     console.log(`[Cstore] Purchase date already ${MONTH_SHORT[month - 1]} ${year}`)
     return
   }
 
-  const presetName = `${MONTH_SHORT[month - 1]} ${year}`
-  await openDatePicker(scope)
+  const fromVal = formatUsDate(year, month, 1)
+  const toVal = formatUsDate(year, month, lastDayOfMonth(year, month))
+  const range = `${fromVal} - ${toVal}`
 
+  await scope
+    .evaluate(({ fromVal, toVal, range }) => {
+      const vis = document.getElementById('GroceryPurchases_Form_PurchaseDate_EnetDRS')
+      const fromEl = document.getElementById('GroceryPurchases_Form_PurchaseDateFrom')
+      const toEl = document.getElementById('GroceryPurchases_Form_PurchaseDateTo')
+      if (vis) {
+        vis.value = range
+        vis.dispatchEvent(new Event('change', { bubbles: true }))
+        vis.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      if (fromEl) {
+        fromEl.value = fromVal
+        fromEl.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      if (toEl) {
+        toEl.value = toVal
+        toEl.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+    }, { fromVal, toVal, range })
+    .catch(() => {})
+
+  if (await monthAlreadySet(scope, year, month)) {
+    console.log(`[Cstore] Purchase date set to ${MONTH_SHORT[month - 1]} ${year}`)
+    return
+  }
+
+  const presetName = `${MONTH_SHORT[month - 1]} ${year}`
+  const dateInput = scope.locator('#GroceryPurchases_Form_PurchaseDate_EnetDRS')
+  if ((await dateInput.count()) > 0) {
+    await dateInput.first().click({ timeout: 5000 }).catch(() => {})
+    await sleep(400)
+  }
   const preset = scope.getByText(new RegExp(`^${presetName}$`, 'i')).filter({ visible: true })
   if ((await preset.count()) > 0) {
     await preset.first().click()
     await sleep(300)
-    await clickDateSubmit(scope)
-    if (await monthAlreadySet(scope, year, month)) return
-  }
-
-  const fromVal = formatUsDate(year, month, 1)
-  const toVal = formatUsDate(year, month, lastDayOfMonth(year, month))
-  const labeledFrom = scope.locator('text=FROM').locator('xpath=following::input[1]').filter({ visible: true })
-  const labeledTo = scope.locator('text=TO').locator('xpath=following::input[1]').filter({ visible: true })
-  if ((await labeledFrom.count()) > 0 && (await labeledTo.count()) > 0) {
-    await labeledFrom.first().fill(fromVal)
-    await labeledTo.first().fill(toVal)
-    await clickDateSubmit(scope)
-    if (await monthAlreadySet(scope, year, month)) return
-  }
-
-  const customFrom = scope.getByLabel(/^from$/i).filter({ visible: true })
-  const customTo = scope.getByLabel(/^to$/i).filter({ visible: true })
-  if ((await customFrom.count()) > 0 && (await customTo.count()) > 0) {
-    await customFrom.first().fill(fromVal)
-    await customTo.first().fill(toVal)
     await clickDateSubmit(scope)
     if (await monthAlreadySet(scope, year, month)) return
   }
@@ -225,8 +264,9 @@ async function clickAllPurchasesTab(scope) {
 
 async function openVendorDropdown(scope) {
   const opened = await clickFirstVisible(scope, [
+    scope.locator('#GroceryPurchases_Form_VendorID'),
     scope.getByLabel(/^vendor$/i),
-    scope.locator('xpath=//*[normalize-space()="Vendor"]/following::*[self::input or self::button][1]'),
+    scope.locator('xpath=//*[normalize-space()="Vendor"]/following::*[self::input or self::button or self::select][1]'),
     scope.getByRole('combobox', { name: /vendor/i }),
     scope.getByText(/^vendor$/i)
   ])
@@ -235,6 +275,11 @@ async function openVendorDropdown(scope) {
 }
 
 async function listVendorOptions(scope) {
+  const select = scope.locator('#GroceryPurchases_Form_VendorID')
+  if ((await select.count()) > 0) {
+    const options = await select.locator('option').allTextContents()
+    return options.map((t) => t.trim()).filter(usableVendorName)
+  }
   await openVendorDropdown(scope)
   const options = await scope.evaluate(() => {
     const names = []
@@ -254,11 +299,23 @@ async function listVendorOptions(scope) {
 
 async function selectVendor(scope, vendorName) {
   const key = normalizeVendorKey(vendorName)
+  const native = scope.locator('#GroceryPurchases_Form_VendorID')
+  if ((await native.count()) > 0) {
+    const labels = await native.locator('option').allTextContents()
+    const matched = labels.map((t) => t.trim()).find((t) => normalizeVendorKey(t) === key)
+    if (matched) {
+      await native.selectOption({ label: matched })
+      await native.dispatchEvent('change')
+      await sleep(300)
+      return { ok: true, matched }
+    }
+  }
+
   await openVendorDropdown(scope)
 
-  const native = scope.locator('select').filter({ has: scope.locator('option') })
-  if ((await native.count()) > 0) {
-    const select = native.first()
+  const fallbackSelect = scope.locator('select').filter({ has: scope.locator('option') })
+  if ((await fallbackSelect.count()) > 0) {
+    const select = fallbackSelect.first()
     const labels = await select.locator('option').allTextContents()
     const matched = labels.find((t) => normalizeVendorKey(t) === key)
     if (matched) {
@@ -304,12 +361,21 @@ async function selectVendor(scope, vendorName) {
 
 async function clickSearch(scope) {
   const clicked = await clickFirstVisible(scope, [
+    scope.locator('#btnGroceryPurchases_Filter_Search'),
     scope.getByRole('button', { name: /^search$/i }),
+    scope.locator('a').filter({ hasText: /^search$/i }),
     scope.locator('button').filter({ hasText: /^search$/i })
   ])
   if (!clicked) throw new Error('Search button not found on purchase invoices')
   await scope.waitForLoadState('domcontentloaded').catch(() => {})
-  await sleep(1200)
+  await scope
+    .waitForFunction(() => {
+      const btn = document.getElementById('btnGroceryPurchases_Filter_Search')
+      const text = (btn && btn.textContent) || ''
+      return !/loading/i.test(text)
+    }, { timeout: 30_000 })
+    .catch(() => {})
+  await sleep(1500)
 }
 
 function parseScrapedRows(rows) {
@@ -392,20 +458,19 @@ async function invoicesFoundCount(scope) {
 }
 
 async function goToNextInvoicePage(scope) {
-  const next = scope
-    .locator('a, button, span')
-    .filter({ hasText: /^(›|»|>|next)$/i })
-    .filter({ visible: true })
-  if ((await next.count()) === 0) return false
+  const next = scope.locator('a.EJS_Grid2_OpPage').filter({ has: scope.locator('.fa-chevron-right') })
+  if ((await next.count()) === 0) {
+    return clickFirstVisible(scope, [
+      scope.locator('a[title*="next" i]'),
+      scope.locator('a').filter({ hasText: /^(›|»|>|next)$/i })
+    ])
+  }
   const btn = next.last()
-  const disabled =
-    (await btn.getAttribute('disabled').catch(() => null)) != null ||
-    (await btn.getAttribute('aria-disabled').catch(() => '')) === 'true' ||
-    /disabled|inactive/i.test((await btn.getAttribute('class').catch(() => '')) || '')
-  if (disabled) return false
+  const cls = (await btn.getAttribute('class').catch(() => '')) || ''
+  if (/disabled/i.test(cls)) return false
   const before = (await readInvoiceRows(scope))[0]
   await btn.click({ timeout: 5000 }).catch(() => null)
-  await sleep(1000)
+  await sleep(1200)
   const after = (await readInvoiceRows(scope))[0]
   if (before && after && before.invoiceNumber === after.invoiceNumber && before.invoiceDate === after.invoiceDate) {
     return false
