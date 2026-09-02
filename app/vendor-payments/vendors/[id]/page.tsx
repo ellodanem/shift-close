@@ -372,7 +372,7 @@ function VendorDetailPageInner() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
@@ -380,42 +380,57 @@ function VendorDetailPageInner() {
 
   if (!vendor) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-red-600">Vendor not found.</p>
-        <button onClick={() => router.push('/vendor-payments/vendors')} className="mt-4 text-blue-600">
+        <button
+          type="button"
+          onClick={() => router.push('/vendor-payments/vendors')}
+          className="mt-4 min-h-[44px] text-blue-600 sm:min-h-0"
+        >
           Back to Vendors
         </button>
       </div>
     )
   }
 
+  const monthChipClass = (active: boolean) =>
+    `min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs ${
+      active
+        ? 'bg-blue-600 text-white'
+        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+    }`
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">{vendor.name}</h1>
-          <div className="flex gap-2">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{vendor.name}</h1>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
             <button
+              type="button"
               onClick={() => router.push(`/vendor-payments/vendors/${id}/edit`)}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >
               Edit
             </button>
             <button
+              type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+              className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
               Back
             </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Details</h2>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">Details</h2>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <dt className="text-sm text-gray-500">Notification Email</dt>
-              <dd className="text-sm font-medium text-gray-900">{vendor.notificationEmail}</dd>
+              <dd className="break-all text-sm font-medium text-gray-900">
+                {vendor.notificationEmail}
+              </dd>
             </div>
             {vendor.cstoreName && (
               <div>
@@ -440,15 +455,15 @@ function VendorDetailPageInner() {
           </dl>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-2">
               {activeInvoiceTab === 'pending' && pendingInvoices.length > 0 && (
                 <button
                   type="button"
                   onClick={() => router.push(`/vendor-payments/make-payment?vendorId=${id}`)}
-                  className="px-3 py-1.5 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
+                  className="min-h-[44px] rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0 sm:py-1.5"
                 >
                   Make Payment
                 </button>
@@ -457,7 +472,7 @@ function VendorDetailPageInner() {
                 <button
                   type="button"
                   onClick={() => setShowRevertModal(true)}
-                  className="px-3 py-1.5 bg-orange-600 text-white rounded text-sm font-semibold hover:bg-orange-700"
+                  className="min-h-[44px] rounded bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700 sm:min-h-0 sm:py-1.5"
                 >
                   Revert Payment
                 </button>
@@ -465,7 +480,7 @@ function VendorDetailPageInner() {
               <button
                 type="button"
                 onClick={() => setShowAddInvoiceModal(true)}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
+                className="min-h-[44px] rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0 sm:py-1.5"
               >
                 Add Invoice
               </button>
@@ -473,21 +488,17 @@ function VendorDetailPageInner() {
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="mb-1 block text-xs font-medium text-gray-500">
               Invoice month
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={() => {
                   setMonthFilter('all')
                   setCustomMonth('')
                 }}
-                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                  monthFilter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                }`}
+                className={monthChipClass(monthFilter === 'all')}
               >
                 All
               </button>
@@ -497,11 +508,7 @@ function VendorDetailPageInner() {
                   setMonthFilter('thisMonth')
                   setCustomMonth('')
                 }}
-                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                  monthFilter === 'thisMonth'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                }`}
+                className={monthChipClass(monthFilter === 'thisMonth')}
               >
                 This Month
               </button>
@@ -511,66 +518,56 @@ function VendorDetailPageInner() {
                   setMonthFilter('lastMonth')
                   setCustomMonth('')
                 }}
-                className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                  monthFilter === 'lastMonth'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                }`}
+                className={monthChipClass(monthFilter === 'lastMonth')}
               >
                 Last Month
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMonthFilter('custom')}
-                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                    monthFilter === 'custom'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  Custom
-                </button>
-                {monthFilter === 'custom' && (
-                  <input
-                    type="month"
-                    value={customMonth}
-                    onChange={(e) => setCustomMonth(e.target.value)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => setMonthFilter('custom')}
+                className={monthChipClass(monthFilter === 'custom')}
+              >
+                Custom
+              </button>
+              {monthFilter === 'custom' && (
+                <input
+                  type="month"
+                  value={customMonth}
+                  onChange={(e) => setCustomMonth(e.target.value)}
+                  className="col-span-2 min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:w-auto sm:py-1.5 sm:text-xs"
+                />
+              )}
             </div>
           </div>
 
-          <div className="mb-4 flex flex-col gap-3 border-b border-gray-200 md:flex-row md:items-end md:justify-between">
-            <div className="flex gap-2">
+          <div className="mb-4 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex gap-1 overflow-x-auto sm:gap-2">
               <button
                 type="button"
                 onClick={() => setActiveInvoiceTab('pending')}
-                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+                className={`min-h-[44px] shrink-0 border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                   activeInvoiceTab === 'pending'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Pending Invoices ({pendingInvoices.length})
+                Pending ({pendingInvoices.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveInvoiceTab('paid')}
-                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+                className={`min-h-[44px] shrink-0 border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
                   activeInvoiceTab === 'paid'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Paid Invoices ({paidInvoices.length})
+                Paid ({paidInvoices.length})
               </button>
             </div>
             {activeInvoiceTab === 'paid' && paidInvoices.length > 0 && (
-              <div className="w-full md:w-64 pb-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">
+              <div className="w-full md:w-64">
+                <label className="mb-1 block text-xs font-medium text-gray-500">
                   Search paid
                 </label>
                 <input
@@ -578,7 +575,7 @@ function VendorDetailPageInner() {
                   value={paidSearchQuery}
                   onChange={(e) => setPaidSearchQuery(e.target.value)}
                   placeholder="Invoice #, method, or ref"
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:py-1.5"
                 />
               </div>
             )}
@@ -591,12 +588,12 @@ function VendorDetailPageInner() {
                   {selectedPendingInvoices.length} invoice
                   {selectedPendingInvoices.length !== 1 ? 's' : ''} selected
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-2">
                   <button
                     type="button"
                     onClick={() => void handleBulkDelete()}
                     disabled={bulkDeleting}
-                    className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                    className="min-h-[44px] rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 sm:min-h-0"
                   >
                     {bulkDeleting ? 'Deleting…' : 'Delete selected'}
                   </button>
@@ -604,7 +601,7 @@ function VendorDetailPageInner() {
                     type="button"
                     onClick={() => setSelectedInvoiceIds(new Set())}
                     disabled={bulkDeleting}
-                    className="rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                    className="min-h-[44px] rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
                   >
                     Clear
                   </button>
@@ -622,48 +619,50 @@ function VendorDetailPageInner() {
                 {activeMonthLabel ? ` in ${activeMonthLabel}` : ''}.
               </p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500">
-                    <th className="pb-1 pr-2 w-8">
-                      <input
-                        type="checkbox"
-                        checked={allVisiblePendingSelected}
-                        onChange={handleSelectAllPending}
-                        className="rounded border-gray-300"
-                        aria-label="Select all visible pending invoices"
-                      />
-                    </th>
-                    <th className="pb-1">Invoice #</th>
-                    <th className="pb-1">Date</th>
-                    <th className="pb-1">Due</th>
-                    <th className="pb-1 text-right">Amount</th>
-                    <th className="pb-1 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                <div className="space-y-3 md:hidden">
+                  <label className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={allVisiblePendingSelected}
+                      onChange={handleSelectAllPending}
+                      className="rounded border-gray-300"
+                    />
+                    Select all
+                  </label>
                   {filteredPendingInvoices.map((inv) => (
-                    <tr key={inv.id} className="border-t border-gray-100">
-                      <td className="py-2 pr-2">
+                    <div
+                      key={inv.id}
+                      className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                    >
+                      <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
                           checked={selectedInvoiceIds.has(inv.id)}
                           onChange={() => handleToggleInvoice(inv.id)}
-                          className="rounded border-gray-300"
+                          className="mt-1 rounded border-gray-300"
                           aria-label={`Select invoice ${inv.invoiceNumber}`}
                         />
-                      </td>
-                      <td className="py-2">{inv.invoiceNumber}</td>
-                      <td>{formatDate(inv.invoiceDate)}</td>
-                      <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
-                      <td className="text-right font-medium">
-                        {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
-                      </td>
-                      <td className="text-right">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 font-mono font-medium text-gray-900">
+                              {inv.invoiceNumber}
+                            </div>
+                            <span className="shrink-0 font-mono font-semibold text-gray-900">
+                              {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-600">
+                            {formatDate(inv.invoiceDate)}
+                            {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
                         <button
                           type="button"
                           onClick={() => openEditInvoiceModal(inv)}
-                          className="text-blue-600 hover:text-blue-800 text-sm mr-3"
+                          className="min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-800"
                         >
                           Edit
                         </button>
@@ -691,32 +690,130 @@ function VendorDetailPageInner() {
                               )
                             }
                           }}
-                          className="text-red-600 hover:text-red-800 text-sm"
+                          className="min-h-[44px] text-sm font-medium text-red-600 hover:text-red-800"
                         >
                           Delete
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-300 bg-gray-50">
-                    <td className="py-2 text-sm font-semibold text-gray-700" colSpan={4}>
-                      Total ({filteredPendingInvoices.length} invoice
-                      {filteredPendingInvoices.length !== 1 ? 's' : ''}
-                      {activeMonthLabel &&
-                      filteredPendingInvoices.length !== pendingInvoices.length
-                        ? ` of ${pendingInvoices.length}`
-                        : ''}
-                      )
-                    </td>
-                    <td className="text-right text-sm font-semibold text-blue-700">
-                      {formatAmount(pendingTotal)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-700">
+                        Total ({filteredPendingInvoices.length}
+                        {activeMonthLabel &&
+                        filteredPendingInvoices.length !== pendingInvoices.length
+                          ? ` of ${pendingInvoices.length}`
+                          : ''}
+                        )
+                      </span>
+                      <span className="font-semibold text-blue-700">
+                        {formatAmount(pendingTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500">
+                        <th className="w-8 pb-1 pr-2">
+                          <input
+                            type="checkbox"
+                            checked={allVisiblePendingSelected}
+                            onChange={handleSelectAllPending}
+                            className="rounded border-gray-300"
+                            aria-label="Select all visible pending invoices"
+                          />
+                        </th>
+                        <th className="pb-1">Invoice #</th>
+                        <th className="pb-1">Date</th>
+                        <th className="pb-1">Due</th>
+                        <th className="pb-1 text-right">Amount</th>
+                        <th className="pb-1 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPendingInvoices.map((inv) => (
+                        <tr key={inv.id} className="border-t border-gray-100">
+                          <td className="py-2 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedInvoiceIds.has(inv.id)}
+                              onChange={() => handleToggleInvoice(inv.id)}
+                              className="rounded border-gray-300"
+                              aria-label={`Select invoice ${inv.invoiceNumber}`}
+                            />
+                          </td>
+                          <td className="py-2">{inv.invoiceNumber}</td>
+                          <td>{formatDate(inv.invoiceDate)}</td>
+                          <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
+                          <td className="text-right font-medium">
+                            {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                          </td>
+                          <td className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => openEditInvoiceModal(inv)}
+                              className="mr-3 text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (
+                                  !confirm(
+                                    `Delete invoice "${inv.invoiceNumber}"?\n\nThis cannot be undone.`
+                                  )
+                                ) {
+                                  return
+                                }
+                                try {
+                                  await handleDeleteInvoice(inv.id)
+                                  setSelectedInvoiceIds((prev) => {
+                                    const next = new Set(prev)
+                                    next.delete(inv.id)
+                                    return next
+                                  })
+                                  await fetchVendor()
+                                } catch (err) {
+                                  alert(
+                                    err instanceof Error
+                                      ? err.message
+                                      : 'Failed to delete invoice'
+                                  )
+                                }
+                              }}
+                              className="text-sm text-red-600 hover:text-red-800"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 bg-gray-50">
+                        <td className="py-2 text-sm font-semibold text-gray-700" colSpan={4}>
+                          Total ({filteredPendingInvoices.length} invoice
+                          {filteredPendingInvoices.length !== 1 ? 's' : ''}
+                          {activeMonthLabel &&
+                          filteredPendingInvoices.length !== pendingInvoices.length
+                            ? ` of ${pendingInvoices.length}`
+                            : ''}
+                          )
+                        </td>
+                        <td className="text-right text-sm font-semibold text-blue-700">
+                          {formatAmount(pendingTotal)}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )
           ) : paidInvoices.length === 0 ? (
             <p className="text-sm text-gray-500">No paid invoices yet.</p>
@@ -727,130 +824,165 @@ function VendorDetailPageInner() {
                 : `No paid invoices${activeMonthLabel ? ` in ${activeMonthLabel}` : ''}.`}
             </p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th className="pb-1">Invoice #</th>
-                  <th className="pb-1">Date</th>
-                  <th className="pb-1">Payment</th>
-                  <th className="pb-1 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              <div className="space-y-3 md:hidden">
                 {filteredPaidInvoices.map((inv) => (
-                  <tr key={inv.id} className="border-t border-gray-100">
-                    <td className="py-2">{inv.invoiceNumber}</td>
-                    <td>{formatDate(inv.invoiceDate)}</td>
-                    <td className="text-sm text-gray-600">
-                      {inv.paidInvoice ? (
-                        <div className="flex flex-col">
-                          <span>{formatDate(inv.paidInvoice.batch.paymentDate)}</span>
-                          <span className="text-xs text-gray-500 font-mono">
-                            {inv.paidInvoice.batch.paymentMethod === 'check' ? 'Check' : 'EFT'}
-                            {' · Ref '}
-                            {inv.paidInvoice.batch.bankRef}
-                          </span>
+                  <div
+                    key={inv.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 font-mono font-medium text-gray-900">
+                        {inv.invoiceNumber}
+                      </div>
+                      <span className="shrink-0 font-mono font-semibold text-gray-900">
+                        {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600">
+                      Invoice {formatDate(inv.invoiceDate)}
+                    </div>
+                    {inv.paidInvoice && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        Paid {formatDate(inv.paidInvoice.batch.paymentDate)}
+                        <div className="font-mono text-gray-500">
+                          {inv.paidInvoice.batch.paymentMethod === 'check'
+                            ? 'Check'
+                            : 'EFT'}{' '}
+                          · Ref {inv.paidInvoice.batch.bankRef}
                         </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="text-right font-medium">
-                      {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
-                    </td>
-                  </tr>
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-300 bg-gray-50">
-                  <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
-                    Total ({filteredPaidInvoices.length} invoice
-                    {filteredPaidInvoices.length !== 1 ? 's' : ''}
-                    {(paidQuery || activeMonthLabel) &&
-                    filteredPaidInvoices.length !== paidInvoices.length
-                      ? ` of ${paidInvoices.length}`
-                      : ''}
-                    )
-                  </td>
-                  <td className="text-right text-sm font-semibold text-blue-700">
-                    {formatAmount(filteredPaidTotal)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-gray-700">
+                      Total ({filteredPaidInvoices.length}
+                      {(paidQuery || activeMonthLabel) &&
+                      filteredPaidInvoices.length !== paidInvoices.length
+                        ? ` of ${paidInvoices.length}`
+                        : ''}
+                      )
+                    </span>
+                    <span className="font-semibold text-blue-700">
+                      {formatAmount(filteredPaidTotal)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500">
+                      <th className="pb-1">Invoice #</th>
+                      <th className="pb-1">Date</th>
+                      <th className="pb-1">Payment</th>
+                      <th className="pb-1 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPaidInvoices.map((inv) => (
+                      <tr key={inv.id} className="border-t border-gray-100">
+                        <td className="py-2">{inv.invoiceNumber}</td>
+                        <td>{formatDate(inv.invoiceDate)}</td>
+                        <td className="text-sm text-gray-600">
+                          {inv.paidInvoice ? (
+                            <div className="flex flex-col">
+                              <span>{formatDate(inv.paidInvoice.batch.paymentDate)}</span>
+                              <span className="font-mono text-xs text-gray-500">
+                                {inv.paidInvoice.batch.paymentMethod === 'check'
+                                  ? 'Check'
+                                  : 'EFT'}
+                                {' · Ref '}
+                                {inv.paidInvoice.batch.bankRef}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="text-right font-medium">
+                          {formatAmount(vendorInvoiceTotal(inv.amount, inv.vat))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-300 bg-gray-50">
+                      <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
+                        Total ({filteredPaidInvoices.length} invoice
+                        {filteredPaidInvoices.length !== 1 ? 's' : ''}
+                        {(paidQuery || activeMonthLabel) &&
+                        filteredPaidInvoices.length !== paidInvoices.length
+                          ? ` of ${paidInvoices.length}`
+                          : ''}
+                        )
+                      </td>
+                      <td className="text-right text-sm font-semibold text-blue-700">
+                        {formatAmount(filteredPaidTotal)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Payment Batches</h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveBatchFilter('all')}
-                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                    activeBatchFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  All Batches
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBatchFilter('thisMonth')}
-                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                    activeBatchFilter === 'thisMonth'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  This Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBatchFilter('lastMonth')}
-                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                    activeBatchFilter === 'lastMonth'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  Last Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBatchFilter('custom')}
-                  className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
-                    activeBatchFilter === 'custom'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  Custom Range
-                </button>
-              </div>
-              {activeBatchFilter === 'custom' && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    value={customBatchStartDate}
-                    onChange={(e) => setCustomBatchStartDate(e.target.value)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs"
-                  />
-                  <span className="text-xs text-gray-500">to</span>
-                  <input
-                    type="date"
-                    value={customBatchEndDate}
-                    onChange={(e) => setCustomBatchEndDate(e.target.value)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs"
-                  />
-                </div>
-              )}
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-col gap-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Payment Batches</h2>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <button
+                type="button"
+                onClick={() => setActiveBatchFilter('all')}
+                className={monthChipClass(activeBatchFilter === 'all')}
+              >
+                All Batches
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveBatchFilter('thisMonth')}
+                className={monthChipClass(activeBatchFilter === 'thisMonth')}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveBatchFilter('lastMonth')}
+                className={monthChipClass(activeBatchFilter === 'lastMonth')}
+              >
+                Last Month
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveBatchFilter('custom')}
+                className={monthChipClass(activeBatchFilter === 'custom')}
+              >
+                Custom Range
+              </button>
             </div>
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
+            {activeBatchFilter === 'custom' && (
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <input
+                  type="date"
+                  value={customBatchStartDate}
+                  onChange={(e) => setCustomBatchStartDate(e.target.value)}
+                  className="min-h-[44px] rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:py-1.5 sm:text-xs"
+                />
+                <span className="hidden text-xs text-gray-500 sm:inline">to</span>
+                <input
+                  type="date"
+                  value={customBatchEndDate}
+                  onChange={(e) => setCustomBatchEndDate(e.target.value)}
+                  className="min-h-[44px] rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:py-1.5 sm:text-xs"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+              <div className="w-full sm:w-auto">
                 <label className="mb-1 block text-[11px] font-semibold text-gray-500">
                   Search (Ref, Method, Amount, Status)
                 </label>
@@ -858,7 +990,7 @@ function VendorDetailPageInner() {
                   type="text"
                   value={batchSearch}
                   onChange={(e) => setBatchSearch(e.target.value)}
-                  className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:w-56 sm:py-1.5"
                   placeholder="e.g. 19397997 or check"
                 />
               </div>
@@ -879,36 +1011,82 @@ function VendorDetailPageInner() {
           ) : filteredBatches.length === 0 ? (
             <p className="text-sm text-gray-500">No payment batches match your search.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th className="pb-1 pr-4">Date</th>
-                  <th className="pb-1 pr-4">Method</th>
-                  <th className="pb-1 pr-4">Ref</th>
-                  <th className="pb-1 pr-8 text-right">Amount</th>
-                  <th className="pb-1">Status</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              <div className="space-y-3 md:hidden">
                 {filteredBatches.map((b) => (
-                  <tr key={b.id} className="border-t border-gray-100">
-                    <td className="py-2 pr-4">{formatDate(b.paymentDate)}</td>
-                    <td className="pr-4 capitalize">{b.paymentMethod}</td>
-                    <td className="pr-4">{b.bankRef}</td>
-                    <td className="pr-8 text-right font-medium">
-                      {formatAmount(b.totalAmount)}
-                    </td>
-                    <td>
-                      {b.paymentMethod === 'check' && !b.clearedAt ? (
-                        <span className="text-amber-600">Uncashed</span>
-                      ) : (
-                        <span className="text-green-600">Cleared</span>
-                      )}
-                    </td>
-                  </tr>
+                  <div
+                    key={b.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatDate(b.paymentDate)} ·{' '}
+                          <span className="capitalize">{b.paymentMethod}</span>
+                        </div>
+                        <div className="mt-0.5 font-mono text-xs text-gray-600">
+                          {b.bankRef || '(No Ref)'}
+                        </div>
+                        <div className="mt-1 text-xs">
+                          {b.paymentMethod === 'check' && !b.clearedAt ? (
+                            <span className="text-amber-600">Uncashed</span>
+                          ) : (
+                            <span className="text-green-600">Cleared</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="shrink-0 font-mono font-semibold text-gray-900">
+                        {formatAmount(b.totalAmount)}
+                      </span>
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`/vendor-payments/make-payment/share/${b.id}`)
+                        }
+                        className="min-h-[44px] text-sm font-medium text-green-600 hover:text-green-900"
+                      >
+                        Share
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500">
+                      <th className="pb-1 pr-4">Date</th>
+                      <th className="pb-1 pr-4">Method</th>
+                      <th className="pb-1 pr-4">Ref</th>
+                      <th className="pb-1 pr-8 text-right">Amount</th>
+                      <th className="pb-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBatches.map((b) => (
+                      <tr key={b.id} className="border-t border-gray-100">
+                        <td className="py-2 pr-4">{formatDate(b.paymentDate)}</td>
+                        <td className="pr-4 capitalize">{b.paymentMethod}</td>
+                        <td className="pr-4">{b.bankRef}</td>
+                        <td className="pr-8 text-right font-medium">
+                          {formatAmount(b.totalAmount)}
+                        </td>
+                        <td>
+                          {b.paymentMethod === 'check' && !b.clearedAt ? (
+                            <span className="text-amber-600">Uncashed</span>
+                          ) : (
+                            <span className="text-green-600">Cleared</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -939,7 +1117,7 @@ function VendorDetailPageInner() {
 
       {showEditInvoiceModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
           role="presentation"
           aria-hidden={!showEditInvoiceModal}
         >
@@ -947,12 +1125,12 @@ function VendorDetailPageInner() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-vendor-invoice-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            className="my-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 id="edit-vendor-invoice-title" className="text-3xl font-bold text-gray-900">
+                <h2 id="edit-vendor-invoice-title" className="text-2xl font-bold text-gray-900 sm:text-3xl">
                   Edit invoice
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
@@ -987,7 +1165,7 @@ function VendorDetailPageInner() {
                   onChange={(e) =>
                     setEditInvoiceForm({ ...editInvoiceForm, invoiceNumber: e.target.value })
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 />
               </div>
               <VendorInvoiceAmountFields
@@ -1015,7 +1193,7 @@ function VendorDetailPageInner() {
                     onChange={(e) =>
                       setEditInvoiceForm({ ...editInvoiceForm, invoiceDate: e.target.value })
                     }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
                 <div>
@@ -1026,7 +1204,7 @@ function VendorDetailPageInner() {
                     onChange={(e) =>
                       setEditInvoiceForm({ ...editInvoiceForm, dueDate: e.target.value })
                     }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
               </div>
@@ -1041,11 +1219,11 @@ function VendorDetailPageInner() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div className="mt-6 flex flex-wrap gap-4">
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:gap-4">
                 <button
                   type="submit"
                   disabled={editInvoiceSaving}
-                  className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
                 >
                   {editInvoiceSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -1053,7 +1231,7 @@ function VendorDetailPageInner() {
                   type="button"
                   onClick={closeEditInvoiceModal}
                   disabled={editInvoiceSaving}
-                  className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
                 >
                   Cancel
                 </button>
@@ -1079,7 +1257,7 @@ export default function VendorDetailPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
           <p className="text-gray-600">Loading...</p>
         </div>
       }
