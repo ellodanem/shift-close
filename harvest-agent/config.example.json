@@ -1,12 +1,30 @@
 {
   "agentKey": "home-pc",
   "vercelUrl": "https://shiftcloser.vercel.app",
-  "agentSecret": "NgSpGf3Nlwi3Eq1r1P0VqHvn2/8z7jbTTB91cGRm5y4=",
+  "agentSecret": "",
   "cstoreUrl": "https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx",
   "headed": true,
   "browserChannel": "chrome",
   "runOnStart": true,
   "slotHours": [7, 19],
   "timeZone": "America/St_Lucia",
-  "dashboardPort": 3921
+  "dashboardPort": 3921,
+  "customerAccountsSchedule": {
+    "frequency": "off",
+    "hour": 8,
+    "minute": 0,
+    "daysOfWeek": [2],
+    "dayOfMonth": 2,
+    "monthScope": "previous",
+    "all": true
+  },
+  "vendorInvoicesSchedule": {
+    "frequency": "off",
+    "hour": 9,
+    "minute": 0,
+    "daysOfWeek": [2],
+    "dayOfMonth": 2,
+    "monthScope": "previous",
+    "all": true
+  }
 }

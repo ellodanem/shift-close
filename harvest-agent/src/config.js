@@ -27,7 +27,62 @@ const DEFAULTS = {
   timeZone: 'America/St_Lucia',
   loginWaitMs: 10 * 60 * 1000,
   dashboardPort: 3921,
-  userDataDir: path.join(CONFIG_DIR, 'user-data')
+  userDataDir: path.join(CONFIG_DIR, 'user-data'),
+  /** Job schedule: frequency off|daily|weekly|monthly (off until set in dashboard). */
+  customerAccountsSchedule: {
+    frequency: 'off',
+    enabled: false,
+    hour: 8,
+    minute: 0,
+    daysOfWeek: [2],
+    dayOfMonth: 2,
+    monthScope: 'previous',
+    all: true
+  },
+  vendorInvoicesSchedule: {
+    frequency: 'off',
+    enabled: false,
+    hour: 9,
+    minute: 0,
+    daysOfWeek: [2],
+    dayOfMonth: 2,
+    monthScope: 'previous',
+    all: true
+  }
+}
+
+function normalizeJobSchedule(raw, defaults) {
+  const src = raw && typeof raw === 'object' ? raw : {}
+  let frequency = String(src.frequency || '').toLowerCase()
+  if (!['off', 'daily', 'weekly', 'monthly'].includes(frequency)) {
+    frequency = src.enabled ? 'monthly' : 'off'
+  }
+  const hour = Number(src.hour)
+  const minute = Number(src.minute)
+  const day = Number(src.dayOfMonth)
+  let scope = src.monthScope || defaults.monthScope
+  if (scope !== 'current' && scope !== 'previous') {
+    scope = frequency === 'monthly' ? 'previous' : 'current'
+  }
+  const daysOfWeek = Array.isArray(src.daysOfWeek)
+    ? [...new Set(src.daysOfWeek.map((n) => Number(n)).filter((n) => n >= 0 && n <= 6))].sort((a, b) => a - b)
+    : defaults.daysOfWeek
+
+  return {
+    frequency,
+    enabled: frequency !== 'off',
+    hour: Number.isFinite(hour) ? Math.min(23, Math.max(0, Math.trunc(hour))) : defaults.hour,
+    minute: Number.isFinite(minute) ? Math.min(59, Math.max(0, Math.trunc(minute))) : defaults.minute,
+    daysOfWeek: daysOfWeek.length ? daysOfWeek : defaults.daysOfWeek,
+    dayOfMonth: Number.isFinite(day) ? Math.min(28, Math.max(1, Math.trunc(day))) : defaults.dayOfMonth,
+    monthScope: scope === 'current' ? 'current' : 'previous',
+    all: src.all !== undefined ? Boolean(src.all) : defaults.all
+  }
+}
+
+/** @deprecated */
+function normalizeMonthlySchedule(raw, defaults) {
+  return normalizeJobSchedule(raw, defaults)
 }
 
 function loadConfig() {
@@ -95,6 +150,14 @@ function loadConfig() {
     userDataDir: fileConfig.userDataDir
       ? path.resolve(CONFIG_DIR, fileConfig.userDataDir)
       : DEFAULTS.userDataDir,
+    customerAccountsSchedule: normalizeJobSchedule(
+      fileConfig.customerAccountsSchedule,
+      DEFAULTS.customerAccountsSchedule
+    ),
+    vendorInvoicesSchedule: normalizeJobSchedule(
+      fileConfig.vendorInvoicesSchedule,
+      DEFAULTS.vendorInvoicesSchedule
+    ),
     agentSecretSet: Boolean(agentSecret) || hasStoredSecret()
   }
 }
@@ -117,4 +180,12 @@ function saveConfig(updates) {
   return merged
 }
 
-module.exports = { loadConfig, saveConfig, CONFIG_DIR, CONFIG_FILE, DEFAULTS }
+module.exports = {
+  loadConfig,
+  saveConfig,
+  CONFIG_DIR,
+  CONFIG_FILE,
+  DEFAULTS,
+  normalizeJobSchedule,
+  normalizeMonthlySchedule
+}

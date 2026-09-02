@@ -55,6 +55,8 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       slotHours: cfg.slotHours,
       timeZone: cfg.timeZone,
       dashboardPort: cfg.dashboardPort,
+      customerAccountsSchedule: cfg.customerAccountsSchedule,
+      vendorInvoicesSchedule: cfg.vendorInvoicesSchedule,
       agentSecretSet: hasStoredSecret() || !!cfg.agentSecret
     })
   })
@@ -79,12 +81,29 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
     }
     if (Array.isArray(body.slotHours)) {
       updates.slotHours = body.slotHours.map((n) => Number(n)).filter((n) => n >= 0 && n <= 23)
+    } else if (typeof body.slotHoursText === 'string') {
+      updates.slotHours = body.slotHoursText
+        .split(/[,;\s]+/)
+        .map((s) => parseInt(s.replace(/:00$/, ''), 10))
+        .filter((n) => Number.isFinite(n) && n >= 0 && n <= 23)
+    }
+    if (body.customerAccountsSchedule !== undefined) {
+      updates.customerAccountsSchedule = body.customerAccountsSchedule
+    }
+    if (body.vendorInvoicesSchedule !== undefined) {
+      updates.vendorInvoicesSchedule = body.vendorInvoicesSchedule
     }
 
     saveConfig(updates)
     Object.assign(config, loadConfig())
     activityLog.add('Settings saved')
-    res.json({ ok: true })
+    res.json({ ok: true, config: {
+      slotHours: config.slotHours,
+      customerAccountsSchedule: config.customerAccountsSchedule,
+      vendorInvoicesSchedule: config.vendorInvoicesSchedule,
+      timeZone: config.timeZone,
+      runOnStart: config.runOnStart
+    }})
   })
 
   app.post('/api/secret', (req, res) => {

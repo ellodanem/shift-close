@@ -48,6 +48,9 @@
     .task-table th { color: #6b7280; font-weight: 600; }
     .field { margin-bottom: 12px; }
     .secret-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .dow { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dow label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 500; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer; margin: 0; }
+    .dow input { width: auto; margin: 0; }
     #toast { position: fixed; bottom: 20px; right: 20px; max-width: 340px; z-index: 99; }
     .toast { padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
     .toast-ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
@@ -96,7 +99,7 @@
 
     <div class="card">
       <h2>Manual jobs</h2>
-      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Scheduled keep-alive runs at 7:00 and 19:00 St. Lucia time. First-time setup: click <strong>Sign in to Cstore</strong> and enter credentials in the browser window that opens (up to 10 minutes).</p>
+      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Use <strong>Schedule</strong> below for automatic runs. First-time setup: click <strong>Sign in to Cstore</strong> and enter credentials in the browser window that opens (up to 10 minutes).</p>
       <div class="btn-row">
         <button type="button" class="btn btn-green" id="btnSignIn">Sign in to Cstore</button>
         <button type="button" class="btn btn-primary" id="btnKeepalive">Run keep-alive now</button>
@@ -112,6 +115,107 @@
           <label for="vendorName">Vendor (blank = all)</label>
           <input id="vendorName" placeholder="Acado" />
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Schedule</h2>
+      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:12px" id="scheduleHint">Times use America/St_Lucia.</p>
+
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Cstore keep-alive (daily)</h3>
+      <div class="field">
+        <label for="slotHoursText">Hours (comma-separated, 0–23)</label>
+        <input id="slotHoursText" placeholder="7, 19" />
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500">
+          <input type="checkbox" id="runOnStart" style="width:auto" />
+          Also run when the agent starts
+        </label>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Customer accounts</h3>
+      <div class="grid2">
+        <div class="field">
+          <label for="custFreq">Frequency</label>
+          <select id="custFreq">
+            <option value="off">Off</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="custHour" type="number" min="0" max="23" placeholder="Hour" />
+            <input id="custMinute" type="number" min="0" max="59" placeholder="Min" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="custWeeklyRow" style="display:none">
+        <label>Days of week</label>
+        <div class="dow" id="custDow"></div>
+      </div>
+      <div class="grid2" id="custMonthlyRow" style="display:none">
+        <div class="field">
+          <label for="custDay">Day of month (1–28)</label>
+          <input id="custDay" type="number" min="1" max="28" />
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="field">
+        <label for="custScope">Harvest which month’s data</label>
+        <select id="custScope">
+          <option value="previous">Previous calendar month</option>
+          <option value="current">Current calendar month</option>
+        </select>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Vendor invoices</h3>
+      <div class="grid2">
+        <div class="field">
+          <label for="vendFreq">Frequency</label>
+          <select id="vendFreq">
+            <option value="off">Off</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="vendHour" type="number" min="0" max="23" placeholder="Hour" />
+            <input id="vendMinute" type="number" min="0" max="59" placeholder="Min" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="vendWeeklyRow" style="display:none">
+        <label>Days of week</label>
+        <div class="dow" id="vendDow"></div>
+      </div>
+      <div class="grid2" id="vendMonthlyRow" style="display:none">
+        <div class="field">
+          <label for="vendDay">Day of month (1–28)</label>
+          <input id="vendDay" type="number" min="1" max="28" />
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="field">
+        <label for="vendScope">Harvest which month’s data</label>
+        <select id="vendScope">
+          <option value="previous">Previous calendar month</option>
+          <option value="current">Current calendar month</option>
+        </select>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnSaveSchedule">Save schedule</button>
       </div>
     </div>
 
@@ -164,6 +268,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id)
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
     function toast(msg, ok = true) {
       const el = document.createElement('div')
@@ -185,6 +290,51 @@
       const d = new Date(iso)
       if (Number.isNaN(d.getTime())) return '—'
       return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    }
+
+    function buildDow(containerId, name, selected) {
+      const root = $(containerId)
+      root.innerHTML = DOW.map((label, i) => {
+        const checked = selected.includes(i) ? 'checked' : ''
+        return `<label><input type="checkbox" name="${name}" value="${i}" ${checked} /> ${label}</label>`
+      }).join('')
+    }
+
+    function readDow(name) {
+      return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((el) => Number(el.value))
+    }
+
+    function syncJobRows(prefix) {
+      const freq = $(prefix + 'Freq').value
+      $(prefix + 'WeeklyRow').style.display = freq === 'weekly' ? 'block' : 'none'
+      $(prefix + 'MonthlyRow').style.display = freq === 'monthly' ? 'block' : 'none'
+    }
+
+    function readJobSchedule(prefix) {
+      const frequency = $(prefix + 'Freq').value
+      return {
+        frequency,
+        enabled: frequency !== 'off',
+        hour: Number($(prefix + 'Hour').value) || 0,
+        minute: Number($(prefix + 'Minute').value) || 0,
+        daysOfWeek: readDow(prefix + 'Dow'),
+        dayOfMonth: Number($(prefix + 'Day').value) || 2,
+        monthScope: $(prefix + 'Scope').value,
+        all: true
+      }
+    }
+
+    function fillJobSchedule(prefix, sched) {
+      const s = sched || {}
+      let frequency = s.frequency || (s.enabled ? 'monthly' : 'off')
+      if (!['off', 'daily', 'weekly', 'monthly'].includes(frequency)) frequency = 'off'
+      $(prefix + 'Freq').value = frequency
+      $(prefix + 'Hour').value = s.hour ?? 8
+      $(prefix + 'Minute').value = s.minute ?? 0
+      $(prefix + 'Day').value = s.dayOfMonth ?? 2
+      $(prefix + 'Scope').value = s.monthScope === 'current' ? 'current' : 'previous'
+      buildDow(prefix + 'Dow', prefix + 'Dow', Array.isArray(s.daysOfWeek) ? s.daysOfWeek : [2])
+      syncJobRows(prefix)
     }
 
     function renderTasks(tasks) {
@@ -214,6 +364,14 @@
       $('agentKey').value = cfg.agentKey || ''
       $('vercelUrl').value = cfg.vercelUrl || ''
       $('cstoreUrl').value = cfg.cstoreUrl || ''
+      $('slotHoursText').value = Array.isArray(cfg.slotHours) ? cfg.slotHours.join(', ') : '7, 19'
+      $('runOnStart').checked = cfg.runOnStart !== false
+      $('scheduleHint').textContent =
+        `Times use ${cfg.timeZone || 'America/St_Lucia'}. Keep-alive is daily at each listed hour. Jobs support daily, weekly (e.g. Tue 16:00), or monthly.`
+
+      fillJobSchedule('cust', cfg.customerAccountsSchedule)
+      fillJobSchedule('vend', cfg.vendorInvoicesSchedule)
+
       const badge = $('secretBadge')
       if (cfg.agentSecretSet) {
         badge.textContent = 'Configured'
@@ -254,7 +412,7 @@
       $('configBanner').style.display = s.configured ? 'none' : 'block'
 
       $('statCstore').textContent = s.cstoreSessionOk == null ? 'Unknown' : s.cstoreSessionOk ? 'Signed in' : 'Needs login'
-      $('statCstoreSub').textContent = s.cstoreSessionAt ? fmtWhen(s.cstoreSessionAt) : (s.nextSlotLabel || '')
+      $('statCstoreSub').textContent = s.nextSlotLabel || (s.cstoreSessionAt ? fmtWhen(s.cstoreSessionAt) : '')
 
       $('statJob').textContent = s.lastJobKey ? s.lastJobKey.replace(/_/g, ' ') : '—'
       $('statJobSub').textContent = s.lastJobAt
@@ -271,6 +429,9 @@
       $('btnVendorInvoices').disabled = disabled
       $('btnResume').disabled = !s.paused
     }
+
+    $('custFreq').onchange = () => syncJobRows('cust')
+    $('vendFreq').onchange = () => syncJobRows('vend')
 
     $('btnTestConnection').onclick = async () => {
       try {
@@ -292,6 +453,32 @@
           })
         })
         toast('Settings saved')
+        await loadConfigForm()
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnSaveSchedule').onclick = async () => {
+      try {
+        const cust = readJobSchedule('cust')
+        const vend = readJobSchedule('vend')
+        if (cust.frequency === 'weekly' && cust.daysOfWeek.length === 0) {
+          return toast('Pick at least one weekday for customer accounts', false)
+        }
+        if (vend.frequency === 'weekly' && vend.daysOfWeek.length === 0) {
+          return toast('Pick at least one weekday for vendor invoices', false)
+        }
+        await api('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slotHoursText: $('slotHoursText').value.trim(),
+            runOnStart: $('runOnStart').checked,
+            customerAccountsSchedule: cust,
+            vendorInvoicesSchedule: vend
+          })
+        })
+        toast('Schedule saved — takes effect immediately')
         await loadConfigForm()
         await refresh()
       } catch (e) { toast(e.message, false) }

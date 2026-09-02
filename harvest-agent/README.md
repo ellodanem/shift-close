@@ -62,6 +62,18 @@ npm.cmd run install-task
 
 Registers a Windows task that runs `node src/index.js` when you sign in.
 
+## Schedule
+
+All times use `timeZone` (default `America/St_Lucia`). Configure in the dashboard **Schedule** card.
+
+| Job | Options |
+|---|---|
+| Cstore keep-alive | Daily at listed hours (`slotHours`), optional on start |
+| Customer accounts | Off / Daily / Weekly (pick weekdays) / Monthly (day 1–28), plus time and which data month |
+| Vendor invoices | Same as customer accounts |
+
+Examples: weekly **Tue at 16:00** current month; monthly **day 2 at 08:00** previous month. The agent process must stay running.
+
 ## CLI (one-shot jobs)
 
 Stop the daemon first if it is using the same Chrome profile.

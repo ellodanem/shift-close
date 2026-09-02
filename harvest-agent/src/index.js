@@ -12,7 +12,7 @@ const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport } = require('./shiftCloseClient')
-const { startSlotWatcher, zonedParts } = require('./schedule')
+const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
 const { notifyCloudPaused } = require('./pauseNotify')
 const ActivityLog = require('./activityLog')
@@ -36,16 +36,18 @@ const harvestAll = process.argv.includes('--all')
 
 let httpServer = null
 let stopSlotWatcher = null
+let stopCustomerMonthly = null
+let stopVendorMonthly = null
 let running = false
 let pauseNotified = false
 let activityLog = null
 let status = null
 
-function nextSlotLabel(config) {
-  const { hour } = zonedParts(config.timeZone)
-  const hours = [...config.slotHours].sort((a, b) => a - b)
-  const next = hours.find((h) => h > hour) ?? hours[0]
-  return `Next slot ${String(next).padStart(2, '0')}:00`
+function scheduleSummaryLabel(config) {
+  const keep = nextKeepaliveLabel(config.timeZone, config.slotHours)
+  const cust = describeCustomerSchedule(config.customerAccountsSchedule, config.timeZone)
+  const vend = describeVendorSchedule(config.vendorInvoicesSchedule, config.timeZone)
+  return `${keep} · ${cust} · ${vend}`
 }
 
 function createLoginHooks(config) {
@@ -221,16 +223,20 @@ async function runCustomerAccountsCycle(reason, options = {}) {
   const startedAt = new Date()
 
   let monthOpts = parsedMonth
-  if (options.month && /^(\d{4})-(\d{2})$/.test(options.month)) {
+  if (options.year && options.month) {
+    monthOpts = { year: Number(options.year), month: Number(options.month) }
+  } else if (options.month && /^(\d{4})-(\d{2})$/.test(options.month)) {
     monthOpts = {
       year: Number(options.month.slice(0, 4)),
       month: Number(options.month.slice(5, 7))
     }
   }
+  const runAll =
+    options.all === true || (options.all !== false && harvestAll && !customerQuery && !fromQuery)
 
   console.log(
     `[Harvest] Starting customer_accounts (${reason}${monthOpts ? ` ${monthOpts.year}-${String(monthOpts.month).padStart(2, '0')}` : ''}${
-      customerQuery ? ` ${customerQuery}` : fromQuery ? ` from ${fromQuery}` : harvestAll ? ' all' : ''
+      customerQuery ? ` ${customerQuery}` : fromQuery ? ` from ${fromQuery}` : runAll ? ' all' : ''
     })`
   )
   if (activityLog) activityLog.add(`Customer accounts started (${reason})`)
@@ -298,7 +304,7 @@ async function runCustomerAccountsCycle(reason, options = {}) {
       ...(monthOpts || {}),
       customer: customerQuery || undefined,
       from: fromQuery || undefined,
-      all: harvestAll,
+      all: runAll,
       onAccount: importCaptured,
       hooks: createLoginHooks(config)
     })
@@ -351,7 +357,9 @@ async function runVendorInvoicesCycle(reason, options = {}) {
   const startedAt = new Date()
 
   let monthOpts = parsedMonth
-  if (options.month && /^(\d{4})-(\d{2})$/.test(options.month)) {
+  if (options.year && options.month) {
+    monthOpts = { year: Number(options.year), month: Number(options.month) }
+  } else if (options.month && /^(\d{4})-(\d{2})$/.test(options.month)) {
     monthOpts = {
       year: Number(options.month.slice(0, 4)),
       month: Number(options.month.slice(5, 7))
@@ -545,11 +553,11 @@ function start() {
     jobRunning: false,
     paused: isPaused(),
     recentTasks: [],
-    nextSlotLabel: nextSlotLabel(config)
+    nextSlotLabel: scheduleSummaryLabel(config)
   }
 
   console.log(
-    `[Harvest] agentKey=${config.agentKey} vercelUrl=${config.vercelUrl || '(not set)'} slots=${config.slotHours.join(',')} ${config.timeZone}`
+    `[Harvest] agentKey=${config.agentKey} vercelUrl=${config.vercelUrl || '(not set)'} slots=${formatSlotHours(config.slotHours)} ${config.timeZone}`
   )
 
   if (!config.vercelUrl || !config.agentSecret) {
@@ -576,21 +584,68 @@ function start() {
 
   stopSlotWatcher = startSlotWatcher({
     timeZone: config.timeZone,
-    slotHours: config.slotHours,
+    getSlotHours: () => loadConfig().slotHours,
     onSlot: (key) => runKeepaliveCycle(`slot:${key}`)
   })
 
+  stopCustomerMonthly = startJobScheduleWatcher({
+    timeZone: config.timeZone,
+    getSchedule: () => loadConfig().customerAccountsSchedule,
+    onFire: ({ key, frequency }) => {
+      const cfg = loadConfig()
+      const sched = cfg.customerAccountsSchedule
+      const target = monthForScope(cfg.timeZone, sched.monthScope)
+      const month = `${target.year}-${String(target.month).padStart(2, '0')}`
+      activityLog?.add(`Scheduled customer accounts (${frequency}, ${month})`)
+      return runCustomerAccountsCycle(`sched:${key}`, {
+        year: target.year,
+        month: target.month,
+        all: sched.all !== false
+      })
+    }
+  })
+
+  stopVendorMonthly = startJobScheduleWatcher({
+    timeZone: config.timeZone,
+    getSchedule: () => loadConfig().vendorInvoicesSchedule,
+    onFire: ({ key, frequency }) => {
+      const cfg = loadConfig()
+      const sched = cfg.vendorInvoicesSchedule
+      const target = monthForScope(cfg.timeZone, sched.monthScope)
+      const month = `${target.year}-${String(target.month).padStart(2, '0')}`
+      activityLog?.add(`Scheduled vendor invoices (${frequency}, ${month})`)
+      return runVendorInvoicesCycle(`sched:${key}`, {
+        year: target.year,
+        month: target.month,
+        all: sched.all !== false
+      })
+    }
+  })
+
   setInterval(() => {
-    if (status) status.nextSlotLabel = nextSlotLabel(loadConfig())
+    if (status) status.nextSlotLabel = scheduleSummaryLabel(loadConfig())
   }, 60_000)
 
-  console.log('[Harvest] Scheduled keep-alive at 07:00 and 19:00. Use dashboard or tray to control.')
+  console.log(
+    `[Harvest] Keep-alive: ${formatSlotHours(config.slotHours)} ${config.timeZone}. ` +
+      `${describeCustomerSchedule(config.customerAccountsSchedule, config.timeZone)}. ` +
+      `${describeVendorSchedule(config.vendorInvoicesSchedule, config.timeZone)}. ` +
+      `Use dashboard Schedule to change.`
+  )
 }
 
 function stop() {
   if (stopSlotWatcher) {
     stopSlotWatcher()
     stopSlotWatcher = null
+  }
+  if (stopCustomerMonthly) {
+    stopCustomerMonthly()
+    stopCustomerMonthly = null
+  }
+  if (stopVendorMonthly) {
+    stopVendorMonthly()
+    stopVendorMonthly = null
   }
   if (httpServer) {
     httpServer.close()
