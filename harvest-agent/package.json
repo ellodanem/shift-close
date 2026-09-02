@@ -1,0 +1,20 @@
+{
+  "name": "shift-close-harvest-agent",
+  "version": "0.1.0",
+  "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "once": "node src/index.js --once",
+    "postinstall": "npx playwright install chromium"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "playwright": "^1.55.0"
+  }
+}

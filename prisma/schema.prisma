@@ -1058,3 +1058,39 @@ model ChecklistAcknowledgement {
   @@map("checklist_acknowledgements")
 }
 
+// Local harvest agent (Cstore Pro browser jobs on a dedicated PC / Pi)
+model HarvestAgent {
+  id              String    @id @default(cuid())
+  agentKey        String    @unique @map("agent_key")
+  hostname        String?
+  version         String?
+  lastHeartbeatAt DateTime  @map("last_heartbeat_at")
+  lastTaskAt      DateTime? @map("last_task_at")
+  cstoreSessionOk Boolean?  @map("cstore_session_ok")
+  cstoreSessionAt DateTime? @map("cstore_session_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tasks HarvestTaskRun[]
+
+  @@map("harvest_agents")
+}
+
+model HarvestTaskRun {
+  id         String   @id @default(cuid())
+  agentId    String   @map("agent_id")
+  taskKey    String   @map("task_key")
+  status     String // pass | fail
+  message    String?
+  details    Json?
+  startedAt  DateTime @map("started_at")
+  finishedAt DateTime @map("finished_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  agent HarvestAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, finishedAt])
+  @@index([finishedAt])
+  @@map("harvest_task_runs")
+}
+

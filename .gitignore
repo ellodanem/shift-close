@@ -28,6 +28,12 @@ yarn-error.log*
 .env*.local
 .env
 
+# harvest agent local profile / secrets
+harvest-agent/user-data/
+harvest-agent/harvest-agent.config.json
+harvest-agent/.env
+harvest-agent/downloads/
+
 # vercel
 .vercel
 

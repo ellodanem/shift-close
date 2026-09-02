@@ -94,6 +94,14 @@ export default function SettingsPage() {
       icon: '🧾',
       route: '/settings/vendor-vat'
     },
+    {
+      id: 'harvest-agent',
+      title: 'Harvest agent',
+      description:
+        'Cstore Pro keep-alive and job log (pass/fail) from the dedicated harvest PC or Pi.',
+      icon: '🤖',
+      route: '/settings/harvest-agent'
+    },
     // Future settings can be added here
     // {
     //   id: 'system',

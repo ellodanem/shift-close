@@ -1,0 +1,5 @@
+user-data/
+harvest-agent.config.json
+.env
+downloads/
+node_modules/

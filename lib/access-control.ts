@@ -34,6 +34,15 @@ export function isPublicPath(pathname: string): boolean {
   ) {
     return true
   }
+  // Harvest agent: no browser session; routes validate HARVEST_AGENT_SECRET / AGENT_SECRET.
+  if (
+    pathname === '/api/harvest-agent/heartbeat' ||
+    pathname === '/api/harvest-agent/heartbeat/' ||
+    pathname === '/api/harvest-agent/tasks' ||
+    pathname === '/api/harvest-agent/tasks/'
+  ) {
+    return true
+  }
   // Cron jobs validate CRON_SECRET inside the route (see route handler).
   if (pathname.startsWith('/api/cron/')) return true
   return false

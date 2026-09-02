@@ -1,0 +1,10 @@
+{
+  "agentKey": "home-pc",
+  "vercelUrl": "https://your-shift-close.vercel.app",
+  "agentSecret": "",
+  "cstoreUrl": "https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx",
+  "headed": true,
+  "runOnStart": true,
+  "slotHours": [7, 19],
+  "timeZone": "America/St_Lucia"
+}
