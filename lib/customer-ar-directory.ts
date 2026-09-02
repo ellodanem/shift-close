@@ -121,7 +121,17 @@ export async function listMonthAccountsFromDirectory(year: number, month: number
   )
 
   const usedSnapIds = new Set<string>()
-  const rows = directory.map((c) => {
+  const rows: Array<{
+    id: string
+    account: string
+    opening: number
+    charges: number
+    payments: number
+    closing: number
+    directoryId: string | null
+    cstoreName: string | null
+    rolled: boolean
+  }> = directory.map((c) => {
     const key = normalizeCustomerKey(c.name)
     const snap = snapByKey.get(key)
     if (snap) {
