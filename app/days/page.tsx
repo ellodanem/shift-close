@@ -435,18 +435,18 @@ export default function DaysPage() {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       {/* Email scan modal: pick recipient and send via API. (Future: WhatsApp button can open share with same link.) */}
       {emailModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Email scan</h3>
             <div className="space-y-4">
               <div>
@@ -559,17 +559,18 @@ export default function DaysPage() {
       )}
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">End of Day</h1>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day</h1>
         </div>
         
         {/* Filter Buttons */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
+        <div className="mb-6 space-y-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <button
             onClick={() => {
               setActiveFilter('all')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -582,7 +583,7 @@ export default function DaysPage() {
               setActiveFilter('thisWeek')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisWeek'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -595,7 +596,7 @@ export default function DaysPage() {
               setActiveFilter('lastWeek')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastWeek'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -608,7 +609,7 @@ export default function DaysPage() {
               setActiveFilter('thisMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -621,7 +622,7 @@ export default function DaysPage() {
               setActiveFilter('lastMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -629,13 +630,13 @@ export default function DaysPage() {
           >
             Last Month
           </button>
-          <div className="relative" ref={customPickerRef}>
+          <div className="relative col-span-2 sm:col-span-1" ref={customPickerRef}>
             <button
               onClick={() => {
                 setActiveFilter('custom')
                 setShowCustomPicker(!showCustomPicker)
               }}
-              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+              className={`min-h-[44px] w-full rounded px-3 py-2 text-xs font-semibold transition-colors sm:w-auto sm:px-4 sm:text-sm ${
                 activeFilter === 'custom'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -646,7 +647,7 @@ export default function DaysPage() {
                 : '▼'}
             </button>
             {showCustomPicker && (
-              <div className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]">
+              <div className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-gray-300 bg-white p-4 shadow-xl sm:left-0 sm:right-auto">
                 <div className="mb-2 text-sm font-semibold text-gray-700">
                   Select Month
                 </div>
@@ -659,23 +660,26 @@ export default function DaysPage() {
                     setActiveFilter('custom')
                     setShowCustomPicker(false)
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
             )}
           </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
           {activeFilter !== 'all' && !(activeFilter === 'custom' && !customMonth) && (
-            <span className="text-sm text-gray-600 ml-2">
+            <span className="text-xs text-gray-600 sm:text-sm">
               ({filteredReports.length} end of day{filteredReports.length !== 1 ? 's' : ''})
             </span>
           )}
           <button
             onClick={refreshDayReports}
             disabled={loading}
-            className="ml-auto px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold text-sm hover:bg-gray-300 disabled:opacity-50"
+            className="min-h-[44px] w-full rounded bg-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-300 disabled:opacity-50 sm:ml-auto sm:w-auto sm:text-sm"
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
+          </div>
         </div>
         
         {(loading || rangeLoading) && filteredReports.length === 0 ? (
@@ -705,21 +709,42 @@ export default function DaysPage() {
                     className="p-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
                     onClick={() => toggleExpand(dayReport.date)}
                   >
-                    <div className="flex justify-between items-center gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex min-w-0 items-start gap-3">
                         <span className="text-gray-400 text-lg flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
                         <div className="min-w-0">
-                          <div className="flex items-baseline gap-2 flex-wrap">
-                            <h2 className="text-xl font-bold text-gray-900">{dayReport.date}</h2>
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <h2 className="text-lg font-bold text-gray-900 sm:text-xl">{dayReport.date}</h2>
                             <BagNumberChips bags={dayBags} />
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-3 items-center">
+                          <div className="mt-1 flex flex-wrap gap-2 items-center sm:gap-3">
                             {getStatusBadge(dayReport.status)}
                             <span className="text-sm text-gray-600">
                               {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
                             </span>
                             {!isExpanded && (
-                              <span className="text-sm text-gray-500 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                              <>
+                                <span className="flex w-full flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500 sm:hidden">
+                                  <span>
+                                    O/S:&nbsp;
+                                    {dayReport.totals.overShortDisclosedTotal === null ? (
+                                      <span className="font-semibold text-gray-500">--</span>
+                                    ) : (
+                                      <span
+                                        className={`font-semibold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}
+                                      >
+                                        {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span>
+                                    Dep:{' '}
+                                    <span className="font-semibold text-gray-700">
+                                      {formatCurrency(dayReport.totals.totalDeposits)}
+                                    </span>
+                                  </span>
+                                </span>
+                                <span className="hidden sm:flex text-sm text-gray-500 flex-wrap gap-x-3 gap-y-1 items-center">
                                 <span>
                                   O/S:&nbsp;
                                   {dayReport.totals.overShortDisclosedTotal === null ? (
@@ -736,11 +761,12 @@ export default function DaysPage() {
                                 <span>Credit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalCredit)}</span></span>
                                 <span>Debit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDebit)}</span></span>
                               </span>
+                              </>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end sm:gap-3">
                         {/* Deposit & Debit slip upload indicators — collapsed only */}
                         {!isExpanded && (
                           <div className="flex items-center gap-2">
@@ -860,7 +886,7 @@ export default function DaysPage() {
                         )}
                         <button
                           onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
-                          className="px-4 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
+                          className="w-full rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto"
                         >
                           Export Excel
                         </button>
@@ -874,7 +900,7 @@ export default function DaysPage() {
                   {/* Money Summary */}
                   <div className="p-4 border-t border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900 mb-3">Money Summary</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
                       <div>
                         <p className="text-sm text-gray-600">Total Over/Short (disclosed)</p>
                         {dayReport.totals.overShortDisclosedTotal === null ? (
@@ -906,7 +932,7 @@ export default function DaysPage() {
                         </div>
                         <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
                       </div>
-                      <div className="md:col-span-2 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
+                      <div className="sm:col-span-2 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
                         <div className="flex items-center gap-2 flex-wrap mb-2">
                           <p className="text-sm font-medium text-gray-800">Other items — credit &amp; debit</p>
                           <button
@@ -1019,54 +1045,60 @@ export default function DaysPage() {
                             key={shift.id}
                             className={`border rounded p-4 ${hasRedFlag ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                           >
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
                                 <span className="font-semibold text-gray-900">{shift.shift}</span>
                                 <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
                               </div>
                               <button
                                 onClick={() => router.push(`/shifts/${shift.id}`)}
-                                className="text-sm text-blue-600 hover:underline"
+                                className="text-left text-sm text-blue-600 hover:underline sm:text-right"
                               >
                                 View Details
                               </button>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
-                              <div className="md:col-span-2">
-                                <span className="text-gray-600">Count vs system: </span>
-                                <span className={`font-semibold ${getOsColor(shift.overShortTotal)}`}>
-                                  {formatCurrency(shift.overShortTotal)}
-                                </span>
-                                <span className="text-gray-400 mx-2">•</span>
-                                <span className="text-gray-600">O/S reviewed: </span>
-                                <span className="font-semibold text-gray-900">
-                                  {shift.osReviewed != null
-                                    ? formatCurrency(shift.osReviewed)
-                                    : shift.osLegitAsIs
-                                      ? '— (legit as-is)'
-                                      : '—'}
-                                </span>
+                            <div className="mt-2 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+                              <div className="space-y-1 sm:col-span-2">
+                                <div>
+                                  <span className="text-gray-600">Count vs system: </span>
+                                  <span className={`font-semibold ${getOsColor(shift.overShortTotal)}`}>
+                                    {formatCurrency(shift.overShortTotal)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">O/S reviewed: </span>
+                                  <span className="font-semibold text-gray-900">
+                                    {shift.osReviewed != null
+                                      ? formatCurrency(shift.osReviewed)
+                                      : shift.osLegitAsIs
+                                        ? '— (legit as-is)'
+                                        : '—'}
+                                  </span>
+                                </div>
                               </div>
                               <div className="min-w-0">
                                 <span className="text-gray-600">Deposits: </span>
                                 <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
-                                <span className="text-gray-400 mx-2">•</span>
-                                <span className="text-gray-600">Bags: </span>
-                                {Array.isArray(shift.depositBagNumbers) && shift.depositBagNumbers.length > 0 ? (
-                                  <span className="font-mono font-semibold text-slate-800">
-                                    {shift.depositBagNumbers.join(', ')}
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-400">—</span>
+                                <div className="mt-1">
+                                  <span className="text-gray-600">Bags: </span>
+                                  {Array.isArray(shift.depositBagNumbers) && shift.depositBagNumbers.length > 0 ? (
+                                    <span className="font-mono font-semibold text-slate-800">
+                                      {shift.depositBagNumbers.join(', ')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div>
+                                  <span className="text-gray-600">Notes: </span>
+                                  <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
+                                </div>
+                                {hasRedFlag && (
+                                  <div className="font-semibold text-red-600">🚨 RED FLAG</div>
                                 )}
                               </div>
-                              <div>
-                                <span className="text-gray-600">Notes: </span>
-                                <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
-                              </div>
-                              {hasRedFlag && (
-                                <div className="text-red-600 font-semibold">🚨 RED FLAG</div>
-                              )}
                             </div>
                             {shift.notes.trim() && (
                               <div className="mt-2 text-sm text-gray-600 bg-white p-2 rounded border border-gray-200">

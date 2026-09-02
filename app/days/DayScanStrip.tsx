@@ -260,7 +260,7 @@ export default function DayScanStrip({
           </span>
         </label>
         {debitScanWaived ? (
-          <div className="mt-2 ml-7 max-w-xl">
+          <div className="mt-2 ml-0 max-w-xl sm:ml-7">
             <label className="block text-[11px] font-medium text-slate-600 mb-0.5" htmlFor={`deb-waiver-note-${date}`}>
               Optional note
             </label>
@@ -298,7 +298,7 @@ export default function DayScanStrip({
           </span>
         </label>
         {securityScanWaived ? (
-          <div className="mt-2 ml-7 max-w-xl">
+          <div className="mt-2 ml-0 max-w-xl sm:ml-7">
             <label className="block text-[11px] font-medium text-slate-600 mb-0.5" htmlFor={`sec-waiver-note-${date}`}>
               Optional note
             </label>
