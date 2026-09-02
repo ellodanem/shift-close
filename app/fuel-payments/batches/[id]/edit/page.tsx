@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { formatDate } from '@/lib/fuelPayments'
 import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
@@ -59,7 +58,6 @@ export default function EditBatchPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Check if anything changed
     if (!batch) return
 
     const hasChanges =
@@ -71,7 +69,6 @@ export default function EditBatchPage() {
       return
     }
 
-    // Require reason for changes
     setPendingUpdate(() => async () => {
       await performUpdate()
     })
@@ -93,7 +90,7 @@ export default function EditBatchPage() {
           paymentDate: formData.paymentDate,
           bankRef: formData.bankRef,
           reason: reason.trim(),
-          changedBy: 'admin' // TODO: Get from auth context
+          changedBy: 'admin'
         })
       })
 
@@ -115,7 +112,7 @@ export default function EditBatchPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading batch...</p>
       </div>
     )
@@ -126,19 +123,19 @@ export default function EditBatchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Edit Payment Batch</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Edit Payment Batch</h1>
+          <p className="mt-1 text-sm text-gray-600">
             Update batch details. Changes will be logged in the audit trail.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-4 shadow sm:p-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Payment Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -146,12 +143,12 @@ export default function EditBatchPage() {
                 required
                 value={formData.paymentDate}
                 onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Bank Reference <span className="text-red-500">*</span>
               </label>
               <input
@@ -159,26 +156,26 @@ export default function EditBatchPage() {
                 required
                 value={formData.bankRef}
                 onChange={(e) => setFormData({ ...formData, bankRef: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Unique reference for this payment batch. Leave blank for "(No Ref)".
+                Unique reference for this payment batch. Leave blank for &quot;(No Ref)&quot;.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 flex gap-4">
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+              className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
             >
               Cancel
             </button>
@@ -186,43 +183,43 @@ export default function EditBatchPage() {
         </form>
       </div>
 
-      {/* Reason Modal */}
       {showReasonModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Reason for Changes
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Please provide a reason for updating this batch. This will be logged in the audit trail.
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+          <div className="my-4 w-full max-w-md rounded-lg bg-white p-4 shadow-xl sm:p-6">
+            <h2 className="mb-4 text-xl font-bold text-gray-900">Reason for Changes</h2>
+            <p className="mb-4 text-sm text-gray-600">
+              Please provide a reason for updating this batch. This will be logged in the audit
+              trail.
             </p>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter reason for changes..."
               required
             />
-            <div className="flex gap-4">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
               <button
+                type="button"
                 onClick={async () => {
                   if (pendingUpdate) {
                     await pendingUpdate()
                   }
                 }}
                 disabled={!reason.trim() || saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setShowReasonModal(false)
                   setReason('')
                   setPendingUpdate(null)
                 }}
-                className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+                className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
               >
                 Cancel
               </button>
@@ -233,4 +230,3 @@ export default function EditBatchPage() {
     </div>
   )
 }
-

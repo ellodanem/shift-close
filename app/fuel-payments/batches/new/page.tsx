@@ -7,18 +7,15 @@ export default function NewBatchPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Batches are created automatically when invoices are marked as paid.
-    // Redirect users back to the main batches list.
     router.replace('/fuel-payments/batches')
   }, [router])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-      <p className="text-gray-600">
-        Redirecting to batches... Payment batches are created automatically when you mark
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
+      <p className="max-w-md text-center text-sm text-gray-600 sm:text-base">
+        Redirecting to batches… Payment batches are created automatically when you mark
         invoices as paid.
       </p>
     </div>
   )
 }
-
