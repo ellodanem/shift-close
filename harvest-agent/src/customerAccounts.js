@@ -33,43 +33,49 @@ async function saveDebug(page, dir, name) {
   }
 }
 
+async function onCustomerCreditReport(page) {
+  const url = page.url().toLowerCase()
+  if (url.includes('customercreditreport')) return true
+  if ((await page.getByText(/customer account report/i).count()) > 0) return true
+  if ((await page.getByLabel(/credit account/i).count()) > 0) return true
+  return false
+}
+
+async function openViaReportCenterFlyout(page) {
+  const reportCenter = page.locator('#EWF-Menu-Link-1304')
+  const otherEntries = page.locator('#EWF-Menu-Link-1431')
+  const customerAccounts = page.locator('#EWF-Menu-Link-1912')
+  if ((await reportCenter.count()) === 0) return false
+
+  await reportCenter.hover()
+  await sleep(500)
+  if ((await otherEntries.count()) > 0) {
+    await otherEntries.hover()
+    await sleep(500)
+  }
+  if ((await customerAccounts.count()) === 0) return false
+  await customerAccounts.click({ timeout: 8000 })
+  await sleep(1200)
+  return onCustomerCreditReport(page)
+}
+
 async function openCustomerAccountsReport(page) {
-  const already = await page.getByText(/customer account report/i).count()
-  if (already > 0) return
+  if (await onCustomerCreditReport(page)) return
+
+  if (await openViaReportCenterFlyout(page)) return
+
+  const viewLocal = page.locator('a[href*="CustomerCreditReport.aspx"]')
+  if ((await viewLocal.count()) > 0) {
+    await viewLocal.first().click()
+    await sleep(1200)
+    if (await onCustomerCreditReport(page)) return
+  }
 
   const reportUrl =
     'https://secure.cstorepro.com/EmagineNETCOSM/Content/Reports/CustomerCreditReport.aspx?enetFoundationMenuID=1912'
   await page.goto(reportUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
   await sleep(1000)
-  if ((await page.getByText(/customer account report/i).count()) > 0) return
-  if ((await page.getByLabel(/credit account/i).count()) > 0) return
-  if ((await page.locator('select').count()) > 0) return
-
-  const viewLocal = page.locator('a[href*="CustomerCreditReport"]')
-  if ((await viewLocal.count()) > 0) {
-    await viewLocal.first().click()
-    await sleep(1200)
-    if ((await page.getByText(/customer account report/i).count()) > 0) return
-  }
-
-  const paths = [
-    [/report center/i, /other entries/i, /customer accounts/i],
-    [/other entries/i, /customer accounts/i],
-    [/customer accounts/i]
-  ]
-
-  for (const steps of paths) {
-    for (const step of steps) {
-      const clicked = await clickFirstVisible(page, [
-        page.getByRole('link', { name: step }),
-        page.getByRole('button', { name: step }),
-        page.getByText(step)
-      ])
-      if (!clicked) break
-      await sleep(800)
-    }
-    if ((await page.getByText(/customer account report/i).count()) > 0) return
-  }
+  if (await onCustomerCreditReport(page)) return
 
   throw new Error('Could not open Customer account report')
 }
