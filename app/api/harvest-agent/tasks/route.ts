@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { harvestAgentSecretOk, recordHarvestTask } from '@/lib/harvest-agent'
+import { notifyHarvestTaskFinished } from '@/lib/harvest-agent-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,17 @@ export async function POST(request: NextRequest) {
       finishedAt,
       cstoreSessionOk:
         typeof body.cstoreSessionOk === 'boolean' ? body.cstoreSessionOk : null
+    })
+
+    await notifyHarvestTaskFinished({
+      taskKey,
+      status: run.status,
+      message: run.message,
+      agentKey,
+      hostname: typeof body.hostname === 'string' ? body.hostname : null,
+      startedAt,
+      finishedAt,
+      details: body.details ?? null
     })
 
     return NextResponse.json({ ok: true, id: run.id, status: run.status })

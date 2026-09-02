@@ -58,18 +58,76 @@ export default function HarvestAgentSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [agents, setAgents] = useState<AgentRow[]>([])
   const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [emailEnabled, setEmailEnabled] = useState(false)
+  const [emailRecipients, setEmailRecipients] = useState('')
+  const [emailSaving, setEmailSaving] = useState(false)
+  const [emailTesting, setEmailTesting] = useState(false)
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/harvest-agent/status')
-      .then(async (res) => {
+    Promise.all([
+      fetch('/api/harvest-agent/status').then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Failed to load')
         setAgents(data.agents || [])
         setTasks(data.tasks || [])
+      }),
+      fetch('/api/settings/harvest-agent-email').then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Failed to load email settings')
+        setEmailEnabled(!!data.enabled)
+        setEmailRecipients(typeof data.recipients === 'string' ? data.recipients : '')
       })
+    ])
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [])
+
+  const saveEmailSettings = async () => {
+    setEmailSaving(true)
+    setEmailError(null)
+    setEmailSuccess(null)
+    try {
+      const res = await fetch('/api/settings/harvest-agent-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: emailEnabled, recipients: emailRecipients })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      setEmailEnabled(!!data.enabled)
+      setEmailRecipients(typeof data.recipients === 'string' ? data.recipients : '')
+      setEmailSuccess('Email settings saved.')
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setEmailSaving(false)
+    }
+  }
+
+  const sendTestEmail = async () => {
+    setEmailTesting(true)
+    setEmailError(null)
+    setEmailSuccess(null)
+    try {
+      const res = await fetch('/api/settings/harvest-agent-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sendTest: true,
+          recipients: emailRecipients
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to send test')
+      setEmailSuccess(`Sample email sent to ${data.sent} recipient(s).`)
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send test')
+    } finally {
+      setEmailTesting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -152,6 +210,56 @@ export default function HarvestAgentSettingsPage() {
                   </table>
                 </div>
               )}
+            </section>
+
+            <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Task summary email</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                After each harvest job finishes, Shift Close can email a summary of completed
+                imports, failures, and any new customer names added from Cstore. Uses the same SMTP
+                as the rest of the app.
+              </p>
+              <label className="flex items-center gap-2 text-sm text-gray-800 mb-4">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300"
+                  checked={emailEnabled}
+                  onChange={(e) => setEmailEnabled(e.target.checked)}
+                />
+                Send email when a harvest task finishes
+              </label>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Recipient emails (comma or space)
+                </label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  rows={3}
+                  value={emailRecipients}
+                  onChange={(e) => setEmailRecipients(e.target.value)}
+                  placeholder="accounting@example.com, manager@example.com"
+                />
+              </div>
+              {emailError && <p className="text-sm text-red-600 mb-3">{emailError}</p>}
+              {emailSuccess && <p className="text-sm text-green-700 mb-3">{emailSuccess}</p>}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void saveEmailSettings()}
+                  disabled={emailSaving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {emailSaving ? 'Saving…' : 'Save email settings'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendTestEmail()}
+                  disabled={emailTesting}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded-md text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {emailTesting ? 'Sending…' : 'Send sample email'}
+                </button>
+              </div>
             </section>
 
             <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
