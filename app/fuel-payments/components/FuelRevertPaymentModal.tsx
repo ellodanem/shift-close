@@ -56,18 +56,18 @@ export function FuelRevertPaymentModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
       role="presentation"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="fuel-revert-payment-title"
-        className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl"
+        className="my-4 w-full max-w-2xl rounded-lg bg-white p-4 shadow-xl sm:p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-6">
-          <h2 id="fuel-revert-payment-title" className="text-2xl font-bold text-gray-900">
+          <h2 id="fuel-revert-payment-title" className="text-xl font-bold text-gray-900 sm:text-2xl">
             Revert payment by bank ref
           </h2>
           <p className="mt-1 text-sm text-gray-600">
@@ -84,19 +84,19 @@ export function FuelRevertPaymentModal({
             value={bankRef}
             onChange={(e) => setBankRef(e.target.value.replace(/\D/g, ''))}
             placeholder="e.g., 18921926"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
           />
           <p className="mt-2 text-xs text-gray-500">
             All invoices from the most recent payment batch with this reference will be reverted.
           </p>
         </div>
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
           <button
             type="button"
-            onClick={handleRevert}
+            onClick={() => void handleRevert()}
             disabled={processing || !bankRef.trim()}
-            className="rounded bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            className="min-h-[44px] rounded bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50 sm:min-h-0"
           >
             {processing ? 'Reverting...' : 'Revert payment'}
           </button>
@@ -104,7 +104,7 @@ export function FuelRevertPaymentModal({
             type="button"
             onClick={onClose}
             disabled={processing}
-            className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+            className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
           >
             Cancel
           </button>
