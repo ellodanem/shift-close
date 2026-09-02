@@ -51,7 +51,7 @@ export async function upsertHarvestHeartbeat(params: {
       lastHeartbeatAt: now,
       cstoreSessionOk: sessionTouched ? params.cstoreSessionOk : null,
       cstoreSessionAt: sessionTouched ? now : null,
-      paused: pauseTouched ? params.paused : false,
+      paused: pauseTouched ? params.paused === true : false,
       pauseReason: pauseTouched && params.paused ? params.pauseReason?.trim() || null : null,
       pausedAt: pauseTouched && params.paused ? now : null
     },
