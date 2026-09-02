@@ -8,7 +8,8 @@ import {
   getListDisplayOverShort,
   getShiftListOkKind,
   isOsReviewedSet,
-  OS_REVIEW_THRESHOLD
+  OS_REVIEW_THRESHOLD,
+  type ShiftListOkKind
 } from '@/lib/calculations'
 
 interface Shift {
@@ -32,6 +33,91 @@ function getOsColor(amount: number): string {
   if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
   if (amount > 0) return 'text-blue-600'
   return 'text-red-600'
+}
+
+function getShiftMissingInfo(shift: Shift): { count: number; title: string } | null {
+  const missingDeposits = !shift.totalDeposits || shift.totalDeposits === 0
+  const missingDebitScans = !shift.hasDayDebitScans
+  const count = (missingDeposits ? 1 : 0) + (missingDebitScans ? 1 : 0)
+  if (count === 0) return null
+  let title = ''
+  if (missingDeposits && missingDebitScans) title = 'Missing deposits and debit scans'
+  else if (missingDeposits) title = 'Missing deposits'
+  else title = 'Missing debit scans'
+  return { count, title }
+}
+
+function computeShiftListDisplay(shift: Shift) {
+  const disclosed = shift.osLegitAsIs === true || isOsReviewedSet(shift.osReviewed)
+  const hideListOverShort = shift.status !== 'draft' && !disclosed
+  const netOS = hideListOverShort
+    ? null
+    : shift.netOverShort != null
+      ? shift.netOverShort
+      : getListDisplayOverShort({
+          overShortTotal: shift.overShortTotal,
+          osReviewed: shift.osReviewed
+        })
+  const hasNotes = shift.notes.trim() !== ''
+  const okKind: ShiftListOkKind =
+    shift.status === 'closed'
+      ? getShiftListOkKind({
+          status: shift.status,
+          notes: shift.notes,
+          osReviewed: shift.osReviewed,
+          osLegitAsIs: shift.osLegitAsIs
+        })
+      : 'needs_review'
+  return { hideListOverShort, netOS, hasNotes, okKind }
+}
+
+function ShiftStatusBadge({ shift, okKind }: { shift: Shift; okKind: ShiftListOkKind }) {
+  if (shift.status === 'draft') {
+    return (
+      <span className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-800">
+        Draft
+      </span>
+    )
+  }
+  if (shift.status === 'reopened') {
+    return (
+      <span className="inline-flex items-center rounded-full border border-orange-300 bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">
+        Reopened
+      </span>
+    )
+  }
+  if (shift.status === 'reviewed') {
+    return (
+      <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
+        Reviewed
+      </span>
+    )
+  }
+  if (okKind === 'ok_green') {
+    return (
+      <span
+        className="inline-flex items-center rounded-full border border-green-300 bg-green-100 px-2 py-1 text-xs font-semibold text-green-800"
+        title="OK"
+      >
+        OK
+      </span>
+    )
+  }
+  if (okKind === 'ok_blue') {
+    return (
+      <span
+        className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800"
+        title="Breakdown notes missing"
+      >
+        OK
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-800">
+      Needs review
+    </span>
+  )
 }
 
 type ShiftFilterType = 'all' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'
@@ -304,33 +390,34 @@ export default function ShiftsPage() {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">Shift List</h1>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Shift List</h1>
           <button
             onClick={() => router.push('/shifts/new')}
-            className="px-6 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+            className="min-h-[44px] w-full rounded bg-blue-600 px-6 py-2 font-semibold text-white hover:bg-blue-700 sm:w-auto"
           >
             + New Shift
           </button>
         </div>
         
         {/* Filters */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-4 space-y-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <button
             onClick={() => {
               setActiveFilter('all')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -343,7 +430,7 @@ export default function ShiftsPage() {
               setActiveFilter('thisWeek')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisWeek'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -356,7 +443,7 @@ export default function ShiftsPage() {
               setActiveFilter('lastWeek')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastWeek'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -369,7 +456,7 @@ export default function ShiftsPage() {
               setActiveFilter('thisMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -382,7 +469,7 @@ export default function ShiftsPage() {
               setActiveFilter('lastMonth')
               setShowCustomPicker(false)
             }}
-            className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastMonth'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -390,13 +477,13 @@ export default function ShiftsPage() {
           >
             Last Month
           </button>
-          <div className="relative" ref={customPickerRef}>
+          <div className="relative col-span-2 sm:col-span-1" ref={customPickerRef}>
             <button
               onClick={() => {
                 setActiveFilter('custom')
                 setShowCustomPicker(!showCustomPicker)
               }}
-              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+              className={`min-h-[44px] w-full rounded px-3 py-2 text-xs font-semibold transition-colors sm:w-auto sm:px-4 sm:text-sm ${
                 activeFilter === 'custom'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -405,7 +492,7 @@ export default function ShiftsPage() {
               Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
             </button>
             {showCustomPicker && (
-              <div className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[320px]">
+              <div className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-gray-300 bg-white p-4 shadow-xl sm:left-0 sm:right-auto">
                 <CustomDatePicker
                   selectedDate={customDate}
                   onDateSelect={(date) => {
@@ -418,14 +505,116 @@ export default function ShiftsPage() {
               </div>
             )}
           </div>
+          </div>
           {activeFilter !== 'all' && (
-            <span className="text-sm text-gray-600 ml-2">
+            <span className="text-xs text-gray-600 sm:text-sm">
               ({filteredShifts.length} shift{filteredShifts.length !== 1 ? 's' : ''})
             </span>
           )}
         </div>
 
-        <div className="bg-white shadow-sm border border-gray-200 rounded overflow-hidden">
+        {/* Mobile card list */}
+        <div className="space-y-3 md:hidden">
+          {rangeLoading && filteredShifts.length === 0 ? (
+            <div className="rounded border border-gray-200 bg-white px-4 py-8 text-center text-gray-500 shadow-sm">
+              Loading…
+            </div>
+          ) : shifts.length === 0 ? (
+            <div className="rounded border border-gray-200 bg-white px-4 py-8 text-center text-gray-500 shadow-sm">
+              No shifts found. Create your first shift to get started.
+            </div>
+          ) : filteredShifts.length === 0 ? (
+            <div className="rounded border border-gray-200 bg-white px-4 py-8 text-center text-gray-500 shadow-sm">
+              No shifts found for the selected filter.
+            </div>
+          ) : (
+            filteredShifts.map((shift) => {
+              const missing = getShiftMissingInfo(shift)
+              const { hideListOverShort, netOS, hasNotes, okKind } = computeShiftListDisplay(shift)
+
+              return (
+                <button
+                  key={shift.id}
+                  type="button"
+                  className="w-full rounded border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
+                  onClick={() => router.push(`/shifts/${shift.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-900">
+                        {shift.date}
+                        {missing && (
+                          <span className="ml-2 font-bold text-red-600" title={missing.title}>
+                            {'*'.repeat(missing.count)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-sm text-gray-600">
+                        {shift.shift} · {shift.supervisor}
+                      </div>
+                    </div>
+                    <ShiftStatusBadge shift={shift} okKind={okKind} />
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">O/S </span>
+                      <span
+                        className={`font-semibold ${netOS === null ? 'text-gray-400' : getOsColor(netOS)}`}
+                        title={
+                          hideListOverShort
+                            ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
+                            : undefined
+                        }
+                      >
+                        {netOS === null ? '--' : netOS.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-gray-500">Notes </span>
+                      {hasNotes ? (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="font-semibold text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowNotesModal(shift.id)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setShowNotesModal(shift.id)
+                            }
+                          }}
+                        >
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">✗</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Unleaded </span>
+                      <span className="font-medium text-gray-900">{shift.unleaded.toFixed(2)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-gray-500">Diesel </span>
+                      <span className="font-medium text-gray-900">{shift.diesel.toFixed(2)}</span>
+                    </div>
+                    <div className="col-span-2 border-t border-gray-100 pt-2">
+                      <span className="text-gray-500">Deposit </span>
+                      <span className="font-medium text-gray-900">{(shift.totalDeposits || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden overflow-hidden rounded border border-gray-200 bg-white shadow-sm md:block">
           <table className="w-full">
             <thead className="bg-gray-100">
               <tr>
@@ -461,29 +650,8 @@ export default function ShiftsPage() {
                 </tr>
               ) : (
                 filteredShifts.map((shift) => {
-                  const disclosed =
-                    shift.osLegitAsIs === true || isOsReviewedSet(shift.osReviewed)
-                  const hideListOverShort =
-                    shift.status !== 'draft' && !disclosed
-
-                  const netOS = hideListOverShort
-                    ? null
-                    : shift.netOverShort != null
-                      ? shift.netOverShort
-                      : getListDisplayOverShort({
-                          overShortTotal: shift.overShortTotal,
-                          osReviewed: shift.osReviewed
-                        })
-                  const hasNotes = shift.notes.trim() !== ''
-                  const okKind =
-                    shift.status === 'closed'
-                      ? getShiftListOkKind({
-                          status: shift.status,
-                          notes: shift.notes,
-                          osReviewed: shift.osReviewed,
-                          osLegitAsIs: shift.osLegitAsIs
-                        })
-                      : 'needs_review'
+                  const missing = getShiftMissingInfo(shift)
+                  const { hideListOverShort, netOS, hasNotes, okKind } = computeShiftListDisplay(shift)
                   
                   return (
                     <tr
@@ -493,30 +661,11 @@ export default function ShiftsPage() {
                     >
                       <td className="px-4 py-3 text-gray-900">
                         {shift.date}
-                        {(() => {
-                          const missingDeposits = !shift.totalDeposits || shift.totalDeposits === 0
-                          const missingDebitScans = !shift.hasDayDebitScans
-                          
-                          // 2 asterisks if both are missing, 1 if only one is missing
-                          const missingCount = (missingDeposits ? 1 : 0) + (missingDebitScans ? 1 : 0)
-                          
-                          if (missingCount === 0) return null
-                          
-                          let title = ''
-                          if (missingDeposits && missingDebitScans) {
-                            title = 'Missing deposits and debit scans'
-                          } else if (missingDeposits) {
-                            title = 'Missing deposits'
-                          } else {
-                            title = 'Missing debit scans'
-                          }
-                          
-                          return (
-                            <span className="ml-2 text-red-600 font-bold" title={title}>
-                              {'*'.repeat(missingCount)}
-                            </span>
-                          )
-                        })()}
+                        {missing && (
+                          <span className="ml-2 text-red-600 font-bold" title={missing.title}>
+                            {'*'.repeat(missing.count)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-900">{shift.shift}</td>
                       <td className="px-4 py-3 text-gray-900">{shift.supervisor}</td>
@@ -535,7 +684,7 @@ export default function ShiftsPage() {
                       <td 
                         className="px-4 py-3 text-center"
                         onClick={(e) => {
-                          e.stopPropagation() // Prevent row click
+                          e.stopPropagation()
                           if (hasNotes) {
                             setShowNotesModal(shift.id)
                           }
@@ -556,37 +705,7 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-right text-gray-900">{shift.diesel.toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-gray-900">{(shift.totalDeposits || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-center text-sm">
-                        {shift.status === 'draft' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-xs font-semibold">
-                            Draft
-                          </span>
-                        ) : shift.status === 'reopened' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-300 text-xs font-semibold">
-                            Reopened
-                          </span>
-                        ) : shift.status === 'reviewed' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-semibold">
-                            Reviewed
-                          </span>
-                        ) : okKind === 'ok_green' ? (
-                          <span
-                            className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-300 text-xs font-semibold"
-                            title="OK"
-                          >
-                            OK
-                          </span>
-                        ) : okKind === 'ok_blue' ? (
-                          <span
-                            className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-semibold"
-                            title="Breakdown notes missing"
-                          >
-                            OK
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-xs font-semibold">
-                            Needs review
-                          </span>
-                        )}
+                        <ShiftStatusBadge shift={shift} okKind={okKind} />
                       </td>
                     </tr>
                   )
@@ -599,8 +718,8 @@ export default function ShiftsPage() {
 
       {/* TEMPORARY: Clear All Modal - Remove before production */}
       {showClearModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full border-2 border-red-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border-2 border-red-300 bg-white shadow-xl">
             <div className="p-6">
               {clearStep === 1 && (
                 <>
@@ -717,8 +836,8 @@ export default function ShiftsPage() {
         if (!shift || !shift.notes.trim()) return null
         
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-50 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border-2 border-gray-300">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border-2 border-gray-300 bg-gray-50 shadow-xl">
               <div className="sticky top-0 bg-gray-50 border-b-2 border-gray-300 px-6 py-4 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Notes - {shift.date} ({shift.shift})
