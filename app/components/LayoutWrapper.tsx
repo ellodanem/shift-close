@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
 import AppUtilityBar from './AppUtilityBar'
@@ -21,6 +21,9 @@ import { recordShortcutVisit } from '@/lib/home-shortcuts'
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, loading } = useAuth()
+  const [pickerGroup, setPickerGroup] = useState<string | null>(null)
+  const prevPathRef = useRef(pathname)
+
   const isApplyRoute = pathname?.startsWith('/apply')
   const isAuthRoute =
     pathname === '/login' ||
@@ -40,18 +43,25 @@ function AppShell({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new Event('shift-close-shortcuts-changed'))
   }, [pathname, user, isApplyRoute, isAuthRoute, isMinimalMobileShell])
 
+  useEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      setPickerGroup(null)
+      prevPathRef.current = pathname
+    }
+  }, [pathname])
+
   if (isApplyRoute || isAuthRoute || isMinimalMobileShell) {
     return <>{children}</>
   }
 
   return (
     <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50">
-      <AppNav />
+      <AppNav pickerGroup={pickerGroup} onPickerGroupChange={setPickerGroup} />
       <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
         <RentDueBanner />
         {!loading && user ? <AppUtilityBar /> : null}
         <main className="relative min-h-0 flex-1 min-w-0 overflow-y-auto">
-          <NavPickerPanel />
+          <NavPickerPanel pickerGroup={pickerGroup} onClose={() => setPickerGroup(null)} />
           {children}
         </main>
         <OperationsChecklistPanel />

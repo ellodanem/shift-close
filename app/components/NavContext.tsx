@@ -1,11 +1,8 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef } from 'react'
 
 type NavContextValue = {
-  pickerGroup: string | null
-  openPickerGroup: (label: string) => void
-  closePickerGroup: () => void
   closeMobileNav: () => void
   registerMobileNavCloser: (fn: () => void) => void
 }
@@ -13,16 +10,7 @@ type NavContextValue = {
 const NavContext = createContext<NavContextValue | null>(null)
 
 export function NavProvider({ children }: { children: React.ReactNode }) {
-  const [pickerGroup, setPickerGroup] = useState<string | null>(null)
   const mobileCloserRef = useRef<() => void>(() => {})
-
-  const openPickerGroup = useCallback((label: string) => {
-    setPickerGroup(label)
-  }, [])
-
-  const closePickerGroup = useCallback(() => {
-    setPickerGroup(null)
-  }, [])
 
   const closeMobileNav = useCallback(() => {
     mobileCloserRef.current()
@@ -34,13 +22,10 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
-      pickerGroup,
-      openPickerGroup,
-      closePickerGroup,
       closeMobileNav,
       registerMobileNavCloser
     }),
-    [pickerGroup, openPickerGroup, closePickerGroup, closeMobileNav, registerMobileNavCloser]
+    [closeMobileNav, registerMobileNavCloser]
   )
 
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>

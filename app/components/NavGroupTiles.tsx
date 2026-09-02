@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import HomeShortcutIcon from './HomeShortcutIcon'
+import { tileBackgroundColor } from '@/lib/tile-colors'
 import type { NavTile } from '@/lib/app-nav'
 import type { HomeShortcutId } from '@/lib/home-shortcuts'
 
@@ -25,9 +26,7 @@ export default function NavGroupTiles({
   onNavigate?: () => void
   compact?: boolean
 }) {
-  const sizeClass = compact
-    ? 'h-[6.5rem] min-w-[6.5rem]'
-    : 'h-[7.5rem] min-w-[7.5rem]'
+  const sizeClass = compact ? 'h-[6.5rem] min-w-[6.5rem]' : 'h-[7.5rem] min-w-[7.5rem]'
 
   return (
     <div
@@ -43,7 +42,8 @@ export default function NavGroupTiles({
           href={tile.href}
           prefetch={false}
           onClick={onNavigate}
-          className={`relative flex w-full flex-col items-center rounded-2xl shadow-md ${tile.tileClass} text-white hover:brightness-110 ${sizeClass}`}
+          style={{ backgroundColor: tileBackgroundColor(tile.href, tile.shortcutId) }}
+          className={`relative flex w-full flex-col items-center rounded-2xl shadow-md text-white hover:brightness-110 ${sizeClass}`}
         >
           <span className="mt-6 flex h-9 items-center justify-center">
             <TileIcon tile={tile} />

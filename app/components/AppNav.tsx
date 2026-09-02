@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
 import { useNav } from './NavContext'
@@ -33,22 +33,24 @@ function GroupIcon({ label }: { label: string }) {
 
 function NavGroupRow({
   group,
-  isActive,
+  isSelected,
   onClick,
   expanded
 }: {
   group: NavGroupConfig
-  isActive: boolean
+  isSelected: boolean
   onClick: () => void
   expanded?: boolean
 }) {
   const usesPicker = groupUsesTilePicker(group)
+  const highlighted = isSelected || expanded
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-current={highlighted ? 'true' : undefined}
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${
-        isActive || expanded
+        highlighted
           ? 'bg-slate-700/90 text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]'
           : 'text-slate-200 hover:bg-slate-700/60 hover:text-white'
       }`}
@@ -70,16 +72,23 @@ function NavGroupRow({
   )
 }
 
-export default function AppNav() {
+export default function AppNav({
+  pickerGroup,
+  onPickerGroupChange
+}: {
+  pickerGroup: string | null
+  onPickerGroupChange: (label: string | null) => void
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { pickerGroup, openPickerGroup, closePickerGroup, registerMobileNavCloser } = useNav()
+  const { registerMobileNavCloser } = useNav()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mobileDrillGroup, setMobileDrillGroup] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [todayPayDays, setTodayPayDays] = useState<Array<{ id: string; date: string; notes: string | null }>>([])
   const [showFeaturesModal, setShowFeaturesModal] = useState(false)
+  const prevPathRef = useRef(pathname)
 
   const closeMobile = useCallback(() => {
     setMobileOpen(false)
@@ -91,12 +100,11 @@ export default function AppNav() {
   }, [registerMobileNavCloser, closeMobile])
 
   useEffect(() => {
-    closePickerGroup()
-    setMobileDrillGroup(null)
-    if (mobileOpen) {
+    if (prevPathRef.current !== pathname) {
+      setMobileDrillGroup(null)
       setMobileOpen(false)
+      prevPathRef.current = pathname
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- close nav chrome on route change only
   }, [pathname])
 
   useEffect(() => {
@@ -140,17 +148,13 @@ export default function AppNav() {
     if (items.length === 1) {
       router.push(items[0].href)
       closeMobile()
-      closePickerGroup()
+      onPickerGroupChange(null)
       return
     }
 
     const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
     if (isDesktop) {
-      if (pickerGroup === group.label) {
-        closePickerGroup()
-      } else {
-        openPickerGroup(group.label)
-      }
+      onPickerGroupChange(pickerGroup === group.label ? null : group.label)
       closeMobile()
     } else if (mobileDrillGroup === group.label) {
       setMobileDrillGroup(null)
@@ -236,7 +240,7 @@ export default function AppNav() {
               <NavGroupRow
                 key={group.label}
                 group={group}
-                isActive={isGroupHighlighted(group)}
+                isSelected={isGroupHighlighted(group)}
                 expanded={pickerGroup === group.label || mobileDrillGroup === group.label}
                 onClick={() => handleGroupClick(group)}
               />

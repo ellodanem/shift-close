@@ -15,6 +15,7 @@ import {
   type HomeShortcut,
   type HomeShortcutId
 } from '@/lib/home-shortcuts'
+import { tileBackgroundColor } from '@/lib/tile-colors'
 
 function Tile({
   shortcut,
@@ -32,7 +33,8 @@ function Tile({
       <Link
         href={shortcut.href}
         prefetch={false}
-        className={`relative flex h-[7.5rem] w-[7.5rem] flex-col items-center rounded-2xl ${shortcut.tileClass} text-white hover:brightness-110`}
+        style={{ backgroundColor: tileBackgroundColor(shortcut.href, shortcut.id) }}
+        className="relative flex h-[7.5rem] w-[7.5rem] flex-col items-center rounded-2xl text-white hover:brightness-110"
       >
         {index != null ? (
           <span className="absolute left-2 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold text-white/95">
