@@ -49,6 +49,37 @@ export type HomeShortcut = {
   matchPrefixes: string[]
 }
 
+/** All tile background classes — keep in sync with Tailwind safelist. */
+export const HOME_TILE_BG_CLASSES = [
+  'bg-violet-600',
+  'bg-amber-700',
+  'bg-amber-500',
+  'bg-sky-700',
+  'bg-sky-600',
+  'bg-cyan-700',
+  'bg-red-600',
+  'bg-emerald-700',
+  'bg-indigo-800',
+  'bg-slate-700',
+  'bg-blue-800',
+  'bg-blue-700',
+  'bg-teal-700',
+  'bg-emerald-800',
+  'bg-indigo-700',
+  'bg-indigo-600',
+  'bg-blue-600',
+  'bg-orange-600',
+  'bg-teal-600',
+  'bg-green-600',
+  'bg-slate-600',
+  'bg-rose-700',
+  'bg-cyan-600',
+  'bg-slate-500',
+  'bg-fuchsia-700',
+  'bg-yellow-600',
+  'bg-blue-900'
+] as const
+
 export const HOME_SHORTCUTS: HomeShortcut[] = [
   {
     id: 'pay-period',

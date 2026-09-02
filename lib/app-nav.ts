@@ -115,6 +115,14 @@ function shortcutIdForHref(href: string): HomeShortcutId {
 }
 
 export function navItemToTile(item: NavItemConfig): NavTile {
+  if (item.href === '/dashboard') {
+    return {
+      label: item.label,
+      href: item.href,
+      shortcutId: 'settings',
+      tileClass: 'bg-blue-900'
+    }
+  }
   const shortcutId = shortcutIdForHref(item.href)
   const shortcut = HOME_SHORTCUTS.find((s) => s.id === shortcutId)
   return {

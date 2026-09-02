@@ -74,7 +74,7 @@ export default function AppNav() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { openPickerGroup, closePickerGroup, registerMobileNavCloser } = useNav()
+  const { pickerGroup, openPickerGroup, closePickerGroup, registerMobileNavCloser } = useNav()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mobileDrillGroup, setMobileDrillGroup] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -146,11 +146,23 @@ export default function AppNav() {
 
     const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
     if (isDesktop) {
-      openPickerGroup(group.label)
+      if (pickerGroup === group.label) {
+        closePickerGroup()
+      } else {
+        openPickerGroup(group.label)
+      }
       closeMobile()
+    } else if (mobileDrillGroup === group.label) {
+      setMobileDrillGroup(null)
     } else {
       setMobileDrillGroup(group.label)
     }
+  }
+
+  const isGroupHighlighted = (group: NavGroupConfig) => {
+    if (pickerGroup) return pickerGroup === group.label
+    if (mobileDrillGroup) return mobileDrillGroup === group.label
+    return isGroupActive(group, pathname ?? '')
   }
 
   const mobileDrill = mobileDrillGroup ? navGroupByLabel(filteredNav, mobileDrillGroup) : null
@@ -224,7 +236,8 @@ export default function AppNav() {
               <NavGroupRow
                 key={group.label}
                 group={group}
-                isActive={isGroupActive(group, pathname ?? '')}
+                isActive={isGroupHighlighted(group)}
+                expanded={pickerGroup === group.label || mobileDrillGroup === group.label}
                 onClick={() => handleGroupClick(group)}
               />
             ))}

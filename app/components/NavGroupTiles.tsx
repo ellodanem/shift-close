@@ -26,23 +26,31 @@ export default function NavGroupTiles({
   compact?: boolean
 }) {
   const sizeClass = compact
-    ? 'h-[6.5rem] w-[6.5rem] text-[12px]'
-    : 'h-[7.5rem] w-[7.5rem] text-[13px]'
+    ? 'h-[6.5rem] min-w-[6.5rem]'
+    : 'h-[7.5rem] min-w-[7.5rem]'
 
   return (
-    <div className={`flex flex-wrap gap-3 ${compact ? '' : 'sm:gap-4'}`}>
+    <div
+      className={
+        compact
+          ? 'grid grid-cols-2 gap-3'
+          : 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+      }
+    >
       {tiles.map((tile) => (
         <Link
           key={tile.href}
           href={tile.href}
           prefetch={false}
           onClick={onNavigate}
-          className={`relative flex shrink-0 flex-col items-center rounded-2xl ${tile.tileClass} text-white hover:brightness-110 ${sizeClass}`}
+          className={`relative flex w-full flex-col items-center rounded-2xl shadow-md ${tile.tileClass} text-white hover:brightness-110 ${sizeClass}`}
         >
           <span className="mt-6 flex h-9 items-center justify-center">
             <TileIcon tile={tile} />
           </span>
-          <span className="mt-auto mb-2.5 px-2 text-center font-semibold leading-tight">{tile.label}</span>
+          <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
+            {tile.label}
+          </span>
         </Link>
       ))}
     </div>
