@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
@@ -411,25 +412,11 @@ export default function InvoicesPage() {
           </div>
           <div className="flex gap-4">
             <button
-              onClick={() => router.push('/fuel-payments/monthly-report')}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
-              title="Monthly Payment Report"
-            >
-              📄 Reports
-            </button>
-            <button
               onClick={() => setShowBalanceModal(true)}
               className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
               title="Quick Balance Entry"
             >
-              💵 Balance
-            </button>
-            <button
-              onClick={() => router.push('/fuel-payments/batches')}
-              className="px-4 py-2 bg-slate-600 text-white rounded font-semibold hover:bg-slate-700"
-              title="Payment Batches"
-            >
-              Batches
+              Balance
             </button>
             {activeTab === 'pending' && (
               <button
@@ -495,16 +482,20 @@ export default function InvoicesPage() {
               </span>
             </div>
             {balance.uncashedChecksTotal > 0 && (
-              <div className="mt-1 mb-4 inline-flex flex-wrap items-baseline gap-3 px-3 text-sm text-gray-700 opacity-30">
-                <span
-                  className="font-semibold text-amber-700"
+              <div className="mt-1 mb-4 inline-flex flex-wrap items-baseline gap-3 px-3 text-sm text-gray-700">
+                <Link
+                  href="/vendor-payments/uncashed-checks"
+                  className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
                   title="Total of vendor checks issued but not yet cleared by the bank"
                 >
                   Uncashed:
-                </span>
-                <span className="text-amber-700">
+                </Link>
+                <Link
+                  href="/vendor-payments/uncashed-checks"
+                  className="text-amber-700 hover:underline"
+                >
                   {formatAmount(balance.uncashedChecksTotal)}
-                </span>
+                </Link>
                 <span className="text-gray-400">|</span>
                 <span
                   className="font-semibold"

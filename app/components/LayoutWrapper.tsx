@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import AppNav from './AppNav'
+import AppUtilityBar from './AppUtilityBar'
 import { useAuth } from './AuthContext'
 import {
   ATTENDANCE_VIEWER_PATH,
@@ -10,9 +12,9 @@ import {
 import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH } from '@/lib/scans-mobile'
-import { formatAppUserDisplayName } from '@/lib/roles'
 import OperationsChecklistPanel from './OperationsChecklistPanel'
 import RentDueBanner from './RentDueBanner'
+import { recordShortcutVisit } from '@/lib/home-shortcuts'
 
 export default function LayoutWrapper({
   children
@@ -20,7 +22,7 @@ export default function LayoutWrapper({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { user, loading, logout } = useAuth()
+  const { user, loading } = useAuth()
   const isApplyRoute = pathname?.startsWith('/apply')
   const isAuthRoute =
     pathname === '/login' ||
@@ -33,6 +35,13 @@ export default function LayoutWrapper({
     pathname === SCANS_MOBILE_PATH ||
     pathname === MANAGER_HUB_PATH
 
+  useEffect(() => {
+    if (!pathname || isApplyRoute || isAuthRoute || isMinimalMobileShell) return
+    if (!user) return
+    recordShortcutVisit(pathname)
+    window.dispatchEvent(new Event('shift-close-shortcuts-changed'))
+  }, [pathname, user, isApplyRoute, isAuthRoute, isMinimalMobileShell])
+
   if (isApplyRoute || isAuthRoute || isMinimalMobileShell) {
     return <>{children}</>
   }
@@ -42,23 +51,7 @@ export default function LayoutWrapper({
       <AppNav />
       <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
         <RentDueBanner />
-        {!loading && user && (
-          <header className="flex h-11 shrink-0 items-center justify-end gap-3 border-b border-gray-200 bg-white px-3 sm:px-4">
-            <span className="truncate text-sm text-gray-700 max-w-[60vw] sm:max-w-md" title={user.email}>
-              {formatAppUserDisplayName(user)}
-              <span className="ml-2 text-xs text-gray-500 capitalize hidden sm:inline">
-                ({user.role.replace(/_/g, ' ')})
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="flex-shrink-0 rounded-md px-2 py-1 text-sm font-medium text-blue-600 hover:bg-blue-50 hover:underline"
-            >
-              Log out
-            </button>
-          </header>
-        )}
+        {!loading && user ? <AppUtilityBar /> : null}
         <main className="min-h-0 flex-1 min-w-0 overflow-y-auto">{children}</main>
         <OperationsChecklistPanel />
       </div>

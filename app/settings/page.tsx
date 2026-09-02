@@ -80,6 +80,13 @@ export default function SettingsPage() {
       route: '/settings/roster'
     },
     {
+      id: 'staff-roles',
+      title: 'Staff roles',
+      description: 'Manage roles for staff (e.g. Cashier, Pump Attendant, Supervisor).',
+      icon: '🏷️',
+      route: '/settings/staff-roles'
+    },
+    {
       id: 'vendor-vat',
       title: 'Vendor VAT rate',
       description:

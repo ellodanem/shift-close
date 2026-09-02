@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext'
 import { ATTENDANCE_VIEWER_PATH, canAccessAttendanceViewer } from '@/lib/attendance-viewer'
 import { MANAGER_HUB_PATH, canAccessManagerHub } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
+import { SCANS_MOBILE_PATH, canAccessScansMobile } from '@/lib/scans-mobile'
 import {
   formatAppUserDisplayName,
   isOperationsManagerRole,
@@ -32,10 +33,12 @@ type NavGroupConfig = {
 // Nav config - permission-ready for future role-based access
 const navConfig: NavGroupConfig[] = [
   {
+    label: 'Home',
+    items: [{ label: 'Home', href: '/dashboard', permission: 'dashboard' }],
+  },
+  {
     label: 'Operations',
     items: [
-      { label: 'Dashboard', href: '/dashboard', permission: 'dashboard' },
-      { label: 'Manager hub', href: MANAGER_HUB_PATH, permission: 'operations.managerHub' },
       { label: 'Shifts', href: '/shifts', permission: 'shifts' },
       { label: 'End of Day', href: '/days', permission: 'days' },
     ],
@@ -44,12 +47,6 @@ const navConfig: NavGroupConfig[] = [
     label: 'Financial',
     items: [
       { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook' },
-      {
-        label: 'Deposit comparisons',
-        href: '/financial/deposit-comparisons',
-        permission: 'financial.depositComparisons'
-      },
-      { label: 'Financial Report', href: '/reports/financial', permission: 'financial.report' },
       { label: 'Customer Accounts', href: '/customer-accounts', permission: 'financial.accounts' },
       { label: 'Fuel Payments', href: '/fuel-payments', permission: 'financial.fuel' },
       { label: 'Vendor Payments', href: '/vendor-payments', permission: 'financial.vendor' },
@@ -57,11 +54,7 @@ const navConfig: NavGroupConfig[] = [
   },
   {
     label: 'Reports',
-    items: [
-      { label: 'Reports Center', href: '/reports', permission: 'reports.center' },
-      { label: 'Monthly Report', href: '/reports/monthly', permission: 'reports.monthly' },
-      { label: 'Daily Financial Summary', href: '/reports/daily-financial-summary', permission: 'reports.daily' },
-    ],
+    items: [{ label: 'Reports Center', href: '/reports', permission: 'reports.center' }],
   },
   {
     label: 'People',
@@ -70,26 +63,25 @@ const navConfig: NavGroupConfig[] = [
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
       { label: 'Time Off', href: '/time-off', permission: 'people.attendance' },
-      { label: 'Shift Presets', href: '/roster/templates', permission: 'people.roster' },
       { label: 'Applications', href: '/applications', permission: 'people.applications' },
     ],
   },
   {
     label: 'Mobile',
     items: [
+      { label: 'Manager hub', href: MANAGER_HUB_PATH, permission: 'operations.managerHub' },
       { label: 'Roster (mobile)', href: ROSTER_MOBILE_PATH, permission: 'mobile.roster' },
       {
         label: 'Attendance viewer',
         href: ATTENDANCE_VIEWER_PATH,
         permission: 'mobile.attendanceViewer'
-      }
+      },
+      { label: 'Debit scans', href: SCANS_MOBILE_PATH, permission: 'mobile.scans' }
     ]
   },
   {
-    label: 'Settings',
-    items: [
-      { label: 'Settings', href: '/settings', permission: 'settings' },
-    ],
+    label: 'Setup',
+    items: [{ label: 'Settings', href: '/settings', permission: 'settings' }],
   },
 ]
 
@@ -190,6 +182,7 @@ function isPathActive(pathname: string, href: string): boolean {
   if (href === MANAGER_HUB_PATH) return pathname === MANAGER_HUB_PATH
   if (href === ATTENDANCE_VIEWER_PATH) return pathname === ATTENDANCE_VIEWER_PATH
   if (href === ROSTER_MOBILE_PATH) return pathname === ROSTER_MOBILE_PATH
+  if (href === SCANS_MOBILE_PATH) return pathname === SCANS_MOBILE_PATH
   if (href === '/time-off') return pathname === '/time-off' || pathname.startsWith('/time-off/')
   if (href === '/call-outs') return pathname === '/call-outs' || pathname.startsWith('/call-outs/')
   if (href === '/attendance') {
@@ -209,6 +202,7 @@ function navItemVisibleForRole(href: string, role: string): boolean {
   if (href === MANAGER_HUB_PATH) return canAccessManagerHub(role)
   if (href === ATTENDANCE_VIEWER_PATH) return canAccessAttendanceViewer(role)
   if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
+  if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'stakeholder') {
     return (
@@ -237,7 +231,7 @@ function navItemVisibleForRole(href: string, role: string): boolean {
 
 export default function AppNav() {
   const pathname = usePathname()
-  const { user, logout, canManageUsers } = useAuth()
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   /** Must match SSR (false) on first paint — reading localStorage in useState breaks hydration. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -288,7 +282,9 @@ export default function AppNav() {
       .filter((g) => g.items.length > 0)
 
     if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)) {
-      groups.splice(1, 0, {
+      const opsIdx = groups.findIndex((g) => g.label === 'Operations')
+      const insertAt = opsIdx >= 0 ? opsIdx + 1 : 1
+      groups.splice(insertAt, 0, {
         label: 'Insights',
         items: [
           { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
@@ -297,21 +293,8 @@ export default function AppNav() {
       })
     }
 
-    if (canManageUsers) {
-      const si = groups.findIndex((g) => g.label === 'Settings')
-      if (si >= 0) {
-        groups[si] = {
-          ...groups[si],
-          items: [
-            ...groups[si].items,
-            { label: 'User accounts', href: '/settings/users', permission: 'settings.users' }
-          ]
-        }
-      }
-    }
-
     return groups
-  }, [role, canManageUsers])
+  }, [role])
 
   const sidebar = (
     <nav className={`flex h-full min-h-0 flex-col bg-slate-900 text-white shadow-lg shadow-slate-950/30 shrink-0 transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-[85vw] max-w-72 lg:w-64'}`}>

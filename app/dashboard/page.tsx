@@ -19,6 +19,7 @@ import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
+import HomeShortcutStrip from '@/app/components/HomeShortcutStrip'
 
 type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
 
@@ -1080,8 +1081,13 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Dashboard</h1>
-          <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
+          <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Home</h1>
+          <p className="mt-1 text-sm text-slate-500">Shortcuts stay on top. Dashboard insights stay below.</p>
+        </div>
+        <HomeShortcutStrip />
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Dashboard</h2>
+        <div className="mb-6">
+          <div className="mt-0 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => {

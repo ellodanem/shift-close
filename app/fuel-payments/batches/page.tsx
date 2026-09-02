@@ -128,14 +128,6 @@ export default function BatchesPage() {
               Manage fuel payment batches and invoices
             </p>
           </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/fuel-payments/invoices')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-            >
-              ← Back to Invoices
-            </button>
-          </div>
         </div>
 
         {/* Filters + search + summary */}

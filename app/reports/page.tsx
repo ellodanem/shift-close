@@ -84,6 +84,22 @@ export default function ReportsPage() {
       route: '/vendor-payments/monthly-report'
     },
     {
+      id: 'fuel-monthly',
+      title: 'Fuel Monthly Report',
+      description: 'Fuel invoice payments grouped by month',
+      icon: '⛽',
+      comingSoon: false,
+      route: '/fuel-payments/monthly-report'
+    },
+    {
+      id: 'pay-period',
+      title: 'Pay Period Report',
+      description: 'Attendance hours and pay-period totals',
+      icon: '⏱️',
+      comingSoon: false,
+      route: '/attendance/pay-period'
+    },
+    {
       id: 'deposit',
       title: 'Deposit Reports',
       description: 'Deposit patterns, totals, and analysis',

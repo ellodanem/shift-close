@@ -135,10 +135,10 @@ export default function StaffRolesPage() {
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/settings')}
               className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
             >
-              Dashboard
+              Settings
             </button>
             <button
               onClick={() => router.push('/staff')}

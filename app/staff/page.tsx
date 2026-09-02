@@ -264,12 +264,20 @@ export default function StaffPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
-          <button
-            onClick={() => router.push('/staff/new')}
-            className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
-          >
-            Add Staff Member
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push('/settings/staff-roles')}
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50"
+            >
+              Staff roles
+            </button>
+            <button
+              onClick={() => router.push('/staff/new')}
+              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+            >
+              Add Staff Member
+            </button>
+          </div>
         </div>
 
         {/* Active staff */}

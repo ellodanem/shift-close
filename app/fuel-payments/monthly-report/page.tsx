@@ -1,12 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { GroupedReport } from '@/lib/fuelPayments'
 import { padInvoiceNumber, formatAmount, formatDate } from '@/lib/fuelPayments'
 
 export default function MonthlyFuelPaymentReportPage() {
-  const router = useRouter()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1
   
@@ -127,18 +125,6 @@ export default function MonthlyFuelPaymentReportPage() {
         <div className="flex justify-between items-center mb-6 no-print">
           <h1 className="text-3xl font-bold text-gray-900">Monthly Fuel Payment Report</h1>
           <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/fuel-payments')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              🏠 Dashboard
-            </button>
-            <button
-              onClick={() => router.push('/fuel-payments/invoices')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
-            >
-              ← Invoices
-            </button>
             <button
               onClick={handlePrint}
               className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
