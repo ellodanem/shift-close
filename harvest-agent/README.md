@@ -49,6 +49,14 @@ One-off test:
 npm run once
 ```
 
+First customer (this month, Details), then import into Shift Close:
+
+```
+npm run customer-one
+```
+
+Stop the keep-alive agent first so Chrome is not using the same profile.
+
 ## Status
 
 In Shift Close: **Settings → Harvest agent**

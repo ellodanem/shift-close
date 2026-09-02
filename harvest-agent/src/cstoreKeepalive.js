@@ -55,67 +55,75 @@ async function launchContext(config) {
   }
 }
 
+async function ensureLoggedIn(page, config) {
+  await page.goto(config.cstoreUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  })
+  await new Promise((r) => setTimeout(r, 1500))
+
+  let ok = await pageLooksLoggedIn(page)
+  let loginRequired = false
+  if (!ok) {
+    loginRequired = true
+    if (!config.headed) {
+      return {
+        ok: false,
+        loginRequired: true,
+        url: page.url(),
+        message:
+          'Cstore login required. Run with headed: true once and sign in, then leave the agent running.'
+      }
+    }
+    console.log(
+      `[Cstore] Login required — sign in in the browser window (${Math.round(config.loginWaitMs / 1000)}s)`
+    )
+    const deadline = Date.now() + config.loginWaitMs
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000))
+      ok = await pageLooksLoggedIn(page)
+      if (ok) {
+        loginRequired = false
+        break
+      }
+    }
+  }
+
+  if (!ok) {
+    return {
+      ok: false,
+      loginRequired,
+      url: page.url(),
+      message: loginRequired
+        ? 'Cstore login was not completed in time'
+        : 'Cstore dashboard was not detected'
+    }
+  }
+
+  return {
+    ok: true,
+    loginRequired: false,
+    url: page.url(),
+    message: 'Cstore session is active'
+  }
+}
+
 async function runCstoreKeepalive(config) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
 
   const context = await launchContext(config)
-
   const page = context.pages()[0] || (await context.newPage())
-  let loginRequired = false
 
   try {
-    await page.goto(config.cstoreUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60_000
-    })
-    await new Promise((r) => setTimeout(r, 1500))
-
-    let ok = await pageLooksLoggedIn(page)
-    if (!ok) {
-      loginRequired = true
-      if (!config.headed) {
-        return {
-          ok: false,
-          loginRequired: true,
-          url: page.url(),
-          message:
-            'Cstore login required. Run with headed: true once and sign in, then leave the agent running.'
-        }
-      }
-      console.log(
-        `[Cstore] Login required — sign in in the browser window (${Math.round(config.loginWaitMs / 1000)}s)`
-      )
-      const deadline = Date.now() + config.loginWaitMs
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 3000))
-        ok = await pageLooksLoggedIn(page)
-        if (ok) {
-          loginRequired = false
-          break
-        }
-      }
-    }
-
-    if (!ok) {
-      return {
-        ok: false,
-        loginRequired,
-        url: page.url(),
-        message: loginRequired
-          ? 'Cstore login was not completed in time'
-          : 'Cstore dashboard was not detected'
-      }
-    }
-
-    return {
-      ok: true,
-      loginRequired: false,
-      url: page.url(),
-      message: 'Cstore session is active'
-    }
+    return await ensureLoggedIn(page, config)
   } finally {
     await context.close()
   }
 }
 
-module.exports = { runCstoreKeepalive, pageLooksLoggedIn }
+module.exports = {
+  runCstoreKeepalive,
+  pageLooksLoggedIn,
+  launchContext,
+  ensureLoggedIn
+}

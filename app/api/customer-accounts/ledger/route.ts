@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
-import {
-  creditReportToLedgerEntries,
-  parseCustomerCreditReportHtml
-} from '@/lib/parse-customer-credit-report'
-import {
-  fetchAccountLedgerView,
-  upsertAccountSnapshotFromLedgerSummary
-} from '@/lib/customer-ar-ledger'
-import { upsertCustomerArSummaryRow } from '@/lib/customer-ar-summary-upsert'
+import { importCstoreCreditReport } from '@/lib/customer-ar-cstore-import'
+import { fetchAccountLedgerView } from '@/lib/customer-ar-ledger'
 
 // GET /api/customer-accounts/ledger?account=&startDate=&endDate=&opening?
 export async function GET(request: NextRequest) {
@@ -59,8 +52,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    if (body?.importType === 'cstore' || Array.isArray(body?.entries)) {
-      return handleCstoreImport(body)
+    if (body?.importType === 'cstore' || Array.isArray(body?.entries) || body?.html) {
+      const result = await importCstoreCreditReport(body)
+      if ('error' in result && result.error) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+      return NextResponse.json(
+        { imported: result.imported, opening: result.opening, view: result.view, empty: result.empty },
+        { status: result.status }
+      )
     }
 
     const { account, date, lineType, amount, memo, paymentMethod, ref } = body || {}
@@ -118,127 +118,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-async function handleCstoreImport(body: {
-  account?: string
-  year?: number
-  month?: number
-  opening?: number
-  entries?: Array<{
-    date: string
-    lineType: 'charge' | 'payment'
-    amount: number
-    memo?: string
-    sortOrder?: number
-  }>
-  html?: string
-  updateSnapshot?: boolean
-}) {
-  const account = body.account?.trim()
-  const year = Number(body.year)
-  const month = Number(body.month)
-
-  if (!account || Number.isNaN(year) || Number.isNaN(month)) {
-    return NextResponse.json(
-      { error: 'account, year, and month are required for import' },
-      { status: 400 }
-    )
-  }
-
-  let opening = Number(body.opening ?? 0)
-  let entries = body.entries
-
-  if (body.html && typeof body.html === 'string') {
-    const parsed = parseCustomerCreditReportHtml(body.html)
-    opening = parsed.opening
-    entries = creditReportToLedgerEntries(parsed).map((e) => ({
-      date: e.date,
-      lineType: e.lineType,
-      amount: e.amount,
-      memo: e.memo,
-      sortOrder: e.sortOrder
-    }))
-
-    if (body.updateSnapshot !== false) {
-      await upsertAccountSnapshotFromLedgerSummary(
-        account,
-        year,
-        month,
-        parsed.opening,
-        parsed.summary.totalCharges,
-        parsed.summary.totalPayments,
-        parsed.summary.closing
-      )
-
-      const allSnaps = await prisma.customerArAccountSnapshot.findMany({
-        where: { year, month }
-      })
-      const aggregates = allSnaps.reduce(
-        (acc, r) => {
-          acc.opening += r.opening
-          acc.charges += r.charges
-          acc.payments += r.payments
-          acc.closing += r.closing
-          return acc
-        },
-        { opening: 0, charges: 0, payments: 0, closing: 0 }
-      )
-      await upsertCustomerArSummaryRow({
-        year,
-        month,
-        opening: aggregates.opening,
-        charges: aggregates.charges,
-        payments: aggregates.payments,
-        closing: aggregates.closing
-      })
-    }
-  }
-
-  if (!entries?.length) {
-    return NextResponse.json(
-      { error: 'No ledger entries to import' },
-      { status: 400 }
-    )
-  }
-
-  const dates = entries.map((e) => e.date).sort()
-  const startDate = dates[0]
-  const endDate = dates[dates.length - 1]
-
-  await prisma.customerArLedgerLine.deleteMany({
-    where: {
-      account: { equals: account, mode: 'insensitive' },
-      source: 'cstore_import',
-      date: { gte: startDate, lte: endDate }
-    }
-  })
-
-  await prisma.customerArLedgerLine.createMany({
-    data: entries.map((e, i) => ({
-      account,
-      date: e.date,
-      lineType: e.lineType,
-      amount: roundMoney(Number(e.amount)),
-      memo: e.memo?.trim() || null,
-      source: 'cstore_import',
-      sortOrder: e.sortOrder ?? i
-    }))
-  })
-
-  const start = `${year}-${String(month).padStart(2, '0')}-01`
-  const lastDay = new Date(year, month, 0).getDate()
-  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-  const view = await fetchAccountLedgerView({
-    account,
-    startDate: start,
-    endDate: end,
-    openingOverride: opening
-  })
-
-  return NextResponse.json(
-    { imported: entries.length, opening, view },
-    { status: 201 }
-  )
 }

@@ -51,4 +51,11 @@ async function sendTask(config, task) {
   })
 }
 
-module.exports = { sendHeartbeat, sendTask, identity }
+async function sendCustomerCreditImport(config, body) {
+  return postJson(config, '/api/harvest-agent/import/customer-credit-report', {
+    ...identity(config),
+    ...body
+  })
+}
+
+module.exports = { sendHeartbeat, sendTask, sendCustomerCreditImport, identity }
