@@ -13,6 +13,8 @@ import {
 import type { ShiftType } from '@/lib/types'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 import { MAX_DEPOSIT_BAGS, normalizeBagNumbers, parseBagNumbers, parseDeposits } from '@/lib/deposit-comparison-rows'
+import ShiftCountSystemGrid from '../ShiftCountSystemGrid'
+import { buildCountSystemRows, correctionHighlights } from '@/lib/shift-count-system-rows'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -351,9 +353,42 @@ export default function ShiftDetailPage() {
     }
   }, [shift?.corrections])
 
+  const countSystemGrid = useMemo(() => {
+    if (!shift) {
+      return {
+        rows: [],
+        summary: { countTotal: 0, systemTotal: 0, overShortTotal: 0 }
+      }
+    }
+    const editable = shift.status === 'draft' || shift.status === 'reopened'
+    const isDraftStatus = shift.status === 'draft'
+    const highlights =
+      !isDraftStatus && changedFields.size > 0 ? correctionHighlights(changedFields) : undefined
+
+    if (editable) {
+      const n = (v: number) => (Number.isNaN(v) ? 0 : v)
+      return buildCountSystemRows(editData, {
+        overShortCash: n(editData.countCash) - n(editData.systemCash),
+        checksOverShort: n(editData.countChecks) - n(editData.systemChecks),
+        overShortTotal:
+          n(editData.countCash) +
+          n(editData.countChecks) -
+          (n(editData.systemCash) + n(editData.systemChecks)),
+        highlights
+      })
+    }
+
+    return buildCountSystemRows(shift, {
+      overShortCash: shift.overShortCash || 0,
+      checksOverShort: (shift.overShortTotal || 0) - (shift.overShortCash || 0),
+      overShortTotal: shift.overShortTotal || 0,
+      highlights
+    })
+  }, [shift, editData, changedFields])
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
@@ -361,7 +396,7 @@ export default function ShiftDetailPage() {
   
   if (!shift) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 px-4 py-8 sm:p-8">
         <div className="max-w-4xl mx-auto">
           <p className="text-red-600">Shift not found</p>
           <button
@@ -457,7 +492,7 @@ export default function ShiftDetailPage() {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       {/* Close Confirmation Modal */}
       {showCloseConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -484,16 +519,16 @@ export default function ShiftDetailPage() {
         </div>
       )}
       
-      <div className="max-w-4xl mx-auto bg-white shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mx-auto max-w-4xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
             END OF SHIFT{" "}
             {isDraft && <span className="text-yellow-600 text-lg">(DRAFT - Editable)</span>}
             {isReopened && !isDraft && (
               <span className="text-orange-600 text-lg ml-2">(REOPENED - Audited Changes)</span>
             )}
           </h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {isDraft ? (
               <>
                 <button
@@ -644,7 +679,7 @@ export default function ShiftDetailPage() {
         )}
         
         {/* Header */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               {isEditable ? (
@@ -700,341 +735,19 @@ export default function ShiftDetailPage() {
           </div>
         </div>
         
-        {/* Main Table */}
-        <div className="overflow-x-auto mb-6">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="bg-blue-100 border border-gray-300 px-4 py-2 text-left">Description</th>
-                <th className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right">Count</th>
-                <th className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right">System</th>
-                <th className="bg-black text-white border border-gray-300 px-4 py-2 text-right">Over/Short</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">Cash</td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('countCash') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countCash) ? '' : editData.countCash}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countCash: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    <div className="w-full text-right bg-transparent">
-                      {shift.countCash.toFixed(2)}
-                    </div>
-                  )}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('systemCash') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemCash) ? '' : editData.systemCash}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemCash: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    <div className="w-full text-right bg-transparent">
-                      {shift.systemCash.toFixed(2)}
-                    </div>
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isDraft ? (
-                    ((Number.isNaN(editData.countCash) ? 0 : editData.countCash) - (Number.isNaN(editData.systemCash) ? 0 : editData.systemCash)).toFixed(2)
-                  ) : (
-                    (shift.overShortCash || 0).toFixed(2)
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">Checks</td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countChecks) ? '' : editData.countChecks}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countChecks: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.countChecks.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemChecks) ? '' : editData.systemChecks}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemChecks: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.systemChecks.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isEditable ? (
-                    ((Number.isNaN(editData.countChecks) ? 0 : editData.countChecks) - (Number.isNaN(editData.systemChecks) ? 0 : editData.systemChecks)).toFixed(2)
-                  ) : (
-                    ((shift.overShortTotal || 0) - (shift.overShortCash || 0)).toFixed(2)
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">Credits</td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countCredit) ? '' : editData.countCredit}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countCredit: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.countCredit.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemCredit) ? '' : editData.systemCredit}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemCredit: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.systemCredit.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isEditable ? (
-                    ((Number.isNaN(editData.countCredit) ? 0 : editData.countCredit) - (Number.isNaN(editData.systemCredit) ? 0 : editData.systemCredit)).toFixed(2)
-                  ) : (
-                    (shift.countCredit - shift.systemCredit).toFixed(2)
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">In-House</td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('countInhouse') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countInhouse) ? '' : editData.countInhouse}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countInhouse: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.countInhouse.toFixed(2)
-                  )}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('systemInhouse') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemInhouse) ? '' : editData.systemInhouse}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemInhouse: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.systemInhouse.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isEditable ? (
-                    ((Number.isNaN(editData.countInhouse) ? 0 : editData.countInhouse) - (Number.isNaN(editData.systemInhouse) ? 0 : editData.systemInhouse)).toFixed(2)
-                  ) : (
-                    (shift.countInhouse - shift.systemInhouse).toFixed(2)
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">Fleets</td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('countFleet') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countFleet) ? '' : editData.countFleet}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countFleet: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.countFleet.toFixed(2)
-                  )}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('systemFleet') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemFleet) ? '' : editData.systemFleet}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemFleet: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.systemFleet.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isEditable ? (
-                    ((Number.isNaN(editData.countFleet) ? 0 : editData.countFleet) - (Number.isNaN(editData.systemFleet) ? 0 : editData.systemFleet)).toFixed(2)
-                  ) : (
-                    (shift.countFleet - shift.systemFleet).toFixed(2)
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2">Massy Coupons</td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('countMassyCoupons') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.countMassyCoupons) ? '' : editData.countMassyCoupons}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, countMassyCoupons: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.countMassyCoupons.toFixed(2)
-                  )}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-right ${
-                  !isDraft && changedFields.has('systemMassyCoupons') ? 'bg-blue-50' : ''
-                }`}>
-                  {isEditable ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(editData.systemMassyCoupons) ? '' : editData.systemMassyCoupons}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setEditData({ ...editData, systemMassyCoupons: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  ) : (
-                    shift.systemMassyCoupons.toFixed(2)
-                  )}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isEditable ? (
-                    ((Number.isNaN(editData.countMassyCoupons) ? 0 : editData.countMassyCoupons) - (Number.isNaN(editData.systemMassyCoupons) ? 0 : editData.systemMassyCoupons)).toFixed(2)
-                  ) : (
-                    (shift.countMassyCoupons - shift.systemMassyCoupons).toFixed(2)
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Count (Cash+Check) Summary */}
-        <div className="mt-4 overflow-x-auto mb-6">
-          <table className="w-full border-collapse">
-            <tbody>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 font-semibold">Count (Cash+Check)</td>
-                <td className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isDraft ? (
-                    ((Number.isNaN(editData.countCash) ? 0 : editData.countCash) + (Number.isNaN(editData.countChecks) ? 0 : editData.countChecks)).toFixed(2)
-                  ) : (
-                    (shift.countCash + shift.countChecks).toFixed(2)
-                  )}
-                </td>
-                <td className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isDraft ? (
-                    ((Number.isNaN(editData.systemCash) ? 0 : editData.systemCash) + (Number.isNaN(editData.systemChecks) ? 0 : editData.systemChecks)).toFixed(2)
-                  ) : (
-                    (shift.systemCash + shift.systemChecks).toFixed(2)
-                  )}
-                </td>
-                <td className="bg-black text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                  {isDraft ? (
-                    (((Number.isNaN(editData.countCash) ? 0 : editData.countCash) + (Number.isNaN(editData.countChecks) ? 0 : editData.countChecks)) - 
-                     ((Number.isNaN(editData.systemCash) ? 0 : editData.systemCash) + (Number.isNaN(editData.systemChecks) ? 0 : editData.systemChecks))).toFixed(2)
-                  ) : (
-                    (shift.overShortTotal || 0).toFixed(2)
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <ShiftCountSystemGrid
+          rows={countSystemGrid.rows}
+          summary={countSystemGrid.summary}
+          editable={isEditable}
+          onFieldChange={
+            isEditable
+              ? (field, value) => setEditData({ ...editData, [field]: value })
+              : undefined
+          }
+        />
         
         {/* Two Column Layout */}
-        <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           {/* Left: Deposits */}
           <div>
             <h3 className="bg-blue-100 px-4 py-2 font-semibold mb-2">Deposits</h3>
@@ -1043,9 +756,9 @@ export default function ShiftDetailPage() {
               return (
                 <div
                   key={index}
-                  className={`mb-2 ${isChangedDeposit ? 'bg-blue-50 rounded' : ''}`}
+                  className={`mb-2 flex flex-col gap-1 sm:flex-row sm:items-center ${isChangedDeposit ? 'bg-blue-50 rounded' : ''}`}
                 >
-                  <label className="bg-blue-200 px-4 py-2 min-w-[100px] inline-block">Deposit {index + 1}</label>
+                  <label className="inline-block min-w-[100px] bg-blue-200 px-4 py-2">Deposit {index + 1}</label>
                   {isEditable ? (
                     <input
                       type="number"
@@ -1060,10 +773,10 @@ export default function ShiftDetailPage() {
                         newDeposits[index] = v === '' || Number.isNaN(n) ? 0 : n
                         setEditData({ ...editData, deposits: newDeposits })
                       }}
-                      className="ml-2 border border-gray-300 rounded px-2 py-1 w-32 text-right bg-white"
+                      className="w-full border border-gray-300 rounded px-2 py-2 text-right bg-white sm:ml-2 sm:w-32"
                     />
                   ) : (
-                    <span className="ml-2 px-2 py-1 inline-block">
+                    <span className="px-2 py-1 sm:ml-2">
                       {deposit.toFixed(2)}
                     </span>
                   )}

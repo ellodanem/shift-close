@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ShiftType, ShiftCloseInput, ShiftStatus } from '@/lib/types'
 import { calculateShiftClose, getMissingFields, canCloseShift } from '@/lib/calculations'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 import { MAX_DEPOSIT_BAGS, normalizeBagNumbers } from '@/lib/deposit-comparison-rows'
+import ShiftCountSystemGrid from '../ShiftCountSystemGrid'
+import { buildCountSystemRows } from '@/lib/shift-count-system-rows'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
@@ -149,6 +151,15 @@ export default function NewShiftPage() {
   }, [formData])
   
   const calculated = calculateShiftClose(formData)
+  const countSystemGrid = useMemo(
+    () =>
+      buildCountSystemRows(formData, {
+        overShortCash: calculated.overShortCash,
+        checksOverShort: (calculated.overShortTotal || 0) - (calculated.overShortCash || 0),
+        overShortTotal: calculated.overShortTotal
+      }),
+    [formData, calculated.overShortCash, calculated.overShortTotal]
+  )
   const hasRedFlag = calculated.hasRedFlag
   
   // Check if shift can be closed (validation)
@@ -304,10 +315,10 @@ export default function NewShiftPage() {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto bg-white shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">END OF SHIFT</h1>
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-4xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">END OF SHIFT</h1>
           {hasDraft && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">💾 Draft saved</span>
@@ -344,7 +355,7 @@ export default function NewShiftPage() {
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Header */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
@@ -424,242 +435,21 @@ export default function NewShiftPage() {
             </div>
           </div>
           
-          {/* Main Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="bg-blue-100 border border-gray-300 px-4 py-2 text-left">Description</th>
-                  <th className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right">Count</th>
-                  <th className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right">System</th>
-                  <th className="bg-black text-white border border-gray-300 px-4 py-2 text-right">Over/Short</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">Cash</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countCash) ? '' : formData.countCash}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countCash: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemCash) ? '' : formData.systemCash}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemCash: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {calculated.overShortCash.toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">Checks</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countChecks) ? '' : formData.countChecks}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countChecks: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemChecks) ? '' : formData.systemChecks}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemChecks: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((calculated.overShortTotal || 0) - (calculated.overShortCash || 0)).toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">Credits</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countCredit) ? '' : formData.countCredit}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countCredit: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemCredit) ? '' : formData.systemCredit}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemCredit: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.countCredit) ? 0 : formData.countCredit) - (Number.isNaN(formData.systemCredit) ? 0 : formData.systemCredit)).toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">In-House</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countInhouse) ? '' : formData.countInhouse}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countInhouse: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemInhouse) ? '' : formData.systemInhouse}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemInhouse: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.countInhouse) ? 0 : formData.countInhouse) - (Number.isNaN(formData.systemInhouse) ? 0 : formData.systemInhouse)).toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">Fleets</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countFleet) ? '' : formData.countFleet}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countFleet: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemFleet) ? '' : formData.systemFleet}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemFleet: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.countFleet) ? 0 : formData.countFleet) - (Number.isNaN(formData.systemFleet) ? 0 : formData.systemFleet)).toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2">Massy Coupons</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.countMassyCoupons) ? '' : formData.countMassyCoupons}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, countMassyCoupons: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number.isNaN(formData.systemMassyCoupons) ? '' : formData.systemMassyCoupons}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const n = parseFloat(v)
-                        setFormData({ ...formData, systemMassyCoupons: v === '' || Number.isNaN(n) ? (Number.NaN as any) : n })
-                      }}
-                      className="w-full text-right border-0 focus:outline-none"
-                    />
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.countMassyCoupons) ? 0 : formData.countMassyCoupons) - (Number.isNaN(formData.systemMassyCoupons) ? 0 : formData.systemMassyCoupons)).toFixed(2)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Count (Cash+Check) Summary */}
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse">
-              <tbody>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2 font-semibold">Count (Cash+Check)</td>
-                  <td className="bg-blue-600 text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.countCash) ? 0 : formData.countCash) + (Number.isNaN(formData.countChecks) ? 0 : formData.countChecks)).toFixed(2)}
-                  </td>
-                  <td className="bg-red-500 text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {((Number.isNaN(formData.systemCash) ? 0 : formData.systemCash) + (Number.isNaN(formData.systemChecks) ? 0 : formData.systemChecks)).toFixed(2)}
-                  </td>
-                  <td className="bg-black text-white border border-gray-300 px-4 py-2 text-right font-semibold">
-                    {calculated.overShortTotal.toFixed(2)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <ShiftCountSystemGrid
+            rows={countSystemGrid.rows}
+            summary={countSystemGrid.summary}
+            editable
+            onFieldChange={(field, value) => setFormData({ ...formData, [field]: value })}
+          />
           
           {/* Two Column Layout */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {/* Left: Deposits */}
             <div>
               <h3 className="bg-blue-100 px-4 py-2 font-semibold mb-2">Deposits</h3>
               {formData.deposits.map((deposit, index) => (
-                <div key={index} className="flex gap-2 mb-2">
-                  <label className="bg-blue-200 px-4 py-2 min-w-[100px]">Deposit {index + 1}</label>
+                <div key={index} className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                  <label className="min-w-[100px] bg-blue-200 px-4 py-2">Deposit {index + 1}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -669,14 +459,14 @@ export default function NewShiftPage() {
                       const n = parseFloat(v)
                       updateDeposit(index, v === '' || Number.isNaN(n) ? (Number.NaN as any) : n)
                     }}
-                    className="flex-1 border border-gray-300 rounded px-3 py-2"
+                    className="w-full flex-1 border border-gray-300 rounded px-3 py-2 text-right"
                     placeholder="Enter amount"
                   />
                   {formData.deposits.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeDeposit(index)}
-                      className="px-3 py-2 bg-red-500 text-white rounded"
+                      className="px-3 py-2 bg-red-500 text-white rounded sm:shrink-0"
                     >
                       ×
                     </button>
