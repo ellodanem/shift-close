@@ -31,6 +31,13 @@ type Promotion = {
   draws: Draw[]
 }
 
+const fieldClass =
+  'min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 text-base sm:min-h-0 sm:text-sm'
+const btnPrimary =
+  'min-h-[44px] w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:w-auto sm:min-h-0'
+const btnSecondary =
+  'min-h-[44px] w-full rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50 sm:w-auto sm:min-h-0'
+
 function formatDrawDate(ymd: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
   if (!m) return ymd
@@ -52,6 +59,7 @@ export default function PromotionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const [name, setName] = useState('')
   const [details, setDetails] = useState('')
@@ -222,7 +230,7 @@ export default function PromotionDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-full bg-gray-50 p-6">
+      <div className="min-h-full bg-gray-50 px-4 py-4 sm:p-6">
         <p className="text-sm text-gray-500">Loading…</p>
       </div>
     )
@@ -230,12 +238,12 @@ export default function PromotionDetailPage() {
 
   if (!promotion) {
     return (
-      <div className="min-h-full bg-gray-50 p-6">
+      <div className="min-h-full bg-gray-50 px-4 py-4 sm:p-6">
         <p className="text-sm text-red-700">{error || 'Promotion not found'}</p>
         <button
           type="button"
           onClick={() => router.push('/promotions')}
-          className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800"
+          className="mt-3 min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-800"
         >
           ← Back to Promotions
         </button>
@@ -244,14 +252,17 @@ export default function PromotionDetailPage() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 p-6">
+    <div className="min-h-full bg-gray-50 px-4 py-4 pb-10 sm:p-6">
       <div className="mx-auto max-w-3xl">
-        <Link href="/promotions" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+        <Link
+          href="/promotions"
+          className="inline-flex min-h-[44px] items-center text-sm font-medium text-blue-600 hover:text-blue-800 sm:min-h-0"
+        >
           ← Promotions
         </Link>
 
-        <div className="mt-3 mb-6 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-blue-950">{promotion.name}</h1>
+        <div className="mt-2 mb-4 flex flex-wrap items-center gap-2 sm:mb-6 sm:gap-3">
+          <h1 className="text-xl font-bold text-blue-950 sm:text-2xl">{promotion.name}</h1>
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase ${
               promotion.status === 'active'
@@ -263,99 +274,114 @@ export default function PromotionDetailPage() {
           </span>
         </div>
 
+        {promotion.drawDetails ? (
+          <p className="mb-4 text-sm text-slate-600 sm:mb-6">{promotion.drawDetails}</p>
+        ) : null}
+
         {error ? (
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </p>
         ) : null}
 
-        <form
-          onSubmit={savePromotion}
-          className="mb-8 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
-          <h2 className="mb-3 text-sm font-semibold text-slate-800">Promotion details</h2>
-          <div className="grid gap-3">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
-                required
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Details</span>
-              <textarea
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Draw date details</span>
-              <input
-                value={drawDetails}
-                onChange={(e) => setDrawDetails(e.target.value)}
-                placeholder="e.g. Every other week"
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Status</span>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 sm:max-w-xs"
-              >
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-              </select>
-            </label>
-          </div>
-          <div className="mt-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
+        {/* Details: collapsed by default on mobile so draws come first */}
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm sm:mb-8">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((v) => !v)}
+            className="flex min-h-[48px] w-full items-center justify-between gap-3 px-4 py-3 text-left sm:hidden"
+            aria-expanded={detailsOpen}
+          >
+            <span className="text-sm font-semibold text-slate-800">Promotion details</span>
+            <svg
+              className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${detailsOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
-        </form>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          <form
+            onSubmit={savePromotion}
+            className={`border-t border-slate-100 p-4 sm:border-0 ${detailsOpen ? 'block' : 'hidden'} sm:block`}
+          >
+            <h2 className="mb-3 hidden text-sm font-semibold text-slate-800 sm:block">
+              Promotion details
+            </h2>
+            <div className="grid gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Name</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={fieldClass}
+                  required
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Details</span>
+                <textarea
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-base sm:text-sm"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Draw date details</span>
+                <input
+                  value={drawDetails}
+                  onChange={(e) => setDrawDetails(e.target.value)}
+                  placeholder="e.g. Every other week"
+                  className={fieldClass}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Status</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className={fieldClass}>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-4">
+              <button type="submit" disabled={saving} className={btnPrimary}>
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
 
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-semibold text-slate-900">Draws & winners</h2>
 
           <form
             onSubmit={addDraw}
-            className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex sm:flex-wrap sm:items-end"
           >
-            <label className="block text-sm">
+            <label className="block text-sm sm:w-auto">
               <span className="mb-1 block font-medium text-slate-700">Draw date</span>
               <input
                 type="date"
                 value={newDrawDate}
                 onChange={(e) => setNewDrawDate(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
                 required
               />
             </label>
-            <label className="block min-w-[12rem] flex-1 text-sm">
+            <label className="block text-sm sm:min-w-[12rem] sm:flex-1">
               <span className="mb-1 block font-medium text-slate-700">Notes</span>
               <input
                 value={newDrawNotes}
                 onChange={(e) => setNewDrawNotes(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
                 placeholder="Optional"
               />
             </label>
-            <button
-              type="submit"
-              disabled={addingDraw || !newDrawDate}
-              className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
-            >
+            <button type="submit" disabled={addingDraw || !newDrawDate} className={btnPrimary}>
               {addingDraw ? 'Adding…' : 'Add draw'}
             </button>
           </form>
@@ -363,16 +389,16 @@ export default function PromotionDetailPage() {
           {promotion.draws.length === 0 ? (
             <p className="text-sm text-gray-500">No draws recorded yet.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3 sm:space-y-4">
               {promotion.draws.map((draw) => {
                 const draft = getWinnerDraft(draw.id)
                 return (
                   <li
                     key={draw.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
                   >
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                      <div>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <p className="font-semibold text-slate-900">
                           {formatDrawDate(draw.drawDate)}
                         </p>
@@ -383,9 +409,9 @@ export default function PromotionDetailPage() {
                       <button
                         type="button"
                         onClick={() => deleteDraw(draw.id)}
-                        className="text-xs font-medium text-red-600 hover:text-red-800"
+                        className="min-h-[44px] shrink-0 px-1 text-sm font-medium text-red-600 hover:text-red-800 sm:min-h-0 sm:text-xs"
                       >
-                        Delete draw
+                        Delete
                       </button>
                     </div>
 
@@ -396,22 +422,25 @@ export default function PromotionDetailPage() {
                       {draw.winners.length === 0 ? (
                         <p className="text-sm text-slate-500">No winners yet.</p>
                       ) : (
-                        <ul className="space-y-1.5">
+                        <ul className="space-y-2">
                           {draw.winners.map((w) => (
                             <li
                               key={w.id}
-                              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
+                              className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5"
                             >
-                              <span>
+                              <span className="min-w-0 text-sm">
                                 <span className="font-medium text-slate-900">{w.winnerName}</span>
                                 {w.prizeNotes ? (
-                                  <span className="text-slate-500"> — {w.prizeNotes}</span>
+                                  <span className="mt-0.5 block text-slate-500 sm:mt-0 sm:inline">
+                                    <span className="hidden sm:inline"> — </span>
+                                    {w.prizeNotes}
+                                  </span>
                                 ) : null}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => removeWinner(draw.id, w.id)}
-                                className="text-xs font-medium text-red-600 hover:text-red-800"
+                                className="min-h-[44px] shrink-0 px-1 text-sm font-medium text-red-600 hover:text-red-800 sm:min-h-0 sm:text-xs"
                               >
                                 Remove
                               </button>
@@ -421,11 +450,9 @@ export default function PromotionDetailPage() {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-                      <label className="block min-w-[10rem] flex-1 text-sm">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">
-                          Staff
-                        </span>
+                    <div className="grid gap-3 border-t border-slate-100 pt-3 sm:flex sm:flex-wrap sm:items-end sm:gap-2">
+                      <label className="block text-sm sm:min-w-[10rem] sm:flex-1">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">Staff</span>
                         <select
                           value={draft.staffId}
                           onChange={(e) => {
@@ -436,7 +463,7 @@ export default function PromotionDetailPage() {
                               winnerName: staff?.name ?? draft.winnerName
                             })
                           }}
-                          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                          className={fieldClass}
                         >
                           <option value="">— Select or type name —</option>
                           {staffOptions.map((s) => (
@@ -446,10 +473,8 @@ export default function PromotionDetailPage() {
                           ))}
                         </select>
                       </label>
-                      <label className="block min-w-[8rem] flex-1 text-sm">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">
-                          Name
-                        </span>
+                      <label className="block text-sm sm:min-w-[8rem] sm:flex-1">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">Name</span>
                         <input
                           value={draft.winnerName}
                           onChange={(e) =>
@@ -458,20 +483,18 @@ export default function PromotionDetailPage() {
                               staffId: draft.staffId
                             })
                           }
-                          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                          className={fieldClass}
                           placeholder="Winner name"
                         />
                       </label>
-                      <label className="block min-w-[8rem] flex-1 text-sm">
+                      <label className="block text-sm sm:min-w-[8rem] sm:flex-1">
                         <span className="mb-1 block text-xs font-medium text-slate-600">
                           Prize notes
                         </span>
                         <input
                           value={draft.prizeNotes}
-                          onChange={(e) =>
-                            setWinnerDraft(draw.id, { prizeNotes: e.target.value })
-                          }
-                          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                          onChange={(e) => setWinnerDraft(draw.id, { prizeNotes: e.target.value })}
+                          className={fieldClass}
                           placeholder="Optional"
                         />
                       </label>
@@ -479,7 +502,7 @@ export default function PromotionDetailPage() {
                         type="button"
                         onClick={() => addWinner(draw.id)}
                         disabled={!draft.staffId && !draft.winnerName.trim()}
-                        className="rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+                        className={btnSecondary}
                       >
                         Add winner
                       </button>
