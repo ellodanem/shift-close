@@ -8,6 +8,14 @@
 
 That script adds `first_name`, `last_name`, and `sort_order` to `staff` if they’re missing, and backfills names. It’s safe to run more than once. After it runs, reload the app; the staff table and roster should be back.
 
+## If Promotions fails to load/create
+
+**Run once in Neon’s SQL Editor:**
+
+**`scripts/neon-apply-promotions.sql`**
+
+Creates `promotions`, `promotion_draws`, `promotion_winners`, and `promotion_entries`, and seeds Bus Driver Gas. Safe to re-run. Then reload `/promotions`.
+
 ---
 
 ## Why the staff/roster sometimes disappears

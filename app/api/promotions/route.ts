@@ -44,6 +44,16 @@ export async function GET() {
     )
   } catch (error) {
     console.error('Error listing promotions:', error)
+    const msg = error instanceof Error ? error.message : ''
+    if (/promotions|relation|does not exist|P2021/i.test(msg)) {
+      return NextResponse.json(
+        {
+          error:
+            'Promotions tables are missing in the database. Run scripts/neon-apply-promotions.sql in the Neon SQL Editor, then reload.'
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to list promotions' }, { status: 500 })
   }
 }
@@ -82,6 +92,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(promotion, { status: 201 })
   } catch (error) {
     console.error('Error creating promotion:', error)
+    const msg = error instanceof Error ? error.message : ''
+    if (/promotions|relation|does not exist|P2021/i.test(msg)) {
+      return NextResponse.json(
+        {
+          error:
+            'Promotions tables are missing in the database. Run scripts/neon-apply-promotions.sql in the Neon SQL Editor, then reload.'
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to create promotion' }, { status: 500 })
   }
 }
