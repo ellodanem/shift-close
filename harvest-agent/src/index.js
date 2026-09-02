@@ -30,6 +30,7 @@ async function recordJob(config, taskKey, startedAt, result, extraDetails = {}) 
         url: result.url || null,
         loginRequired: Boolean(result.loginRequired),
         account: result.account || null,
+        code: result.code || null,
         ...extraDetails
       },
       startedAt: startedAt.toISOString(),

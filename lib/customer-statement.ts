@@ -78,6 +78,15 @@ export function monthsInRange(
 }
 
 export async function listCustomerAccountNames(): Promise<string[]> {
+  const directory = await prisma.customerArDirectory.findMany({
+    where: { active: true },
+    select: { name: true },
+    orderBy: { name: 'asc' }
+  })
+  if (directory.length > 0) {
+    return directory.map((c) => c.name)
+  }
+
   const [fromLedger, fromSnaps] = await Promise.all([
     prisma.customerArLedgerLine.findMany({
       select: { account: true },

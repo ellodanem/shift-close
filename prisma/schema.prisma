@@ -602,6 +602,20 @@ model CustomerArAccountSnapshot {
   @@map("customer_ar_account_snapshots")
 }
 
+// Master customer list for A/R. Cstore harvest never creates rows here.
+model CustomerArDirectory {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  cstoreName String?  @map("cstore_name")
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([active, name])
+  @@map("customer_ar_directory")
+}
+
 // Manual balance override for account activity customers (cheque/debit)
 // Use when starting fresh — set current balance; new items build on top
 model CustomerAccountBalance {

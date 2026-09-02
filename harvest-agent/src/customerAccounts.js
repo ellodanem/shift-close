@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
+const { fetchHarvestCustomers } = require('./shiftCloseClient')
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -125,19 +126,45 @@ function usableAccountName(text) {
   return true
 }
 
-async function selectFirstCreditAccount(page) {
-  const labeled = page.getByLabel(/credit account/i)
-  const select =
-    (await labeled.count()) > 0 ? labeled.first() : page.locator('select').first()
+function normalizeCustomerKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.'’]/g, '')
+    .replace(/\s+/g, ' ')
+}
 
-  const options = await select.locator('option').allTextContents()
-  const names = options.map((t) => t.trim()).filter(usableAccountName)
-  if (names.length === 0) {
-    throw new Error('Credit Account dropdown has no customers')
+function matchCstoreOption(options, customer) {
+  const keys = [customer.cstoreName, customer.name]
+    .filter(Boolean)
+    .map((v) => normalizeCustomerKey(v))
+  for (const opt of options) {
+    if (keys.includes(normalizeCustomerKey(opt))) return opt
   }
-  const account = names[0]
-  await select.selectOption({ label: account })
-  return account
+  return null
+}
+
+async function creditAccountSelect(page) {
+  const labeled = page.getByLabel(/credit account/i)
+  if ((await labeled.count()) > 0) return labeled.first()
+  return page.locator('select').first()
+}
+
+async function listCreditAccountOptions(page) {
+  const select = await creditAccountSelect(page)
+  const options = await select.locator('option').allTextContents()
+  return options.map((t) => t.trim()).filter(usableAccountName)
+}
+
+async function selectShiftCloseCustomer(page, customer) {
+  const select = await creditAccountSelect(page)
+  const options = await listCreditAccountOptions(page)
+  const matched = matchCstoreOption(options, customer)
+  if (!matched) {
+    return { ok: false, options }
+  }
+  await select.selectOption({ label: matched })
+  return { ok: true, matched, options }
 }
 
 async function runReport(page) {
@@ -188,11 +215,49 @@ async function runFirstCustomerCreditReport(config) {
       return { ...login, taskKey: 'customer_accounts' }
     }
 
+    let directory
+    try {
+      directory = await fetchHarvestCustomers(config)
+    } catch (err) {
+      return {
+        ok: false,
+        loginRequired: false,
+        url: page.url(),
+        message: `Could not load Shift Close customers: ${err.message}`
+      }
+    }
+
+    const target = directory.first
+    if (!target) {
+      return {
+        ok: false,
+        loginRequired: false,
+        url: page.url(),
+        code: 'no_directory',
+        message: 'No active customers in the Shift Close customer list'
+      }
+    }
+
     await openCustomerAccountsReport(page)
     await setThisMonth(page)
     await setReportTypeDetails(page)
-    const account = await selectFirstCreditAccount(page)
-    console.log(`[Cstore] First customer: ${account} (${year}-${String(month).padStart(2, '0')})`)
+    const selected = await selectShiftCloseCustomer(page, target)
+    if (!selected.ok) {
+      return {
+        ok: false,
+        loginRequired: false,
+        url: page.url(),
+        account: target.name,
+        year,
+        month,
+        code: 'not_in_cstore',
+        message: `${target.name} is not in the Cstore Credit Account list`,
+        cstoreOptions: selected.options
+      }
+    }
+    console.log(
+      `[Cstore] Shift Close customer ${target.name} → Cstore "${selected.matched}" (${year}-${String(month).padStart(2, '0')})`
+    )
     await runReport(page)
 
     const captured = await reportHtmlFromPage(page)
@@ -205,14 +270,15 @@ async function runFirstCustomerCreditReport(config) {
       ok: true,
       loginRequired: false,
       url: page.url(),
-      account,
+      account: target.name,
+      cstoreLabel: selected.matched,
       year,
       month,
       html: captured.html,
       emptyReport: captured.empty,
       message: captured.empty
-        ? `${account}: no activity this month`
-        : `${account}: report captured`
+        ? `${target.name}: no activity this month`
+        : `${target.name}: report captured`
     }
   } catch (err) {
     await saveDebug(page, debugDir, 'customer-accounts-error')

@@ -34,6 +34,16 @@ interface CustomerArAccount {
   charges: number
   payments: number
   closing: number
+  rolled?: boolean
+  cstoreName?: string | null
+  directoryId?: string | null
+}
+
+interface DirectoryCustomer {
+  id: string
+  name: string
+  cstoreName: string | null
+  active: boolean
 }
 
 interface CustomerArPaymentRecord {
@@ -111,6 +121,11 @@ export default function CustomerAccountsPage() {
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(
     null
   )
+  const [directory, setDirectory] = useState<DirectoryCustomer[]>([])
+  const [directoryOpen, setDirectoryOpen] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCstoreName, setNewCstoreName] = useState('')
+  const [savingCustomer, setSavingCustomer] = useState(false)
 
   const formatPaymentTypeLabel = (method: string | null) => {
     if (!method?.trim()) return '—'
@@ -165,6 +180,17 @@ export default function CustomerAccountsPage() {
     }
   }, [])
 
+  const fetchDirectory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/customer-accounts/directory')
+      if (!res.ok) throw new Error('Failed to load customer list')
+      const data = await res.json()
+      setDirectory(data.customers || [])
+    } catch (error) {
+      console.error(error)
+    }
+  }, [])
+
   const applyWorkingMonth = useCallback(
     (monthKey: string) => {
       if (!monthKey) return
@@ -212,6 +238,10 @@ export default function CustomerAccountsPage() {
   useEffect(() => {
     void fetchPayments()
   }, [fetchPayments])
+
+  useEffect(() => {
+    void fetchDirectory()
+  }, [fetchDirectory])
 
   useEffect(() => {
     const loadData = async () => {
@@ -276,6 +306,47 @@ export default function CustomerAccountsPage() {
     })
     return list
   }, [accounts, accountSearch, accountSort])
+
+  const addDirectoryCustomer = async () => {
+    const name = newCustomerName.trim()
+    if (!name) return
+    setSavingCustomer(true)
+    try {
+      const res = await fetch('/api/customer-accounts/directory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          cstoreName: newCstoreName.trim() || undefined
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to add customer')
+      setNewCustomerName('')
+      setNewCstoreName('')
+      await fetchDirectory()
+      await fetchAccountsForMonth(workingMonth)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to add customer')
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
+
+  const setDirectoryActive = async (id: string, active: boolean) => {
+    try {
+      const res = await fetch(`/api/customer-accounts/directory/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active })
+      })
+      if (!res.ok) throw new Error('Failed to update customer')
+      await fetchDirectory()
+      await fetchAccountsForMonth(workingMonth)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update customer')
+    }
+  }
 
   const handleRecordPayment = async () => {
     if (!paymentDate.trim() || !paymentAccount.trim()) {
@@ -495,13 +566,12 @@ export default function CustomerAccountsPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Customer Accounts</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Import monthly totals, then drill into individual accounts.
+              The customer list lives in Shift Close. A new month rolls last month&apos;s
+              closing into opening. Excel is optional totals, not how names are created.
             </p>
             <p className="text-xs text-gray-500 mt-2 max-w-2xl">
-              <span className="font-medium text-gray-600">Monthly:</span> Import POS
-              Excel for all accounts.{' '}
               <span className="font-medium text-gray-600">Detail:</span> Open Ledger
-              on a customer to import the Cstore Credit Report (Details).
+              to import a Cstore Credit Report, or let the harvest agent run it.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -520,6 +590,107 @@ export default function CustomerAccountsPage() {
               Account Statement
             </Link>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <button
+            type="button"
+            onClick={() => setDirectoryOpen((v) => !v)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Customer list</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {directory.filter((c) => c.active).length} active
+                {directory.some((c) => !c.active)
+                  ? ` · ${directory.filter((c) => !c.active).length} inactive`
+                  : ''}
+                . Harvest jobs use this list, not the Cstore dropdown order.
+              </p>
+            </div>
+            <span className="text-sm text-indigo-600 font-medium">
+              {directoryOpen ? 'Hide' : 'Manage'}
+            </span>
+          </button>
+          {directoryOpen && (
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-wrap gap-2 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Name in Shift Close
+                  </label>
+                  <input
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded text-sm w-56"
+                    placeholder="e.g. CPJ"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Cstore name (if different)
+                  </label>
+                  <input
+                    value={newCstoreName}
+                    onChange={(e) => setNewCstoreName(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded text-sm w-56"
+                    placeholder="Optional alias"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void addDirectoryCustomer()}
+                  disabled={savingCustomer || !newCustomerName.trim()}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {savingCustomer ? 'Adding…' : 'Add customer'}
+                </button>
+              </div>
+              {directory.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No customers yet. Names from past months are loaded automatically when
+                  this page opens, or add one above.
+                </p>
+              ) : (
+                <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="py-2 pr-4 font-medium">Name</th>
+                        <th className="py-2 pr-4 font-medium">Cstore name</th>
+                        <th className="py-2 pr-4 font-medium">Status</th>
+                        <th className="py-2 font-medium"> </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {directory.map((c) => (
+                        <tr key={c.id} className="border-b last:border-0">
+                          <td className="py-2 pr-4 font-medium text-gray-900">{c.name}</td>
+                          <td className="py-2 pr-4 text-gray-600">{c.cstoreName || '—'}</td>
+                          <td className="py-2 pr-4">
+                            {c.active ? (
+                              <span className="text-green-800 text-xs font-semibold">Active</span>
+                            ) : (
+                              <span className="text-gray-500 text-xs">Inactive</span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            <button
+                              type="button"
+                              onClick={() => void setDirectoryActive(c.id, !c.active)}
+                              className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                            >
+                              {c.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Working month bar */}
@@ -597,15 +768,15 @@ export default function CustomerAccountsPage() {
             <p className="text-gray-600 text-sm">Loading accounts…</p>
           ) : accounts.length === 0 ? (
             <p className="text-gray-500 text-sm">
-              No account breakdown for this month. Click{' '}
+              No customers in the Shift Close list yet. Open{' '}
               <button
                 type="button"
-                onClick={() => excelInputRef.current?.click()}
+                onClick={() => setDirectoryOpen(true)}
                 className="text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                Import Excel
+                Customer list
               </button>{' '}
-              to load customer accounts from your POS export.
+              to add names. Excel import can still add people when you confirm a POS file.
             </p>
           ) : filteredAccounts.length === 0 ? (
             <p className="text-gray-500 text-sm">No accounts match your search.</p>
@@ -639,6 +810,11 @@ export default function CustomerAccountsPage() {
                     <tr key={acc.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 font-medium text-gray-900">
                         {acc.account}
+                        {acc.rolled ? (
+                          <span className="ml-2 text-[11px] font-normal text-gray-500">
+                            rolled from last month
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2 text-right font-mono">
                         {formatAmount(acc.opening)}

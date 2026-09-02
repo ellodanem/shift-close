@@ -7,6 +7,10 @@ import {
   recordCustomerArCsvImport
 } from '@/lib/customer-ar-import-log'
 import { getSessionFromRequest } from '@/lib/session'
+import {
+  listMonthAccountsFromDirectory,
+  upsertDirectoryNames
+} from '@/lib/customer-ar-directory'
 
 // GET /api/customer-accounts/accounts?year=2026&month=1
 // Returns all account snapshots for a given month
@@ -33,15 +37,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const accounts = await prisma.customerArAccountSnapshot.findMany({
-      where: {
-        year: yearNum,
-        month: monthNum
-      },
-      orderBy: {
-        account: 'asc'
-      }
-    })
+    const accounts = await listMonthAccountsFromDirectory(yearNum, monthNum)
 
     return NextResponse.json(accounts)
   } catch (error) {
@@ -106,6 +102,7 @@ export async function POST(request: NextRequest) {
           closing: r.closing
         }))
       })
+      await upsertDirectoryNames(cleanRows.map((r) => r.account))
     }
 
     // Recompute monthly summary from snapshots

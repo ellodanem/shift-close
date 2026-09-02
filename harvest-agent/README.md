@@ -13,6 +13,8 @@ This is **not** the ZKTeco attendance agent in `agent/`. Long term it should run
 
 Cstore passwords stay in the local Chrome profile (`harvest-agent/user-data/`). They are not stored in Shift Close.
 
+Customer jobs use the **Shift Close customer list**, not the Cstore dropdown order. Unknown Cstore names are skipped as `customer_missing`. A Shift Close customer who is not in Cstore is recorded as `not_in_cstore`.
+
 Customer account Excel download is the next job after keep-alive is stable.
 
 ## Setup

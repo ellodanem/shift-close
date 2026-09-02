@@ -32,7 +32,23 @@ async function postJson(config, pathname, body) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} from ${pathname}`)
+    throw new Error(data.message || data.error || `HTTP ${res.status} from ${pathname}`)
+  }
+  return data
+}
+
+async function getJson(config, pathname) {
+  if (!config.vercelUrl || !config.agentSecret) {
+    throw new Error('vercelUrl or agentSecret is not configured')
+  }
+  const url = `${config.vercelUrl}${pathname}`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: baseHeaders(config)
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.message || data.error || `HTTP ${res.status} from ${pathname}`)
   }
   return data
 }
@@ -58,4 +74,14 @@ async function sendCustomerCreditImport(config, body) {
   })
 }
 
-module.exports = { sendHeartbeat, sendTask, sendCustomerCreditImport, identity }
+async function fetchHarvestCustomers(config) {
+  return getJson(config, '/api/harvest-agent/customers')
+}
+
+module.exports = {
+  sendHeartbeat,
+  sendTask,
+  sendCustomerCreditImport,
+  fetchHarvestCustomers,
+  identity
+}
