@@ -963,6 +963,16 @@ export default function DaysPage() {
                         <p className="text-sm text-gray-600">Counted Cash + Check</p>
                         <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.countCashTotal)}</p>
                       </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-sm text-gray-600">Night deposit bags</p>
+                        {dayBags.length > 0 ? (
+                          <p className="text-lg font-bold font-mono text-gray-900 tracking-wide break-all">
+                            {dayBags.join(', ')}
+                          </p>
+                        ) : (
+                          <p className="text-lg font-bold text-gray-400">—</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
