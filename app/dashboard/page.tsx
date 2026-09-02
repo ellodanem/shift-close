@@ -863,6 +863,20 @@ export default function DashboardPage() {
                 <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
                   {formatLitres(showAvg ? fuelVolumeAvg : fuelVolumeMtd)} L
                 </div>
+                <div className="mt-1.5 space-y-0.5 text-xs tabular-nums text-slate-700">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-slate-500">Gas</span>
+                    <span className="font-medium">
+                      {formatLitres(showAvg ? fuelMtdSold.avgUnleadedPerDay : fuelMtdSold.totalUnleaded)} L
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-slate-500">Diesel</span>
+                    <span className="font-medium">
+                      {formatLitres(showAvg ? fuelMtdSold.avgDieselPerDay : fuelMtdSold.totalDiesel)} L
+                    </span>
+                  </div>
+                </div>
                 <div className="mt-1 text-xs text-slate-400">
                   {showAvg ? (avgDaysLabel ? `Avg per day · ${avgDaysLabel}` : 'Avg per day') : 'MTD total'}
                 </div>
