@@ -77,7 +77,7 @@ function rowKey(check: CheckRow) {
 }
 
 function filterButtonClass(active: boolean) {
-  return `px-4 py-2 rounded font-semibold text-sm transition-colors ${
+  return `min-h-[44px] rounded px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
     active
       ? 'bg-blue-600 text-white'
       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -85,7 +85,7 @@ function filterButtonClass(active: boolean) {
 }
 
 function tabButtonClass(active: boolean) {
-  return `px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+  return `min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
     active
       ? 'border-blue-600 text-blue-600'
       : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -211,30 +211,34 @@ export default function CheckManagementPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading checks...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-full bg-gray-50 p-8 pb-24">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+    <div className="min-h-full bg-gray-50 px-4 py-4 pb-10 sm:p-8 sm:pb-24">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Check Management</h1>
-            <p className="text-sm text-gray-600 mt-1">{summaryText}</p>
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+              Check Management
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">{summaryText}</p>
           </div>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4">
             <button
+              type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+              className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
               ← Vendors
             </button>
             <button
+              type="button"
               onClick={() => router.push('/vendor-payments/make-payment')}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >
               Make Payment
             </button>
@@ -242,10 +246,10 @@ export default function CheckManagementPage() {
         </div>
 
         <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="mb-1 block text-xs font-medium text-gray-500">
             Payment month
           </label>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => {
@@ -276,143 +280,200 @@ export default function CheckManagementPage() {
             >
               Previous Month
             </button>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMonthFilter('custom')}
-                className={filterButtonClass(monthFilter === 'custom')}
-              >
-                Custom
-              </button>
-              {monthFilter === 'custom' && (
-                <input
-                  type="month"
-                  value={customMonth}
-                  onChange={(e) => setCustomMonth(e.target.value)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setMonthFilter('custom')}
+              className={filterButtonClass(monthFilter === 'custom')}
+            >
+              Custom
+            </button>
+            {monthFilter === 'custom' && (
+              <input
+                type="month"
+                value={customMonth}
+                onChange={(e) => setCustomMonth(e.target.value)}
+                className="col-span-2 min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:w-auto"
+              />
+            )}
           </div>
         </div>
 
-        <div className="mb-6 flex gap-2 border-b border-gray-200 pb-3">
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-gray-200 pb-3 sm:gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('uncashed')}
-            className={tabButtonClass(activeTab === 'uncashed')}
+            className={`shrink-0 ${tabButtonClass(activeTab === 'uncashed')}`}
           >
-            Uncashed Checks ({uncashedChecks.length})
+            Uncashed ({uncashedChecks.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('cleared')}
-            className={tabButtonClass(activeTab === 'cleared')}
+            className={`shrink-0 ${tabButtonClass(activeTab === 'cleared')}`}
           >
-            Checks ({clearedChecks.length})
+            Cleared ({clearedChecks.length})
           </button>
         </div>
 
         {filteredChecks.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <p className="text-gray-500 mb-4">{emptyMessage}</p>
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm sm:p-12">
+            <p className="mb-4 text-gray-500">{emptyMessage}</p>
             {activeTab === 'uncashed' && (
               <button
+                type="button"
                 onClick={() => router.push('/vendor-payments/make-payment')}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
               >
                 Make Payment
               </button>
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Source
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Payee / Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Check #
-                  </th>
-                  {activeTab === 'cleared' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Cleared
-                    </th>
-                  )}
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                    Amount
-                  </th>
-                  {activeTab === 'uncashed' && (
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      Action
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredChecks.map((check) => (
-                  <tr key={rowKey(check)} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(check.paymentDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {sourceLabel(check.source)}
-                    </td>
-                    <td
-                      className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate"
-                      title={check.payee}
-                    >
-                      {check.payee}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
-                      {check.bankRef}
-                    </td>
-                    {activeTab === 'cleared' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {check.clearedAt ? formatDate(check.clearedAt) : '—'}
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900">
+          <>
+            <div className="space-y-3 md:hidden">
+              {filteredChecks.map((check) => (
+                <div
+                  key={rowKey(check)}
+                  className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900">{check.payee}</div>
+                      <div className="mt-0.5 text-xs text-gray-600">
+                        {formatDate(check.paymentDate)} · {sourceLabel(check.source)}
+                      </div>
+                      <div className="mt-0.5 font-mono text-sm text-gray-700">
+                        #{check.bankRef}
+                      </div>
+                      {activeTab === 'cleared' && check.clearedAt && (
+                        <div className="mt-1 text-xs text-green-700">
+                          Cleared {formatDate(check.clearedAt)}
+                        </div>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-mono font-semibold text-gray-900">
                       {formatAmount(check.totalAmount)}
-                    </td>
+                    </span>
+                  </div>
+                  {activeTab === 'uncashed' && (
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleMarkCleared(check.id)}
+                        disabled={clearingId === check.id}
+                        className="min-h-[44px] w-full rounded bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {clearingId === check.id ? 'Clearing...' : 'Mark as cleared'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-gray-700">
+                    {filteredChecks.length} check
+                    {filteredChecks.length === 1 ? '' : 's'}
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatAmount(totalAmount)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm md:block">
+              <table className="w-full min-w-[720px]">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                      Source
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                      Payee / Description
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                      Check #
+                    </th>
+                    {activeTab === 'cleared' && (
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                        Cleared
+                      </th>
+                    )}
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                      Amount
+                    </th>
                     {activeTab === 'uncashed' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={() => handleMarkCleared(check.id)}
-                          disabled={clearingId === check.id}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                        >
-                          {clearingId === check.id ? 'Clearing...' : 'Mark as cleared'}
-                        </button>
-                      </td>
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                        Action
+                      </th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-gray-50 border-t border-gray-200">
-                <tr>
-                  <td
-                    colSpan={activeTab === 'cleared' ? 5 : 4}
-                    className="px-6 py-3 text-sm font-medium text-gray-700"
-                  >
-                    {filteredChecks.length} check{filteredChecks.length === 1 ? '' : 's'}
-                  </td>
-                  <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                    {formatAmount(totalAmount)}
-                  </td>
-                  {activeTab === 'uncashed' && <td />}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredChecks.map((check) => (
+                    <tr key={rowKey(check)} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
+                        {formatDate(check.paymentDate)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                        {sourceLabel(check.source)}
+                      </td>
+                      <td
+                        className="max-w-xs truncate px-6 py-4 text-sm text-gray-900"
+                        title={check.payee}
+                      >
+                        {check.payee}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-gray-700">
+                        {check.bankRef}
+                      </td>
+                      {activeTab === 'cleared' && (
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                          {check.clearedAt ? formatDate(check.clearedAt) : '—'}
+                        </td>
+                      )}
+                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-gray-900">
+                        {formatAmount(check.totalAmount)}
+                      </td>
+                      {activeTab === 'uncashed' && (
+                        <td className="whitespace-nowrap px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleMarkCleared(check.id)}
+                            disabled={clearingId === check.id}
+                            className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {clearingId === check.id
+                              ? 'Clearing...'
+                              : 'Mark as cleared'}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t border-gray-200 bg-gray-50">
+                  <tr>
+                    <td
+                      colSpan={activeTab === 'cleared' ? 5 : 4}
+                      className="px-6 py-3 text-sm font-medium text-gray-700"
+                    >
+                      {filteredChecks.length} check
+                      {filteredChecks.length === 1 ? '' : 's'}
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
+                      {formatAmount(totalAmount)}
+                    </td>
+                    {activeTab === 'uncashed' && <td />}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
