@@ -66,7 +66,7 @@ export default function AppUtilityBar() {
   if (!user) return null
 
   return (
-    <header className="flex h-11 shrink-0 items-center justify-end gap-1 border-b border-slate-700 bg-slate-800 px-3 sm:px-4">
+    <header className="flex h-11 shrink-0 items-center justify-end gap-1 border-b border-slate-700 bg-slate-800 pl-14 pr-3 sm:px-4 lg:pl-4">
       <div className="relative" ref={searchRef}>
         <button
           type="button"

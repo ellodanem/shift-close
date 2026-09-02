@@ -64,7 +64,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50">
       <AppNav pickerGroup={pickerGroup} onPickerGroupChange={setPickerGroup} />
-      <div className="flex min-h-0 flex-1 flex-col min-w-0 pt-14 pl-14 lg:pt-0 lg:pl-0">
+      <div className="flex min-h-0 flex-1 flex-col min-w-0 lg:pt-0">
         <RentDueBanner />
         {!loading && user ? <AppUtilityBar /> : null}
         <main ref={mainRef} className="relative min-h-0 flex-1 min-w-0 overflow-y-auto">
