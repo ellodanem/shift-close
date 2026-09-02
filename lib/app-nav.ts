@@ -62,7 +62,8 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
       { label: 'Fuel Invoices', href: '/fuel-payments/invoices', permission: 'financial.fuel' },
       { label: 'Fuel Batches', href: '/fuel-payments/batches', permission: 'financial.fuel' },
       { label: 'Fuel Monthly', href: '/fuel-payments/monthly-report', permission: 'financial.fuel' },
-      { label: 'Vendor Payments', href: '/vendor-payments', permission: 'financial.vendor' }
+      { label: 'Vendor Payments', href: '/vendor-payments/invoices', permission: 'financial.vendor' },
+      { label: 'Vendor Batches', href: '/vendor-payments/batches', permission: 'financial.vendor' }
     ]
   },
   {
@@ -103,6 +104,9 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/fuel-payments/invoices': 'fuel-payments',
   '/fuel-payments/batches': 'fuel-batches',
   '/fuel-payments/monthly-report': 'fuel-monthly',
+  '/vendor-payments/invoices': 'vendor-payments',
+  '/vendor-payments/batches': 'vendor-batches',
+  '/vendor-payments/uncashed-checks': 'uncashed-checks',
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
@@ -253,6 +257,13 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/fuel-payments/batches') return pathname.startsWith('/fuel-payments/batches')
   if (href === '/fuel-payments/monthly-report') return pathname.startsWith('/fuel-payments/monthly-report')
   if (href === '/fuel-payments') return pathname.startsWith('/fuel-payments')
+  if (href === '/vendor-payments/batches') return pathname.startsWith('/vendor-payments/batches')
+  if (href === '/vendor-payments/invoices') {
+    return pathname === '/vendor-payments/invoices' || pathname.startsWith('/vendor-payments/invoices/')
+  }
+  if (href === '/vendor-payments/uncashed-checks') {
+    return pathname.startsWith('/vendor-payments/uncashed-checks')
+  }
   if (href === '/vendor-payments') return pathname.startsWith('/vendor-payments')
   if (href === '/reports') return pathname === '/reports'
   if (href === '/reports/monthly') return pathname.startsWith('/reports/monthly')

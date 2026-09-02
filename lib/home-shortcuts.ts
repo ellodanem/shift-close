@@ -16,11 +16,12 @@ export type HomeShortcutId =
   | 'fuel-payments'
   | 'fuel-batches'
   | 'fuel-monthly'
+  | 'vendor-payments'
+  | 'vendor-batches'
   | 'roster'
   | 'attendance'
   | 'pay-period'
   | 'cashbook'
-  | 'vendor-payments'
   | 'staff'
   | 'time-off'
   | 'debit-scans'
@@ -98,6 +99,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     href: '/fuel-payments/batches',
     tileClass: 'bg-sky-700',
     matchPrefixes: ['/fuel-payments/batches']
+  },
+  {
+    id: 'vendor-batches',
+    label: 'Vendor batches',
+    href: '/vendor-payments/batches',
+    tileClass: 'bg-orange-700',
+    matchPrefixes: ['/vendor-payments/batches']
   },
   {
     id: 'fuel-monthly',

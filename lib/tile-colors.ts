@@ -6,6 +6,7 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'late-absent': '#b45309',
   'uncashed-checks': '#f59e0b',
   'fuel-batches': '#0369a1',
+  'vendor-batches': '#c2410c',
   'fuel-monthly': '#0284c7',
   'shift-presets': '#0e7490',
   'debit-scans': '#dc2626',

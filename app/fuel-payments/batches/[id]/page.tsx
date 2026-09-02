@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
-import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
+import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
 interface PaymentBatch {
   id: string
@@ -30,8 +30,6 @@ export default function BatchDetailPage() {
 
   const [batch, setBatch] = useState<PaymentBatch | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showAddInvoice, setShowAddInvoice] = useState(false)
-  const [editingInvoice, setEditingInvoice] = useState<PaidInvoice | null>(null)
 
   useEffect(() => {
     fetchBatch()
@@ -57,32 +55,9 @@ export default function BatchDetailPage() {
     }
   }
 
-  const handleDeleteInvoice = async (invoiceId: string, invoiceNumber: string) => {
-    const confirmed = window.confirm(
-      `Delete invoice "${invoiceNumber}"?\n\nThis cannot be undone.`
-    )
-    if (!confirmed) return
-
-    try {
-      const res = await fetch(`/api/fuel-payments/invoices/${invoiceId}`, {
-        method: 'DELETE'
-      })
-
-      if (res.ok) {
-        fetchBatch()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        alert(err.error || 'Failed to delete invoice')
-      }
-    } catch (error) {
-      console.error('Error deleting invoice:', error)
-      alert('Failed to delete invoice')
-    }
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading batch...</p>
       </div>
     )
@@ -93,55 +68,55 @@ export default function BatchDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Payment Batch</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {formatInvoiceDate(batch.paymentDate)} • Bank Ref: {batch.bankRef || '(No Ref)'}
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Payment Batch</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              {formatInvoiceDate(batch.paymentDate)} · Bank Ref:{' '}
+              <span className="font-mono">{batch.bankRef || '(No Ref)'}</span>
             </p>
           </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/fuel-payments/batches')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-            >
-              ← Back to Batches
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/fuel-payments/batches')}
+            className="min-h-[44px] rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 sm:min-h-0"
+          >
+            ← Back to Batches
+          </button>
         </div>
 
         {/* Batch Info Card */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+        <div className="mb-6 rounded-lg bg-white p-4 shadow sm:p-6">
+          <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
             <strong>Note:</strong> Payment batches are read-only. To change a payment, use the{' '}
             <strong>Revert Payment</strong> feature on the Invoices screen, then mark the invoices
             as paid again with the correct details.
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
-              <p className="text-sm text-gray-600">Payment Date</p>
-              <p className="text-lg font-semibold text-gray-900">
+              <p className="text-xs text-gray-600 sm:text-sm">Payment Date</p>
+              <p className="text-base font-semibold text-gray-900 sm:text-lg">
                 {formatInvoiceDate(batch.paymentDate)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Bank Reference</p>
-              <p className="text-lg font-semibold text-gray-900 font-mono">
+              <p className="text-xs text-gray-600 sm:text-sm">Bank Reference</p>
+              <p className="font-mono text-base font-semibold text-gray-900 sm:text-lg">
                 {batch.bankRef || '(No Ref)'}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Invoices</p>
-              <p className="text-lg font-semibold text-gray-900">
+              <p className="text-xs text-gray-600 sm:text-sm">Total Invoices</p>
+              <p className="text-base font-semibold text-gray-900 sm:text-lg">
                 {batch.invoices.length}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Amount</p>
-              <p className="text-lg font-semibold text-gray-900">
+              <p className="text-xs text-gray-600 sm:text-sm">Total Amount</p>
+              <p className="text-base font-semibold text-gray-900 sm:text-lg">
                 {formatAmount(batch.totalAmount)}
               </p>
             </div>
@@ -149,252 +124,107 @@ export default function BatchDetailPage() {
         </div>
 
         {/* Invoices Section (read-only) */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">Invoices</h2>
+        <div className="rounded-lg bg-white shadow">
+          <div className="border-b border-gray-200 p-4 sm:p-6">
+            <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">Invoices</h2>
           </div>
 
           {batch.invoices.length === 0 ? (
             <div className="p-8 text-center text-gray-600">
-              <p className="mb-4">No invoices in this batch.</p>
+              <p>No invoices in this batch.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Invoice #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Invoice Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {/* read-only */}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {batch.invoices.map((invoice) => (
-                    <tr key={invoice.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+            <>
+              <div className="space-y-3 p-3 md:hidden">
+                {batch.invoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-mono text-sm font-medium text-gray-900">
                         {invoice.invoiceNumber}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                      </div>
+                      <span className="shrink-0 font-mono font-semibold text-gray-900">
                         {formatAmount(invoice.amount)}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      {invoice.type}
+                      {' · '}
+                      Invoice {formatInvoiceDate(invoice.invoiceDate)}
+                      {' · '}
+                      Due {formatInvoiceDate(invoice.dueDate)}
+                    </div>
+                  </div>
+                ))}
+                <div className="rounded-lg border border-gray-300 bg-gray-100 p-3 text-sm font-semibold">
+                  <div className="flex items-center justify-between">
+                    <span>Total</span>
+                    <span className="font-mono">{formatAmount(batch.totalAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Invoice #
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Amount
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Invoice Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Due Date
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {batch.invoices.map((invoice) => (
+                      <tr key={invoice.id} className="hover:bg-gray-50">
+                        <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-gray-900">
+                          {invoice.invoiceNumber}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-gray-900">
+                          {formatAmount(invoice.amount)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                          {invoice.type}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                          {formatInvoiceDate(invoice.invoiceDate)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                          {formatInvoiceDate(invoice.dueDate)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-4 text-right text-sm font-medium text-gray-700"
+                      >
+                        Total:
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {invoice.type}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatInvoiceDate(invoice.invoiceDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatInvoiceDate(invoice.dueDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400">
-                        {/* read-only – changes should be made via invoices / revert flow */}
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-bold text-gray-900">
+                        {formatAmount(batch.totalAmount)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td colSpan={5} className="px-6 py-4 text-right text-sm font-medium text-gray-700">
-                      Total:
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                      {formatAmount(batch.totalAmount)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
-        </div>
-
-        {/* Add/Edit Invoice Modal intentionally disabled: batches are read-only */}
-      </div>
-    </div>
-  )
-}
-
-// Invoice Modal Component
-function InvoiceModal({
-  batchId,
-  invoice,
-  onClose,
-  onSave
-}: {
-  batchId: string
-  invoice: PaidInvoice | null
-  onClose: () => void
-  onSave: () => void
-}) {
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    invoiceNumber: invoice?.invoiceNumber || '',
-    amount: invoice?.amount || 0,
-    type: invoice?.type || 'fuel',
-    invoiceDate: invoice?.invoiceDate ? invoiceDateToInputValue(invoice.invoiceDate) : invoiceDateToInputValue(new Date()),
-    dueDate: invoice?.dueDate ? invoiceDateToInputValue(invoice.dueDate) : invoiceDateToInputValue(new Date()),
-    notes: invoice?.notes || ''
-  })
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      const url = invoice
-        ? `/api/fuel-payments/invoices/${invoice.id}`
-        : `/api/fuel-payments/batches/${batchId}/invoices`
-      
-      const method = invoice ? 'PATCH' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-
-      if (res.ok) {
-        onSave()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        alert(err.error || `Failed to ${invoice ? 'update' : 'create'} invoice`)
-        setLoading(false)
-      }
-    } catch (error) {
-      console.error(`Error ${invoice ? 'updating' : 'creating'} invoice:`, error)
-      alert(`Failed to ${invoice ? 'update' : 'create'} invoice`)
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            {invoice ? 'Edit Invoice' : 'Add Invoice'}
-          </h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.invoiceNumber}
-                onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                placeholder="e.g., INV123456"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="fuel">Fuel</option>
-                  <option value="service">Service</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Invoice Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.invoiceDate}
-                  onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Due Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Optional notes..."
-              />
-            </div>
-
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? 'Saving...' : invoice ? 'Update Invoice' : 'Create Invoice'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>

@@ -16,6 +16,9 @@ const ICONS: Record<HomeShortcutId, { d: string | string[]; viewBox?: string }> 
   'fuel-batches': {
     d: 'M4 6h16M4 10h16M4 14h10M4 18h10'
   },
+  'vendor-batches': {
+    d: 'M4 6h16M4 10h16M4 14h10M4 18h10'
+  },
   'fuel-monthly': {
     d: 'M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7 3h4v11h-4V10z'
   },
