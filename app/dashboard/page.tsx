@@ -710,23 +710,23 @@ export default function DashboardPage() {
         <p className="mt-0.5 text-xs text-slate-500">
           {summary.monthName} {summary.year}
         </p>
-        <div className="mt-3 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <div className="py-2 sm:py-0 sm:pr-4">
-            <div className="text-xs text-slate-500">Deposit</div>
-            <div className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-600">
+        <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200">
+          <div className="min-w-0 pr-2 sm:pr-4">
+            <div className="text-[11px] text-slate-500 sm:text-xs">Deposit</div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-600 sm:text-xl">
               ${formatCurrency(summary.totals.deposits)}
             </div>
           </div>
-          <div className="py-2 sm:px-4 sm:py-0">
-            <div className="text-xs text-slate-500">Debit / Credit</div>
-            <div className="mt-0.5 text-xl font-semibold tabular-nums text-blue-600">
+          <div className="min-w-0 px-2 sm:px-4">
+            <div className="text-[11px] text-slate-500 sm:text-xs">Debit / Credit</div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums text-blue-600 sm:text-xl">
               ${formatCurrency(summary.totals.debitAndCredit)}
             </div>
           </div>
-          <div className="py-2 sm:py-0 sm:pl-4">
-            <div className="text-xs text-slate-500">Grand total</div>
+          <div className="min-w-0 pl-2 sm:pl-4">
+            <div className="text-[11px] text-slate-500 sm:text-xs">Grand total</div>
             <div
-              className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900"
+              className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900 sm:text-xl"
               title="Does not include Customer Charges (In-House)."
             >
               ${formatCurrency(summary.totals.grandTotal)}
@@ -805,7 +805,7 @@ export default function DashboardPage() {
 
     return (
       <div className={insightCardClass}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-gray-900">Fuel MTD</h2>
             <p className="mt-0.5 text-xs text-slate-500">
@@ -813,7 +813,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div
-            className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold"
+            className="flex w-fit shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold"
             role="group"
             aria-label="Fuel MTD view"
           >
@@ -935,7 +935,7 @@ export default function DashboardPage() {
         <div className={contentClassName ?? 'flex-1 min-w-0'}>
           {children}
         </div>
-        <div className="flex flex-col gap-0.5 flex-shrink-0 pt-2">
+        <div className="hidden flex-col gap-0.5 flex-shrink-0 pt-2 lg:flex">
           <button
             onClick={() => handleMoveUp(id)}
             disabled={!canMoveUp}
@@ -1293,7 +1293,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
@@ -1304,17 +1304,20 @@ export default function DashboardPage() {
     : 'Select a month to load summary data'
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-6">
+      <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-4">
-          <h1 className="text-3xl font-bold text-blue-950 tracking-tight">Home</h1>
-          <p className="mt-1 text-sm text-slate-500">Shortcuts stay on top. Dashboard insights stay below.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">Home</h1>
+          <p className="mt-1 hidden text-sm text-slate-500 sm:block">
+            Shortcuts stay on top. Dashboard insights stay below.
+          </p>
         </div>
         <HomeShortcutStrip />
 
         <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 space-y-2">
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <button
             onClick={() => {
               setActiveFilter('currentMonth')
@@ -1322,7 +1325,7 @@ export default function DashboardPage() {
               setCustomEndDate('')
               setShowCustomPicker(false)
             }}
-            className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+            className={`min-h-[44px] rounded px-2 py-2 text-xs font-semibold transition-colors sm:px-3 sm:py-1.5 ${
               activeFilter === 'currentMonth'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1337,7 +1340,7 @@ export default function DashboardPage() {
               setCustomEndDate('')
               setShowCustomPicker(false)
             }}
-            className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+            className={`min-h-[44px] rounded px-2 py-2 text-xs font-semibold transition-colors sm:px-3 sm:py-1.5 ${
               activeFilter === 'previousMonth'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1351,7 +1354,7 @@ export default function DashboardPage() {
                 setActiveFilter('custom')
                 setShowCustomPicker(!showCustomPicker)
               }}
-              className={`px-3 py-1.5 rounded font-semibold text-xs transition-colors ${
+              className={`min-h-[44px] w-full rounded px-2 py-2 text-xs font-semibold transition-colors sm:w-auto sm:px-3 sm:py-1.5 ${
                 activeFilter === 'custom'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1363,24 +1366,27 @@ export default function DashboardPage() {
             {showCustomPicker && (
               <div
                 ref={customPickerRef}
-                className="absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 min-w-[280px]"
+                className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-gray-300 bg-white p-4 shadow-xl sm:left-0 sm:right-auto"
               >
                 <div className="mb-2 text-sm font-semibold text-gray-700">Select Month</div>
                 <input
                   type="month"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
             )}
           </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {activeFilter !== 'currentMonth' && summary ? (
             <span className="text-xs text-gray-600">
               Showing: {summary.monthName} {summary.year}
             </span>
           ) : null}
-          <span className="w-full text-xs text-slate-500 sm:w-auto sm:ml-auto">{dashboardScopeHint}</span>
+          <span className="hidden text-xs text-slate-500 md:inline">{dashboardScopeHint}</span>
+          </div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
@@ -1798,18 +1804,19 @@ export default function DashboardPage() {
           }
           return (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-baseline gap-2">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-gray-700">Fuel Volume — Last 5 Days</h3>
                     <span className="text-xs text-gray-400">vs. same day prior year</span>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                     <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500"/><span>Unleaded</span></span>
                     <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-800"/><span>Diesel</span></span>
                     <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-200 border border-green-300"/><span>Prior yr</span></span>
                   </div>
                 </div>
-                <div className="flex items-end gap-3 h-40">
+                <div className="overflow-x-auto pb-1 -mx-1 px-1">
+                <div className="flex min-w-[320px] items-end gap-2 h-40 sm:gap-3">
                   {fuelComparison.map((day) => (
                     <div key={day.date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
                       {/* Bar group */}
@@ -1861,6 +1868,7 @@ export default function DashboardPage() {
                       <div className="text-xs text-gray-400 whitespace-nowrap">{(day.unleaded + day.diesel).toFixed(0)}L</div>
                     </div>
                   ))}
+                </div>
                 </div>
               </div>
           )
@@ -1967,7 +1975,7 @@ export default function DashboardPage() {
           onClick={() => setPayDayModalOpen(false)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Pay Day</h3>
@@ -2046,7 +2054,7 @@ export default function DashboardPage() {
           onClick={() => setPresenceModal(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-1">Attendance</h3>
@@ -2155,7 +2163,7 @@ export default function DashboardPage() {
           onClick={() => setReminderModalOpen(false)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Reminder</h3>

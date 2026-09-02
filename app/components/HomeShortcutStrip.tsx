@@ -34,7 +34,7 @@ function Tile({
         href={shortcut.href}
         prefetch={false}
         style={{ backgroundColor: tileBackgroundColor(shortcut.href, shortcut.id) }}
-        className="relative flex h-[7.5rem] w-[7.5rem] flex-col items-center rounded-2xl text-white hover:brightness-110"
+        className="relative flex h-[6.25rem] w-[6.25rem] flex-col items-center rounded-2xl text-white hover:brightness-110 sm:h-[7.5rem] sm:w-[7.5rem]"
       >
         {index != null ? (
           <span className="absolute left-2 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold text-white/95">
@@ -201,7 +201,7 @@ export default function HomeShortcutStrip() {
   }
 
   return (
-    <div className="mb-8 space-y-6">
+    <div className="mb-6 space-y-5 sm:mb-8 sm:space-y-6">
       <Row
         title="Recently Used"
         items={recents}
