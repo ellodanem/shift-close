@@ -24,7 +24,9 @@ export async function POST(request: NextRequest) {
       hostname: typeof body.hostname === 'string' ? body.hostname : null,
       version: typeof body.version === 'string' ? body.version : null,
       cstoreSessionOk:
-        typeof body.cstoreSessionOk === 'boolean' ? body.cstoreSessionOk : null
+        typeof body.cstoreSessionOk === 'boolean' ? body.cstoreSessionOk : null,
+      paused: typeof body.paused === 'boolean' ? body.paused : null,
+      pauseReason: typeof body.pauseReason === 'string' ? body.pauseReason : null
     })
 
     return NextResponse.json({ ok: true, id: agent.id, lastHeartbeatAt: agent.lastHeartbeatAt })

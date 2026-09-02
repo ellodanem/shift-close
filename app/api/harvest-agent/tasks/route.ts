@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
       startedAt,
       finishedAt,
       cstoreSessionOk:
-        typeof body.cstoreSessionOk === 'boolean' ? body.cstoreSessionOk : null
+        typeof body.cstoreSessionOk === 'boolean' ? body.cstoreSessionOk : null,
+      paused: typeof body.paused === 'boolean' ? body.paused : null,
+      pauseReason: typeof body.pauseReason === 'string' ? body.pauseReason : null
     })
 
     await notifyHarvestTaskFinished({

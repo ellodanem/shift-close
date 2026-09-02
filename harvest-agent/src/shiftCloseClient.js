@@ -74,6 +74,13 @@ async function sendCustomerCreditImport(config, body) {
   })
 }
 
+async function sendVendorInvoiceImport(config, body) {
+  return postJson(config, '/api/harvest-agent/import/vendor-invoices', {
+    ...identity(config),
+    ...body
+  })
+}
+
 async function fetchHarvestCustomers(config) {
   return getJson(config, '/api/harvest-agent/customers')
 }
@@ -89,6 +96,7 @@ module.exports = {
   sendHeartbeat,
   sendTask,
   sendCustomerCreditImport,
+  sendVendorInvoiceImport,
   fetchHarvestCustomers,
   addHarvestCustomers,
   identity

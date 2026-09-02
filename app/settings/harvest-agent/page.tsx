@@ -14,6 +14,9 @@ type AgentRow = {
   lastTaskAt: string | null
   cstoreSessionOk: boolean | null
   cstoreSessionAt: string | null
+  paused: boolean
+  pauseReason: string | null
+  pausedAt: string | null
   presence: Presence
 }
 
@@ -189,11 +192,17 @@ export default function HarvestAgentSettingsPage() {
                             </div>
                           </td>
                           <td className="py-2 pr-4">
-                            <span
-                              className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${presenceClass(a.presence)}`}
-                            >
-                              {presenceLabel(a.presence)}
-                            </span>
+                            {a.paused ? (
+                              <span className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
+                                Paused{a.pauseReason ? ` (${a.pauseReason})` : ''}
+                              </span>
+                            ) : (
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${presenceClass(a.presence)}`}
+                              >
+                                {presenceLabel(a.presence)}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 pr-4 text-gray-800">{formatWhen(a.lastHeartbeatAt)}</td>
                           <td className="py-2 pr-4 text-gray-800">

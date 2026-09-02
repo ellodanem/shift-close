@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getVendorVatRate } from '@/lib/vendorVatSettings'
+import type { Prisma } from '@prisma/client'
 
 export async function GET(
   _request: NextRequest,
@@ -40,18 +41,22 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, notificationEmail, notes, isVatRegistered } = body
+    const { name, notificationEmail, notes, isVatRegistered, cstoreName } = body
 
     const vendor = await prisma.vendor.findUnique({ where: { id } })
     if (!vendor) {
       return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
     }
 
-    const data: Record<string, unknown> = {}
+    const data: Prisma.VendorUpdateInput = {}
     if (name !== undefined) data.name = String(name).trim()
     if (notificationEmail !== undefined) data.notificationEmail = String(notificationEmail).trim()
     if (notes !== undefined) data.notes = String(notes).trim()
     if (isVatRegistered !== undefined) data.isVatRegistered = Boolean(isVatRegistered)
+    if (cstoreName !== undefined) {
+      data.cstoreName =
+        typeof cstoreName === 'string' && cstoreName.trim() ? cstoreName.trim() : null
+    }
 
     const updated = await prisma.vendor.update({
       where: { id },

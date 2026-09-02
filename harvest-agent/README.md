@@ -2,71 +2,100 @@
 
 Local browser agent that stays signed into Cstore Pro and reports job results to Shift Close.
 
-This is **not** the ZKTeco attendance agent in `agent/`. Long term it should run on a dedicated mini PC or Raspberry Pi with a desktop. For now it can run on a home PC.
+This is **not** the ZKTeco attendance agent in `agent/`. It runs on a dedicated PC with a desktop (home PC, mini PC, or Pi with desktop).
 
-## What it does today
+## What it does
 
 | Job | When | Result |
 |---|---|---|
 | Ping Shift Close | With every job | Last-seen on **Settings → Harvest agent** |
 | `cstore_keepalive` | On start, then 7:00 and 19:00 America/St_Lucia | Pass if the Cstore dashboard is visible |
+| `customer_accounts` | Manual or CLI | Imports customer credit reports into Shift Close |
+| `vendor_invoices` | Manual or CLI | Scrapes Grocery → Purchases → Invoices and adds invoices in Shift Close |
 
-Cstore passwords stay in the local Chrome profile (`harvest-agent/user-data/`). They are not stored in Shift Close.
+Vendor invoices have no export. The agent selects a vendor and month, reads the table (including pagination), and posts rows to Shift Close. Existing invoices (same vendor, number, date, and amount) are skipped. If a vendor reuses an invoice number, a letter is appended (`2062886A`) and that mapping is included in the harvest summary email. VAT-registered vendors in Shift Close split the Cstore amount using the global VAT rate; new Cstore-only vendors are created with VAT off.
 
-Customer jobs use the **Shift Close customer list**, not the Cstore dropdown order. Unknown Cstore names are skipped as `customer_missing`. A Shift Close customer who is not in Cstore is recorded as `not_in_cstore`.
+Cstore passwords stay in the local Chrome profile (`user-data/`). They are not stored in Shift Close. The **harvest secret** is stored encrypted on this PC (Windows DPAPI or Electron safeStorage) — enter it once in the dashboard; it cannot be viewed afterward.
 
-Customer account Excel download is the next job after keep-alive is stable.
+### Login safety
+
+- The agent clicks **Login at most once per job** (after Cloudflare if shown).
+- If Cstore rejects login or login fails after submit, **all jobs pause** until an admin verifies the password in Chrome and clicks **Resume** in the local dashboard.
+- The agent never retries a failed password automatically.
 
 ## Setup
 
-1. Apply the database script once (Neon SQL editor): `scripts/neon-apply-harvest-agent.sql`
-2. In Vercel, set `HARVEST_AGENT_SECRET` (or reuse `AGENT_SECRET`)
-3. On this machine:
+1. Apply database scripts once (Neon SQL editor):
+   - `scripts/neon-apply-harvest-agent.sql`
+   - `scripts/neon-apply-harvest-agent-paused.sql`
+   - `scripts/neon-apply-vendor-cstore-name.sql`
+2. In Vercel, set `HARVEST_AGENT_SECRET`
+3. On the harvest PC:
 
 ```
 cd harvest-agent
 copy config.example.json harvest-agent.config.json
+npm.cmd install
 ```
 
-Edit `harvest-agent.config.json`:
-
-- `vercelUrl` — your Shift Close URL, no trailing slash
-- `agentSecret` — same value as `HARVEST_AGENT_SECRET`
-- `agentKey` — a short name, e.g. `home-pc` or `pi-1`
+### Option A — Node + dashboard (recommended for setup)
 
 ```
-npm install
-npm start
+npm.cmd start
 ```
 
-The first run opens **Google Chrome**. Log into Cstore Pro, complete the Cloudflare check if it appears, and wait until the store dashboard shows. You have about 10 minutes. The agent then records **Pass** in Shift Close.
+Open **http://127.0.0.1:3921**, set Shift Close URL and paste the harvest secret once. The first run opens **Google Chrome** — log into Cstore Pro, complete Cloudflare if shown, and wait for the dashboard to show **Signed in**.
 
-If Cloudflare says "Verification failed", you are probably in Playwright Chromium instead of Chrome. Restart with `browserChannel` set to `"chrome"` (the default) and Google Chrome installed.
-
-Leave the process running (Task Scheduler / pm2 later). At 7am and 7pm it reopens Cstore to refresh the session and pings Shift Close.
-
-One-off test:
+### Option B — Electron tray app
 
 ```
-npm run once
+npm.cmd run electron
 ```
 
-First customer (this month, Details), then import into Shift Close:
+Runs the same agent with a system tray icon, auto-start with Windows, and the dashboard in a window.
+
+### Option C — Scheduled Task at logon
 
 ```
-npm run customer-one
+npm.cmd run install-task
 ```
 
-Stop the keep-alive agent first so Chrome is not using the same profile.
+Registers a Windows task that runs `node src/index.js` when you sign in.
 
-## Status
+## CLI (one-shot jobs)
 
-In Shift Close: **Settings → Harvest agent**
+Stop the daemon first if it is using the same Chrome profile.
 
-- Online / stale / offline from last ping
-- Cstore signed-in vs needs login
-- Task log with pass or fail
+```
+npm.cmd run once
+npm.cmd run customer-one
+npm.cmd run customer-august
+npm.cmd run customer-august -- --customer="NAME"
+npm.cmd run customer-august -- --from="CLEAN OPS COMPANY"
+npm.cmd run customer-august -- --all
+npm.cmd run vendor-august -- --vendor=Acado
+npm.cmd run vendor-august -- --all
+```
 
-## Raspberry Pi / mini PC later
+## Local dashboard
 
-Use a desktop OS (not Lite). Same Node 18+ install. Persistent profile means you log in once on that machine’s screen.
+**http://127.0.0.1:3921** — status, recent jobs, activity log, manual triggers, settings, resume when paused.
+
+Tray menu (Electron): Open dashboard, Open Cstore, Resume (when paused), Quit.
+
+## Cloud status
+
+**Settings → Harvest agent** in Shift Close — online/stale/offline, Cstore session, **Paused** badge, task log, email summaries.
+
+Configure task summary email under the same page.
+
+## Config
+
+`harvest-agent.config.json` (or `%AppData%` when using Electron):
+
+- `vercelUrl` — Shift Close URL
+- `agentKey` — short name for this PC
+- `dashboardPort` — default `3921`
+- Do **not** leave `agentSecret` in the file long-term; use the dashboard to store it securely.
+
+Override config directory: `HARVEST_CONFIG_DIR`

@@ -87,7 +87,7 @@ async function openViaReportCenterFlyout(page) {
   return onCustomerCreditReport(page)
 }
 
-async function openCustomerAccountsReport(page, config) {
+async function openCustomerAccountsReport(page, config, hooks = {}) {
   if (await onCustomerCreditReport(page)) return
 
   const reportPath = '/EmagineNETCOSM/Content/Reports/CustomerCreditReport.aspx?enetFoundationMenuID=1912'
@@ -97,7 +97,7 @@ async function openCustomerAccountsReport(page, config) {
   })
   await sleep(1000)
   if (isCstoreLoginUrl(page.url())) {
-    const login = await waitForSession(page, config)
+    const login = await waitForSession(page, config, hooks)
     if (!login.ok) throw new Error(login.message)
     if (!(await onCustomerCreditReport(page))) {
       await page.goto(new URL(reportPath, page.url()).href, {
@@ -497,9 +497,10 @@ async function runFirstCustomerCreditReport(config, options = {}) {
 
   const context = await launchContext(config)
   const page = context.pages()[0] || (await context.newPage())
+  const hooks = options.hooks || {}
 
   try {
-    const login = await ensureLoggedIn(page, config)
+    const login = await ensureLoggedIn(page, config, hooks)
     if (!login.ok) {
       return { ...login, taskKey: 'customer_accounts' }
     }
@@ -530,7 +531,7 @@ async function runFirstCustomerCreditReport(config, options = {}) {
       }
     }
 
-    await openCustomerAccountsReport(page, config)
+    await openCustomerAccountsReport(page, config, hooks)
     const form = await reportScope(page)
     console.log(`[Cstore] Report form ready at ${page.url()} (${targets.length} account(s))`)
     await setReportMonth(form, year, month)

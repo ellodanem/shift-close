@@ -1,15 +1,18 @@
 {
   "name": "shift-close-harvest-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
   "private": true,
-  "main": "src/index.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "once": "node src/index.js --once",
     "customer-one": "node src/index.js --once --task=customer_accounts",
     "customer-august": "node src/index.js --once --task=customer_accounts --month=2026-08",
+    "vendor-august": "node src/index.js --once --task=vendor_invoices --month=2026-08",
+    "electron": "electron .",
+    "install-task": "powershell -ExecutionPolicy Bypass -File scripts/install-scheduled-task.ps1",
     "postinstall": "npx playwright install chromium"
   },
   "engines": {
@@ -17,6 +20,10 @@
   },
   "dependencies": {
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
   }
 }

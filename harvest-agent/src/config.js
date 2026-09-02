@@ -5,6 +5,11 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const {
+  getStoredSecret,
+  migratePlaintextFromConfig,
+  hasStoredSecret
+} = require('./secrets')
 
 const CONFIG_DIR = process.env.HARVEST_CONFIG_DIR || process.cwd()
 const CONFIG_FILE = path.join(CONFIG_DIR, 'harvest-agent.config.json')
@@ -21,6 +26,7 @@ const DEFAULTS = {
   slotHours: [7, 19],
   timeZone: 'America/St_Lucia',
   loginWaitMs: 10 * 60 * 1000,
+  dashboardPort: 3921,
   userDataDir: path.join(CONFIG_DIR, 'user-data')
 }
 
@@ -38,6 +44,19 @@ function loadConfig() {
     ? fileConfig.slotHours.map((n) => Number(n)).filter((n) => n >= 0 && n <= 23)
     : DEFAULTS.slotHours
 
+  const plaintextSecret = fileConfig.agentSecret || ''
+  if (plaintextSecret) {
+    migratePlaintextFromConfig(plaintextSecret)
+  }
+
+  const storedSecret = getStoredSecret()
+  const agentSecret =
+    process.env.HARVEST_AGENT_SECRET ||
+    process.env.AGENT_SECRET ||
+    storedSecret ||
+    plaintextSecret ||
+    DEFAULTS.agentSecret
+
   return {
     ...DEFAULTS,
     ...fileConfig,
@@ -50,11 +69,7 @@ function loadConfig() {
       fileConfig.vercelUrl ||
       DEFAULTS.vercelUrl
     ).replace(/\/$/, ''),
-    agentSecret:
-      process.env.HARVEST_AGENT_SECRET ||
-      process.env.AGENT_SECRET ||
-      fileConfig.agentSecret ||
-      DEFAULTS.agentSecret,
+    agentSecret,
     cstoreUrl:
       process.env.CSTORE_URL || fileConfig.cstoreUrl || DEFAULTS.cstoreUrl,
     headed:
@@ -76,10 +91,30 @@ function loadConfig() {
     slotHours: slotHours.length ? slotHours : DEFAULTS.slotHours,
     timeZone: process.env.HARVEST_TZ || fileConfig.timeZone || DEFAULTS.timeZone,
     loginWaitMs: Number(fileConfig.loginWaitMs) || DEFAULTS.loginWaitMs,
+    dashboardPort: Number(fileConfig.dashboardPort) || DEFAULTS.dashboardPort,
     userDataDir: fileConfig.userDataDir
       ? path.resolve(CONFIG_DIR, fileConfig.userDataDir)
-      : DEFAULTS.userDataDir
+      : DEFAULTS.userDataDir,
+    agentSecretSet: Boolean(agentSecret) || hasStoredSecret()
   }
 }
 
-module.exports = { loadConfig, CONFIG_FILE }
+function saveConfig(updates) {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true })
+  }
+  let existing = {}
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
+    } catch {}
+  }
+  const merged = { ...existing, ...updates }
+  if ('agentSecret' in merged) {
+    delete merged.agentSecret
+  }
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf8')
+  return merged
+}
+
+module.exports = { loadConfig, saveConfig, CONFIG_DIR, CONFIG_FILE, DEFAULTS }

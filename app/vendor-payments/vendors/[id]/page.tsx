@@ -50,6 +50,7 @@ interface Vendor {
   name: string
   notificationEmail: string
   isVatRegistered: boolean
+  cstoreName?: string | null
   notes: string
   invoices: VendorInvoice[]
   batches: VendorBatch[]
@@ -348,6 +349,12 @@ function VendorDetailPageInner() {
               <dt className="text-sm text-gray-500">Notification Email</dt>
               <dd className="text-sm font-medium text-gray-900">{vendor.notificationEmail}</dd>
             </div>
+            {vendor.cstoreName && (
+              <div>
+                <dt className="text-sm text-gray-500">Cstore name</dt>
+                <dd className="text-sm font-medium text-gray-900">{vendor.cstoreName}</dd>
+              </div>
+            )}
             {vendor.notes && (
               <div className="sm:col-span-2">
                 <dt className="text-sm text-gray-500">Notes</dt>

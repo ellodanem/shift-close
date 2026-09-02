@@ -12,7 +12,8 @@ export default function EditVendorPage() {
     name: '',
     notificationEmail: '',
     notes: '',
-    isVatRegistered: false
+    isVatRegistered: false,
+    cstoreName: ''
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -32,7 +33,8 @@ export default function EditVendorPage() {
         name: data.name,
         notificationEmail: data.notificationEmail,
         notes: data.notes || '',
-        isVatRegistered: Boolean(data.isVatRegistered)
+        isVatRegistered: Boolean(data.isVatRegistered),
+        cstoreName: data.cstoreName || ''
       })
     } catch (err) {
       console.error('Error fetching vendor:', err)
@@ -108,6 +110,21 @@ export default function EditVendorPage() {
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Vendor name"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cstore name
+              </label>
+              <input
+                type="text"
+                value={formData.cstoreName}
+                onChange={(e) => setFormData({ ...formData, cstoreName: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Name as it appears in Cstore (if different)"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Used by the harvest agent when the Cstore vendor spelling does not match Shift Close.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

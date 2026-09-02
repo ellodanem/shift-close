@@ -31,6 +31,8 @@ export async function upsertHarvestHeartbeat(params: {
   hostname?: string | null
   version?: string | null
   cstoreSessionOk?: boolean | null
+  paused?: boolean | null
+  pauseReason?: string | null
   heartbeatAt?: Date
 }) {
   const key = params.agentKey.trim()
@@ -38,6 +40,7 @@ export async function upsertHarvestHeartbeat(params: {
 
   const now = params.heartbeatAt ?? new Date()
   const sessionTouched = typeof params.cstoreSessionOk === 'boolean'
+  const pauseTouched = typeof params.paused === 'boolean'
 
   return prisma.harvestAgent.upsert({
     where: { agentKey: key },
@@ -47,7 +50,10 @@ export async function upsertHarvestHeartbeat(params: {
       version: params.version?.trim() || null,
       lastHeartbeatAt: now,
       cstoreSessionOk: sessionTouched ? params.cstoreSessionOk : null,
-      cstoreSessionAt: sessionTouched ? now : null
+      cstoreSessionAt: sessionTouched ? now : null,
+      paused: pauseTouched ? params.paused : false,
+      pauseReason: pauseTouched && params.paused ? params.pauseReason?.trim() || null : null,
+      pausedAt: pauseTouched && params.paused ? now : null
     },
     update: {
       hostname: params.hostname?.trim() || undefined,
@@ -58,6 +64,19 @@ export async function upsertHarvestHeartbeat(params: {
             cstoreSessionOk: params.cstoreSessionOk,
             cstoreSessionAt: now
           }
+        : {}),
+      ...(pauseTouched
+        ? params.paused
+          ? {
+              paused: true,
+              pauseReason: params.pauseReason?.trim() || null,
+              pausedAt: now
+            }
+          : {
+              paused: false,
+              pauseReason: null,
+              pausedAt: null
+            }
         : {})
     }
   })
@@ -74,13 +93,29 @@ export async function recordHarvestTask(params: {
   startedAt: Date
   finishedAt: Date
   cstoreSessionOk?: boolean | null
+  paused?: boolean | null
+  pauseReason?: string | null
 }) {
   const status = params.status === HARVEST_TASK_PASS ? HARVEST_TASK_PASS : HARVEST_TASK_FAIL
+  const pauseFromTask =
+    params.taskKey === 'agent_paused' || (typeof params.paused === 'boolean' && params.paused)
   const agent = await upsertHarvestHeartbeat({
     agentKey: params.agentKey,
     hostname: params.hostname,
     version: params.version,
     cstoreSessionOk: params.cstoreSessionOk,
+    paused: pauseFromTask ? true : params.paused === false ? false : undefined,
+    pauseReason: pauseFromTask
+      ? params.pauseReason ||
+        (params.details &&
+        typeof params.details === 'object' &&
+        'pauseReason' in params.details &&
+        typeof (params.details as { pauseReason?: string }).pauseReason === 'string'
+          ? (params.details as { pauseReason: string }).pauseReason
+          : null)
+      : params.paused === false
+        ? null
+        : undefined,
     heartbeatAt: params.finishedAt
   })
 

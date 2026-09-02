@@ -7,5 +7,6 @@
   "browserChannel": "chrome",
   "runOnStart": true,
   "slotHours": [7, 19],
-  "timeZone": "America/St_Lucia"
+  "timeZone": "America/St_Lucia",
+  "dashboardPort": 3921
 }

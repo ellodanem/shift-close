@@ -1,6 +1,7 @@
 /**
  * cstoreKeepalive.js — open Cstore Pro with a persistent browser profile.
  * First run: log in once in the headed window. Later runs reuse cookies.
+ * Login protection: at most one Login click per job; failure pauses the agent.
  */
 
 const fs = require('fs')
@@ -28,6 +29,7 @@ async function pageLooksLoggedIn(page) {
 
   const path = urlPathname(url)
   if (path.includes('customercreditreport')) return true
+  if (path.includes('purchaseinvoice') || path.includes('managepurchases')) return true
   if (path.includes('taskdashboard') || path.includes('/content/tasks')) return true
 
   const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase()
@@ -37,6 +39,7 @@ async function pageLooksLoggedIn(page) {
     body.includes('day closing') ||
     body.includes('task dashboard') ||
     body.includes('customer account report') ||
+    body.includes('manage purchases') ||
     body.includes('critical tasks')
   ) {
     return true
@@ -110,9 +113,43 @@ async function clickCstoreLoginButton(page) {
   return false
 }
 
+async function loginFailureDetected(page) {
+  if (!isCstoreLoginUrl(page.url())) return false
+
+  const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase()
+  const patterns = [
+    'invalid username',
+    'invalid password',
+    'incorrect password',
+    'incorrect username',
+    'wrong password',
+    'login failed',
+    'authentication failed',
+    'account locked',
+    'locked out',
+    'has been locked',
+    'disabled',
+    'unsuccessful',
+    'could not log',
+    'unable to log'
+  ]
+  if (patterns.some((p) => body.includes(p))) return true
+
+  const alert = page.locator(
+    '.validation-summary-errors, .alert-danger, .error-message, [role="alert"]'
+  )
+  if ((await alert.count()) > 0) {
+    const text = ((await alert.first().innerText().catch(() => '')) || '').toLowerCase()
+    if (text && !text.includes('verify you are human')) return true
+  }
+
+  return false
+}
+
 async function trySubmitLoginAfterTurnstile(page, state) {
   if (!isCstoreLoginUrl(page.url())) return
   if (await pageLooksLoggedIn(page)) return
+  if (state.submitUsed) return
 
   if (!state.nudged) {
     await page
@@ -134,28 +171,28 @@ async function trySubmitLoginAfterTurnstile(page, state) {
     return
   }
 
-  if (Date.now() - state.lastClick < 8000) return
-
   if (!state.clickLogged) {
     console.log(
       hasCf
-        ? '[Cstore] Verification complete — clicking Login'
-        : '[Cstore] Clicking Login'
+        ? '[Cstore] Verification complete — clicking Login (once per job)'
+        : '[Cstore] Clicking Login (once per job)'
     )
     state.clickLogged = true
   }
 
   const clicked = await clickCstoreLoginButton(page)
-  if (clicked) {
-    state.lastClick = Date.now()
-    await page.waitForLoadState('domcontentloaded').catch(() => {})
-    await sleep(800)
-  } else {
+  if (!clicked) {
     console.warn('[Cstore] Login button not found or not clickable yet')
+    return
   }
+
+  state.submitUsed = true
+  state.submittedAt = Date.now()
+  await page.waitForLoadState('domcontentloaded').catch(() => {})
+  await sleep(1200)
 }
 
-async function waitForSession(page, config) {
+async function waitForSession(page, config, hooks = {}) {
   let ok = await pageLooksLoggedIn(page)
   let loginRequired = false
   if (!ok) {
@@ -170,10 +207,11 @@ async function waitForSession(page, config) {
       }
     }
     console.log(
-      `[Cstore] Login required — complete Cloudflare if shown; the agent will click Login (${Math.round(config.loginWaitMs / 1000)}s)`
+      `[Cstore] Login required — complete Cloudflare if shown; the agent will click Login once (${Math.round(config.loginWaitMs / 1000)}s)`
     )
     const loginState = {
-      lastClick: 0,
+      submitUsed: false,
+      submittedAt: 0,
       waitingLogged: false,
       clickLogged: false,
       nudged: false
@@ -186,6 +224,39 @@ async function waitForSession(page, config) {
       if (ok) {
         loginRequired = false
         break
+      }
+
+      if (loginState.submitUsed) {
+        if (await loginFailureDetected(page)) {
+          const message =
+            'Cstore rejected the login (wrong password or account locked). Jobs are paused — fix the password in Chrome on this PC, then click Resume.'
+          if (typeof hooks.onLoginFailure === 'function') {
+            await hooks.onLoginFailure({ reason: 'cstore_login_failed', message })
+          }
+          return {
+            ok: false,
+            loginRequired: true,
+            loginFailed: true,
+            url: page.url(),
+            message
+          }
+        }
+
+        const sinceSubmit = Date.now() - loginState.submittedAt
+        if (sinceSubmit >= 8000 && isCstoreLoginUrl(page.url())) {
+          const message =
+            'Cstore login did not succeed after submit. Jobs are paused — verify the password manually in Chrome, then click Resume.'
+          if (typeof hooks.onLoginFailure === 'function') {
+            await hooks.onLoginFailure({ reason: 'cstore_login_failed', message })
+          }
+          return {
+            ok: false,
+            loginRequired: true,
+            loginFailed: true,
+            url: page.url(),
+            message
+          }
+        }
       }
     }
   }
@@ -232,23 +303,23 @@ async function launchContext(config) {
   }
 }
 
-async function ensureLoggedIn(page, config) {
+async function ensureLoggedIn(page, config, hooks = {}) {
   await page.goto(config.cstoreUrl, {
     waitUntil: 'domcontentloaded',
     timeout: 60_000
   })
   await new Promise((r) => setTimeout(r, 1500))
-  return waitForSession(page, config)
+  return waitForSession(page, config, hooks)
 }
 
-async function runCstoreKeepalive(config) {
+async function runCstoreKeepalive(config, hooks = {}) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
 
   const context = await launchContext(config)
   const page = context.pages()[0] || (await context.newPage())
 
   try {
-    return await ensureLoggedIn(page, config)
+    return await ensureLoggedIn(page, config, hooks)
   } finally {
     await context.close()
   }
@@ -258,6 +329,7 @@ module.exports = {
   runCstoreKeepalive,
   pageLooksLoggedIn,
   isCstoreLoginUrl,
+  loginFailureDetected,
   launchContext,
   ensureLoggedIn,
   waitForSession

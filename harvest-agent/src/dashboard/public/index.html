@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Close Harvest Agent</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111; }
+    header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    header .subtitle { font-size: 0.8rem; opacity: 0.75; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-red { background: #ef4444; }
+    .dot-grey { background: #9ca3af; }
+    main { max-width: 920px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
+    .card h2 { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 14px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; }
+    .stat .label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
+    .stat .value { font-size: 0.95rem; font-weight: 600; color: #111; }
+    .stat .sub { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
+    label { font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 4px; color: #374151; }
+    input, select { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; font-size: 0.875rem; outline: none; }
+    input:focus, select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-green { background: #16a34a; color: white; }
+    .btn-amber { background: #d97706; color: white; }
+    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .activity { list-style: none; max-height: 220px; overflow-y: auto; }
+    .activity li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #f3f4f6; display: flex; gap: 10px; }
+    .activity .time { color: #9ca3af; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .banner { padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 4px; }
+    .banner-pause { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .banner-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-miss { background: #f3f4f6; color: #6b7280; }
+    .task-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .task-table th, .task-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+    .task-table th { color: #6b7280; font-weight: 600; }
+    .field { margin-bottom: 12px; }
+    .secret-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #toast { position: fixed; bottom: 20px; right: 20px; max-width: 340px; z-index: 99; }
+    .toast { padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .toast-ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+    .toast-err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    @media (max-width: 720px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="status-dot dot-grey" id="headerDot"></div>
+    <div>
+      <h1>Shift Close Harvest Agent</h1>
+      <div class="subtitle" id="headerSub">Loading…</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="pauseBanner" class="banner banner-pause" style="display:none">
+      <strong>Paused</strong> — <span id="pauseText"></span>
+      <div class="btn-row">
+        <button type="button" class="btn btn-green" id="btnResume">Resume jobs</button>
+      </div>
+    </div>
+
+    <div id="configBanner" class="banner banner-warn" style="display:none">
+      Set your Shift Close URL and harvest secret below before jobs can run.
+    </div>
+
+    <div class="grid3">
+      <div class="stat">
+        <div class="label">Cstore session</div>
+        <div class="value" id="statCstore">—</div>
+        <div class="sub" id="statCstoreSub"></div>
+      </div>
+      <div class="stat">
+        <div class="label">Last job</div>
+        <div class="value" id="statJob">—</div>
+        <div class="sub" id="statJobSub"></div>
+      </div>
+      <div class="stat">
+        <div class="label">Agent</div>
+        <div class="value" id="statAgent">—</div>
+        <div class="sub" id="statUptime"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Manual jobs</h2>
+      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Scheduled keep-alive runs at 7:00 and 19:00 St. Lucia time.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnKeepalive">Run keep-alive now</button>
+        <button type="button" class="btn btn-outline" id="btnCustomers">Run customer accounts</button>
+        <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
+        <button type="button" class="btn btn-outline" id="btnOpenCstore">Open Cstore in browser</button>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="field">
+          <label for="monthKey">Job month (YYYY-MM, optional)</label>
+          <input id="monthKey" placeholder="2026-08" />
+        </div>
+        <div class="field">
+          <label for="vendorName">Vendor (blank = all)</label>
+          <input id="vendorName" placeholder="Acado" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recent jobs (local)</h2>
+      <table class="task-table">
+        <thead><tr><th>When</th><th>Task</th><th>Result</th><th>Message</th></tr></thead>
+        <tbody id="taskRows"><tr><td colspan="4">No jobs yet</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Activity</h2>
+      <ul class="activity" id="activityList"><li><span class="msg">Waiting…</span></li></ul>
+    </div>
+
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="grid2">
+        <div class="field">
+          <label for="agentKey">Agent name</label>
+          <input id="agentKey" />
+        </div>
+        <div class="field">
+          <label for="vercelUrl">Shift Close URL</label>
+          <input id="vercelUrl" placeholder="https://shiftcloser.vercel.app" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="cstoreUrl">Cstore dashboard URL</label>
+        <input id="cstoreUrl" />
+      </div>
+      <div class="field">
+        <label>Harvest secret</label>
+        <div class="secret-row">
+          <span class="badge badge-miss" id="secretBadge">Not configured</span>
+          <input id="secretInput" type="password" placeholder="Paste once — cannot be viewed later" style="max-width:320px" />
+          <button type="button" class="btn btn-outline" id="btnSaveSecret">Save secret</button>
+          <button type="button" class="btn btn-outline" id="btnRemoveSecret">Remove</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnSaveSettings">Save settings</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+
+    function toast(msg, ok = true) {
+      const el = document.createElement('div')
+      el.className = 'toast ' + (ok ? 'toast-ok' : 'toast-err')
+      el.textContent = msg
+      $('toast').appendChild(el)
+      setTimeout(() => el.remove(), 4000)
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, opts)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      return data
+    }
+
+    function fmtWhen(iso) {
+      if (!iso) return '—'
+      const d = new Date(iso)
+      if (Number.isNaN(d.getTime())) return '—'
+      return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    }
+
+    function renderTasks(tasks) {
+      const tbody = $('taskRows')
+      if (!tasks || tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">No jobs yet</td></tr>'
+        return
+      }
+      tbody.innerHTML = tasks.map((t) =>
+        `<tr><td>${fmtWhen(t.at)}</td><td>${t.key}</td><td>${t.status}</td><td>${t.message || '—'}</td></tr>`
+      ).join('')
+    }
+
+    function renderActivity(items) {
+      const ul = $('activityList')
+      if (!items || items.length === 0) {
+        ul.innerHTML = '<li><span class="msg">No activity yet</span></li>'
+        return
+      }
+      ul.innerHTML = items.map((e) =>
+        `<li><span class="time">${e.time}</span><span class="msg">${e.message}</span></li>`
+      ).join('')
+    }
+
+    async function loadConfigForm() {
+      const cfg = await api('/api/config')
+      $('agentKey').value = cfg.agentKey || ''
+      $('vercelUrl').value = cfg.vercelUrl || ''
+      $('cstoreUrl').value = cfg.cstoreUrl || ''
+      const badge = $('secretBadge')
+      if (cfg.agentSecretSet) {
+        badge.textContent = 'Configured'
+        badge.className = 'badge badge-ok'
+        $('secretInput').disabled = true
+        $('secretInput').placeholder = 'Secret is stored locally'
+        $('btnSaveSecret').disabled = true
+      } else {
+        badge.textContent = 'Not configured'
+        badge.className = 'badge badge-miss'
+        $('secretInput').disabled = false
+        $('secretInput').placeholder = 'Paste once — cannot be viewed later'
+        $('btnSaveSecret').disabled = false
+      }
+    }
+
+    async function refresh() {
+      const s = await api('/api/status')
+      $('headerSub').textContent = s.agentKey + (s.jobRunning ? ' · job running' : '')
+      $('statAgent').textContent = s.agentKey || '—'
+      $('statUptime').textContent = 'Up ' + (s.uptime || '0 min')
+
+      if (s.paused) {
+        $('headerDot').className = 'status-dot dot-red'
+        $('pauseBanner').style.display = 'block'
+        $('pauseText').textContent = s.pauseMessage || s.pauseReason || 'Jobs are paused'
+      } else if (!s.configured) {
+        $('headerDot').className = 'status-dot dot-yellow'
+        $('pauseBanner').style.display = 'none'
+      } else if (s.cstoreSessionOk === true) {
+        $('headerDot').className = 'status-dot dot-green'
+        $('pauseBanner').style.display = 'none'
+      } else {
+        $('headerDot').className = 'status-dot dot-yellow'
+        $('pauseBanner').style.display = 'none'
+      }
+
+      $('configBanner').style.display = s.configured ? 'none' : 'block'
+
+      $('statCstore').textContent = s.cstoreSessionOk == null ? 'Unknown' : s.cstoreSessionOk ? 'Signed in' : 'Needs login'
+      $('statCstoreSub').textContent = s.cstoreSessionAt ? fmtWhen(s.cstoreSessionAt) : (s.nextSlotLabel || '')
+
+      $('statJob').textContent = s.lastJobKey ? s.lastJobKey.replace(/_/g, ' ') : '—'
+      $('statJobSub').textContent = s.lastJobAt
+        ? `${s.lastJobStatus || ''} · ${fmtWhen(s.lastJobAt)}`
+        : (s.lastJobMessage || '')
+
+      renderTasks(s.recentTasks)
+      renderActivity(s.activity)
+
+      const disabled = s.paused || s.jobRunning || !s.configured
+      $('btnKeepalive').disabled = disabled
+      $('btnCustomers').disabled = disabled
+      $('btnVendorInvoices').disabled = disabled
+      $('btnResume').disabled = !s.paused
+    }
+
+    $('btnSaveSettings').onclick = async () => {
+      try {
+        await api('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentKey: $('agentKey').value.trim(),
+            vercelUrl: $('vercelUrl').value.trim(),
+            cstoreUrl: $('cstoreUrl').value.trim()
+          })
+        })
+        toast('Settings saved')
+        await loadConfigForm()
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnSaveSecret').onclick = async () => {
+      const secret = $('secretInput').value.trim()
+      if (!secret) return toast('Enter a secret first', false)
+      try {
+        await api('/api/secret', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret })
+        })
+        $('secretInput').value = ''
+        toast('Secret saved locally')
+        await loadConfigForm()
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnRemoveSecret').onclick = async () => {
+      if (!confirm('Remove the stored harvest secret? You will need to paste it again.')) return
+      try {
+        await api('/api/secret', { method: 'DELETE' })
+        toast('Secret removed')
+        await loadConfigForm()
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnResume').onclick = async () => {
+      try {
+        await api('/api/resume', { method: 'POST' })
+        toast('Agent resumed')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnKeepalive').onclick = async () => {
+      try {
+        await api('/api/run-keepalive', { method: 'POST' })
+        toast('Keep-alive started')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnCustomers').onclick = async () => {
+      try {
+        const month = $('monthKey').value.trim()
+        await api('/api/run-customer-accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(month ? { month } : {})
+        })
+        toast('Customer accounts job started')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnVendorInvoices').onclick = async () => {
+      try {
+        const month = $('monthKey').value.trim()
+        const vendor = $('vendorName').value.trim()
+        await api('/api/run-vendor-invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(month ? { month } : {}),
+            ...(vendor ? { vendor } : {})
+          })
+        })
+        toast(vendor ? `Vendor invoices job started (${vendor})` : 'Vendor invoices job started (all)')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnOpenCstore').onclick = async () => {
+      const cfg = await api('/api/config')
+      if (cfg.cstoreUrl) window.open(cfg.cstoreUrl, '_blank')
+    }
+
+    loadConfigForm().then(refresh).catch((e) => toast(e.message, false))
+    setInterval(() => refresh().catch(() => {}), 5000)
+  </script>
+</body>
+</html>
