@@ -76,17 +76,33 @@ export async function ensureDirectorySeeded() {
 }
 
 export async function upsertDirectoryNames(names: string[]) {
+  await addMissingDirectoryNames(names)
+}
+
+export async function addMissingDirectoryNames(names: string[]) {
+  const created: DirectoryCustomer[] = []
+  const skipped: string[] = []
   for (const raw of names) {
     const name = raw.trim()
     if (!name || name.toLowerCase() === 'total') continue
     const existing = await prisma.customerArDirectory.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } }
+      where: {
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          { cstoreName: { equals: name, mode: 'insensitive' } }
+        ]
+      }
     })
-    if (existing) continue
-    await prisma.customerArDirectory.create({
+    if (existing) {
+      skipped.push(name)
+      continue
+    }
+    const row = await prisma.customerArDirectory.create({
       data: { name, active: true }
     })
+    created.push(row)
   }
+  return { created, skipped }
 }
 
 export async function listDirectory(includeInactive = true) {

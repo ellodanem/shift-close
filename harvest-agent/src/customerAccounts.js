@@ -6,7 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
-const { fetchHarvestCustomers } = require('./shiftCloseClient')
+const { fetchHarvestCustomers, addHarvestCustomers } = require('./shiftCloseClient')
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -322,6 +322,37 @@ function pickDirectoryCustomers(directory, options = {}) {
   return first ? [first] : []
 }
 
+function cstoreNamesNotInDirectory(cstoreNames, directory) {
+  return (cstoreNames || []).filter((name) => !pickDirectoryCustomer(directory, name))
+}
+
+async function harvestAccountList(page, form, targets, year, month, debugDir, onAccount, extra = {}) {
+  const results = []
+  for (const target of targets) {
+    let captured
+    try {
+      captured = await harvestOneAccount(page, form, target, year, month, debugDir)
+    } catch (err) {
+      captured = {
+        ok: false,
+        loginRequired: false,
+        url: page.url(),
+        account: target.name,
+        year,
+        month,
+        message: err.message || String(err)
+      }
+      await saveDebug(page, debugDir, 'customer-accounts-error')
+    }
+    captured = { ...captured, ...extra }
+    if (typeof onAccount === 'function') {
+      captured = (await onAccount(captured)) || captured
+    }
+    results.push(captured)
+  }
+  return results
+}
+
 async function listCreditAccountOptions(page) {
   const select = page.locator('#CustomerCreditReport_Form_AccountID')
   if ((await select.count()) > 0) {
@@ -505,27 +536,70 @@ async function runFirstCustomerCreditReport(config, options = {}) {
     await setReportMonth(form, year, month)
     await setReportTypeDetails(form)
 
-    const results = []
-    for (const target of targets) {
-      let captured
-      try {
-        captured = await harvestOneAccount(page, form, target, year, month, debugDir)
-      } catch (err) {
-        captured = {
-          ok: false,
-          loginRequired: false,
-          url: page.url(),
-          account: target.name,
-          year,
-          month,
-          message: err.message || String(err)
+    const cstoreNames = await listCreditAccountOptions(form)
+    const results = await harvestAccountList(
+      page,
+      form,
+      targets,
+      year,
+      month,
+      debugDir,
+      options.onAccount
+    )
+
+    const batch = Boolean(options.all || options.from)
+    if (batch) {
+      const missing = cstoreNamesNotInDirectory(cstoreNames, directory)
+      if (missing.length === 0) {
+        console.log('[Cstore] No Cstore-only names to add')
+      } else {
+        console.log(
+          `[Cstore] ${missing.length} Cstore name(s) not in Shift Close — adding at end: ${missing.join(', ')}`
+        )
+        try {
+          const added = await addHarvestCustomers(config, missing)
+          const created = Array.isArray(added.created) ? added.created : []
+          if (created.length === 0) {
+            console.log('[Cstore] Shift Close already had those names')
+          } else {
+            const extraTargets = created.map((c) => ({
+              id: c.id,
+              name: c.name,
+              cstoreName: c.cstoreName || c.name
+            }))
+            const extraResults = await harvestAccountList(
+              page,
+              form,
+              extraTargets,
+              year,
+              month,
+              debugDir,
+              options.onAccount,
+              { added: true }
+            )
+            results.push(...extraResults)
+          }
+        } catch (err) {
+          console.error('[Cstore] Could not add Cstore-only names:', err.message)
+          for (const name of missing) {
+            const failed = {
+              ok: false,
+              loginRequired: false,
+              url: page.url(),
+              account: name,
+              year,
+              month,
+              code: 'customer_missing',
+              added: false,
+              message: `${name}: could not add to Shift Close (${err.message})`
+            }
+            if (typeof options.onAccount === 'function') {
+              await options.onAccount(failed)
+            }
+            results.push(failed)
+          }
         }
-        await saveDebug(page, debugDir, 'customer-accounts-error')
       }
-      if (typeof options.onAccount === 'function') {
-        captured = (await options.onAccount(captured)) || captured
-      }
-      results.push(captured)
     }
 
     const failed = results.filter((r) => !r.ok)

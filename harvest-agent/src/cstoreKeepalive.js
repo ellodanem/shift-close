@@ -45,6 +45,116 @@ async function pageLooksLoggedIn(page) {
   return false
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+async function pageHasTurnstile(page) {
+  const widgets = page.locator(
+    '.cf-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"], iframe[title*="Cloudflare" i]'
+  )
+  if ((await widgets.count()) > 0) return true
+  return page.frames().some((f) => /challenges\.cloudflare|turnstile/i.test(f.url() || ''))
+}
+
+async function turnstileLooksSolved(page) {
+  const token = await page
+    .evaluate(() => {
+      function findToken(root) {
+        if (!root) return ''
+        const nodes = root.querySelectorAll
+          ? root.querySelectorAll('input, textarea')
+          : []
+        for (const el of nodes) {
+          const name = String(el.name || el.id || '')
+          const v = el.value || el.getAttribute('value') || ''
+          if (/turnstile/i.test(name) && v && String(v).length > 20) return String(v)
+        }
+        const all = root.querySelectorAll ? root.querySelectorAll('*') : []
+        for (const el of all) {
+          if (el.shadowRoot) {
+            const nested = findToken(el.shadowRoot)
+            if (nested) return nested
+          }
+        }
+        return ''
+      }
+      return findToken(document)
+    })
+    .catch(() => '')
+  if (token) return true
+  const success = page.locator('.cf-turnstile[data-state="success"], .cf-success')
+  return (await success.count()) > 0
+}
+
+async function clickCstoreLoginButton(page) {
+  const candidates = [
+    page.getByRole('button', { name: /^log\s*in$/i }),
+    page.getByRole('link', { name: /^log\s*in$/i }),
+    page.locator(
+      'input[type="submit"][value="Login" i], input[type="submit"][value="Log In" i], #btnLogin, #Login, #loginBtn'
+    )
+  ]
+  for (const loc of candidates) {
+    try {
+      const n = loc.filter({ visible: true })
+      if ((await n.count()) === 0) continue
+      const btn = n.first()
+      if (await btn.isDisabled().catch(() => false)) continue
+      await btn.click({ timeout: 5000 })
+      return true
+    } catch {
+      // try the next candidate
+    }
+  }
+  return false
+}
+
+async function trySubmitLoginAfterTurnstile(page, state) {
+  if (!isCstoreLoginUrl(page.url())) return
+  if (await pageLooksLoggedIn(page)) return
+
+  if (!state.nudged) {
+    await page
+      .locator('input[type="password"]')
+      .filter({ visible: true })
+      .first()
+      .click({ timeout: 2000 })
+      .catch(() => {})
+    state.nudged = true
+  }
+
+  const hasCf = await pageHasTurnstile(page)
+  const solved = await turnstileLooksSolved(page)
+  if (hasCf && !solved) {
+    if (!state.waitingLogged) {
+      console.log('[Cstore] Waiting for Cloudflare “Verify you are human”')
+      state.waitingLogged = true
+    }
+    return
+  }
+
+  if (Date.now() - state.lastClick < 8000) return
+
+  if (!state.clickLogged) {
+    console.log(
+      hasCf
+        ? '[Cstore] Verification complete — clicking Login'
+        : '[Cstore] Clicking Login'
+    )
+    state.clickLogged = true
+  }
+
+  const clicked = await clickCstoreLoginButton(page)
+  if (clicked) {
+    state.lastClick = Date.now()
+    await page.waitForLoadState('domcontentloaded').catch(() => {})
+    await sleep(800)
+  } else {
+    console.warn('[Cstore] Login button not found or not clickable yet')
+  }
+}
+
 async function waitForSession(page, config) {
   let ok = await pageLooksLoggedIn(page)
   let loginRequired = false
@@ -60,11 +170,18 @@ async function waitForSession(page, config) {
       }
     }
     console.log(
-      `[Cstore] Login required — sign in in the browser window (${Math.round(config.loginWaitMs / 1000)}s)`
+      `[Cstore] Login required — complete Cloudflare if shown; the agent will click Login (${Math.round(config.loginWaitMs / 1000)}s)`
     )
+    const loginState = {
+      lastClick: 0,
+      waitingLogged: false,
+      clickLogged: false,
+      nudged: false
+    }
     const deadline = Date.now() + config.loginWaitMs
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 3000))
+      await trySubmitLoginAfterTurnstile(page, loginState)
+      await sleep(1000)
       ok = await pageLooksLoggedIn(page)
       if (ok) {
         loginRequired = false

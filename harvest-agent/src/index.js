@@ -109,7 +109,12 @@ async function runCustomerAccountsCycle(reason) {
 
   async function importCaptured(captured) {
     if (!captured.ok || !captured.html) {
-      summaries.push({ account: captured.account, ok: false, message: captured.message })
+      summaries.push({
+        account: captured.account,
+        ok: false,
+        message: captured.message,
+        added: Boolean(captured.added)
+      })
       return captured
     }
     try {
@@ -129,13 +134,19 @@ async function runCustomerAccountsCycle(reason) {
         ok: true,
         imported: imported.imported,
         empty: imported.empty,
-        opening: imported.opening
+        opening: imported.opening,
+        added: Boolean(captured.added)
       })
       return { ...captured, ok: true, message, html: undefined }
     } catch (err) {
       const message = `Cstore report captured but Shift Close import failed: ${err.message}`
       console.error(`[Harvest] ${captured.account}: ${message}`)
-      summaries.push({ account: captured.account, ok: false, message })
+      summaries.push({
+        account: captured.account,
+        ok: false,
+        message,
+        added: Boolean(captured.added)
+      })
       return { ...captured, ok: false, message, html: undefined }
     }
   }
@@ -156,6 +167,8 @@ async function runCustomerAccountsCycle(reason) {
   if (summaries.length > 0) {
     extra = { reason, accounts: summaries }
     const failed = summaries.filter((s) => !s.ok)
+    const addedCount = summaries.filter((s) => s.added).length
+    const importedCount = summaries.filter((s) => s.ok).length
     result = {
       ...result,
       ok: failed.length === 0 && result.ok !== false,
@@ -163,7 +176,9 @@ async function runCustomerAccountsCycle(reason) {
       message:
         summaries.length === 1
           ? summaries[0].message || result.message
-          : `${summaries.filter((s) => s.ok).length} imported, ${failed.length} failed`
+          : `${importedCount} imported, ${failed.length} failed${
+              addedCount ? `, ${addedCount} new name(s)` : ''
+            }`
     }
   } else if (result.ok && result.html) {
     result = await importCaptured(result)

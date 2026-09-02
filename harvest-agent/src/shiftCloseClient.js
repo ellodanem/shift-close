@@ -78,10 +78,18 @@ async function fetchHarvestCustomers(config) {
   return getJson(config, '/api/harvest-agent/customers')
 }
 
+async function addHarvestCustomers(config, names) {
+  return postJson(config, '/api/harvest-agent/customers', {
+    ...identity(config),
+    names
+  })
+}
+
 module.exports = {
   sendHeartbeat,
   sendTask,
   sendCustomerCreditImport,
   fetchHarvestCustomers,
+  addHarvestCustomers,
   identity
 }
