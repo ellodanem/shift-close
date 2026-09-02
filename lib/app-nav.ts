@@ -14,11 +14,13 @@ import {
   normalizeAppRole
 } from '@/lib/roles'
 import { filterSettingsNavItems } from '@/lib/settings-nav'
+import { REPORTS_NAV_ITEMS } from '@/lib/reports-nav'
 
 export type NavItemConfig = {
   label: string
   href: string
   permission: string
+  comingSoon?: boolean
   children?: NavItemConfig[]
 }
 
@@ -32,6 +34,7 @@ export type NavTile = {
   href: string
   shortcutId: HomeShortcutId
   tileClass: string
+  comingSoon?: boolean
 }
 
 const BASE_NAV_CONFIG: NavGroupConfig[] = [
@@ -64,7 +67,7 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
   },
   {
     label: 'Reports',
-    items: [{ label: 'Reports Center', href: '/reports', permission: 'reports.center' }]
+    items: []
   },
   {
     label: 'People',
@@ -114,7 +117,15 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/settings/roster': 'settings-roster',
   '/settings/staff-roles': 'settings-staff-roles',
   '/settings/vendor-vat': 'settings-vendor-vat',
-  '/settings/harvest-agent': 'settings-harvest-agent'
+  '/settings/harvest-agent': 'settings-harvest-agent',
+  '/roster/staff-report': 'report-staff-roster',
+  '/reports/fuel-comparison': 'report-fuel-comparison',
+  '/vendor-payments/monthly-report': 'report-vendor-invoices',
+  '/reports/coming-soon/weekly': 'report-weekly',
+  '/reports/coming-soon/supervisor': 'report-supervisor',
+  '/reports/coming-soon/over-short': 'report-over-short',
+  '/reports/coming-soon/deposit': 'report-deposit',
+  '/reports/coming-soon/exception': 'report-exception'
 }
 
 const FALLBACK_TILE_CLASS = 'bg-slate-600'
@@ -143,7 +154,8 @@ export function navItemToTile(item: NavItemConfig): NavTile {
     label: item.label,
     href: item.href,
     shortcutId,
-    tileClass: shortcut?.tileClass ?? FALLBACK_TILE_CLASS
+    tileClass: shortcut?.tileClass ?? FALLBACK_TILE_CLASS,
+    comingSoon: item.comingSoon
   }
 }
 
@@ -188,6 +200,22 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
   return true
 }
 
+function buildReportsNavItems(role: string, includeComingSoon: boolean): NavItemConfig[] {
+  return REPORTS_NAV_ITEMS.filter((item) => {
+    if (item.comingSoon) return includeComingSoon
+    return navItemVisibleForRole(item.href, role)
+  }).map((item) => ({
+    label: item.label,
+    href: item.href,
+    permission: item.permission,
+    comingSoon: item.comingSoon
+  }))
+}
+
+export function buildReportsCenterTiles(role: string): NavTile[] {
+  return buildReportsNavItems(role, true).map(navItemToTile)
+}
+
 function filterNavItems(items: NavItemConfig[], role: string): NavItemConfig[] {
   return items
     .map((item) => ({
@@ -211,7 +239,13 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/days') return pathname === '/days'
   if (href === '/financial/cashbook') return pathname.startsWith('/financial/cashbook')
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
-  if (href === '/reports/financial') return pathname === '/reports/financial'
+  if (href === '/reports/financial') return pathname.startsWith('/reports/financial')
+  if (href === '/reports/fuel-comparison') return pathname.startsWith('/reports/fuel-comparison')
+  if (href === '/vendor-payments/monthly-report') {
+    return pathname.startsWith('/vendor-payments/monthly-report')
+  }
+  if (href === '/attendance/late-absent') return pathname.startsWith('/attendance/late-absent')
+  if (href === '/attendance/pay-period') return pathname.startsWith('/attendance/pay-period')
   if (href === '/customer-accounts') return pathname.startsWith('/customer-accounts')
   if (href === '/fuel-payments/invoices') {
     return pathname === '/fuel-payments/invoices' || pathname.startsWith('/fuel-payments/invoices/')
@@ -224,6 +258,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/reports/monthly') return pathname.startsWith('/reports/monthly')
   if (href === '/reports/daily-financial-summary') return pathname.startsWith('/reports/daily-financial-summary')
   if (href === '/staff') return pathname === '/staff' || pathname.startsWith('/staff/')
+  if (href === '/roster/staff-report') return pathname.startsWith('/roster/staff-report')
   if (href === '/roster') {
     if (pathname === ROSTER_MOBILE_PATH) return false
     return pathname === '/roster'
@@ -266,6 +301,7 @@ export function isPathActive(pathname: string, href: string): boolean {
 
 export function isGroupActive(group: NavGroupConfig, pathname: string): boolean {
   if (group.label === 'Setup' && pathname === '/settings') return true
+  if (group.label === 'Reports' && pathname === '/reports') return true
   return flattenNavItems(group.items).some((item) => isPathActive(pathname, item.href))
 }
 
@@ -280,6 +316,12 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
           href: item.href,
           permission: item.permission
         }))
+      }
+    }
+    if (group.label === 'Reports') {
+      return {
+        ...group,
+        items: buildReportsNavItems(role, false)
       }
     }
     return {

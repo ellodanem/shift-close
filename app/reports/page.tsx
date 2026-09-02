@@ -1,169 +1,20 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useAuth } from '@/app/components/AuthContext'
+import NavGroupTiles from '@/app/components/NavGroupTiles'
+import { buildReportsCenterTiles } from '@/lib/app-nav'
 
 export default function ReportsPage() {
-  const router = useRouter()
-
-  const reports = [
-    {
-      id: 'staff-roster',
-      title: 'Staff Roster Report',
-      description: 'Individual scheduled shifts over a date range — week or list view',
-      icon: '🗓️',
-      comingSoon: false,
-      route: '/roster/staff-report'
-    },
-    {
-      id: 'late-absent',
-      title: 'Late & Absent Summary',
-      description: 'How often rostered staff were late or absent over a pay period',
-      icon: '⏱️',
-      comingSoon: false,
-      route: '/attendance/late-absent'
-    },
-    {
-      id: 'weekly',
-      title: 'Weekly Reports',
-      description: 'Aggregate all days in a week with totals and summaries',
-      icon: '📅',
-      comingSoon: true
-    },
-    {
-      id: 'monthly',
-      title: 'Monthly Reports',
-      description: 'Comprehensive monthly revenue, operational metrics, and daily breakdowns',
-      icon: '📆',
-      comingSoon: false,
-      route: '/reports/monthly'
-    },
-    {
-      id: 'financial',
-      title: 'Financial Reports',
-      description: 'Expenses, payables, receivables, cash flow, and profit & loss',
-      icon: '💰',
-      comingSoon: false,
-      route: '/reports/financial'
-    },
-    {
-      id: 'supervisor',
-      title: 'Supervisor Reports',
-      description: 'Performance and statistics by supervisor',
-      icon: '👤',
-      comingSoon: true
-    },
-    {
-      id: 'over-short-trend',
-      title: 'Over/Short Trend Reports',
-      description: 'Track discrepancies and over/short patterns over time',
-      icon: '📈',
-      comingSoon: true
-    },
-    {
-      id: 'daily-financial-summary',
-      title: 'Daily Financial Summary',
-      description: 'Daily revenue, deposits, credit, debit, and fuel totals',
-      icon: '📊',
-      comingSoon: false,
-      route: '/reports/daily-financial-summary'
-    },
-    {
-      id: 'fuel-comparison',
-      title: 'Comparative Fuel Data',
-      description: 'Year-over-year fuel volume comparison (Unleaded & Diesel) by month',
-      icon: '⛽',
-      comingSoon: false,
-      route: '/reports/fuel-comparison'
-    },
-    {
-      id: 'vendor-invoice-payments',
-      title: 'All Invoices Report',
-      description: 'Vendor invoice amounts by month — paid only or paid and pending',
-      icon: '🧾',
-      comingSoon: false,
-      route: '/vendor-payments/monthly-report'
-    },
-    {
-      id: 'fuel-monthly',
-      title: 'Fuel Monthly Report',
-      description: 'Fuel invoice payments grouped by month',
-      icon: '⛽',
-      comingSoon: false,
-      route: '/fuel-payments/monthly-report'
-    },
-    {
-      id: 'pay-period',
-      title: 'Pay Period Report',
-      description: 'Attendance hours and pay-period totals',
-      icon: '⏱️',
-      comingSoon: false,
-      route: '/attendance/pay-period'
-    },
-    {
-      id: 'deposit',
-      title: 'Deposit Reports',
-      description: 'Deposit patterns, totals, and analysis',
-      icon: '💰',
-      comingSoon: true
-    },
-    {
-      id: 'exception',
-      title: 'Exception Reports',
-      description: 'Red flags, incomplete days, and missing data alerts',
-      icon: '🚨',
-      comingSoon: true
-    },
-    {
-      id: 'day',
-      title: 'End of Day',
-      description: 'Aggregated daily reports with completeness validation',
-      icon: '📊',
-      comingSoon: false,
-      route: '/days'
-    }
-  ]
+  const { user } = useAuth()
+  const role = user?.role ?? ''
+  const tiles = buildReportsCenterTiles(role)
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Reports Center</h1>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reports.map((report) => (
-            <div
-              key={report.id}
-              onClick={() => {
-                if (!report.comingSoon && report.route) {
-                  router.push(report.route)
-                }
-              }}
-              className={`bg-white rounded-lg shadow-sm border-2 border-gray-200 p-6 cursor-pointer transition-all ${
-                report.comingSoon
-                  ? 'opacity-75 hover:border-gray-300'
-                  : 'hover:border-blue-400 hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="text-4xl">{report.icon}</div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
-                    {report.comingSoon && (
-                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">
-                        Coming Soon
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600">{report.description}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+    <div className="min-h-full bg-gray-50 p-6">
+      <div className="mx-auto max-w-5xl">
+        <h1 className="mb-5 text-2xl font-bold text-blue-950">Reports Center</h1>
+        <NavGroupTiles tiles={tiles} />
       </div>
     </div>
   )
 }
-

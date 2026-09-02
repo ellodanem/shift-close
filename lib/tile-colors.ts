@@ -42,7 +42,15 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'settings-roster': '#16a34a',
   'settings-staff-roles': '#64748b',
   'settings-vendor-vat': '#0f766e',
-  'settings-harvest-agent': '#334155'
+  'settings-harvest-agent': '#334155',
+  'report-staff-roster': '#16a34a',
+  'report-weekly': '#6366f1',
+  'report-supervisor': '#64748b',
+  'report-over-short': '#9333ea',
+  'report-fuel-comparison': '#2563eb',
+  'report-vendor-invoices': '#ea580c',
+  'report-deposit': '#0d9488',
+  'report-exception': '#dc2626'
 }
 
 const HREF_TILE_BG: Record<string, string> = {

@@ -36,23 +36,49 @@ export default function NavGroupTiles({
           : 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
       }
     >
-      {tiles.map((tile) => (
-        <Link
-          key={tile.href}
-          href={tile.href}
-          prefetch={false}
-          onClick={onNavigate}
-          style={{ backgroundColor: tileBackgroundColor(tile.href, tile.shortcutId) }}
-          className={`relative flex w-full flex-col items-center rounded-2xl shadow-md text-white hover:brightness-110 ${sizeClass}`}
-        >
-          <span className="mt-6 flex h-9 items-center justify-center">
-            <TileIcon tile={tile} />
-          </span>
-          <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
-            {tile.label}
-          </span>
-        </Link>
-      ))}
+      {tiles.map((tile) => {
+        const tileBody = (
+          <>
+            <span className="mt-6 flex h-9 items-center justify-center">
+              <TileIcon tile={tile} />
+            </span>
+            <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
+              {tile.label}
+            </span>
+            {tile.comingSoon ? (
+              <span className="absolute right-2 top-2 rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                Soon
+              </span>
+            ) : null}
+          </>
+        )
+
+        if (tile.comingSoon) {
+          return (
+            <div
+              key={tile.href}
+              style={{ backgroundColor: tileBackgroundColor(tile.href, tile.shortcutId) }}
+              className={`relative flex w-full cursor-not-allowed flex-col items-center rounded-2xl opacity-60 shadow-md text-white ${sizeClass}`}
+              aria-disabled="true"
+            >
+              {tileBody}
+            </div>
+          )
+        }
+
+        return (
+          <Link
+            key={tile.href}
+            href={tile.href}
+            prefetch={false}
+            onClick={onNavigate}
+            style={{ backgroundColor: tileBackgroundColor(tile.href, tile.shortcutId) }}
+            className={`relative flex w-full flex-col items-center rounded-2xl shadow-md text-white hover:brightness-110 ${sizeClass}`}
+          >
+            {tileBody}
+          </Link>
+        )
+      })}
     </div>
   )
 }

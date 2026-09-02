@@ -52,6 +52,14 @@ export type HomeShortcutId =
   | 'settings-staff-roles'
   | 'settings-vendor-vat'
   | 'settings-harvest-agent'
+  | 'report-staff-roster'
+  | 'report-weekly'
+  | 'report-supervisor'
+  | 'report-over-short'
+  | 'report-fuel-comparison'
+  | 'report-vendor-invoices'
+  | 'report-deposit'
+  | 'report-exception'
 
 export type HomeShortcut = {
   id: HomeShortcutId
