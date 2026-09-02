@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
+import HomeShortcutIcon from './HomeShortcutIcon'
 import {
   DEFAULT_FAVORITE_IDS,
   HOME_SHORTCUTS,
@@ -27,16 +28,23 @@ function Tile({
   onToggleFavorite: (id: HomeShortcutId) => void
 }) {
   return (
-    <div className="relative shrink-0 w-[7.25rem]">
+    <div className="relative shrink-0">
       <Link
         href={shortcut.href}
         prefetch={false}
-        className={`flex h-[7.25rem] w-[7.25rem] flex-col items-center justify-center rounded-xl ${shortcut.tileClass} text-white shadow-sm hover:brightness-110`}
+        className={`relative flex h-[7.5rem] w-[7.5rem] flex-col items-center rounded-2xl ${shortcut.tileClass} text-white hover:brightness-110`}
       >
         {index != null ? (
-          <span className="absolute left-2 top-1.5 text-[11px] font-semibold text-white/90">{index}</span>
+          <span className="absolute left-2 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold text-white/95">
+            {index}
+          </span>
         ) : null}
-        <span className="px-2 text-center text-sm font-semibold leading-tight">{shortcut.label}</span>
+        <span className="mt-7 flex h-9 items-center justify-center">
+          <HomeShortcutIcon id={shortcut.id} className="h-8 w-8 text-white" />
+        </span>
+        <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
+          {shortcut.label}
+        </span>
       </Link>
       <button
         type="button"
@@ -63,6 +71,31 @@ function Tile({
   )
 }
 
+function ScrollArrow({
+  direction,
+  onClick
+}: {
+  direction: 'left' | 'right'
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 sm:flex"
+      aria-label={direction === 'left' ? 'Scroll left' : 'Scroll right'}
+    >
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        {direction === 'left' ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        )}
+      </svg>
+    </button>
+  )
+}
+
 function Row({
   title,
   items,
@@ -78,22 +111,34 @@ function Row({
   onToggleFavorite: (id: HomeShortcutId) => void
   empty?: string
 }) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const scrollBy = (dir: -1 | 1) => {
+    scrollerRef.current?.scrollBy({ left: dir * 160, behavior: 'smooth' })
+  }
+
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
       {items.length === 0 ? (
         <p className="text-sm text-slate-500">{empty}</p>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {items.map((shortcut, i) => (
-            <Tile
-              key={shortcut.id}
-              shortcut={shortcut}
-              index={numbered ? i + 1 : undefined}
-              favorited={favorites.has(shortcut.id)}
-              onToggleFavorite={onToggleFavorite}
-            />
-          ))}
+        <div className="flex items-center gap-2">
+          <ScrollArrow direction="left" onClick={() => scrollBy(-1)} />
+          <div
+            ref={scrollerRef}
+            className="flex min-w-0 flex-1 gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {items.map((shortcut, i) => (
+              <Tile
+                key={shortcut.id}
+                shortcut={shortcut}
+                index={numbered ? i + 1 : undefined}
+                favorited={favorites.has(shortcut.id)}
+                onToggleFavorite={onToggleFavorite}
+              />
+            ))}
+          </div>
+          <ScrollArrow direction="right" onClick={() => scrollBy(1)} />
         </div>
       )}
     </section>
