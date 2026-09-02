@@ -478,36 +478,36 @@ export default function CashbookPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
         <p className="text-gray-600">Loading cashbook…</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
       <div className="max-w-5xl mx-auto">
-        <div className="sticky top-0 z-10 bg-gray-50 pt-8 pb-6 -mt-8 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
+        <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-gray-200 bg-gray-50/95 px-4 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Cashbook</h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Cashbook</h1>
+              <p className="mt-1 text-sm text-gray-600">
                 Track income and expenses. Your accountant can read the full details.
               </p>
             </div>
-            <div className="flex gap-3 items-center">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex min-h-[44px] items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Month:</span>
                 <input
                   type="month"
                   value={month}
                   onChange={(e) => setMonth(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="min-h-[44px] flex-1 rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:flex-none sm:py-1"
                 />
               </div>
               <button
                 onClick={() => router.push('/reports/financial')}
-                className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+                className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
               >
                 Financial Report
               </button>
@@ -521,16 +521,16 @@ export default function CashbookPage() {
           )}
 
           {/* Add Income / Add Expense */}
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
             <button
               onClick={() => openAddModal('income')}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 shadow-sm"
+              className="min-h-[44px] rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 sm:px-6"
             >
               ➕ Add Income
             </button>
             <button
               onClick={() => openAddModal('expense')}
-              className="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 shadow-sm"
+              className="min-h-[44px] rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 sm:px-6"
             >
               ➕ Add Expense
             </button>
@@ -538,27 +538,27 @@ export default function CashbookPage() {
         </div>
 
         {/* Quick add category */}
-        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-          <div className="text-xs font-semibold text-gray-700 mb-2">Add category</div>
-          <div className="flex flex-wrap gap-2 items-center">
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-2 text-xs font-semibold text-gray-700">Add category</div>
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <input
               type="text"
               value={newCatName}
               onChange={(e) => setNewCatName(e.target.value)}
               placeholder="Name (e.g. Utilities)"
-              className="border border-gray-300 rounded px-2 py-1 text-sm"
+              className="min-h-[44px] rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:py-1"
             />
             <input
               type="text"
               value={newCatCode}
               onChange={(e) => setNewCatCode(e.target.value)}
               placeholder="Code (optional)"
-              className="border border-gray-300 rounded px-2 py-1 text-sm w-20"
+              className="min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:w-20 sm:py-1"
             />
             <select
               value={newCatType}
               onChange={(e) => setNewCatType(e.target.value as 'income' | 'expense')}
-              className="border border-gray-300 rounded px-2 py-1 text-sm"
+              className="min-h-[44px] rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:py-1"
             >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
@@ -566,7 +566,7 @@ export default function CashbookPage() {
             <button
               type="button"
               onClick={() => void handleAddCategory()}
-              className="px-3 py-1 bg-slate-700 text-white rounded text-sm font-semibold hover:bg-slate-800"
+              className="min-h-[44px] rounded bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:min-h-0 sm:py-1"
             >
               Add
             </button>
@@ -574,33 +574,33 @@ export default function CashbookPage() {
         </div>
 
         {/* Entries list */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-3">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <h2 className="font-semibold text-gray-800">
               Entries for {(() => {
               const [y, m] = month.split('-').map(Number)
               return new Date(y, (m || 1) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
             })()}
             </h2>
-            <div className="flex gap-3 items-center">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex min-h-[44px] items-center gap-2">
                 <label className="text-sm text-gray-600">Type:</label>
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="min-h-[44px] flex-1 rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:flex-none sm:py-1"
                 >
                   <option value="">All</option>
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-h-[44px] items-center gap-2">
                 <label className="text-sm text-gray-600">Category:</label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm min-w-[140px]"
+                  className="min-h-[44px] min-w-0 flex-1 rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:min-w-[140px] sm:flex-none sm:py-1"
                 >
                   <option value="">All</option>
                   {categories.map((c) => (
@@ -610,6 +610,13 @@ export default function CashbookPage() {
                   ))}
                 </select>
               </div>
+              <button
+                type="button"
+                onClick={toggleDateSort}
+                className="min-h-[44px] rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 md:hidden"
+              >
+                Date {dateSort === 'desc' ? '↓ newest' : '↑ oldest'}
+              </button>
             </div>
           </div>
           {entries.length === 0 ? (
@@ -617,7 +624,64 @@ export default function CashbookPage() {
               No entries yet. Click &quot;Add Income&quot; or &quot;Add Expense&quot; to start.
             </div>
           ) : (
-            <table className="min-w-full text-sm">
+            <>
+            {/* Mobile cards */}
+            <div className="space-y-3 p-3 md:hidden">
+              {sortedEntries.map((entry) => {
+                const type = inferType(entry)
+                const alloc = entry.allocations[0]
+                const catName = alloc?.category.name ?? '—'
+                const amount = inferAmount(entry)
+                const payment = type === 'expense' ? formatPaymentLabel(inferPaymentMethod(entry)) : null
+                return (
+                  <div key={entry.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900">{entry.date}</div>
+                        <div className="mt-1 line-clamp-2 text-sm text-gray-800">{entry.description}</div>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
+                          type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {type === 'income' ? 'Income' : 'Expense'}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      {catName}
+                      {payment ? ` · ${payment}` : ''}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+                      <span
+                        className={`font-semibold font-mono tabular-nums ${
+                          type === 'income' ? 'text-green-700' : 'text-red-700'
+                        }`}
+                      >
+                        {type === 'income' ? '+' : '-'}${formatCurrency(amount)}
+                      </span>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => openEditModal(entry)}
+                          className="min-h-[44px] text-sm font-medium text-blue-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => void deleteEntry(entry.id)}
+                          className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden min-w-full text-sm md:table">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">
@@ -682,6 +746,7 @@ export default function CashbookPage() {
                 })}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </div>
@@ -689,11 +754,11 @@ export default function CashbookPage() {
       {/* Add/Edit Modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={closeModal}
         >
           <div
-            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -838,10 +903,10 @@ export default function CashbookPage() {
                 />
               </div>
             </div>
-            <div className="mt-6 flex gap-2 justify-end">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                className="min-h-[44px] rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
               >
                 Cancel
               </button>
@@ -849,7 +914,7 @@ export default function CashbookPage() {
                 <button
                   onClick={() => void saveEntry(true)}
                   disabled={saving}
-                  className="px-4 py-2 rounded font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-60"
+                  className="min-h-[44px] rounded bg-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-60 sm:min-h-0"
                 >
                   Save & Add another
                 </button>
@@ -857,7 +922,7 @@ export default function CashbookPage() {
               <button
                 onClick={() => void saveEntry()}
                 disabled={saving}
-                className={`px-4 py-2 rounded font-medium text-white ${
+                className={`min-h-[44px] rounded px-4 py-2 font-medium text-white sm:min-h-0 ${
                   modalOpen === 'income' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                 } disabled:opacity-60`}
               >
@@ -871,11 +936,11 @@ export default function CashbookPage() {
       {/* Duplicate confirmation modal */}
       {duplicateModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setDuplicateModal(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-amber-800 mb-2">Possible duplicate</h3>
@@ -892,10 +957,10 @@ export default function CashbookPage() {
                 </li>
               ))}
             </ul>
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 onClick={() => setDuplicateModal(null)}
-                className="px-4 py-2 border border-gray-300 rounded font-medium text-gray-700 hover:bg-gray-50"
+                className="min-h-[44px] rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
               >
                 Cancel
               </button>
@@ -906,14 +971,14 @@ export default function CashbookPage() {
                   duplicateModal.addAnother
                 )}
                 disabled={saving}
-                className="px-4 py-2 rounded font-medium text-red-600 border border-red-300 hover:bg-red-50 disabled:opacity-60"
+                className="min-h-[44px] rounded border border-red-300 px-4 py-2 font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 sm:min-h-0"
               >
                 Delete existing & save new
               </button>
               <button
                 onClick={() => void performSaveWithForce(duplicateModal.payload, duplicateModal.addAnother)}
                 disabled={saving}
-                className="px-4 py-2 rounded font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60"
+                className="min-h-[44px] rounded bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700 disabled:opacity-60 sm:min-h-0"
               >
                 Continue anyway
               </button>
