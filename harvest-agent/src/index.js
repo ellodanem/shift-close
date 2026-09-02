@@ -8,7 +8,7 @@
 require('dotenv').config()
 
 const { loadConfig } = require('./config')
-const { runCstoreKeepalive } = require('./cstoreKeepalive')
+const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport } = require('./shiftCloseClient')
@@ -167,6 +167,37 @@ async function runKeepaliveCycle(reason) {
   }
 
   await recordJob(config, 'cstore_keepalive', startedAt, result, { reason })
+  running = false
+  if (status) status.jobRunning = false
+  return result
+}
+
+async function runCstoreSignInCycle(reason) {
+  if (running) {
+    console.log(`[Harvest] Skip ${reason} — a job is already running`)
+    return
+  }
+
+  running = true
+  if (status) status.jobRunning = true
+  const config = loadConfig()
+  const startedAt = new Date()
+  console.log(`[Harvest] Starting cstore_sign_in (${reason})`)
+  if (activityLog) activityLog.add(`Cstore sign-in started (${reason})`)
+
+  let result
+  try {
+    result = await runCstoreSignIn(config)
+  } catch (err) {
+    result = { ok: false, loginRequired: true, message: err.message || String(err) }
+  }
+
+  if (result.ok && status) {
+    status.cstoreSessionOk = true
+    status.cstoreSessionAt = new Date().toISOString()
+  }
+
+  await recordJob(config, 'cstore_sign_in', startedAt, result, { reason })
   running = false
   if (status) status.jobRunning = false
   return result
@@ -350,11 +381,14 @@ async function runVendorInvoicesCycle(reason, options = {}) {
   const summaries = []
 
   async function importCaptured(captured) {
+    const cstoreCount = captured.invoices?.length ?? 0
     if (!captured.ok) {
       summaries.push({
         vendor: captured.vendor,
         ok: false,
         message: captured.message,
+        cstoreCount,
+        shiftCloseCount: undefined,
         created: 0,
         skipped: 0,
         suffixed: [],
@@ -363,12 +397,29 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       return captured
     }
     if (!captured.invoices || captured.invoices.length === 0) {
-      const message = captured.message || `${captured.vendor}: no invoices this month`
+      let shiftCloseCount
+      let message = captured.message || `${captured.vendor}: no invoices this month`
+      try {
+        const imported = await sendVendorInvoiceImport(config, {
+          vendor: captured.vendor,
+          year: captured.year,
+          month: captured.month,
+          invoices: []
+        })
+        shiftCloseCount = imported.shiftCloseCount
+        if (imported.shiftCloseCount > 0) {
+          message = `${captured.vendor}: Cstore 0, Shift Close ${imported.shiftCloseCount} (no new invoices this month)`
+        }
+      } catch {
+        shiftCloseCount = undefined
+      }
       console.log(`[Harvest] ${message}`)
       summaries.push({
         vendor: captured.vendor,
         ok: true,
         message,
+        cstoreCount: 0,
+        shiftCloseCount,
         created: 0,
         skipped: 0,
         suffixed: [],
@@ -383,12 +434,16 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         month: captured.month,
         invoices: captured.invoices || []
       })
-      const message = imported.message || `${captured.vendor}: imported`
+      const message =
+        imported.message ||
+        `${imported.vendorName || captured.vendor}: Cstore ${imported.cstoreCount ?? cstoreCount}, Shift Close ${imported.shiftCloseCount}, added ${imported.created}, skipped ${imported.skipped}`
       console.log(`[Harvest] ${message}`)
       summaries.push({
         vendor: imported.vendorName || captured.vendor,
         ok: imported.errors && imported.errors.length > 0 ? false : true,
         message,
+        cstoreCount: imported.cstoreCount ?? cstoreCount,
+        shiftCloseCount: imported.shiftCloseCount,
         created: imported.created,
         skipped: imported.skipped,
         suffixed: imported.suffixed || [],
@@ -402,6 +457,8 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         vendor: captured.vendor,
         ok: false,
         message,
+        cstoreCount,
+        shiftCloseCount: undefined,
         created: 0,
         skipped: 0,
         suffixed: [],
@@ -453,6 +510,7 @@ function startDashboard(config) {
   const { createDashboardServer } = require('./dashboard/server')
   const app = createDashboardServer(config, activityLog, status, {
     runKeepalive: runKeepaliveCycle,
+    runCstoreSignIn: runCstoreSignInCycle,
     runCustomerAccounts: runCustomerAccountsCycle,
     runVendorInvoices: runVendorInvoicesCycle,
     onResume: () => {
@@ -510,7 +568,7 @@ function start() {
     activityLog.add(`Paused: ${info?.message || info?.reason}`)
   }
 
-  if (config.runOnStart && !isPaused()) {
+  if (config.runOnStart && !isPaused() && config.vercelUrl && config.agentSecret) {
     runKeepaliveCycle('startup').catch((err) => {
       console.error('[Harvest] Startup keep-alive error:', err)
     })
@@ -587,4 +645,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { start, stop, runKeepaliveCycle, runCustomerAccountsCycle, runVendorInvoicesCycle }
+module.exports = { start, stop, runKeepaliveCycle, runCstoreSignInCycle, runCustomerAccountsCycle, runVendorInvoicesCycle }

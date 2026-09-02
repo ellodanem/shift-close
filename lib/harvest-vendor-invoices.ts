@@ -7,6 +7,7 @@ import {
   vendorInvoiceTotal
 } from '@/lib/vendorVat'
 import { getVendorVatRate } from '@/lib/vendorVatSettings'
+import { isRubisWestIndiesVendor } from '@/lib/vendor-rubis-skip'
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -33,6 +34,8 @@ export type HarvestVendorInvoiceImportResult = {
   cstoreName: string
   vendorCreated: boolean
   isVatRegistered: boolean
+  cstoreCount: number
+  shiftCloseCount: number
   created: number
   skipped: number
   suffixed: HarvestSuffixedInvoice[]
@@ -117,13 +120,55 @@ export function matchVendorRow<T extends { name: string; cstoreName?: string | n
   return null
 }
 
+function monthUtcBounds(year: number, month: number): { start: Date; end: Date } {
+  const start = parseInvoiceDateToUTC(`${year}-${String(month).padStart(2, '0')}-01`)
+  const lastDay = new Date(year, month, 0).getDate()
+  const end = parseInvoiceDateToUTC(
+    `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  )
+  return { start, end }
+}
+
+async function countVendorInvoicesForMonth(
+  vendorId: string,
+  year: number,
+  month: number
+): Promise<number> {
+  const { start, end } = monthUtcBounds(year, month)
+  return prisma.vendorInvoice.count({
+    where: {
+      vendorId,
+      invoiceDate: { gte: start, lte: end }
+    }
+  })
+}
+
 export async function importHarvestVendorInvoices(params: {
   cstoreVendorName: string
   invoices: HarvestCstoreInvoice[]
+  year?: number
+  month?: number
 }): Promise<HarvestVendorInvoiceImportResult> {
+  const cstoreCount = params.invoices.length
   const cstoreName = params.cstoreVendorName.trim()
   if (!cstoreName) {
     throw new Error('cstoreVendorName is required')
+  }
+
+  if (isRubisWestIndiesVendor(cstoreName)) {
+    return {
+      vendorId: '',
+      vendorName: cstoreName,
+      cstoreName,
+      vendorCreated: false,
+      isVatRegistered: false,
+      cstoreCount,
+      shiftCloseCount: 0,
+      created: 0,
+      skipped: cstoreCount,
+      suffixed: [],
+      errors: []
+    }
   }
 
   await ensureHarvestSchema()
@@ -278,12 +323,19 @@ export async function importHarvestVendorInvoices(params: {
     }
   }
 
+  const shiftCloseCount =
+    params.year && params.month
+      ? await countVendorInvoicesForMonth(vendor.id, params.year, params.month)
+      : await prisma.vendorInvoice.count({ where: { vendorId: vendor.id } })
+
   return {
     vendorId: vendor.id,
     vendorName: vendor.name,
     cstoreName,
     vendorCreated,
     isVatRegistered: vendor.isVatRegistered,
+    cstoreCount,
+    shiftCloseCount,
     created,
     skipped,
     suffixed,

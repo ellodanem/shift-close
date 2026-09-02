@@ -3,6 +3,7 @@
  */
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron')
+const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 
@@ -11,14 +12,18 @@ if (process.platform === 'win32') {
 }
 
 let tray = null
-let agentModule = null
+let agentChild = null
 let dashboardWindow = null
 
 const DEFAULT_DASHBOARD_PORT = 3921
 
+function getConfigDir() {
+  return app.isPackaged ? app.getPath('userData') : getAgentRoot()
+}
+
 function getDashboardPort() {
   try {
-    const f = path.join(app.getPath('userData'), 'harvest-agent.config.json')
+    const f = path.join(getConfigDir(), 'harvest-agent.config.json')
     if (fs.existsSync(f)) {
       const j = JSON.parse(fs.readFileSync(f, 'utf8'))
       const p = parseInt(j.dashboardPort, 10)
@@ -198,18 +203,35 @@ function buildTrayMenu(statusPayload) {
 }
 
 function startAgent() {
-  process.env.HARVEST_CONFIG_DIR = app.getPath('userData')
+  const configDir = getConfigDir()
   const indexPath = path.join(getAgentRoot(), 'src', 'index.js')
-  try {
-    agentModule = require(indexPath)
-    agentModule.start()
-  } catch (err) {
+  const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node'
+
+  // Run the agent in system Node (20+). Electron embeds an older Node that Playwright rejects.
+  agentChild = spawn(nodeCmd, [indexPath], {
+    cwd: getAgentRoot(),
+    env: { ...process.env, HARVEST_CONFIG_DIR: configDir },
+    stdio: 'inherit',
+    windowsHide: true
+  })
+
+  agentChild.on('error', (err) => {
     console.error('[Harvest Electron] Failed to start agent:', err)
     dialog.showErrorBox(
       'Shift Close Harvest Agent',
-      `The local dashboard did not start.\n\n${err.message || String(err)}`
+      `Could not start the harvest agent.\n\nMake sure Node.js 20+ is installed and on your PATH, then try again.\n\n${err.message || String(err)}`
     )
-  }
+  })
+
+  agentChild.on('exit', (code, signal) => {
+    agentChild = null
+    if (app.isQuitting) return
+    if (code === 0 || signal === 'SIGTERM' || signal === 'SIGINT') return
+    dialog.showErrorBox(
+      'Shift Close Harvest Agent',
+      `The harvest agent stopped unexpectedly (code ${code ?? signal ?? 'unknown'}).\n\nTry running "npm start" from the harvest-agent folder to see the error.`
+    )
+  })
 }
 
 app.whenReady().then(() => {
@@ -248,7 +270,7 @@ app.on('window-all-closed', (e) => {
 
 app.on('before-quit', () => {
   app.isQuitting = true
-  if (agentModule && typeof agentModule.stop === 'function') {
-    agentModule.stop()
+  if (agentChild && !agentChild.killed) {
+    agentChild.kill()
   }
 })

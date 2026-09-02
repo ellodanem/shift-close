@@ -5,6 +5,7 @@
  */
 
 const fs = require('fs')
+const path = require('path')
 const { chromium } = require('playwright')
 
 function urlPathname(url) {
@@ -50,6 +51,43 @@ async function pageLooksLoggedIn(page) {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+async function loginFormFilled(page) {
+  const fields = page.locator(
+    'input[type="text"], input[type="email"], input[name*="user" i], input[id*="user" i]'
+  )
+  let username = ''
+  const count = await fields.count().catch(() => 0)
+  for (let i = 0; i < count; i++) {
+    const el = fields.nth(i)
+    if (!(await el.isVisible().catch(() => false))) continue
+    username = ((await el.inputValue().catch(() => '')) || '').trim()
+    if (username) break
+  }
+  const password = (
+    (await page
+      .locator('input[type="password"]')
+      .filter({ visible: true })
+      .first()
+      .inputValue()
+      .catch(() => '')) || ''
+  ).trim()
+  return username.length > 0 && password.length > 0
+}
+
+function findChromeExecutable() {
+  if (process.platform !== 'win32') return null
+  const candidates = [
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
 }
 
 async function pageHasTurnstile(page) {
@@ -172,10 +210,20 @@ async function trySubmitLoginAfterTurnstile(page, state) {
   }
 
   if (!state.clickLogged) {
+    const filled = await loginFormFilled(page)
+    if (!filled) {
+      if (!state.waitingLogged) {
+        console.log(
+          '[Cstore] Enter your username and password in the browser window — the agent will click Login once both are filled'
+        )
+        state.waitingLogged = true
+      }
+      return
+    }
     console.log(
       hasCf
         ? '[Cstore] Verification complete — clicking Login (once per job)'
-        : '[Cstore] Clicking Login (once per job)'
+        : '[Cstore] Credentials entered — clicking Login (once per job)'
     )
     state.clickLogged = true
   }
@@ -187,12 +235,14 @@ async function trySubmitLoginAfterTurnstile(page, state) {
   }
 
   state.submitUsed = true
+  state.credentialsFilled = await loginFormFilled(page)
   state.submittedAt = Date.now()
   await page.waitForLoadState('domcontentloaded').catch(() => {})
   await sleep(1200)
 }
 
-async function waitForSession(page, config, hooks = {}) {
+async function waitForSession(page, config, hooks = {}, options = {}) {
+  const manualSignIn = options.manualSignIn === true
   let ok = await pageLooksLoggedIn(page)
   let loginRequired = false
   if (!ok) {
@@ -207,11 +257,12 @@ async function waitForSession(page, config, hooks = {}) {
       }
     }
     console.log(
-      `[Cstore] Login required — complete Cloudflare if shown; the agent will click Login once (${Math.round(config.loginWaitMs / 1000)}s)`
+      `[Cstore] Login required — enter credentials in the browser window (${Math.round(config.loginWaitMs / 1000)}s)`
     )
     const loginState = {
       submitUsed: false,
       submittedAt: 0,
+      credentialsFilled: false,
       waitingLogged: false,
       clickLogged: false,
       nudged: false
@@ -226,11 +277,11 @@ async function waitForSession(page, config, hooks = {}) {
         break
       }
 
-      if (loginState.submitUsed) {
+      if (loginState.submitUsed && loginState.credentialsFilled) {
         if (await loginFailureDetected(page)) {
           const message =
-            'Cstore rejected the login (wrong password or account locked). Jobs are paused — fix the password in Chrome on this PC, then click Resume.'
-          if (typeof hooks.onLoginFailure === 'function') {
+            'Cstore rejected the login (wrong password or account locked). Jobs are paused — fix the password in the agent browser, then click Resume.'
+          if (!manualSignIn && typeof hooks.onLoginFailure === 'function') {
             await hooks.onLoginFailure({ reason: 'cstore_login_failed', message })
           }
           return {
@@ -243,10 +294,10 @@ async function waitForSession(page, config, hooks = {}) {
         }
 
         const sinceSubmit = Date.now() - loginState.submittedAt
-        if (sinceSubmit >= 8000 && isCstoreLoginUrl(page.url())) {
+        if (sinceSubmit >= 15000 && isCstoreLoginUrl(page.url())) {
           const message =
-            'Cstore login did not succeed after submit. Jobs are paused — verify the password manually in Chrome, then click Resume.'
-          if (typeof hooks.onLoginFailure === 'function') {
+            'Cstore login did not succeed after submit. Jobs are paused — verify the password in the agent browser, then click Resume.'
+          if (!manualSignIn && typeof hooks.onLoginFailure === 'function') {
             await hooks.onLoginFailure({ reason: 'cstore_login_failed', message })
           }
           return {
@@ -288,18 +339,37 @@ async function launchContext(config) {
     args: ['--disable-blink-features=AutomationControlled']
   }
   const channel = config.browserChannel || 'chrome'
+  const chromePath = channel === 'chrome' ? findChromeExecutable() : null
   if (channel && channel !== 'chromium') {
     launchOptions.channel = channel
   }
   try {
-    return await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+    const context = await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+    if (chromePath || channel === 'chrome') {
+      console.log(`[Cstore] Browser: ${chromePath || 'Google Chrome (channel)'}`)
+    } else {
+      console.log('[Cstore] Browser: Chromium (install Google Chrome for best results)')
+    }
+    return context
   } catch (err) {
+    if (launchOptions.channel && chromePath) {
+      console.warn(
+        `[Cstore] Chrome channel failed (${err.message}); trying ${chromePath}`
+      )
+      delete launchOptions.channel
+      launchOptions.executablePath = chromePath
+      const context = await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+      console.log(`[Cstore] Browser: ${chromePath}`)
+      return context
+    }
     if (!launchOptions.channel) throw err
     console.warn(
       `[Cstore] ${channel} not available (${err.message}); falling back to Chromium`
     )
     delete launchOptions.channel
-    return chromium.launchPersistentContext(config.userDataDir, launchOptions)
+    const context = await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+    console.log('[Cstore] Browser: Chromium (install Google Chrome for best results)')
+    return context
   }
 }
 
@@ -325,8 +395,27 @@ async function runCstoreKeepalive(config, hooks = {}) {
   }
 }
 
+async function runCstoreSignIn(config) {
+  fs.mkdirSync(config.userDataDir, { recursive: true })
+
+  const context = await launchContext(config)
+  const page = context.pages()[0] || (await context.newPage())
+
+  try {
+    await page.goto(config.cstoreUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000
+    })
+    await sleep(1500)
+    return await waitForSession(page, config, {}, { manualSignIn: true })
+  } finally {
+    await context.close()
+  }
+}
+
 module.exports = {
   runCstoreKeepalive,
+  runCstoreSignIn,
   pageLooksLoggedIn,
   isCstoreLoginUrl,
   loginFailureDetected,

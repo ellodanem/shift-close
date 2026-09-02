@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
+import { isRubisWestIndiesVendor } from '@/lib/vendor-rubis-skip'
 
 export const dynamic = 'force-dynamic'
-
-const RUBIS_VENDOR = /rubis\s*west\s*indies/i
 
 function getCol(row: Record<string, unknown>, ...names: string[]): unknown {
   const keys = Object.keys(row)
@@ -77,7 +76,7 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      if (RUBIS_VENDOR.test(vendorName)) {
+      if (isRubisWestIndiesVendor(vendorName)) {
         skippedRubis++
         continue
       }

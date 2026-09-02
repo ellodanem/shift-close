@@ -127,6 +127,39 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
     res.json({ ok: true })
   })
 
+  app.post('/api/test-shift-close', async (req, res) => {
+    const cfg = loadConfig()
+    if (!cfg.vercelUrl || !cfg.agentSecret) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Set Shift Close URL and harvest secret first'
+      })
+    }
+    try {
+      const { sendHeartbeat } = require('../shiftCloseClient')
+      await sendHeartbeat(cfg, { test: true })
+      activityLog.add('Shift Close connection test OK')
+      res.json({ ok: true, message: 'Connected — harvest secret is valid' })
+    } catch (err) {
+      activityLog.add(`Shift Close connection test failed: ${err.message}`)
+      res.status(502).json({ ok: false, error: err.message || String(err) })
+    }
+  })
+
+  app.post('/api/run-cstore-sign-in', async (req, res) => {
+    if (!actions.runCstoreSignIn) {
+      return res.status(501).json({ ok: false, error: 'Not available' })
+    }
+    if (status.jobRunning === true) {
+      return res.status(409).json({ ok: false, error: 'Another job is already running' })
+    }
+    activityLog.add('Manual Cstore sign-in triggered')
+    actions.runCstoreSignIn('manual-dashboard').catch((err) => {
+      activityLog.add(`Cstore sign-in error: ${err.message}`)
+    })
+    res.json({ ok: true, started: true })
+  })
+
   app.post('/api/run-keepalive', async (req, res) => {
     if (!actions.runKeepalive) {
       return res.status(501).json({ ok: false, error: 'Not available' })

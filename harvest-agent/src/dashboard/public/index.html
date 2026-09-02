@@ -96,12 +96,12 @@
 
     <div class="card">
       <h2>Manual jobs</h2>
-      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Scheduled keep-alive runs at 7:00 and 19:00 St. Lucia time.</p>
+      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Scheduled keep-alive runs at 7:00 and 19:00 St. Lucia time. First-time setup: click <strong>Sign in to Cstore</strong> and enter credentials in the browser window that opens (up to 10 minutes).</p>
       <div class="btn-row">
+        <button type="button" class="btn btn-green" id="btnSignIn">Sign in to Cstore</button>
         <button type="button" class="btn btn-primary" id="btnKeepalive">Run keep-alive now</button>
         <button type="button" class="btn btn-outline" id="btnCustomers">Run customer accounts</button>
         <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
-        <button type="button" class="btn btn-outline" id="btnOpenCstore">Open Cstore in browser</button>
       </div>
       <div class="grid2" style="margin-top:14px">
         <div class="field">
@@ -154,6 +154,7 @@
         </div>
       </div>
       <div class="btn-row">
+        <button type="button" class="btn btn-outline" id="btnTestConnection">Test Shift Close connection</button>
         <button type="button" class="btn btn-primary" id="btnSaveSettings">Save settings</button>
       </div>
     </div>
@@ -264,10 +265,19 @@
       renderActivity(s.activity)
 
       const disabled = s.paused || s.jobRunning || !s.configured
+      $('btnSignIn').disabled = s.jobRunning
       $('btnKeepalive').disabled = disabled
       $('btnCustomers').disabled = disabled
       $('btnVendorInvoices').disabled = disabled
       $('btnResume').disabled = !s.paused
+    }
+
+    $('btnTestConnection').onclick = async () => {
+      try {
+        const result = await api('/api/test-shift-close', { method: 'POST' })
+        toast(result.message || 'Connected')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
     }
 
     $('btnSaveSettings').onclick = async () => {
@@ -321,6 +331,14 @@
       } catch (e) { toast(e.message, false) }
     }
 
+    $('btnSignIn').onclick = async () => {
+      try {
+        await api('/api/run-cstore-sign-in', { method: 'POST' })
+        toast('Browser opening — enter username, password, and complete Cloudflare')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
     $('btnKeepalive').onclick = async () => {
       try {
         await api('/api/run-keepalive', { method: 'POST' })
@@ -357,11 +375,6 @@
         toast(vendor ? `Vendor invoices job started (${vendor})` : 'Vendor invoices job started (all)')
         await refresh()
       } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnOpenCstore').onclick = async () => {
-      const cfg = await api('/api/config')
-      if (cfg.cstoreUrl) window.open(cfg.cstoreUrl, '_blank')
     }
 
     loadConfigForm().then(refresh).catch((e) => toast(e.message, false))

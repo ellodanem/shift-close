@@ -32,6 +32,11 @@ async function postJson(config, pathname, body) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error(
+        'Unauthorized — the harvest secret on this PC does not match HARVEST_AGENT_SECRET in Vercel. Remove the secret in the dashboard, paste it again, and save.'
+      )
+    }
     throw new Error(data.message || data.error || `HTTP ${res.status} from ${pathname}`)
   }
   return data
@@ -48,6 +53,11 @@ async function getJson(config, pathname) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error(
+        'Unauthorized — the harvest secret on this PC does not match HARVEST_AGENT_SECRET in Vercel. Remove the secret in the dashboard, paste it again, and save.'
+      )
+    }
     throw new Error(data.message || data.error || `HTTP ${res.status} from ${pathname}`)
   }
   return data

@@ -10,7 +10,7 @@ async function notifyCloudPaused(config, { reason, message }) {
   const pauseReason = reason || 'cstore_login_failed'
   const pauseMessage =
     message ||
-    'Cstore login failed. Verify the password in Chrome on this PC, then click Resume in the harvest dashboard.'
+    'Cstore login failed. Verify the password in the agent browser, then click Resume in the harvest dashboard.'
 
   try {
     await sendTask(config, {

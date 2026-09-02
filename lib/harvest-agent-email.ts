@@ -21,6 +21,8 @@ export type HarvestVendorSummary = {
   vendor?: string | null
   ok?: boolean
   message?: string | null
+  cstoreCount?: number
+  shiftCloseCount?: number
   created?: number
   skipped?: number
   suffixed?: { original?: string; stored?: string }[]
@@ -114,6 +116,43 @@ function vendorRows(
     .join('')
 }
 
+function vendorVerificationStatus(v: HarvestVendorSummary): { label: string; color: string } {
+  if (!v.ok) return { label: 'Fail', color: '#b91c1c' }
+  const cstore = v.cstoreCount ?? 0
+  const added = v.created ?? 0
+  const skipped = v.skipped ?? 0
+  const shiftClose = v.shiftCloseCount
+  const pipelineOk = cstore === added + skipped
+  const totalsOk = shiftClose == null ? true : shiftClose === cstore
+  if (pipelineOk && totalsOk) return { label: '✓', color: '#15803d' }
+  return { label: '⚠', color: '#b45309' }
+}
+
+function vendorVerificationRows(vendors: HarvestVendorSummary[]): string {
+  if (vendors.length === 0) return ''
+  return vendors
+    .map((v) => {
+      const name = escapeHtmlText(v.vendor || '—')
+      const cstore = v.cstoreCount ?? '—'
+      const shiftClose = v.shiftCloseCount ?? '—'
+      const added = v.created ?? 0
+      const skipped = v.skipped ?? 0
+      const status = vendorVerificationStatus(v)
+      const newBadge = v.vendorCreated
+        ? ' <span style="color:#7c3aed;font-size:11px">(new)</span>'
+        : ''
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${name}${newBadge}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-variant-numeric:tabular-nums">${cstore}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-variant-numeric:tabular-nums">${shiftClose}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-variant-numeric:tabular-nums;color:#15803d">${added}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-variant-numeric:tabular-nums;color:#6b7280">${skipped}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;color:${status.color};font-weight:600">${status.label}</td>
+      </tr>`
+    })
+    .join('')
+}
+
 export function buildHarvestTaskEmailHtml(payload: HarvestTaskEmailPayload): string {
   const baseUrl = getPublicAppUrlFromEnv()
   const settingsUrl = baseUrl ? `${baseUrl}/settings/harvest-agent` : '/settings/harvest-agent'
@@ -164,6 +203,21 @@ export function buildHarvestTaskEmailHtml(payload: HarvestTaskEmailPayload): str
       }))
     )
     accountSection = `
+      <h3 style="margin:24px 0 8px;font-size:15px;color:#111">Invoice count verification</h3>
+      <p style="margin:0 0 8px;font-size:13px;color:#666">Cstore = scraped from Cstore for the month. Shift Close = vendor invoices in Shift Close for that month after import. ✓ when counts match.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
+        <thead>
+          <tr style="background:#f9fafb;text-align:left">
+            <th style="padding:8px 12px">Vendor</th>
+            <th style="padding:8px 12px;text-align:right">Cstore</th>
+            <th style="padding:8px 12px;text-align:right">Shift Close</th>
+            <th style="padding:8px 12px;text-align:right">Added</th>
+            <th style="padding:8px 12px;text-align:right">Skipped</th>
+            <th style="padding:8px 12px;text-align:center"></th>
+          </tr>
+        </thead>
+        <tbody>${vendorVerificationRows(vendors)}</tbody>
+      </table>
       <h3 style="margin:24px 0 8px;font-size:15px;color:#111">Completed (${vendorOk.length})</h3>
       ${
         vendorOk.length

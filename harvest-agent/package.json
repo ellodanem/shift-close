@@ -16,7 +16,7 @@
     "postinstall": "npx playwright install chromium"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "dotenv": "^16.3.1",

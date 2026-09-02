@@ -68,6 +68,14 @@ function normalizeVendorKey(value) {
     .replace(/\s+/g, ' ')
 }
 
+/** Rubis West Indies = fuel/LPG; always skip in vendor invoice harvest. */
+function isSkippedVendor(name) {
+  return /rubis\s*west\s*indies/i.test(String(name || '').trim())
+}
+
+const SKIPPED_VENDOR_MESSAGE =
+  'skipped (handled in Fuel Payments — LPG)'
+
 function usableVendorName(text) {
   const t = String(text || '').trim()
   if (!t) return false
@@ -497,8 +505,18 @@ async function scrapeAllInvoicePages(scope) {
 }
 
 function pickVendorTargets(cstoreNames, options = {}) {
-  const list = (cstoreNames || []).filter(usableVendorName)
+  const skipped = (cstoreNames || []).filter(usableVendorName).filter(isSkippedVendor)
+  if (skipped.length > 0) {
+    console.log(
+      `[Cstore] Skipping vendor(s): ${skipped.join(', ')} (${SKIPPED_VENDOR_MESSAGE})`
+    )
+  }
+
+  const list = (cstoreNames || []).filter(usableVendorName).filter((n) => !isSkippedVendor(n))
   if (options.vendor) {
+    if (isSkippedVendor(options.vendor)) {
+      return []
+    }
     const key = normalizeVendorKey(options.vendor)
     const matched =
       list.find((n) => normalizeVendorKey(n) === key) ||
@@ -551,6 +569,30 @@ async function runVendorInvoices(config, options = {}) {
   const month = Number(options.month) || current[1]
   const hooks = options.hooks || {}
 
+  if (options.vendor && isSkippedVendor(options.vendor)) {
+    const message = `${options.vendor}: ${SKIPPED_VENDOR_MESSAGE}`
+    console.log(`[Cstore] ${message}`)
+    return {
+      ok: true,
+      loginRequired: false,
+      year,
+      month,
+      results: [
+        {
+          ok: true,
+          loginRequired: false,
+          vendor: options.vendor,
+          year,
+          month,
+          invoices: [],
+          message
+        }
+      ],
+      vendor: options.vendor,
+      message
+    }
+  }
+
   const context = await launchContext(config)
   const page = context.pages()[0] || (await context.newPage())
 
@@ -574,7 +616,32 @@ async function runVendorInvoices(config, options = {}) {
     }
 
     let targets = pickVendorTargets(names, options)
-    if (targets.length === 0 && options.vendor) targets = [options.vendor]
+    if (targets.length === 0 && options.vendor) {
+      if (isSkippedVendor(options.vendor)) {
+        const message = `${options.vendor}: ${SKIPPED_VENDOR_MESSAGE}`
+        return {
+          ok: true,
+          loginRequired: false,
+          url: page.url(),
+          year,
+          month,
+          results: [
+            {
+              ok: true,
+              loginRequired: false,
+              vendor: options.vendor,
+              year,
+              month,
+              invoices: [],
+              message
+            }
+          ],
+          vendor: options.vendor,
+          message
+        }
+      }
+      targets = [options.vendor]
+    }
     if (targets.length === 0) {
       await saveDebug(page, debugDir, 'vendor-invoices-no-vendors')
       return {
@@ -590,6 +657,20 @@ async function runVendorInvoices(config, options = {}) {
 
     const results = []
     for (const vendorName of targets) {
+      if (isSkippedVendor(vendorName)) {
+        const message = `${vendorName}: ${SKIPPED_VENDOR_MESSAGE}`
+        console.log(`[Cstore] ${message}`)
+        results.push({
+          ok: true,
+          loginRequired: false,
+          vendor: vendorName,
+          year,
+          month,
+          invoices: [],
+          message
+        })
+        continue
+      }
       let captured
       try {
         captured = await harvestOneVendor(page, form, vendorName, year, month, debugDir)

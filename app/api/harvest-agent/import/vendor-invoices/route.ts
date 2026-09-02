@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { harvestAgentSecretOk } from '@/lib/harvest-agent'
 import { importHarvestVendorInvoices } from '@/lib/harvest-vendor-invoices'
+import { isRubisWestIndiesVendor, RUBIS_VENDOR_SKIP_REASON } from '@/lib/vendor-rubis-skip'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'vendor is required' }, { status: 400 })
     }
 
+    if (isRubisWestIndiesVendor(vendor)) {
+      const invoices = Array.isArray(body.invoices) ? body.invoices : []
+      return NextResponse.json({
+        vendorName: vendor,
+        cstoreName: vendor,
+        vendorCreated: false,
+        cstoreCount: invoices.length,
+        shiftCloseCount: 0,
+        created: 0,
+        skipped: invoices.length,
+        suffixed: [],
+        errors: [],
+        message: `${vendor}: skipped (${RUBIS_VENDOR_SKIP_REASON})`
+      })
+    }
+
+    const year = typeof body.year === 'number' ? body.year : Number(body.year)
+    const month = typeof body.month === 'number' ? body.month : Number(body.month)
+
     const invoices = Array.isArray(body.invoices) ? body.invoices : []
     if (invoices.length > 500) {
       return NextResponse.json({ error: 'Too many invoices' }, { status: 400 })
@@ -37,10 +57,14 @@ export async function POST(request: NextRequest) {
 
     const result = await importHarvestVendorInvoices({
       cstoreVendorName: vendor,
-      invoices: parsed
+      invoices: parsed,
+      year: Number.isFinite(year) && year > 0 ? year : undefined,
+      month: Number.isFinite(month) && month >= 1 && month <= 12 ? month : undefined
     })
 
-    const messageParts = [`${result.vendorName}: added ${result.created}, skipped ${result.skipped}`]
+    const messageParts = [
+      `${result.vendorName}: Cstore ${result.cstoreCount}, Shift Close ${result.shiftCloseCount}, added ${result.created}, skipped ${result.skipped}`
+    ]
     if (result.suffixed.length) {
       messageParts.push(
         `${result.suffixed.length} numbered with a letter (${result.suffixed
