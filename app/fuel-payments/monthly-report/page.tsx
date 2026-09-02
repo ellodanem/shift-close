@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { GroupedReport } from '@/lib/fuelPayments'
-import { padInvoiceNumber, formatAmount, formatDate } from '@/lib/fuelPayments'
+import { padInvoiceNumber, formatAmount } from '@/lib/fuelPayments'
 
 export default function MonthlyFuelPaymentReportPage() {
   const currentYear = new Date().getFullYear()
@@ -185,85 +185,118 @@ export default function MonthlyFuelPaymentReportPage() {
           </div>
         )}
 
-        {/* Report Content - Monospace */}
+          {/* Report Content */}
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm print:p-4 print-content sm:p-8">
           {/* Title */}
-          <div className="text-center mb-8 print:mb-6">
-            <h2 className="text-2xl font-bold print:text-xl">
+          <div className="mb-6 text-center print:mb-6 sm:mb-8">
+            <h2 className="text-xl font-bold print:text-xl sm:text-2xl">
               Monthly Fuel Payment Report – {data.monthName}
             </h2>
           </div>
 
           {/* Report Body */}
           {data.byDate.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="py-8 text-center">
               <p className="text-gray-600">No payments found for {data.monthName}</p>
             </div>
           ) : (
-            <div className="font-mono text-sm print:text-xs">
-              {data.byDate.map((dateGroup, dateIndex) => (
-                <div key={dateIndex} className="mb-6 print:mb-4">
-                  {/* Date Header */}
-                  <div className="font-bold mb-2 print:mb-1">
-                    {dateGroup.dateFormatted}
-                  </div>
-
-                  {/* Blocks for this date */}
-                  {dateGroup.blocks.map((block, blockIndex) => (
-                    <div key={blockIndex} className="mb-4 print:mb-3">
-                      {/* Invoice Lines */}
-                      {block.invoices.map((invoice, invIndex) => (
-                        <div
-                          key={invIndex}
-                          className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 sm:block"
-                        >
-                          <span className="font-mono sm:inline-block sm:w-16 sm:text-left">
-                            {padInvoiceNumber(invoice.invoiceNumber)}
-                          </span>
-                          <span className="font-mono sm:ml-4 sm:inline-block sm:w-24 sm:text-right">
-                            {formatAmount(invoice.amount)}
-                          </span>
-                          <span className="sm:ml-4">{invoice.type}</span>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-4 sm:hidden print:hidden">
+                {data.byDate.map((dateGroup, dateIndex) => (
+                  <div key={dateIndex} className="space-y-3">
+                    <h3 className="text-sm font-bold text-gray-900">{dateGroup.dateFormatted}</h3>
+                    {dateGroup.blocks.map((block, blockIndex) => (
+                      <div
+                        key={blockIndex}
+                        className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                      >
+                        <div className="space-y-2">
+                          {block.invoices.map((invoice, invIndex) => (
+                            <div
+                              key={invIndex}
+                              className="flex items-start justify-between gap-2 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <div className="font-mono font-medium text-gray-900">
+                                  {padInvoiceNumber(invoice.invoiceNumber)}
+                                </div>
+                                <div className="text-xs text-gray-600">{invoice.type}</div>
+                              </div>
+                              <span className="shrink-0 font-mono font-semibold text-gray-900">
+                                {formatAmount(invoice.amount)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-
-                      {/* Underline */}
-                      <div className="mb-1">------------------------</div>
-
-                      {/* Subtotal */}
-                      <div className="mb-1 flex flex-wrap items-baseline gap-x-3 sm:block">
-                        <span className="hidden sm:inline-block sm:w-16" />
-                        <span className="font-mono font-semibold sm:ml-4 sm:inline-block sm:w-24 sm:text-right">
-                          {formatAmount(block.subtotal)}
-                        </span>
+                        <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-2 text-sm">
+                          <span className="font-mono text-xs text-gray-600">
+                            Ref {block.bankRef}
+                          </span>
+                          <span className="font-mono font-semibold text-gray-900">
+                            {formatAmount(block.subtotal)}
+                          </span>
+                        </div>
                       </div>
-
-                      {/* Ref Line */}
-                      <div className="mb-2 print:mb-1">
-                        Ref {block.bankRef}
-                      </div>
-
-                      {/* Blank line between blocks */}
-                      {blockIndex < dateGroup.blocks.length - 1 && (
-                        <div className="mb-2"></div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Blank line between dates */}
-                  {dateIndex < data.byDate.length - 1 && (
-                    <div className="mb-4"></div>
-                  )}
-                </div>
-              ))}
-
-              {/* Final Total */}
-              <div className="mt-8 print:mt-6 pt-4 border-t-2 border-gray-400">
-                <div className="text-lg font-bold print:text-base">
-                  TOTAL PAID ({data.monthName}) : {formatAmount(data.grandTotal)}
+                    ))}
+                  </div>
+                ))}
+                <div className="rounded-lg border-2 border-gray-400 bg-white p-3">
+                  <div className="text-sm font-bold text-gray-900">
+                    TOTAL PAID ({data.monthName})
+                  </div>
+                  <div className="mt-1 font-mono text-lg font-bold text-gray-900">
+                    {formatAmount(data.grandTotal)}
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {/* Desktop / print monospace layout */}
+              <div className="hidden font-mono text-sm print:block print:text-xs sm:block">
+                {data.byDate.map((dateGroup, dateIndex) => (
+                  <div key={dateIndex} className="mb-6 print:mb-4">
+                    <div className="mb-2 font-bold print:mb-1">{dateGroup.dateFormatted}</div>
+
+                    {dateGroup.blocks.map((block, blockIndex) => (
+                      <div key={blockIndex} className="mb-4 print:mb-3">
+                        {block.invoices.map((invoice, invIndex) => (
+                          <div key={invIndex} className="mb-1">
+                            <span className="inline-block w-16 text-left">
+                              {padInvoiceNumber(invoice.invoiceNumber)}
+                            </span>
+                            <span className="ml-4 inline-block w-24 text-right">
+                              {formatAmount(invoice.amount)}
+                            </span>
+                            <span className="ml-4">{invoice.type}</span>
+                          </div>
+                        ))}
+
+                        <div className="mb-1">------------------------</div>
+
+                        <div className="mb-1">
+                          <span className="inline-block w-16" />
+                          <span className="ml-4 inline-block w-24 text-right font-semibold">
+                            {formatAmount(block.subtotal)}
+                          </span>
+                        </div>
+
+                        <div className="mb-2 print:mb-1">Ref {block.bankRef}</div>
+
+                        {blockIndex < dateGroup.blocks.length - 1 && <div className="mb-2" />}
+                      </div>
+                    ))}
+
+                    {dateIndex < data.byDate.length - 1 && <div className="mb-4" />}
+                  </div>
+                ))}
+
+                <div className="mt-8 border-t-2 border-gray-400 pt-4 print:mt-6">
+                  <div className="text-lg font-bold print:text-base">
+                    TOTAL PAID ({data.monthName}) : {formatAmount(data.grandTotal)}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
