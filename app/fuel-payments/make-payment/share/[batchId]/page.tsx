@@ -10,7 +10,7 @@ interface PaidBatchInvoice {
   amount: string
   type: string
   invoiceDate: string
-   dueDate: string
+  dueDate: string
 }
 
 interface PaidBatch {
@@ -40,7 +40,6 @@ export default function SharePaidPaymentPage() {
           throw new Error('Failed to fetch payment batch')
         }
         const data = await res.json()
-        // Prefer pre-formatted summary from API, but fall back gracefully
         if (data.summary) {
           setBatch(data.summary as PaidBatch)
         } else {
@@ -50,12 +49,18 @@ export default function SharePaidPaymentPage() {
             totalPaid: String(data.totalAmount),
             balanceBefore: '-',
             balanceAfter: '-',
-            invoices: (data.invoices || []).map((inv: any) => ({
-              invoiceNumber: inv.invoiceNumber,
-              amount: String(inv.amount),
-              type: inv.type,
-              invoiceDate: typeof inv.invoiceDate === 'string' && inv.invoiceDate.includes('T') ? formatInvoiceDate(inv.invoiceDate) : String(inv.invoiceDate ?? ''),
-              dueDate: typeof inv.dueDate === 'string' && inv.dueDate.includes('T') ? formatInvoiceDate(inv.dueDate) : String(inv.dueDate ?? '')
+            invoices: (data.invoices || []).map((inv: Record<string, unknown>) => ({
+              invoiceNumber: String(inv.invoiceNumber ?? ''),
+              amount: String(inv.amount ?? ''),
+              type: String(inv.type ?? ''),
+              invoiceDate:
+                typeof inv.invoiceDate === 'string' && inv.invoiceDate.includes('T')
+                  ? formatInvoiceDate(inv.invoiceDate)
+                  : String(inv.invoiceDate ?? ''),
+              dueDate:
+                typeof inv.dueDate === 'string' && inv.dueDate.includes('T')
+                  ? formatInvoiceDate(inv.dueDate)
+                  : String(inv.dueDate ?? '')
             }))
           })
         }
@@ -103,9 +108,7 @@ export default function SharePaidPaymentPage() {
     try {
       const dataUrl = await generateImage()
       const blob = await (await fetch(dataUrl)).blob()
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       alert('Image copied to clipboard!')
     } catch (error) {
       console.error('Error copying PNG:', error)
@@ -117,13 +120,11 @@ export default function SharePaidPaymentPage() {
     try {
       if (!batch) return
 
-      // Generate PNG for this paid payment
       const dataUrl = await generateImage()
       const blob = await (await fetch(dataUrl)).blob()
       const file = new File([blob], 'fuel-payment.png', { type: 'image/png' })
 
-      // 1) Prefer Web Share API with attached image on mobile (WhatsApp app)
-      if (isMobileDevice() && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (isMobileDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: 'Fuel Payment'
@@ -131,11 +132,10 @@ export default function SharePaidPaymentPage() {
         return
       }
 
-      // 2) Fallback for WhatsApp Web: copy PNG to clipboard, then open WhatsApp Web tab
-      if (navigator.clipboard && 'write' in navigator.clipboard && (window as any).ClipboardItem) {
+      if (navigator.clipboard && 'write' in navigator.clipboard && window.ClipboardItem) {
         try {
-          const clipboardItem = new (window as any).ClipboardItem({ 'image/png': blob })
-          await (navigator.clipboard as any).write([clipboardItem])
+          const clipboardItem = new ClipboardItem({ 'image/png': blob })
+          await navigator.clipboard.write([clipboardItem])
           window.open('https://web.whatsapp.com/send', '_blank')
           alert('Image copied to clipboard. Paste into WhatsApp Web (Ctrl+V).')
           return
@@ -144,8 +144,9 @@ export default function SharePaidPaymentPage() {
         }
       }
 
-      // 3) Final fallback
-      alert('Your browser cannot share images directly to WhatsApp. Please download or copy the PNG manually.')
+      alert(
+        'Your browser cannot share images directly to WhatsApp. Please download or copy the PNG manually.'
+      )
     } catch (error) {
       console.error('Error sharing via WhatsApp:', error)
       alert('Failed to open WhatsApp Web')
@@ -154,80 +155,74 @@ export default function SharePaidPaymentPage() {
 
   if (loading || !batch) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading payment details...</p>
       </div>
     )
   }
 
+  const balanceAfterNegative = batch.balanceAfter.startsWith('-')
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6 flex flex-col gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Share Paid Payment</h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Share Paid Payment</h1>
+            <p className="mt-1 text-sm text-gray-600">
               Download, copy, or share a summary of this paid fuel payment with your accountant.
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4">
             <button
-              onClick={() => router.push('/fuel-payments')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
-            >
-              🏠 Dashboard
-            </button>
-            <button
+              type="button"
               onClick={() => router.push('/fuel-payments/batches')}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >
-              ← Back to Batches
+              ← Batches
             </button>
             <button
+              type="button"
               onClick={() => router.push('/fuel-payments/invoices')}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+              className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
-              ← Back to Invoices
+              Invoices
             </button>
           </div>
         </div>
 
-        {/* Visible summary card */}
-        <div className="bg-white rounded-lg shadow p-6 mb-4">
-          <div className="mb-4 flex justify-between items-center">
+        <div className="mb-4 rounded-lg bg-white p-4 shadow sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Paid Payment Summary</h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="mt-1 text-xs text-gray-500">
                 Batch reference <span className="font-mono">{batch.referenceNumber}</span>
               </p>
             </div>
-            <div className="text-right text-xs">
+            <div className="text-left text-xs sm:text-right">
               <div className="text-gray-600">Date Paid</div>
-              <div className="text-gray-900 font-medium">{batch.datePaid}</div>
+              <div className="font-medium text-gray-900">{batch.datePaid}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+          <div className="mb-4 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
             <div>
-              <div className="font-medium text-gray-600 mb-1">Total Paid</div>
-              <div className="text-gray-900 font-semibold">{batch.totalPaid}</div>
+              <div className="mb-1 font-medium text-gray-600">Total Paid</div>
+              <div className="font-semibold text-gray-900">{batch.totalPaid}</div>
             </div>
             <div>
-              <div className="font-medium text-gray-600 mb-1">Balance Before (Available)</div>
-              <div className="text-gray-900 font-semibold">
-                {batch.balanceBefore}
-              </div>
+              <div className="mb-1 font-medium text-gray-600">Balance Before (Available)</div>
+              <div className="font-semibold text-gray-900">{batch.balanceBefore}</div>
             </div>
-            <div>
-              <div className="font-medium text-gray-600 mb-1">
+            <div className="sm:col-span-2">
+              <div className="mb-1 font-medium text-gray-600">
                 Balance After (Available - Paid)
               </div>
               <div
                 className={
-                  batch.balanceAfter.startsWith('-')
-                    ? 'text-red-600 font-semibold'
-                    : 'text-green-600 font-semibold'
+                  balanceAfterNegative
+                    ? 'font-semibold text-red-600'
+                    : 'font-semibold text-green-600'
                 }
               >
                 {batch.balanceAfter}
@@ -236,55 +231,55 @@ export default function SharePaidPaymentPage() {
           </div>
 
           <div>
-            <div className="text-xs font-medium text-gray-600 mb-1">
+            <div className="mb-1 text-xs font-medium text-gray-600">
               Invoices in this payment ({batch.invoices.length})
             </div>
-            <div className="max-h-40 overflow-y-auto border border-gray-100 rounded bg-gray-50">
+            <div className="max-h-48 overflow-y-auto rounded border border-gray-100 bg-gray-50 sm:max-h-40">
               {batch.invoices.map((inv, idx) => (
                 <div
                   key={`${inv.invoiceNumber}-${idx}`}
-                  className="flex justify-between px-2 py-1 text-xs border-b border-gray-100 last:border-b-0"
+                  className="flex justify-between border-b border-gray-100 px-2 py-1.5 text-xs last:border-b-0"
                 >
-                  <div className="flex flex-col">
-                    <span className="font-mono text-gray-900">
-                      {inv.invoiceNumber}
-                    </span>
-                    <span className="text-[10px] text-gray-500">
+                  <div className="min-w-0 flex-col">
+                    <span className="font-mono text-gray-900">{inv.invoiceNumber}</span>
+                    <span className="block text-[10px] text-gray-500">
                       {inv.invoiceDate} · {inv.type}
                     </span>
                   </div>
-                  <span className="text-gray-600">{inv.amount}</span>
+                  <span className="shrink-0 text-gray-600">{inv.amount}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex flex-wrap gap-4">
+        <div className="mb-6 rounded-lg bg-white p-4 shadow sm:p-6">
+          <h3 className="mb-4 text-sm font-semibold text-gray-900">Actions</h3>
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-4">
             <button
-              onClick={handleDownloadPNG}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+              type="button"
+              onClick={() => void handleDownloadPNG()}
+              className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
               Download PNG
             </button>
             <button
-              onClick={handleCopyPNG}
-              className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+              type="button"
+              onClick={() => void handleCopyPNG()}
+              className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
               Copy PNG
             </button>
             <button
-              onClick={handleWhatsApp}
-              className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+              type="button"
+              onClick={() => void handleWhatsApp()}
+              className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:min-h-0"
             >
-              WhatsApp Web
+              WhatsApp
             </button>
           </div>
         </div>
 
-        {/* Hidden div for clean PNG generation – styled similar to simulation 1.0.9 */}
         <div
           ref={imageRef}
           className="fixed -left-[9999px] top-0 w-[800px] bg-white p-8"
@@ -295,63 +290,27 @@ export default function SharePaidPaymentPage() {
             color: '#000000'
           }}
         >
-          {/* Fuel Payment Section */}
           <div style={{ marginBottom: '12px' }}>
-            <div
-              style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}
-            >
+            <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
               Fuel Payment - {batch.datePaid}
             </div>
 
-            {batch.invoices.map((inv) => {
-              return (
-                <div key={inv.invoiceNumber} style={{ marginBottom: '4px' }}>
-                  {/* Invoice # */}
-                  <span
-                    style={{
-                      fontWeight: 'bold',
-                      display: 'inline-block',
-                      width: '70px'
-                    }}
-                  >
-                    {inv.invoiceNumber}
-                  </span>
-                  {/* Amount */}
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: '100px',
-                      textAlign: 'right'
-                    }}
-                  >
-                    {inv.amount}
-                  </span>
-                  {/* Type */}
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: '80px',
-                      marginLeft: '20px'
-                    }}
-                  >
-                    {inv.type}
-                  </span>
-                </div>
-              )
-            })}
+            {batch.invoices.map((inv) => (
+              <div key={inv.invoiceNumber} style={{ marginBottom: '4px' }}>
+                <span style={{ fontWeight: 'bold', display: 'inline-block', width: '70px' }}>
+                  {inv.invoiceNumber}
+                </span>
+                <span style={{ display: 'inline-block', width: '100px', textAlign: 'right' }}>
+                  {inv.amount}
+                </span>
+                <span style={{ display: 'inline-block', width: '80px', marginLeft: '20px' }}>
+                  {inv.type}
+                </span>
+              </div>
+            ))}
 
-            {/* Total aligned under amount column */}
             <div style={{ marginTop: '4px', marginBottom: '4px' }}>
-              {/* Blank invoice column */}
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '70px'
-                }}
-              >
-                {/* intentionally blank */}
-              </span>
-              {/* Total amount column, matches invoice amount alignment */}
+              <span style={{ display: 'inline-block', width: '70px' }} />
               <span
                 style={{
                   display: 'inline-block',
@@ -362,16 +321,7 @@ export default function SharePaidPaymentPage() {
               >
                 {batch.totalPaid}
               </span>
-              {/* Preserve type column spacing (left blank) */}
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '80px',
-                  marginLeft: '20px'
-                }}
-              >
-                {/* blank */}
-              </span>
+              <span style={{ display: 'inline-block', width: '80px', marginLeft: '20px' }} />
             </div>
             <div
               style={{
@@ -393,34 +343,21 @@ export default function SharePaidPaymentPage() {
               }}
             >
               Ref{' '}
-              <span
-                style={{
-                  color: '#1d4ed8', // blue-700 style
-                  fontWeight: 'bold'
-                }}
-              >
+              <span style={{ color: '#1d4ed8', fontWeight: 'bold' }}>
                 {batch.referenceNumber}
               </span>
             </div>
           </div>
 
-          {/* Balance Information Section - mirror simulation wording */}
           <div>
-            <div
-              style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}
-            >
+            <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
               Balance Information
             </div>
-            <div>
-              Balance Before (Available): {batch.balanceBefore}
-            </div>
-            <div>
-              Balance After (Available - Paid): {batch.balanceAfter}
-            </div>
+            <div>Balance Before (Available): {batch.balanceBefore}</div>
+            <div>Balance After (Available - Paid): {batch.balanceAfter}</div>
           </div>
         </div>
       </div>
     </div>
   )
 }
-
