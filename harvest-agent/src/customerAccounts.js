@@ -50,11 +50,11 @@ async function openViaReportCenterFlyout(page) {
   await reportCenter.hover()
   await sleep(500)
   if ((await otherEntries.count()) > 0) {
-    await otherEntries.hover()
+    await otherEntries.hover({ force: true })
     await sleep(500)
   }
   if ((await customerAccounts.count()) === 0) return false
-  await customerAccounts.click({ timeout: 8000 })
+  await customerAccounts.click({ force: true, timeout: 8000 })
   await sleep(1200)
   return onCustomerCreditReport(page)
 }
@@ -62,20 +62,29 @@ async function openViaReportCenterFlyout(page) {
 async function openCustomerAccountsReport(page) {
   if (await onCustomerCreditReport(page)) return
 
-  if (await openViaReportCenterFlyout(page)) return
+  const reportPath = '/EmagineNETCOSM/Content/Reports/CustomerCreditReport.aspx?enetFoundationMenuID=1912'
+  await page.goto(new URL(reportPath, page.url()).href, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  })
+  await sleep(1000)
+  if (await onCustomerCreditReport(page)) return
 
-  const viewLocal = page.locator('a[href*="CustomerCreditReport.aspx"]')
-  if ((await viewLocal.count()) > 0) {
-    await viewLocal.first().click()
+  const menuLink = page.locator('#EWF-Menu-Link-1912')
+  if ((await menuLink.count()) > 0) {
+    await menuLink.click({ force: true, timeout: 8000 })
     await sleep(1200)
     if (await onCustomerCreditReport(page)) return
   }
 
-  const reportUrl =
-    'https://secure.cstorepro.com/EmagineNETCOSM/Content/Reports/CustomerCreditReport.aspx?enetFoundationMenuID=1912'
-  await page.goto(reportUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await sleep(1000)
-  if (await onCustomerCreditReport(page)) return
+  if (await openViaReportCenterFlyout(page)) return
+
+  const viewLocal = page.locator('a[href*="CustomerCreditReport.aspx"]')
+  if ((await viewLocal.count()) > 0) {
+    await viewLocal.first().click({ force: true })
+    await sleep(1200)
+    if (await onCustomerCreditReport(page)) return
+  }
 
   throw new Error('Could not open Customer account report')
 }
