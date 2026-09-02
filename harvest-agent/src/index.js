@@ -15,6 +15,11 @@ const { startSlotWatcher } = require('./schedule')
 const once = process.argv.includes('--once')
 const taskArg = process.argv.find((a) => a.startsWith('--task='))
 const taskName = taskArg ? taskArg.slice('--task='.length) : 'cstore_keepalive'
+const monthArg = process.argv.find((a) => a.startsWith('--month='))
+const monthKey = monthArg ? monthArg.slice('--month='.length) : null
+const parsedMonth = monthKey && /^(\d{4})-(\d{2})$/.test(monthKey)
+  ? { year: Number(monthKey.slice(0, 4)), month: Number(monthKey.slice(5, 7)) }
+  : null
 let running = false
 
 async function recordJob(config, taskKey, startedAt, result, extraDetails = {}) {
@@ -82,7 +87,7 @@ async function runCustomerAccountsCycle(reason) {
   running = true
   const config = loadConfig()
   const startedAt = new Date()
-  console.log(`[Harvest] Starting customer_accounts (${reason})`)
+  console.log(`[Harvest] Starting customer_accounts (${reason}${parsedMonth ? ` ${parsedMonth.year}-${String(parsedMonth.month).padStart(2, '0')}` : ''})`)
 
   try {
     await sendHeartbeat(config)
@@ -92,7 +97,7 @@ async function runCustomerAccountsCycle(reason) {
 
   let result
   try {
-    result = await runFirstCustomerCreditReport(config)
+    result = await runFirstCustomerCreditReport(config, parsedMonth || {})
   } catch (err) {
     result = { ok: false, loginRequired: false, message: err.message || String(err) }
   }

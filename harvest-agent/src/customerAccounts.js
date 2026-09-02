@@ -59,41 +59,75 @@ async function openCustomerAccountsReport(page) {
   throw new Error('Could not open Customer account report')
 }
 
-async function setThisMonth(page) {
-  const monthBtn = page.getByRole('button', { name: /^this month$/i })
-  if ((await monthBtn.count()) > 0 && (await monthBtn.first().isVisible().catch(() => false))) {
-    await monthBtn.first().click()
+function lastDayOfMonth(year, month) {
+  return new Date(year, month, 0).getDate()
+}
+
+function formatUsDate(year, month, day) {
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`
+}
+
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+]
+
+async function openDatePicker(page) {
+  await clickFirstVisible(page, [
+    page.getByLabel(/report date/i),
+    page.locator('input[placeholder*="date" i]'),
+    page.locator('text=Report Date').locator('xpath=following::input[1]')
+  ])
+  await sleep(400)
+}
+
+async function setReportMonth(page, year, month) {
+  const presetName = `${MONTH_SHORT[month - 1]} ${year}`
+  const preset = page.getByRole('button', { name: new RegExp(`^${presetName}$`, 'i') })
+  if ((await preset.count()) > 0 && (await preset.first().isVisible().catch(() => false))) {
+    await preset.first().click()
     const submit = page.getByRole('button', { name: /^submit$/i })
     if ((await submit.count()) > 0) await submit.first().click()
     await sleep(500)
     return
   }
 
-  const dateField = page
-    .locator('input')
-    .filter({ hasText: '' })
-    .or(page.getByLabel(/report date/i))
-    .first()
+  await openDatePicker(page)
 
-  const clickedDate = await clickFirstVisible(page, [
-    page.getByLabel(/report date/i),
-    page.locator('input[placeholder*="date" i]'),
-    page.locator('text=Report Date').locator('xpath=following::input[1]')
-  ])
-  if (!clickedDate && (await dateField.count()) > 0) {
-    await dateField.click({ timeout: 5000 }).catch(() => {})
-  }
-  await sleep(400)
-
-  const thisMonth = page.getByRole('button', { name: /^this month$/i })
-  if ((await thisMonth.count()) === 0) {
-    console.warn('[Cstore] This Month preset not found; leaving current date range')
+  const presetAfterOpen = page.getByRole('button', { name: new RegExp(`^${presetName}$`, 'i') })
+  if ((await presetAfterOpen.count()) > 0) {
+    await presetAfterOpen.first().click()
+    const submit = page.getByRole('button', { name: /^submit$/i })
+    if ((await submit.count()) > 0) await submit.first().click()
+    await sleep(500)
     return
   }
-  await thisMonth.first().click()
-  const submit = page.getByRole('button', { name: /^submit$/i })
-  if ((await submit.count()) > 0) await submit.first().click()
-  await sleep(500)
+
+  const fromVal = formatUsDate(year, month, 1)
+  const toVal = formatUsDate(year, month, lastDayOfMonth(year, month))
+  const labeledFrom = page.locator('text=FROM').locator('xpath=following::input[1]')
+  const labeledTo = page.locator('text=TO').locator('xpath=following::input[1]')
+
+  if ((await labeledFrom.count()) > 0 && (await labeledTo.count()) > 0) {
+    await labeledFrom.first().fill(fromVal)
+    await labeledTo.first().fill(toVal)
+    const submit = page.getByRole('button', { name: /^submit$/i })
+    if ((await submit.count()) > 0) await submit.first().click()
+    await sleep(500)
+    return
+  }
+
+  console.warn(`[Cstore] Could not set ${presetName}; leaving current date range`)
 }
 
 async function setReportTypeDetails(page) {
@@ -200,11 +234,13 @@ async function reportHtmlFromPage(page) {
   }
 }
 
-async function runFirstCustomerCreditReport(config) {
+async function runFirstCustomerCreditReport(config, options = {}) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
   const debugDir = path.join(process.cwd(), 'downloads')
   const { ymd } = zonedParts(config.timeZone || 'America/St_Lucia')
-  const [year, month] = ymd.split('-').map(Number)
+  const current = ymd.split('-').map(Number)
+  const year = Number(options.year) || current[0]
+  const month = Number(options.month) || current[1]
 
   const context = await launchContext(config)
   const page = context.pages()[0] || (await context.newPage())
@@ -239,7 +275,7 @@ async function runFirstCustomerCreditReport(config) {
     }
 
     await openCustomerAccountsReport(page)
-    await setThisMonth(page)
+    await setReportMonth(page, year, month)
     await setReportTypeDetails(page)
     const selected = await selectShiftCloseCustomer(page, target)
     if (!selected.ok) {

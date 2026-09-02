@@ -9,6 +9,7 @@
     "dev": "node src/index.js",
     "once": "node src/index.js --once",
     "customer-one": "node src/index.js --once --task=customer_accounts",
+    "customer-august": "node src/index.js --once --task=customer_accounts --month=2026-08",
     "postinstall": "npx playwright install chromium"
   },
   "engines": {
