@@ -141,10 +141,16 @@ function VendorDetailPageInner() {
   const [activeBatchFilter, setActiveBatchFilter] = useState<BatchFilterType>('all')
   const [customBatchStartDate, setCustomBatchStartDate] = useState('')
   const [customBatchEndDate, setCustomBatchEndDate] = useState('')
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchVendor()
   }, [id])
+
+  useEffect(() => {
+    setSelectedInvoiceIds(new Set())
+  }, [activeInvoiceTab, monthFilter, customMonth])
 
   const fetchVendor = async () => {
     setLoading(true)
@@ -265,6 +271,68 @@ function VendorDetailPageInner() {
     setEditInvoiceSaving(false)
     setEditInvoiceError(null)
     setEditingInvoiceId(null)
+  }
+
+  const handleToggleInvoice = (invoiceId: string) => {
+    const next = new Set(selectedInvoiceIds)
+    if (next.has(invoiceId)) next.delete(invoiceId)
+    else next.add(invoiceId)
+    setSelectedInvoiceIds(next)
+  }
+
+  const handleSelectAllPending = () => {
+    const visibleIds = filteredPendingInvoices.map((inv) => inv.id)
+    const allVisibleSelected =
+      visibleIds.length > 0 && visibleIds.every((id) => selectedInvoiceIds.has(id))
+    const next = new Set(selectedInvoiceIds)
+    if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id))
+    else visibleIds.forEach((id) => next.add(id))
+    setSelectedInvoiceIds(next)
+  }
+
+  const selectedPendingInvoices = filteredPendingInvoices.filter((inv) =>
+    selectedInvoiceIds.has(inv.id)
+  )
+  const allVisiblePendingSelected =
+    filteredPendingInvoices.length > 0 &&
+    filteredPendingInvoices.every((inv) => selectedInvoiceIds.has(inv.id))
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    const res = await fetch(`/api/vendor-payments/invoices/${invoiceId}`, {
+      method: 'DELETE'
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to delete invoice')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedPendingInvoices.length === 0) return
+    const count = selectedPendingInvoices.length
+    const message =
+      count === 1
+        ? `Delete invoice "${selectedPendingInvoices[0].invoiceNumber}"?\n\nThis cannot be undone.`
+        : `Delete ${count} selected invoice${count !== 1 ? 's' : ''}?\n\nThis cannot be undone.`
+    if (!confirm(message)) return
+
+    setBulkDeleting(true)
+    let failed = 0
+    for (const inv of selectedPendingInvoices) {
+      try {
+        await handleDeleteInvoice(inv.id)
+      } catch {
+        failed++
+      }
+    }
+    setSelectedInvoiceIds(new Set())
+    await fetchVendor()
+    setBulkDeleting(false)
+    if (failed > 0) {
+      alert(
+        `Deleted ${count - failed} invoice${count - failed !== 1 ? 's' : ''}. ${failed} failed.`
+      )
+    }
   }
 
   const handleEditInvoiceSubmit = async (e: FormEvent) => {
@@ -516,6 +584,35 @@ function VendorDetailPageInner() {
             )}
           </div>
 
+          {activeInvoiceTab === 'pending' && selectedPendingInvoices.length > 0 && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-red-900">
+                  {selectedPendingInvoices.length} invoice
+                  {selectedPendingInvoices.length !== 1 ? 's' : ''} selected
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleBulkDelete()}
+                    disabled={bulkDeleting}
+                    className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInvoiceIds(new Set())}
+                    disabled={bulkDeleting}
+                    className="rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeInvoiceTab === 'pending' ? (
             pendingInvoices.length === 0 ? (
               <p className="text-sm text-gray-500">No pending invoices.</p>
@@ -528,6 +625,15 @@ function VendorDetailPageInner() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500">
+                    <th className="pb-1 pr-2 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allVisiblePendingSelected}
+                        onChange={handleSelectAllPending}
+                        className="rounded border-gray-300"
+                        aria-label="Select all visible pending invoices"
+                      />
+                    </th>
                     <th className="pb-1">Invoice #</th>
                     <th className="pb-1">Date</th>
                     <th className="pb-1">Due</th>
@@ -538,6 +644,15 @@ function VendorDetailPageInner() {
                 <tbody>
                   {filteredPendingInvoices.map((inv) => (
                     <tr key={inv.id} className="border-t border-gray-100">
+                      <td className="py-2 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoiceIds.has(inv.id)}
+                          onChange={() => handleToggleInvoice(inv.id)}
+                          className="rounded border-gray-300"
+                          aria-label={`Select invoice ${inv.invoiceNumber}`}
+                        />
+                      </td>
                       <td className="py-2">{inv.invoiceNumber}</td>
                       <td>{formatDate(inv.invoiceDate)}</td>
                       <td>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
@@ -555,18 +670,25 @@ function VendorDetailPageInner() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return
+                            if (
+                              !confirm(
+                                `Delete invoice "${inv.invoiceNumber}"?\n\nThis cannot be undone.`
+                              )
+                            ) {
+                              return
+                            }
                             try {
-                              const res = await fetch(`/api/vendor-payments/invoices/${inv.id}`, {
-                                method: 'DELETE'
+                              await handleDeleteInvoice(inv.id)
+                              setSelectedInvoiceIds((prev) => {
+                                const next = new Set(prev)
+                                next.delete(inv.id)
+                                return next
                               })
-                              if (res.ok) fetchVendor()
-                              else {
-                                const err = await res.json()
-                                alert(err.error || 'Failed to delete')
-                              }
-                            } catch {
-                              alert('Failed to delete invoice')
+                              await fetchVendor()
+                            } catch (err) {
+                              alert(
+                                err instanceof Error ? err.message : 'Failed to delete invoice'
+                              )
                             }
                           }}
                           className="text-red-600 hover:text-red-800 text-sm"
@@ -579,7 +701,7 @@ function VendorDetailPageInner() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 bg-gray-50">
-                    <td className="py-2 text-sm font-semibold text-gray-700" colSpan={3}>
+                    <td className="py-2 text-sm font-semibold text-gray-700" colSpan={4}>
                       Total ({filteredPendingInvoices.length} invoice
                       {filteredPendingInvoices.length !== 1 ? 's' : ''}
                       {activeMonthLabel &&
