@@ -20,6 +20,11 @@ const monthKey = monthArg ? monthArg.slice('--month='.length) : null
 const parsedMonth = monthKey && /^(\d{4})-(\d{2})$/.test(monthKey)
   ? { year: Number(monthKey.slice(0, 4)), month: Number(monthKey.slice(5, 7)) }
   : null
+const customerArg = process.argv.find((a) => a.startsWith('--customer='))
+const customerQuery = customerArg ? customerArg.slice('--customer='.length).trim() : ''
+const fromArg = process.argv.find((a) => a.startsWith('--from='))
+const fromQuery = fromArg ? fromArg.slice('--from='.length).trim() : ''
+const harvestAll = process.argv.includes('--all')
 let running = false
 
 async function recordJob(config, taskKey, startedAt, result, extraDetails = {}) {
@@ -87,7 +92,11 @@ async function runCustomerAccountsCycle(reason) {
   running = true
   const config = loadConfig()
   const startedAt = new Date()
-  console.log(`[Harvest] Starting customer_accounts (${reason}${parsedMonth ? ` ${parsedMonth.year}-${String(parsedMonth.month).padStart(2, '0')}` : ''})`)
+  console.log(
+    `[Harvest] Starting customer_accounts (${reason}${parsedMonth ? ` ${parsedMonth.year}-${String(parsedMonth.month).padStart(2, '0')}` : ''}${
+      customerQuery ? ` ${customerQuery}` : fromQuery ? ` from ${fromQuery}` : harvestAll ? ' all' : ''
+    })`
+  )
 
   try {
     await sendHeartbeat(config)
@@ -95,44 +104,70 @@ async function runCustomerAccountsCycle(reason) {
     console.error('[Harvest] Heartbeat failed:', err.message)
   }
 
+  let extra = { reason }
+  const summaries = []
+
+  async function importCaptured(captured) {
+    if (!captured.ok || !captured.html) {
+      summaries.push({ account: captured.account, ok: false, message: captured.message })
+      return captured
+    }
+    try {
+      const imported = await sendCustomerCreditImport(config, {
+        account: captured.account,
+        year: captured.year,
+        month: captured.month,
+        html: captured.html,
+        updateSnapshot: true
+      })
+      const message = imported.empty
+        ? `${captured.account}: no activity this month (opening ${imported.opening})`
+        : `${captured.account}: imported ${imported.imported} line(s)`
+      console.log(`[Harvest] ${message}`)
+      summaries.push({
+        account: captured.account,
+        ok: true,
+        imported: imported.imported,
+        empty: imported.empty,
+        opening: imported.opening
+      })
+      return { ...captured, ok: true, message, html: undefined }
+    } catch (err) {
+      const message = `Cstore report captured but Shift Close import failed: ${err.message}`
+      console.error(`[Harvest] ${captured.account}: ${message}`)
+      summaries.push({ account: captured.account, ok: false, message })
+      return { ...captured, ok: false, message, html: undefined }
+    }
+  }
+
   let result
   try {
-    result = await runFirstCustomerCreditReport(config, parsedMonth || {})
+    result = await runFirstCustomerCreditReport(config, {
+      ...(parsedMonth || {}),
+      customer: customerQuery || undefined,
+      from: fromQuery || undefined,
+      all: harvestAll,
+      onAccount: importCaptured
+    })
   } catch (err) {
     result = { ok: false, loginRequired: false, message: err.message || String(err) }
   }
 
-  let extra = { reason }
-  if (result.ok && result.html) {
-    try {
-      const imported = await sendCustomerCreditImport(config, {
-        account: result.account,
-        year: result.year,
-        month: result.month,
-        html: result.html,
-        updateSnapshot: true
-      })
-      extra = {
-        reason,
-        imported: imported.imported,
-        empty: imported.empty,
-        opening: imported.opening,
-        totals: imported.totals || null
-      }
-      result = {
-        ...result,
-        ok: true,
-        message: imported.empty
-          ? `${result.account}: no activity this month (opening ${imported.opening})`
-          : `${result.account}: imported ${imported.imported} line(s)`
-      }
-    } catch (err) {
-      result = {
-        ...result,
-        ok: false,
-        message: `Cstore report captured but Shift Close import failed: ${err.message}`
-      }
+  if (summaries.length > 0) {
+    extra = { reason, accounts: summaries }
+    const failed = summaries.filter((s) => !s.ok)
+    result = {
+      ...result,
+      ok: failed.length === 0 && result.ok !== false,
+      html: undefined,
+      message:
+        summaries.length === 1
+          ? summaries[0].message || result.message
+          : `${summaries.filter((s) => s.ok).length} imported, ${failed.length} failed`
     }
+  } else if (result.ok && result.html) {
+    result = await importCaptured(result)
+    extra = { reason, accounts: summaries }
   }
 
   await recordJob(config, 'customer_accounts', startedAt, result, extra)

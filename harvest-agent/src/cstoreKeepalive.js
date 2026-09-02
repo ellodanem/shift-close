@@ -6,62 +6,46 @@
 const fs = require('fs')
 const { chromium } = require('playwright')
 
-async function pageLooksLoggedIn(page) {
-  const url = page.url().toLowerCase()
-  if (url.includes('login') || url.includes('signin') || url.includes('logon')) {
-    return false
+function urlPathname(url) {
+  try {
+    return new URL(url).pathname.toLowerCase()
+  } catch {
+    return String(url || '').toLowerCase()
   }
+}
 
-  const passwordCount = await page.locator('input[type="password"]').count()
-  if (passwordCount > 0) return false
+function isCstoreLoginUrl(url) {
+  const path = urlPathname(url)
+  return path.includes('/login') || path.includes('signin') || path.includes('logon')
+}
+
+async function pageLooksLoggedIn(page) {
+  const url = page.url()
+  if (isCstoreLoginUrl(url)) return false
+
+  const title = ((await page.title().catch(() => '')) || '').toLowerCase()
+  if (title.includes('login')) return false
+
+  const path = urlPathname(url)
+  if (path.includes('customercreditreport')) return true
+  if (path.includes('taskdashboard') || path.includes('/content/tasks')) return true
 
   const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase()
+  if (body.includes('session expired')) return false
   if (
     body.includes('report center') ||
     body.includes('day closing') ||
     body.includes('task dashboard') ||
-    body.includes('customer account')
+    body.includes('customer account report') ||
+    body.includes('critical tasks')
   ) {
-    return true
-  }
-
-  if (url.includes('taskdashboard') || url.includes('/content/tasks')) {
     return true
   }
 
   return false
 }
 
-async function launchContext(config) {
-  const launchOptions = {
-    headless: !config.headed,
-    viewport: { width: 1400, height: 900 },
-    acceptDownloads: true,
-    args: ['--disable-blink-features=AutomationControlled']
-  }
-  const channel = config.browserChannel || 'chrome'
-  if (channel && channel !== 'chromium') {
-    launchOptions.channel = channel
-  }
-  try {
-    return await chromium.launchPersistentContext(config.userDataDir, launchOptions)
-  } catch (err) {
-    if (!launchOptions.channel) throw err
-    console.warn(
-      `[Cstore] ${channel} not available (${err.message}); falling back to Chromium`
-    )
-    delete launchOptions.channel
-    return chromium.launchPersistentContext(config.userDataDir, launchOptions)
-  }
-}
-
-async function ensureLoggedIn(page, config) {
-  await page.goto(config.cstoreUrl, {
-    waitUntil: 'domcontentloaded',
-    timeout: 60_000
-  })
-  await new Promise((r) => setTimeout(r, 1500))
-
+async function waitForSession(page, config) {
   let ok = await pageLooksLoggedIn(page)
   let loginRequired = false
   if (!ok) {
@@ -108,6 +92,38 @@ async function ensureLoggedIn(page, config) {
   }
 }
 
+async function launchContext(config) {
+  const launchOptions = {
+    headless: !config.headed,
+    viewport: { width: 1400, height: 900 },
+    acceptDownloads: true,
+    args: ['--disable-blink-features=AutomationControlled']
+  }
+  const channel = config.browserChannel || 'chrome'
+  if (channel && channel !== 'chromium') {
+    launchOptions.channel = channel
+  }
+  try {
+    return await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+  } catch (err) {
+    if (!launchOptions.channel) throw err
+    console.warn(
+      `[Cstore] ${channel} not available (${err.message}); falling back to Chromium`
+    )
+    delete launchOptions.channel
+    return chromium.launchPersistentContext(config.userDataDir, launchOptions)
+  }
+}
+
+async function ensureLoggedIn(page, config) {
+  await page.goto(config.cstoreUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  })
+  await new Promise((r) => setTimeout(r, 1500))
+  return waitForSession(page, config)
+}
+
 async function runCstoreKeepalive(config) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
 
@@ -124,6 +140,8 @@ async function runCstoreKeepalive(config) {
 module.exports = {
   runCstoreKeepalive,
   pageLooksLoggedIn,
+  isCstoreLoginUrl,
   launchContext,
-  ensureLoggedIn
+  ensureLoggedIn,
+  waitForSession
 }
