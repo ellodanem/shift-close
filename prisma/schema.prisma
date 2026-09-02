@@ -1104,7 +1104,7 @@ model PromotionDraw {
 
   promotion Promotion         @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   winners   PromotionWinner[]
-  /// Phase 2: entrant tally for regularity rewards (no UI yet)
+  /// Entrant tally for regularity rewards (phase 2)
   entries   PromotionEntry[]
 
   @@index([promotionId, drawDate])
@@ -1127,7 +1127,7 @@ model PromotionWinner {
   @@map("promotion_winners")
 }
 
-/// Phase 2: capture who entered each draw for year-end regularity rewards
+/// Who entered each draw — used for year-end regularity tallies
 model PromotionEntry {
   id          String   @id @default(cuid())
   drawId      String   @map("draw_id")

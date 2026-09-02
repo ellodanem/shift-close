@@ -35,6 +35,12 @@ export const promotionDetailInclude = {
         include: {
           staff: { select: { id: true, name: true } }
         }
+      },
+      entries: {
+        orderBy: { entrantName: 'asc' as const },
+        include: {
+          staff: { select: { id: true, name: true } }
+        }
       }
     }
   }
