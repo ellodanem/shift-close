@@ -245,7 +245,6 @@ function monthDateRangeFromKey(monthKey: string): { startDate: string; endDate: 
   }
 }
 
-const THIS_MONTH_WIDGET_IDS: DashboardWidgetId[] = ['month-summary', 'customer-ar-glance']
 const TRENDS_WIDGET_IDS: DashboardWidgetId[] = [
   'fuel-volume',
   'average-deposit',
@@ -624,52 +623,135 @@ export default function DashboardPage() {
     saveDashboardLayout(next)
   }
 
+  const insightCardClass = 'bg-white rounded-xl border border-gray-200 p-5 sm:p-6 h-full min-w-0 flex flex-col'
+
+  const lastUpdatedLabel = summary?.status.lastShift?.createdAt
+    ? `Updated ${formatDateTime(summary.status.lastShift.createdAt)}`
+    : null
+
+  const renderThisMonthCard = () => {
+    if (!summary) return null
+    return (
+      <div className={insightCardClass}>
+        <h2 className="text-base font-semibold text-gray-900">This month</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {summary.monthName} {summary.year}
+        </p>
+        <div className="mt-5 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="py-3 sm:py-0 sm:pr-5">
+            <div className="text-xs text-slate-500">Deposit</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">
+              ${formatCurrency(summary.totals.deposits)}
+            </div>
+          </div>
+          <div className="py-3 sm:px-5 sm:py-0">
+            <div className="text-xs text-slate-500">Debit / Credit</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-blue-600">
+              ${formatCurrency(summary.totals.debitAndCredit)}
+            </div>
+          </div>
+          <div className="py-3 sm:py-0 sm:pl-5">
+            <div className="text-xs text-slate-500">Grand total</div>
+            <div
+              className="mt-1 text-2xl font-semibold tabular-nums text-gray-900"
+              title="Does not include Customer Charges (In-House)."
+            >
+              ${formatCurrency(summary.totals.grandTotal)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setCustomerAccountsFuelNetExpanded(!customerAccountsFuelNetExpanded)}
+            className="flex w-full items-center justify-between text-left text-xs font-medium text-slate-600 hover:text-slate-900"
+          >
+            <span>Fleet, vouchers &amp; fuel net</span>
+            <span className="text-slate-400">{customerAccountsFuelNetExpanded ? '−' : '+'}</span>
+          </button>
+          {customerAccountsFuelNetExpanded ? (
+            <div className="mt-3 space-y-2 text-xs text-slate-600">
+              <div className="flex justify-between gap-3">
+                <span>Fleet</span>
+                <span className="tabular-nums font-medium text-gray-900">
+                  ${formatCurrency(summary.totals.fleet)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Vouchers / coupons</span>
+                <span className="tabular-nums font-medium text-gray-900">
+                  ${formatCurrency(summary.totals.vouchers)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Customer charges (not cash)</span>
+                <span className="tabular-nums font-medium text-gray-900">
+                  ${formatCurrency(summary.totals.inhouse)}
+                </span>
+              </div>
+              {fuelExpense !== null ? (
+                <div className="flex justify-between gap-3 border-t border-gray-100 pt-2">
+                  <span>Fuel net</span>
+                  <span
+                    className={`tabular-nums font-semibold ${
+                      summary.totals.grandTotal - fuelExpense >= 0 ? 'text-emerald-600' : 'text-red-600'
+                    }`}
+                  >
+                    {summary.totals.grandTotal - fuelExpense >= 0 ? '+' : ''}
+                    ${formatCurrency(summary.totals.grandTotal - fuelExpense)}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-slate-400">Fuel net appears after a paid fuel batch this month.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+        {lastUpdatedLabel ? (
+          <p className="mt-3 text-[11px] text-slate-400">{lastUpdatedLabel}</p>
+        ) : null}
+      </div>
+    )
+  }
+
   const renderFuelMtdDepositBlock = () => {
     if (!summary) return null
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-blue-950">Fuel sold — daily average (MTD)</h2>
-          <p className="text-sm text-slate-500 mt-1 leading-snug">
-            Litres from shift close entries for {summary.monthName} {summary.year}. Averages divide total volume
-            by calendar days in the period (current month: 1st through today; past months: full month).
-          </p>
-        </div>
+      <div className={insightCardClass}>
+        <h2 className="text-base font-semibold text-gray-900">Fuel MTD</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Litres from shift close · {summary.monthName} {summary.year}
+        </p>
         {fuelMtdLoadState !== 'done' ? (
-          <p className="text-sm text-slate-400 italic">Loading fuel volumes…</p>
+          <p className="mt-6 text-sm text-slate-400 italic">Loading fuel volumes…</p>
         ) : fuelMtdSold?.isFutureMonth ? (
-          <p className="text-sm text-slate-400 italic">No data for a future month.</p>
+          <p className="mt-6 text-sm text-slate-400 italic">No data for a future month.</p>
         ) : fuelMtdSold ? (
-          <div className="space-y-4">
-            <p className="text-xs font-medium text-slate-500">{fuelMtdSold.periodLabel}</p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                <div className="mb-1 text-xs font-semibold text-emerald-800">Gas (unleaded)</div>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums">
-                  {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L
+          <>
+            <div className="mt-5 grid flex-1 grid-cols-1 divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="py-3 sm:py-0 sm:pr-5">
+                <div className="text-xs text-slate-500">Unleaded</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+                  {formatLitres(fuelMtdSold.totalUnleaded)} L
                 </div>
-                <div className="mt-0.5 text-xs font-medium text-emerald-700">per day average</div>
-                <div className="mt-3 border-t border-emerald-200/90 pt-2 text-xs font-medium text-slate-700">
-                  MTD total: {formatLitres(fuelMtdSold.totalUnleaded)} L
+                <div className="mt-1 text-xs text-slate-400">
+                  {formatLitres(fuelMtdSold.avgUnleadedPerDay)} L / day
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-1 text-xs font-semibold text-slate-600">Diesel</div>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums">
-                  {formatLitres(fuelMtdSold.avgDieselPerDay)} L
+              <div className="py-3 sm:py-0 sm:pl-5">
+                <div className="text-xs text-slate-500">Diesel</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+                  {formatLitres(fuelMtdSold.totalDiesel)} L
                 </div>
-                <div className="mt-0.5 text-xs text-slate-500">per day average</div>
-                <div className="mt-3 border-t border-slate-200 pt-2 text-xs font-medium text-slate-700">
-                  MTD total: {formatLitres(fuelMtdSold.totalDiesel)} L
+                <div className="mt-1 text-xs text-slate-400">
+                  {formatLitres(fuelMtdSold.avgDieselPerDay)} L / day
                 </div>
               </div>
             </div>
-          </div>
+            <p className="mt-4 text-[11px] text-slate-400">{fuelMtdSold.periodLabel}</p>
+          </>
         ) : (
-          <p className="text-sm text-amber-800">
-            Could not load fuel volumes. If this persists, check that you are signed in and have access to
-            dashboard data.
-          </p>
+          <p className="mt-6 text-sm text-amber-800">Could not load fuel volumes.</p>
         )}
       </div>
     )
@@ -718,15 +800,37 @@ export default function DashboardPage() {
     )
   }
 
+  const upcomingTypeIcon = (type: UpcomingEvent['type']) => {
+    const wrap = (bg: string, d: string) => (
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${bg}`}>
+        <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+        </svg>
+      </span>
+    )
+    switch (type) {
+      case 'birthday':
+        return wrap('bg-violet-500', 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z')
+      case 'pay-day':
+        return wrap('bg-emerald-500', 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z')
+      case 'invoice':
+        return wrap('bg-orange-500', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z')
+      case 'contract':
+        return wrap('bg-sky-500', 'M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2')
+      default:
+        return wrap('bg-slate-500', 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z')
+    }
+  }
+
   const renderUpcomingCard = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-5 h-full min-h-[9rem] flex flex-col w-full min-w-0">
-      <div className="flex items-center justify-between mb-3 shrink-0">
-        <h3 className="text-sm font-bold text-gray-900">Upcoming</h3>
+    <div className={insightCardClass}>
+      <div className="mb-3 flex items-center justify-between gap-2 shrink-0">
+        <h2 className="text-base font-semibold text-gray-900">Upcoming</h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => router.push('/settings/pay-days')}
-            className="text-xs text-gray-500 hover:text-indigo-600 font-medium"
+            className="text-xs text-slate-500 hover:text-indigo-600 font-medium"
             title="Manage pay days"
           >
             Pay Days
@@ -744,7 +848,7 @@ export default function DashboardPage() {
               })
               setPayDayModalOpen(true)
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 text-lg font-light leading-none"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-lg font-light leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             title="Add pay day"
           >
             +
@@ -765,43 +869,19 @@ export default function DashboardPage() {
               })
               setReminderModalOpen(true)
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 text-lg font-light leading-none"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-lg font-light leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             title="Add reminder"
           >
             +
           </button>
         </div>
       </div>
-      <div className="flex-1 flex flex-col justify-center min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         {upcoming.length === 0 ? (
-          <p className="text-gray-400 text-xs italic text-center py-3">No events in next 7 days</p>
+          <p className="py-6 text-center text-sm text-slate-400 italic">No events in the next 7 days</p>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-gray-100">
             {upcoming.slice(0, 3).map((event, index) => {
-              const getIcon = () => {
-                switch (event.type) {
-                  case 'birthday':
-                    return '🎂'
-                  case 'invoice':
-                    return '📄'
-                  case 'contract':
-                    return '📋'
-                  case 'pay-day':
-                    return '💰'
-                  default:
-                    return '📅'
-                }
-              }
-              const getPriorityColor = () => {
-                switch (event.priority) {
-                  case 'high':
-                    return 'border-l-2 border-red-400 bg-red-50'
-                  case 'medium':
-                    return 'border-l-2 border-yellow-400 bg-yellow-50'
-                  default:
-                    return 'border-l-2 border-blue-400 bg-blue-50'
-                }
-              }
               const formatEventDate = (dateStr: string) => {
                 const [y, m, d] = dateStr.split('-').map(Number)
                 if (!y || !m || !d) return dateStr
@@ -811,74 +891,71 @@ export default function DashboardPage() {
               const getDaysText = () => {
                 if (event.daysUntil === 0) return 'Today'
                 if (event.daysUntil === 1) return 'Tomorrow'
-                return `${event.daysUntil}d`
+                return `in ${event.daysUntil} days`
               }
-
               return (
                 <div
                   key={`${event.type}-${event.reminderId ?? event.payDayId ?? index}-${event.date}`}
-                  className={`rounded p-2 ${getPriorityColor()}`}
+                  className="flex items-center gap-3 py-3 first:pt-1"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="text-lg flex-shrink-0">{getIcon()}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium text-gray-900 truncate">{event.title}</div>
-                        <div className="text-xs text-gray-500">{formatEventDate(event.date)}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <div className="text-xs font-semibold text-gray-700">{getDaysText()}</div>
-                      {event.type === 'other' && event.reminderId && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!confirm('Delete this reminder?')) return
-                            try {
-                              const res = await fetch(`/api/reminders/${event.reminderId}`, {
-                                method: 'DELETE'
-                              })
-                              if (res.ok) void refreshUpcoming()
-                            } catch (err) {
-                              console.error('Failed to delete reminder:', err)
-                            }
-                          }}
-                          className="text-gray-400 hover:text-red-600 text-xs p-0.5"
-                          title="Delete reminder"
-                        >
-                          ✕
-                        </button>
-                      )}
-                      {event.type === 'pay-day' && event.payDayId && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!confirm('Delete this pay day?')) return
-                            try {
-                              const res = await fetch(`/api/pay-days/${event.payDayId}`, {
-                                method: 'DELETE'
-                              })
-                              if (res.ok) void refreshUpcoming()
-                            } catch (err) {
-                              console.error('Failed to delete pay day:', err)
-                            }
-                          }}
-                          className="text-gray-400 hover:text-red-600 text-xs p-0.5"
-                          title="Delete pay day"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
+                  {upcomingTypeIcon(event.type)}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-gray-900">{event.title}</div>
                   </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-medium text-slate-600">{formatEventDate(event.date)}</div>
+                    <div className="text-xs text-slate-400">{getDaysText()}</div>
+                  </div>
+                  {event.type === 'other' && event.reminderId ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('Delete this reminder?')) return
+                        try {
+                          const res = await fetch(`/api/reminders/${event.reminderId}`, {
+                            method: 'DELETE'
+                          })
+                          if (res.ok) void refreshUpcoming()
+                        } catch (err) {
+                          console.error('Failed to delete reminder:', err)
+                        }
+                      }}
+                      className="text-slate-300 hover:text-red-600 text-xs p-0.5"
+                      title="Delete reminder"
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                  {event.type === 'pay-day' && event.payDayId ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('Delete this pay day?')) return
+                        try {
+                          const res = await fetch(`/api/pay-days/${event.payDayId}`, {
+                            method: 'DELETE'
+                          })
+                          if (res.ok) void refreshUpcoming()
+                        } catch (err) {
+                          console.error('Failed to delete pay day:', err)
+                        }
+                      }}
+                      className="text-slate-300 hover:text-red-600 text-xs p-0.5"
+                      title="Delete pay day"
+                    >
+                      ✕
+                    </button>
+                  ) : null}
                 </div>
               )
             })}
-            {upcoming.length > 3 && (
-              <p className="text-xs text-gray-400 text-center pt-1">+{upcoming.length - 3} more</p>
-            )}
           </div>
         )}
+        {upcoming.length > 3 ? (
+          <p className="mt-auto pt-3 text-xs font-medium text-indigo-600">
+            +{upcoming.length - 3} more
+          </p>
+        ) : null}
       </div>
     </div>
   )
@@ -904,41 +981,44 @@ export default function DashboardPage() {
   }
 
   const renderTodayRosterCard = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-5 w-full min-w-0">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-base font-bold text-gray-900">
-          {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
-        </h3>
+    <div className={insightCardClass}>
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Today&apos;s roster</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
+          </p>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 shrink-0">
           {canLogCallOut ? (
             <Link
               href={`/time-off?tab=call-outs&date=${encodeURIComponent(todayRoster?.date ?? businessTodayYmd())}`}
               className="text-xs text-teal-700 hover:text-teal-900 font-medium whitespace-nowrap"
             >
-              Log call out →
+              Log call out
             </Link>
           ) : null}
           {todayRoster?.presentAbsenceEnabled ? (
             <button
               type="button"
               onClick={() => router.push('/dashboard/present-absence')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap"
             >
-              Present / Absent Roster →
+              Present / Absent
             </button>
           ) : !isStakeholder ? (
             <button
               type="button"
               onClick={() => router.push('/roster')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap"
             >
-              Roster →
+              Roster
             </button>
           ) : null}
         </div>
       </div>
       {todayRoster && todayRoster.presentAbsenceEnabled === false ? (
-        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2 mb-3 leading-snug">
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-snug text-amber-900">
           Scheduled staff are listed below, but <strong>punch-in status is off</strong> until{' '}
           <strong>Present / absent</strong> is enabled.{' '}
           {isStakeholder ? (
@@ -951,115 +1031,101 @@ export default function DashboardPage() {
                 className="font-semibold text-amber-950 underline hover:text-amber-800"
               >
                 Attendance settings
-              </Link>{' '}
-              to see who has punched today on the dashboard.
+              </Link>
+              .
             </>
           )}
         </p>
       ) : null}
-      <div className="space-y-3">
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Scheduled</div>
-          {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
-            (() => {
-              const shiftGroups = groupScheduledByShift(todayRoster.scheduled).sort((a, b) => {
-                const da = rosterShiftGroupSortMinutes(a.shiftName, todayRoster.scheduled)
-                const db = rosterShiftGroupSortMinutes(b.shiftName, todayRoster.scheduled)
-                if (da !== db) return da - db
-                return a.shiftName.localeCompare(b.shiftName)
-              })
-              return (
-                <div
-                  className={
-                    shiftGroups.length > 1
-                      ? 'grid grid-cols-4 max-[520px]:grid-cols-2 gap-x-2 sm:gap-x-3 gap-y-4'
-                      : 'grid grid-cols-1 gap-y-4'
-                  }
-                >
-                  {shiftGroups.map((group) => {
-                    const rowForHeader =
-                      todayRoster.scheduled.find(
-                        (s) => s.shiftName === group.shiftName && s.shiftStartTime
-                      ) ?? todayRoster.scheduled.find((s) => s.shiftName === group.shiftName)
-                    const headerLabel = formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)
-                    return (
-                      <div key={group.shiftName} className="text-xs min-w-0">
-                        <div className="inline-flex items-center gap-1.5 font-semibold text-gray-900">
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: group.color || '#7c3aed' }}
-                            title={group.shiftName}
-                          />
-                          <span>{headerLabel}</span>
-                        </div>
-                        <div className="mt-1.5 text-gray-800 space-y-0.5 pl-3 border-l border-slate-100 ml-1">
-                          {group.entries.map((e) => {
-                            const g = e.presence ? presenceStatusGlyph(e.presence.status) : null
-                            const canEditPresence =
-                              todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
-                            return (
-                              <div
-                                key={`${group.shiftName}-${e.staffId}`}
-                                className="flex items-center gap-1.5 min-h-[1.25rem]"
-                              >
-                                {g && (
-                                  <button
-                                    type="button"
-                                    title={g.title}
-                                    disabled={!canEditPresence}
-                                    onClick={() => {
-                                      if (!canEditPresence || !todayRoster.date) return
-                                      setPresenceModal({
-                                        staffId: e.staffId,
-                                        staffName: e.displayName,
-                                        date: todayRoster.date,
-                                        manualPresent: e.presence?.manualPresent === true,
-                                        manualAbsent: e.presence?.manualAbsent === true,
-                                        punchExempt: e.presence?.punchExempt === true,
-                                        lateReason: e.presence?.lateReason ?? ''
-                                      })
-                                    }}
-                                    className={`w-5 shrink-0 text-center font-bold leading-none tabular-nums ${
-                                      g.className
-                                    } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                                  >
-                                    {g.char}
-                                  </button>
-                                )}
-                                <span>{e.displayName}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
+      <div className="flex-1">
+        {todayRoster?.scheduled && todayRoster.scheduled.length > 0 ? (
+          (() => {
+            const shiftGroups = groupScheduledByShift(todayRoster.scheduled).sort((a, b) => {
+              const da = rosterShiftGroupSortMinutes(a.shiftName, todayRoster.scheduled)
+              const db = rosterShiftGroupSortMinutes(b.shiftName, todayRoster.scheduled)
+              if (da !== db) return da - db
+              return a.shiftName.localeCompare(b.shiftName)
+            })
+            const cols =
+              shiftGroups.length >= 3
+                ? 'grid-cols-1 sm:grid-cols-3 sm:divide-x'
+                : shiftGroups.length === 2
+                  ? 'grid-cols-1 sm:grid-cols-2 sm:divide-x'
+                  : 'grid-cols-1'
+            return (
+              <div className={`grid ${cols} divide-y divide-gray-200 sm:divide-y-0`}>
+                {shiftGroups.map((group, i) => {
+                  const rowForHeader =
+                    todayRoster.scheduled.find(
+                      (s) => s.shiftName === group.shiftName && s.shiftStartTime
+                    ) ?? todayRoster.scheduled.find((s) => s.shiftName === group.shiftName)
+                  const headerLabel = formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)
+                  return (
+                    <div
+                      key={group.shiftName}
+                      className={`py-3 sm:py-0 ${i === 0 ? 'sm:pr-5' : i === shiftGroups.length - 1 ? 'sm:pl-5' : 'sm:px-5'}`}
+                    >
+                      <div className="text-xs font-medium text-slate-500">{headerLabel}</div>
+                      <div className="mt-2 space-y-1.5">
+                        {group.entries.map((e) => {
+                          const g = e.presence ? presenceStatusGlyph(e.presence.status) : null
+                          const canEditPresence =
+                            todayRoster.presentAbsenceEnabled && !isStakeholder && e.presence
+                          return (
+                            <div
+                              key={`${group.shiftName}-${e.staffId}`}
+                              className="flex items-center gap-2 text-sm text-gray-800"
+                            >
+                              {g ? (
+                                <button
+                                  type="button"
+                                  title={g.title}
+                                  disabled={!canEditPresence}
+                                  onClick={() => {
+                                    if (!canEditPresence || !todayRoster.date) return
+                                    setPresenceModal({
+                                      staffId: e.staffId,
+                                      staffName: e.displayName,
+                                      date: todayRoster.date,
+                                      manualPresent: e.presence?.manualPresent === true,
+                                      manualAbsent: e.presence?.manualAbsent === true,
+                                      punchExempt: e.presence?.punchExempt === true,
+                                      lateReason: e.presence?.lateReason ?? ''
+                                    })
+                                  }}
+                                  className={`h-4 w-4 shrink-0 text-center text-[11px] font-bold leading-none ${
+                                    g.className
+                                  } ${canEditPresence ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                                >
+                                  {g.char}
+                                </button>
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                              )}
+                              <span className="truncate">{e.displayName}</span>
+                            </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-              )
-            })()
-          ) : (
-            <p className="text-xs text-gray-500 italic">No one scheduled.</p>
-          )}
-        </div>
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Who&apos;s off</div>
-          {todayRoster?.off && todayRoster.off.length > 0 ? (
-            <div className="text-xs text-gray-700 leading-snug flex flex-wrap items-baseline gap-y-1">
-              {todayRoster.off.map((s, i) => (
-                <span key={s.staffId} className="inline-flex min-w-0 max-w-full items-baseline">
-                  {i > 0 ? (
-                    <span className="mx-1.5 shrink-0 text-slate-300 select-none" aria-hidden>
-                      |
-                    </span>
-                  ) : null}
-                  <span className="break-words">{s.staffFirstName ?? s.staffName}</span>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-500 italic">No one off today.</p>
-          )}
-        </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()
+        ) : (
+          <p className="text-sm text-slate-400 italic">No one scheduled.</p>
+        )}
+      </div>
+      <div className="mt-4 border-t border-gray-100 pt-3">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Who&apos;s off</div>
+        {todayRoster?.off && todayRoster.off.length > 0 ? (
+          <p className="mt-1 text-xs text-slate-600">
+            {todayRoster.off.map((s) => s.staffFirstName ?? s.staffName).join(' · ')}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-400 italic">No one off today.</p>
+        )}
       </div>
     </div>
   )
@@ -1085,7 +1151,7 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-slate-500">Shortcuts stay on top. Dashboard insights stay below.</p>
         </div>
         <HomeShortcutStrip />
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Dashboard</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Month</h2>
         <div className="mb-6">
           <div className="mt-0 bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -1183,15 +1249,12 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <DashboardSectionLabel>Today</DashboardSectionLabel>
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
-          <div className="min-w-0">
-            {showFuelMtdHero && summary ? renderFuelMtdDepositBlock() : null}
-          </div>
-          <aside className="flex flex-col gap-5 w-full min-w-0">
-            {renderUpcomingCard()}
-            {renderTodayRosterCard()}
-          </aside>
+        <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
+        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          {summary ? renderThisMonthCard() : null}
+          {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
+          {renderTodayRosterCard()}
+          {renderUpcomingCard()}
         </div>
 
         {/* Moveable widgets */}
@@ -1199,12 +1262,13 @@ export default function DashboardPage() {
           let lastSection: 'month' | 'trends' | 'ops' | null = null
           return dashboardSegments.map((segment) => {
           const headId = segment[0]
+          if (headId === 'month-summary' && segment.length === 1) {
+            lastSection = 'month'
+            return <Fragment key="month-summary-hero" />
+          }
           let sectionLabel: React.ReactNode = null
-          if (
-            (THIS_MONTH_WIDGET_IDS as readonly string[]).includes(headId) &&
-            lastSection !== 'month'
-          ) {
-            sectionLabel = <DashboardSectionLabel>This month</DashboardSectionLabel>
+          if (headId === 'customer-ar-glance') {
+            sectionLabel = <DashboardSectionLabel>Customer accounts</DashboardSectionLabel>
             lastSection = 'month'
           } else if (headId === 'phase1-status' && lastSection !== 'ops') {
             sectionLabel = <DashboardSectionLabel>Operations</DashboardSectionLabel>
@@ -1218,145 +1282,6 @@ export default function DashboardPage() {
           }
           const renderOne = (id: DashboardWidgetId) => (
             <>
-            {id === 'month-summary' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-700">
-                Summary ({summary.monthName} {summary.year})
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {activeFilter === 'currentMonth'
-                  ? 'Running totals for the current month'
-                  : `Totals for ${summary.monthName} ${summary.year}`}
-              </p>
-            </div>
-
-            {/* Metrics Grid - cash-style inflows only */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              {/* Total Deposits */}
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="text-xs font-medium text-blue-700 mb-1">Total Deposits</div>
-                <div className="text-2xl font-bold text-blue-900">
-                  ${formatCurrency(summary.totals.deposits)}
-                </div>
-              </div>
-
-              {/* Total Debit & Credit */}
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                <div className="text-xs font-medium text-purple-700 mb-1">Debit & Credit</div>
-                <div className="text-2xl font-bold text-purple-900">
-                  ${formatCurrency(summary.totals.debitAndCredit)}
-                </div>
-              </div>
-
-              {/* Total Fleet */}
-              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <div className="text-xs font-medium text-green-700 mb-1">Total Fleet</div>
-                <div className="text-2xl font-bold text-green-900">
-                  ${formatCurrency(summary.totals.fleet)}
-                </div>
-              </div>
-
-              {/* Total Vouchers/Coupons */}
-              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-                <div className="text-xs font-medium text-orange-700 mb-1">
-                  Vouchers/Coupons
-                </div>
-                <div className="text-2xl font-bold text-orange-900">
-                  ${formatCurrency(summary.totals.vouchers)}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border-2 border-slate-300 bg-slate-100 px-4 py-3 mb-3">
-              <div className="text-xs font-semibold text-slate-600">Grand Total (cash)</div>
-              <div
-                className="text-3xl font-bold text-blue-950 tabular-nums"
-                title="Does not include Customer Charges (In-House)."
-              >
-                ${formatCurrency(summary.totals.grandTotal)}
-              </div>
-            </div>
-
-            {/* Customer Accounts + Fuel Net helper band (collapsible) */}
-            <div className="mt-2 pt-3 border-t border-dashed border-gray-200">
-              <button
-                type="button"
-                onClick={() => setCustomerAccountsFuelNetExpanded(!customerAccountsFuelNetExpanded)}
-                className="w-full flex items-center justify-between gap-2 text-left py-1 -mx-1 px-1 rounded hover:bg-gray-50"
-              >
-                <span className="text-xs font-semibold text-gray-700">
-                  Customer Accounts & Fuel Net
-                </span>
-                <span className="text-gray-400 text-sm">
-                  {customerAccountsFuelNetExpanded ? '▼' : '▶'}
-                </span>
-              </button>
-              {customerAccountsFuelNetExpanded && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-semibold text-gray-700">
-                        Customer Accounts (info only, not cash)
-                      </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        Customer Charges (MTD):{' '}
-                        <span className="font-semibold text-gray-700">
-                          ${formatCurrency(summary.totals.inhouse)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fuel Net (Revenue vs Expense) */}
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-semibold text-gray-700">
-                        Fuel Net (Month-to-Date)
-                      </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5 max-w-sm">
-                        Cash-style Grand Total above minus paid fuel invoices for{' '}
-                        {summary.monthName} {summary.year}. Customer Charges (MTD) are
-                        shown separately here and are not included in this net.
-                      </div>
-                    </div>
-
-                    {fuelExpense !== null ? (
-                      <div className="text-right text-xs space-y-0.5">
-                        <div className="text-gray-600">
-                          <span className="font-semibold">Revenue:</span>{' '}
-                          ${formatCurrency(summary.totals.grandTotal)}
-                        </div>
-                        <div className="text-gray-600">
-                          <span className="font-semibold">Fuel Expense:</span>{' '}
-                          ${formatCurrency(fuelExpense)}
-                        </div>
-                        <div
-                          className={`mt-1 text-sm font-bold ${
-                            summary.totals.grandTotal - fuelExpense > 0
-                              ? 'text-green-600'
-                              : summary.totals.grandTotal - fuelExpense < 0
-                              ? 'text-red-600'
-                              : 'text-gray-600'
-                          }`}
-                        >
-                          Net:{' '}
-                          {summary.totals.grandTotal - fuelExpense >= 0 ? '+' : ''}
-                          {formatCurrency(summary.totals.grandTotal - fuelExpense)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400">
-                        Fuel net will appear once there is at least one paid fuel batch for this
-                        month.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-            )}
             {id === 'customer-ar-glance' && summary && (
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
             <div className="mb-4">
