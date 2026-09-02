@@ -16,10 +16,11 @@ const DEFAULTS = {
   cstoreUrl:
     'https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx',
   headed: true,
+  browserChannel: 'chrome',
   runOnStart: true,
   slotHours: [7, 19],
   timeZone: 'America/St_Lucia',
-  loginWaitMs: 5 * 60 * 1000,
+  loginWaitMs: 10 * 60 * 1000,
   userDataDir: path.join(CONFIG_DIR, 'user-data')
 }
 
@@ -64,6 +65,10 @@ function loadConfig() {
           : fileConfig.headed !== undefined
             ? Boolean(fileConfig.headed)
             : DEFAULTS.headed,
+    browserChannel:
+      process.env.CSTORE_BROWSER ||
+      fileConfig.browserChannel ||
+      DEFAULTS.browserChannel,
     runOnStart:
       fileConfig.runOnStart !== undefined
         ? Boolean(fileConfig.runOnStart)

@@ -32,14 +32,33 @@ async function pageLooksLoggedIn(page) {
   return false
 }
 
+async function launchContext(config) {
+  const launchOptions = {
+    headless: !config.headed,
+    viewport: { width: 1400, height: 900 },
+    acceptDownloads: true,
+    args: ['--disable-blink-features=AutomationControlled']
+  }
+  const channel = config.browserChannel || 'chrome'
+  if (channel && channel !== 'chromium') {
+    launchOptions.channel = channel
+  }
+  try {
+    return await chromium.launchPersistentContext(config.userDataDir, launchOptions)
+  } catch (err) {
+    if (!launchOptions.channel) throw err
+    console.warn(
+      `[Cstore] ${channel} not available (${err.message}); falling back to Chromium`
+    )
+    delete launchOptions.channel
+    return chromium.launchPersistentContext(config.userDataDir, launchOptions)
+  }
+}
+
 async function runCstoreKeepalive(config) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
 
-  const context = await chromium.launchPersistentContext(config.userDataDir, {
-    headless: !config.headed,
-    viewport: { width: 1400, height: 900 },
-    acceptDownloads: true
-  })
+  const context = await launchContext(config)
 
   const page = context.pages()[0] || (await context.newPage())
   let loginRequired = false

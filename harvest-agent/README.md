@@ -37,7 +37,9 @@ npm install
 npm start
 ```
 
-The first run opens Chromium. Log into Cstore Pro and wait until the store dashboard appears. The agent records **Pass** in Shift Close.
+The first run opens **Google Chrome**. Log into Cstore Pro, complete the Cloudflare check if it appears, and wait until the store dashboard shows. You have about 10 minutes. The agent then records **Pass** in Shift Close.
+
+If Cloudflare says "Verification failed", you are probably in Playwright Chromium instead of Chrome. Restart with `browserChannel` set to `"chrome"` (the default) and Google Chrome installed.
 
 Leave the process running (Task Scheduler / pm2 later). At 7am and 7pm it reopens Cstore to refresh the session and pings Shift Close.
 

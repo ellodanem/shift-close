@@ -1,9 +1,10 @@
 {
   "agentKey": "home-pc",
-  "vercelUrl": "https://your-shift-close.vercel.app",
+  "vercelUrl": "https://shiftcloser.vercel.app",
   "agentSecret": "",
   "cstoreUrl": "https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx",
   "headed": true,
+  "browserChannel": "chrome",
   "runOnStart": true,
   "slotHours": [7, 19],
   "timeZone": "America/St_Lucia"
