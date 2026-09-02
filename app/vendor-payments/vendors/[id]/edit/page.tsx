@@ -71,35 +71,39 @@ export default function EditVendorPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Edit Vendor</h1>
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Edit Vendor</h1>
           <button
+            type="button"
             onClick={() => router.push(`/vendor-payments/vendors/${id}`)}
-            className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+            className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
           >
             Cancel
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
+        >
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">
+            <div className="mb-4 rounded border border-red-200 bg-red-50 p-4 text-red-800">
               {error}
             </div>
           )}
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -107,19 +111,19 @@ export default function EditVendorPage() {
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 placeholder="Vendor name"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cstore name
               </label>
               <input
                 type="text"
                 value={formData.cstoreName}
                 onChange={(e) => setFormData({ ...formData, cstoreName: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 placeholder="Name as it appears in Cstore (if different)"
               />
               <p className="mt-1 text-xs text-gray-500">
@@ -127,7 +131,7 @@ export default function EditVendorPage() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Notification Email <span className="text-red-500">*</span>
               </label>
               <input
@@ -135,21 +139,21 @@ export default function EditVendorPage() {
                 required
                 value={formData.notificationEmail}
                 onChange={(e) => setFormData({ ...formData, notificationEmail: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 placeholder="vendor@example.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Additional notes"
               />
             </div>
-            <div className="flex items-start gap-3">
+            <div className="flex min-h-[44px] items-start gap-3">
               <input
                 id="isVatRegistered"
                 type="checkbox"
@@ -170,18 +174,18 @@ export default function EditVendorPage() {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end gap-4">
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-4">
             <button
               type="button"
               onClick={() => router.push(`/vendor-payments/vendors/${id}`)}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
+              className="min-h-[44px] rounded bg-gray-200 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-300 sm:min-h-0"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400 sm:min-h-0"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>

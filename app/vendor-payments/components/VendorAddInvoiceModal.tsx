@@ -219,19 +219,19 @@ export function VendorAddInvoiceModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
       role="presentation"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-vendor-invoice-title"
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+        className="my-4 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 id="add-vendor-invoice-title" className="text-2xl font-bold text-gray-900">
+            <h2 id="add-vendor-invoice-title" className="text-xl font-bold text-gray-900 sm:text-2xl">
               Add invoice
             </h2>
             <p className="mt-1 text-sm text-gray-600">
@@ -266,7 +266,7 @@ export function VendorAddInvoiceModal({
                     vat: ''
                   })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               >
                 <option value="">Select vendor</option>
                 {vendors.map((v) => (
@@ -289,7 +289,7 @@ export function VendorAddInvoiceModal({
               value={form.invoiceNumber}
               onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
               placeholder="e.g., INV-001"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
             />
           </div>
 
@@ -313,7 +313,7 @@ export function VendorAddInvoiceModal({
                 required
                 value={form.invoiceDate}
                 onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
             </div>
             <div>
@@ -324,7 +324,7 @@ export function VendorAddInvoiceModal({
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
             </div>
           </div>
@@ -340,11 +340,11 @@ export function VendorAddInvoiceModal({
             />
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
             >
               {saving ? 'Creating…' : 'Create invoice'}
             </button>
@@ -352,7 +352,7 @@ export function VendorAddInvoiceModal({
               type="button"
               onClick={() => void submitInvoice(true)}
               disabled={saving}
-              className="rounded bg-slate-600 px-4 py-2 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              className="min-h-[44px] rounded bg-slate-600 px-4 py-2 font-semibold text-white hover:bg-slate-700 disabled:opacity-50 sm:min-h-0"
             >
               {saving ? 'Creating…' : 'Create and New…'}
             </button>
@@ -360,7 +360,7 @@ export function VendorAddInvoiceModal({
               type="button"
               onClick={handleClose}
               disabled={saving}
-              className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+              className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
             >
               Cancel
             </button>

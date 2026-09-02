@@ -287,21 +287,21 @@ export function VendorMakePaymentModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
       role="presentation"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="vendor-make-payment-title"
-        className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+        className="my-4 max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2
               id="vendor-make-payment-title"
-              className="text-2xl font-bold text-gray-900"
+              className="text-xl font-bold text-gray-900 sm:text-2xl"
             >
               Make vendor payment
             </h2>
@@ -313,7 +313,7 @@ export function VendorMakePaymentModal({
             <button
               type="button"
               onClick={() => router.push('/vendor-payments/uncashed-checks')}
-              className="rounded bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"
+              className="min-h-[44px] rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 sm:min-h-0 sm:py-1.5"
             >
               Check Management
             </button>
@@ -353,7 +353,7 @@ export function VendorMakePaymentModal({
                   <select
                     value={selectedVendorId}
                     onChange={(e) => setSelectedVendorId(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   >
                     <option value="">Select vendor</option>
                     {vendors.map((v) => (
@@ -371,7 +371,7 @@ export function VendorMakePaymentModal({
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
                 </div>
                 <div>
@@ -383,7 +383,7 @@ export function VendorMakePaymentModal({
                     onChange={(e) =>
                       setPaymentMethod(e.target.value as 'eft' | 'check')
                     }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   >
                     <option value="eft">EFT</option>
                     <option value="check">Check</option>
@@ -401,7 +401,7 @@ export function VendorMakePaymentModal({
                     onChange={(e) => setBankRef(e.target.value)}
                     placeholder={paymentMethod === 'check' ? 'e.g. 1234' : 'e.g. 18921926'}
                     aria-invalid={bankRefMissing}
-                    className={`w-full rounded-md border px-3 py-2 font-mono focus:outline-none focus:ring-2 ${
+                    className={`min-h-[44px] w-full rounded-md border px-3 py-2 font-mono focus:outline-none focus:ring-2 sm:min-h-0 ${
                       bankRefMissing
                         ? 'border-red-300 focus:ring-red-500'
                         : 'border-gray-300 focus:ring-blue-500'
@@ -425,7 +425,7 @@ export function VendorMakePaymentModal({
                       value={transferDescription}
                       onChange={(e) => setTransferDescription(e.target.value)}
                       placeholder="e.g. Total Auto INV001 INV002"
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                     />
                   </div>
                 )}
@@ -572,7 +572,7 @@ export function VendorMakePaymentModal({
                                 : 'Enter a bank reference to continue'
                               : undefined
                         }
-                        className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70"
+                        className="min-h-[44px] w-full rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70 sm:min-h-0 sm:w-auto"
                       >
                         {processing ? 'Processing…' : 'Make payment'}
                       </button>
@@ -582,12 +582,12 @@ export function VendorMakePaymentModal({
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap gap-3 border-t border-gray-100 pt-4">
+            <div className="mt-6 flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={processing}
-                className="rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 disabled:opacity-50 sm:min-h-0"
               >
                 Cancel
               </button>

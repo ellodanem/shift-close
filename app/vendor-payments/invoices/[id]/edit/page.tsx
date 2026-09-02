@@ -108,7 +108,7 @@ export default function EditVendorInvoicePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-gray-600">Loading...</p>
       </div>
     )
@@ -116,9 +116,13 @@ export default function EditVendorInvoicePage() {
 
   if (!invoice) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-red-600">Invoice not found.</p>
-        <button onClick={() => router.push('/vendor-payments/vendors')} className="mt-4 text-blue-600">
+        <button
+          type="button"
+          onClick={() => router.push('/vendor-payments/vendors')}
+          className="mt-4 min-h-[44px] text-blue-600 sm:min-h-0"
+        >
           Back to Vendors
         </button>
       </div>
@@ -127,11 +131,12 @@ export default function EditVendorInvoicePage() {
 
   if (invoice.status === 'paid') {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 px-4 py-4 sm:p-8">
         <p className="text-amber-600">Cannot edit a paid invoice.</p>
         <button
+          type="button"
           onClick={() => router.push(`/vendor-payments/vendors/${invoice.vendorId}`)}
-          className="mt-4 text-blue-600"
+          className="mt-4 min-h-[44px] text-blue-600 sm:min-h-0"
         >
           Back to Vendor
         </button>
@@ -142,12 +147,12 @@ export default function EditVendorInvoicePage() {
   const isVatRegistered = Boolean(invoice.vendor?.isVatRegistered)
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Edit Invoice</h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Edit Invoice</h1>
+            <p className="mt-1 text-sm text-gray-600">
               {invoice.vendor?.name} — Invoice #{invoice.invoiceNumber}
             </p>
           </div>
@@ -162,14 +167,16 @@ export default function EditVendorInvoicePage() {
           />
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-4 shadow sm:p-6">
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
+            <div className="mb-4 rounded border border-red-200 bg-red-50 p-4 text-red-800">
+              {error}
+            </div>
           )}
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Invoice Number <span className="text-red-500">*</span>
               </label>
               <input
@@ -177,7 +184,7 @@ export default function EditVendorInvoicePage() {
                 required
                 value={formData.invoiceNumber}
                 onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
               />
             </div>
 
@@ -191,9 +198,9 @@ export default function EditVendorInvoicePage() {
               onVatChange={(value) => setFormData((prev) => ({ ...prev, vat: value }))}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Invoice Date <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -201,43 +208,43 @@ export default function EditVendorInvoicePage() {
                   required
                   value={formData.invoiceDate}
                   onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Due Date</label>
                 <input
                   type="date"
                   value={formData.dueDate}
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <div className="mt-6 flex gap-4">
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+              className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"
               onClick={() => router.push(`/vendor-payments/vendors/${invoice.vendorId}`)}
-              className="px-4 py-2 bg-gray-500 text-white rounded font-semibold hover:bg-gray-600"
+              className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
             >
               Cancel
             </button>
