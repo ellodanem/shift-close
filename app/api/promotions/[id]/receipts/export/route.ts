@@ -67,7 +67,14 @@ export async function GET(request: NextRequest, { params }: Ctx) {
       }))
     })
 
-    return new NextResponse(buffer, {
+    // NextResponse expects a web payload, not a Node.js Buffer.
+    // We convert the Node Buffer -> Uint8Array to satisfy Next/TypeScript types.
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer
+
+    return new NextResponse(new Uint8Array(arrayBuffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`
