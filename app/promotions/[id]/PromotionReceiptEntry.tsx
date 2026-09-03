@@ -65,6 +65,8 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
   const [success, setSuccess] = useState<string | null>(null)
   const [nameOpen, setNameOpen] = useState(false)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+
   const amountRef = useRef<HTMLInputElement | null>(null)
 
   const loadDrivers = useCallback(() => {
@@ -125,13 +127,31 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
     }
   }
 
-  const resetForNextDriver = () => {
+  const clearForm = () => {
     setEntrantName('')
     setStaffId('')
     setAmount('')
     setBusRegistration('')
     setPhone('')
     setSuccess(null)
+    setEditingId(null)
+  }
+
+  const startEdit = (receipt: ReceiptRow) => {
+    setEditingId(receipt.id)
+    setReceiptDate(receipt.receiptDate)
+    setEntrantName(receipt.entrantName)
+    setStaffId(receipt.staffId ?? '')
+    setAmount(String(receipt.amount))
+    setBusRegistration(receipt.busRegistration)
+    setPhone(receipt.phone)
+    if (receipt.busRegistration || receipt.phone) setShowOptional(true)
+    setSuccess(null)
+    onError(null)
+  }
+
+  const cancelEdit = () => {
+    clearForm()
   }
 
   const saveReceipt = async (sameDriver: boolean) => {
@@ -152,8 +172,12 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
     onError(null)
     setSuccess(null)
     try {
-      const res = await fetch(`/api/promotions/${promotionId}/receipts`, {
-        method: 'POST',
+      const isEdit = !!editingId
+      const url = isEdit
+        ? `/api/promotions/${promotionId}/receipts/${editingId}`
+        : `/api/promotions/${promotionId}/receipts`
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           receiptDate,
@@ -167,21 +191,25 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to save receipt')
 
-      setSuccess(
-        `Saved. ${data.entrantName} now has ${data.driverReceiptCount} receipt${
-          data.driverReceiptCount === 1 ? '' : 's'
-        } in this promotion.`
-      )
-
-      if (sameDriver) {
-        setAmount('')
+      if (isEdit) {
+        setSuccess(`Updated receipt for ${data.entrantName}.`)
+        clearForm()
       } else {
-        resetForNextDriver()
+        setSuccess(
+          `Saved. ${data.entrantName} now has ${data.driverReceiptCount} receipt${
+            data.driverReceiptCount === 1 ? '' : 's'
+          } in this promotion.`
+        )
+        if (sameDriver) {
+          setAmount('')
+        } else {
+          clearForm()
+        }
       }
 
       loadDrivers()
       loadRecentReceipts()
-      if (sameDriver) amountRef.current?.focus()
+      if (!isEdit && sameDriver) amountRef.current?.focus()
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Failed to save receipt')
     } finally {
@@ -251,11 +279,14 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-800">New receipt</h2>
+        <div className={`rounded-xl border ${editingId ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-white'} p-4 shadow-sm`}>
+          <h2 className="text-sm font-semibold text-slate-800">
+            {editingId ? 'Edit receipt' : 'New receipt'}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Set the receipt date first when entering your backlog. Pick a driver, then enter the
-            amount.
+            {editingId
+              ? 'Change the fields below and save.'
+              : 'Set the receipt date first when entering your backlog. Pick a driver, then enter the amount.'}
           </p>
 
           <div className="mt-4 grid gap-3">
@@ -356,22 +387,45 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
           </div>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => saveReceipt(false)}
-              className={btnPrimary}
-            >
-              {saving ? 'Saving…' : 'Save receipt'}
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => saveReceipt(true)}
-              className={btnSecondary}
-            >
-              Save &amp; same driver
-            </button>
+            {editingId ? (
+              <>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => saveReceipt(false)}
+                  className={btnPrimary}
+                >
+                  {saving ? 'Saving…' : 'Update receipt'}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={cancelEdit}
+                  className="min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 sm:w-auto sm:min-h-0"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => saveReceipt(false)}
+                  className={btnPrimary}
+                >
+                  {saving ? 'Saving…' : 'Save receipt'}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => saveReceipt(true)}
+                  className={btnSecondary}
+                >
+                  Save &amp; same driver
+                </button>
+              </>
+            )}
           </div>
 
           {success ? (
@@ -412,6 +466,13 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
                     <p className="text-xs text-slate-400">{formatTime(receipt.createdAt)}</p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(receipt)}
+                      className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                    >
+                      Edit
+                    </button>
                     <button
                       type="button"
                       onClick={() => addAgain(receipt)}
