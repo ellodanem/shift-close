@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && (prisma migrate deploy || (prisma migrate resolve --applied 20260902120000_add_harvest_agent && prisma migrate deploy)) && next build",
+    "build": "prisma generate && (PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate deploy || (PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate resolve --applied 20260902120000_add_harvest_agent && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate deploy)) && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
