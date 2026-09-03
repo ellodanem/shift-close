@@ -207,7 +207,7 @@ export function generatePromotionReceiptExcelBuffer(params: {
   const tallySheet: (string | number)[][] = [
     ['Promotion tally', params.promotionName],
     [],
-    ['Driver name', 'Receipts', 'Total fuel (TT$)', 'Last bus', 'Phone', 'Last receipt date']
+    ['Driver name', 'Receipts', 'Total fuel ($)', 'Last bus', 'Phone', 'Last receipt date']
   ]
   for (const row of params.tally) {
     tallySheet.push([
@@ -221,7 +221,7 @@ export function generatePromotionReceiptExcelBuffer(params: {
   }
 
   const receiptSheet: (string | number)[][] = [
-    ['Receipt date', 'Driver name', 'Amount (TT$)', 'Bus / registration', 'Phone']
+    ['Receipt date', 'Driver name', 'Amount ($)', 'Bus / registration', 'Phone']
   ]
   for (const row of params.receipts) {
     receiptSheet.push([

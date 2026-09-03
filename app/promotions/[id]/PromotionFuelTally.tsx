@@ -158,7 +158,7 @@ export default function PromotionFuelTally({ promotionId, onError }: Props) {
                   Fuel total
                 </p>
                 <p className="text-lg font-bold text-slate-900">
-                  TT$ {formatReceiptAmount(tally.totalAmount)}
+                  $ {formatReceiptAmount(tally.totalAmount)}
                 </p>
               </div>
             </div>
@@ -174,7 +174,7 @@ export default function PromotionFuelTally({ promotionId, onError }: Props) {
                     {row.name}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
-                    {row.receiptCount} receipt{row.receiptCount === 1 ? '' : 's'} · TT${' '}
+                    {row.receiptCount} receipt{row.receiptCount === 1 ? '' : 's'} · ${' '}
                     {formatReceiptAmount(row.totalAmount)}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -192,7 +192,7 @@ export default function PromotionFuelTally({ promotionId, onError }: Props) {
                     <th className="px-4 py-2 text-left font-medium text-slate-500">Driver</th>
                     <th className="px-4 py-2 text-right font-medium text-slate-500">Receipts</th>
                     <th className="px-4 py-2 text-right font-medium text-slate-500">
-                      Total fuel (TT$)
+                      Total fuel ($)
                     </th>
                     <th className="px-4 py-2 text-left font-medium text-slate-500">Last bus</th>
                     <th className="px-4 py-2 text-left font-medium text-slate-500">Phone</th>

@@ -355,7 +355,7 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
             </label>
 
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Amount (TT$)</span>
+              <span className="mb-1 block font-medium text-slate-700">Amount ($)</span>
               <input
                 ref={amountRef}
                 value={amount}
