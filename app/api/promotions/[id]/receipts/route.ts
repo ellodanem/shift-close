@@ -34,15 +34,29 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     }
 
     const limitParam = request.nextUrl.searchParams.get('limit')
-    const limit = limitParam && /^\d+$/.test(limitParam) ? Math.min(Number(limitParam), 100) : 25
+    const showAll = request.nextUrl.searchParams.get('all') === '1'
+    const limit = showAll
+      ? 5000
+      : limitParam && /^\d+$/.test(limitParam)
+        ? Math.min(Number(limitParam), 200)
+        : 25
     const dateFilter = request.nextUrl.searchParams.get('date')?.trim() || ''
+    const monthFilter = request.nextUrl.searchParams.get('month')?.trim() || ''
+
+    const dateWhere: Record<string, string> = {}
+    if (dateFilter && isValidReceiptDate(dateFilter)) {
+      dateWhere.equals = dateFilter
+    } else if (monthFilter && /^\d{4}-\d{2}$/.test(monthFilter)) {
+      dateWhere.gte = `${monthFilter}-01`
+      dateWhere.lte = `${monthFilter}-31`
+    }
 
     const receipts = await prisma.promotionReceipt.findMany({
       where: {
         promotionId: params.id,
-        ...(dateFilter && isValidReceiptDate(dateFilter) ? { receiptDate: dateFilter } : {})
+        ...(Object.keys(dateWhere).length > 0 ? { receiptDate: dateWhere } : {})
       },
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: [{ receiptDate: 'desc' }, { createdAt: 'desc' }],
       take: limit,
       select: receiptSelect
     })

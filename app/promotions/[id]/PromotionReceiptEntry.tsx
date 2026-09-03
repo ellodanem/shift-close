@@ -38,6 +38,13 @@ function formatShortDate(ymd: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatMonth(ym: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym)
+  if (!m) return ym
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, 1)
+  return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
@@ -66,6 +73,8 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
   const [nameOpen, setNameOpen] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [listFilter, setListFilter] = useState<'date' | 'month' | 'all'>('date')
+  const [filterMonth, setFilterMonth] = useState('')
 
   const amountRef = useRef<HTMLInputElement | null>(null)
 
@@ -81,8 +90,17 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
   }, [promotionId, onError])
 
   const loadRecentReceipts = useCallback(() => {
-    const params = new URLSearchParams({ limit: '25' })
-    if (receiptDate) params.set('date', receiptDate)
+    const params = new URLSearchParams()
+    if (listFilter === 'date' && receiptDate) {
+      params.set('date', receiptDate)
+    } else if (listFilter === 'month' && filterMonth) {
+      params.set('month', filterMonth)
+      params.set('limit', '200')
+    } else if (listFilter === 'all') {
+      params.set('all', '1')
+    } else {
+      params.set('limit', '25')
+    }
     fetch(`/api/promotions/${promotionId}/receipts?${params}`)
       .then(async (res) => {
         const data = await res.json()
@@ -90,7 +108,7 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
         setRecentReceipts(Array.isArray(data) ? data : [])
       })
       .catch((err) => onError(err instanceof Error ? err.message : 'Failed to load receipts'))
-  }, [promotionId, receiptDate, onError])
+  }, [promotionId, receiptDate, listFilter, filterMonth, onError])
 
   useEffect(() => {
     loadDrivers()
@@ -437,12 +455,56 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-800">
-            {receiptDate ? `Receipts on ${formatShortDate(receiptDate)}` : 'Recent receipts'}
+            {listFilter === 'date' && receiptDate
+              ? `Receipts on ${formatShortDate(receiptDate)}`
+              : listFilter === 'month' && filterMonth
+                ? `Receipts for ${formatMonth(filterMonth)}`
+                : listFilter === 'all'
+                  ? 'All receipts'
+                  : 'Recent receipts'}
           </h2>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {(
+              [
+                { id: 'date' as const, label: 'By date' },
+                { id: 'month' as const, label: 'By month' },
+                { id: 'all' as const, label: 'All' }
+              ] as const
+            ).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setListFilter(f.id)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  listFilter === f.id
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            {listFilter === 'month' ? (
+              <input
+                type="month"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="min-h-[36px] rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+            ) : null}
+          </div>
+
           <p className="mt-1 text-xs text-slate-500">
-            {receiptDate
-              ? 'Showing receipts for the selected date.'
-              : 'Pick a receipt date to filter this list.'}
+            {listFilter === 'date'
+              ? receiptDate
+                ? 'Showing receipts for the selected date.'
+                : 'Pick a receipt date to filter this list.'
+              : listFilter === 'month'
+                ? filterMonth
+                  ? `Showing receipts for ${formatMonth(filterMonth)}.`
+                  : 'Pick a month above.'
+                : `Showing all receipts (${recentReceipts.length}).`}
           </p>
 
           {recentReceipts.length === 0 ? (
@@ -493,11 +555,18 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
             </ul>
           )}
 
-          {dateSummary ? (
+          {listFilter === 'date' && dateSummary ? (
             <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">
               {formatShortDate(receiptDate)}: {dateSummary.count} receipt
               {dateSummary.count === 1 ? '' : 's'} · ${formatReceiptAmount(dateSummary.total)} ·{' '}
               {dateSummary.drivers} driver{dateSummary.drivers === 1 ? '' : 's'}
+            </p>
+          ) : (listFilter === 'month' || listFilter === 'all') && recentReceipts.length > 0 ? (
+            <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">
+              {recentReceipts.length} receipt{recentReceipts.length === 1 ? '' : 's'} · $
+              {formatReceiptAmount(recentReceipts.reduce((sum, r) => sum + r.amount, 0))} ·{' '}
+              {new Set(recentReceipts.map((r) => r.entrantName.toLowerCase())).size} driver
+              {new Set(recentReceipts.map((r) => r.entrantName.toLowerCase())).size === 1 ? '' : 's'}
             </p>
           ) : null}
         </div>
