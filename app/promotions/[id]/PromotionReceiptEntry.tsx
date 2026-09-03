@@ -63,7 +63,7 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
   const [amount, setAmount] = useState('')
   const [busRegistration, setBusRegistration] = useState('')
   const [phone, setPhone] = useState('')
-  const [showOptional, setShowOptional] = useState(false)
+
 
   const [drivers, setDrivers] = useState<DriverProfile[]>([])
   const [recentNames, setRecentNames] = useState<string[]>([])
@@ -129,7 +129,6 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
     setStaffId(driver.staffId ?? '')
     setBusRegistration(driver.lastBus)
     setPhone(driver.lastPhone)
-    if (driver.lastBus || driver.lastPhone) setShowOptional(true)
     setNameOpen(false)
     setTimeout(() => amountRef.current?.focus(), 0)
   }
@@ -163,7 +162,6 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
     setAmount(String(receipt.amount))
     setBusRegistration(receipt.busRegistration)
     setPhone(receipt.phone)
-    if (receipt.busRegistration || receipt.phone) setShowOptional(true)
     setSuccess(null)
     onError(null)
   }
@@ -256,7 +254,6 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
     setBusRegistration(receipt.busRegistration)
     setPhone(receipt.phone)
     setAmount('')
-    if (receipt.busRegistration || receipt.phone) setShowOptional(true)
     setSuccess(null)
     setTimeout(() => amountRef.current?.focus(), 0)
   }
@@ -370,38 +367,28 @@ export default function PromotionReceiptEntry({ promotionId, onError }: Props) {
               <span className="mt-1 block text-xs text-slate-500">Amount of fuel taken that day</span>
             </label>
 
-            <button
-              type="button"
-              onClick={() => setShowOptional((v) => !v)}
-              className="text-left text-sm font-medium text-blue-700 hover:text-blue-900"
-            >
-              {showOptional ? 'Hide optional fields' : 'Bus / phone (optional)'}
-            </button>
-
-            {showOptional ? (
-              <>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-700">
-                    Bus / registration number
-                  </span>
-                  <input
-                    value={busRegistration}
-                    onChange={(e) => setBusRegistration(e.target.value)}
-                    className={fieldClass}
-                    placeholder="Optional"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-700">Phone number</span>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={fieldClass}
-                    placeholder="Optional"
-                  />
-                </label>
-              </>
-            ) : null}
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">
+                Bus / registration number <span className="font-normal text-slate-400">(optional)</span>
+              </span>
+              <input
+                value={busRegistration}
+                onChange={(e) => setBusRegistration(e.target.value)}
+                className={fieldClass}
+                placeholder="Optional"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">
+                Phone number <span className="font-normal text-slate-400">(optional)</span>
+              </span>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={fieldClass}
+                placeholder="Optional"
+              />
+            </label>
           </div>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
