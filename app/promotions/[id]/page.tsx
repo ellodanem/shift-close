@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import PromotionFuelTally from './PromotionFuelTally'
+import PromotionReceiptEntry from './PromotionReceiptEntry'
 
 type StaffOption = { id: string; name: string; status: string }
 
@@ -90,7 +92,7 @@ export default function PromotionDetailPage() {
   const router = useRouter()
   const id = typeof params.id === 'string' ? params.id : ''
 
-  const [tab, setTab] = useState<'draws' | 'tally'>('draws')
+  const [tab, setTab] = useState<'draws' | 'tally' | 'receipts' | 'fuelTally'>('receipts')
   const [promotion, setPromotion] = useState<Promotion | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -426,7 +428,7 @@ export default function PromotionDetailPage() {
 
   return (
     <div className="min-h-full bg-gray-50 px-4 py-4 pb-10 sm:p-6">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-5xl">
         <Link
           href="/promotions"
           className="inline-flex min-h-[44px] items-center text-sm font-medium text-blue-600 hover:text-blue-800 sm:min-h-0"
@@ -527,9 +529,11 @@ export default function PromotionDetailPage() {
           </form>
         </div>
 
-        <div className="mb-4 flex gap-1 border-b border-gray-200">
+        <div className="mb-4 flex gap-1 overflow-x-auto border-b border-gray-200">
           {(
             [
+              { id: 'receipts' as const, label: 'Fuel receipts' },
+              { id: 'fuelTally' as const, label: 'Fuel tally' },
               { id: 'draws' as const, label: 'Draws & entries' },
               { id: 'tally' as const, label: 'Regularity tally' }
             ] as const
@@ -549,7 +553,14 @@ export default function PromotionDetailPage() {
           ))}
         </div>
 
-        {tab === 'draws' ? (
+        {tab === 'receipts' ? (
+          <PromotionReceiptEntry
+            promotionId={id}
+            onError={(message) => setError(message)}
+          />
+        ) : tab === 'fuelTally' ? (
+          <PromotionFuelTally promotionId={id} onError={(message) => setError(message)} />
+        ) : tab === 'draws' ? (
           <section className="mb-8">
             <form
               onSubmit={addDraw}

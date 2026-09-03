@@ -41,8 +41,9 @@ model Staff {
   sickLeaves     StaffSickLeave[]
   callOuts       StaffCallOut[]
   attendanceDayOverrides AttendanceDayOverride[]
-  promotionWinners PromotionWinner[]
-  promotionEntries PromotionEntry[]
+  promotionWinners  PromotionWinner[]
+  promotionEntries  PromotionEntry[]
+  promotionReceipts PromotionReceipt[]
 
   @@map("staff")
 }
@@ -1088,7 +1089,8 @@ model Promotion {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  draws PromotionDraw[]
+  draws    PromotionDraw[]
+  receipts PromotionReceipt[]
 
   @@index([status])
   @@map("promotions")
@@ -1141,6 +1143,27 @@ model PromotionEntry {
   @@index([drawId])
   @@index([staffId])
   @@map("promotion_entries")
+}
+
+/// Fuel receipt ledger for promotions (e.g. bus driver gas-back)
+model PromotionReceipt {
+  id              String   @id @default(cuid())
+  promotionId     String   @map("promotion_id")
+  receiptDate     String   @map("receipt_date") // YYYY-MM-DD
+  entrantName     String   @map("entrant_name")
+  staffId         String?  @map("staff_id")
+  amount          Float
+  busRegistration String   @default("") @map("bus_registration")
+  phone           String   @default("")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  staff     Staff?    @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([promotionId, receiptDate])
+  @@index([promotionId])
+  @@index([staffId])
+  @@map("promotion_receipts")
 }
 
 // Local harvest agent (Cstore Pro browser jobs on a dedicated PC / Pi)
