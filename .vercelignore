@@ -1,0 +1,11 @@
+# Desktop agents and local tooling are not needed on Vercel.
+# Leaving them in the upload can get traced into Function bundles
+# and burn Hobby Functions Storage.
+agent
+harvest-agent
+scripts
+dumps
+tools
+docs
+*.md
+!README.md

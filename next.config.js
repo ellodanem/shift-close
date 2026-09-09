@@ -4,6 +4,20 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true
   },
+  // Keep Electron agents, scripts, and docs out of Vercel Function bundles.
+  // Those paths are not needed at runtime on Vercel and inflate Functions Storage.
+  experimental: {
+    outputFileTracingExcludes: {
+      '*': [
+        'agent/**/*',
+        'harvest-agent/**/*',
+        'scripts/**/*',
+        'dumps/**/*',
+        'tools/**/*',
+        'docs/**/*'
+      ]
+    }
+  },
   async redirects() {
     return [
       { source: '/overseer', destination: '/insights/deposit-debit-scans', permanent: false },
