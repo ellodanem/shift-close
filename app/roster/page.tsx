@@ -1778,7 +1778,7 @@ export default function RosterPage() {
         {/* Week picker and actions */}
         <div
           ref={rosterBannerRef}
-          className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center"
+          className="sticky top-0 z-30 mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-row sm:flex-wrap sm:items-center"
         >
           <div className="flex flex-wrap items-stretch sm:items-center gap-1 w-full sm:w-auto">
             <button
@@ -2367,7 +2367,7 @@ export default function RosterPage() {
 
               <div className="hidden md:block relative rounded-b-lg">
               <div
-                className="sticky z-30 bg-white shadow-sm border-b border-gray-200"
+                className="sticky z-20 bg-white shadow-sm border-b border-gray-200"
                 style={{ top: rosterStickyOffsets.banner }}
               >
                 <div
