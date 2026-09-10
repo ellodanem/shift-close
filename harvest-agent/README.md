@@ -30,37 +30,40 @@ Cstore passwords stay in the local Chrome profile (`user-data/`). They are not s
    - `scripts/neon-apply-harvest-agent-paused.sql`
    - `scripts/neon-apply-vendor-cstore-name.sql`
 2. In Vercel, set `HARVEST_AGENT_SECRET`
-3. On the harvest PC:
+3. On the harvest PC, install with the Windows installer (recommended) or run from source.
+
+### Windows installer (recommended)
+
+```
+cd harvest-agent
+npm.cmd install
+npm.cmd run build
+```
+
+Run `installer-release\Shift Close Harvest Agent Setup 0.2.0.exe`. After install the app lives in the **system tray**, can **Start with Windows**, and opens the dashboard without a terminal. Config and the harvest secret are stored under `%AppData%\shift-close-harvest-agent\`. Google Chrome must be installed (Cstore uses your Chrome profile).
+
+### Dev / Node dashboard
 
 ```
 cd harvest-agent
 copy config.example.json harvest-agent.config.json
 npm.cmd install
-```
-
-### Option A — Node + dashboard (recommended for setup)
-
-```
 npm.cmd start
 ```
 
-Open **http://127.0.0.1:3921**, set Shift Close URL and paste the harvest secret once. The first run opens **Google Chrome** — log into Cstore Pro, complete Cloudflare if shown, and wait for the dashboard to show **Signed in**.
+Open **http://127.0.0.1:3921**, set Shift Close URL and paste the harvest secret once. Sign into Cstore in the Chrome window when prompted.
 
-### Option B — Electron tray app
+### Electron tray (dev, no installer)
 
 ```
 npm.cmd run electron
 ```
 
-Runs the same agent with a system tray icon, auto-start with Windows, and the dashboard in a window.
-
-### Option C — Scheduled Task at logon
+### Scheduled Task at logon (Node only)
 
 ```
 npm.cmd run install-task
 ```
-
-Registers a Windows task that runs `node src/index.js` when you sign in.
 
 ## Schedule
 

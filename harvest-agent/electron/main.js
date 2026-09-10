@@ -1,5 +1,6 @@
 /**
  * electron/main.js — Electron tray wrapper for the Shift Close Harvest Agent.
+ * Packaged builds spawn a bundled Node 20 runtime (Playwright rejects Electron's Node).
  */
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron')
@@ -40,7 +41,25 @@ function dashboardOrigin() {
 }
 
 function getAgentRoot() {
-  return app.isPackaged ? app.getAppPath() : path.join(__dirname, '..')
+  if (!app.isPackaged) return path.join(__dirname, '..')
+  // asar:false so system/bundled Node can require playwright from disk
+  return app.getAppPath()
+}
+
+function getNodeBinary() {
+  if (app.isPackaged) {
+    const bundled = path.join(process.resourcesPath, 'node', 'node.exe')
+    if (fs.existsSync(bundled)) return bundled
+  }
+  return process.platform === 'win32' ? 'node.exe' : 'node'
+}
+
+function getBrandedIconPath() {
+  if (app.isPackaged) {
+    const unpacked = path.join(process.resourcesPath, 'app', 'electron', 'assets', 'tray.png')
+    if (fs.existsSync(unpacked)) return unpacked
+  }
+  return path.join(__dirname, 'assets', 'tray.png')
 }
 
 const gotLock = app.requestSingleInstanceLock()
@@ -76,17 +95,16 @@ function createDesktopShortcut() {
 }
 
 function trayIcon() {
-  const p = path.join(__dirname, 'assets', 'tray.png')
-  const img = nativeImage.createFromPath(p)
+  const img = nativeImage.createFromPath(getBrandedIconPath())
   return img.isEmpty() ? nativeImage.createEmpty() : img
 }
 
-async function waitForDashboardReady(maxAttempts = 120, intervalMs = 500) {
+async function waitForDashboardReady(maxAttempts = 60, intervalMs = 1000) {
   for (let i = 0; i < maxAttempts; i++) {
     const port = getDashboardPort()
     try {
       const res = await fetch(`http://127.0.0.1:${port}/api/status`, {
-        signal: AbortSignal.timeout(1500)
+        signal: AbortSignal.timeout(2000)
       })
       if (res.ok) return true
     } catch {}
@@ -164,16 +182,22 @@ function buildTrayMenu(statusPayload) {
     { type: 'separator' },
     { label: 'Open dashboard', click: openDashboard },
     {
+      label: 'Open in browser',
+      click: () => shell.openExternal(dashboardOrigin() + '/')
+    },
+    {
       label: 'Open Cstore',
       click: async () => {
         const s = await fetchStatus()
-        const url = s?.cstoreUrl || 'https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx'
+        const url =
+          s?.cstoreUrl ||
+          'https://secure.cstorepro.com/EmagineNETCOSM/Content/Tasks/TaskDashboard.aspx'
         shell.openExternal(url)
       }
     },
     { type: 'separator' },
     {
-      label: paused ? 'Resume jobs' : 'Pause jobs',
+      label: paused ? 'Resume jobs' : 'Jobs running',
       enabled: paused,
       click: async () => {
         if (!paused) return
@@ -204,38 +228,77 @@ function buildTrayMenu(statusPayload) {
 
 function startAgent() {
   const configDir = getConfigDir()
-  const indexPath = path.join(getAgentRoot(), 'src', 'index.js')
-  const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node'
+  const agentRoot = getAgentRoot()
+  const indexPath = path.join(agentRoot, 'src', 'index.js')
+  const nodeCmd = getNodeBinary()
+  const logPath = path.join(configDir, 'agent.log')
 
-  // Run the agent in system Node (20+). Electron embeds an older Node that Playwright rejects.
+  if (!fs.existsSync(indexPath)) {
+    dialog.showErrorBox(
+      'Shift Close Harvest Agent',
+      `Agent entry not found:\n${indexPath}\n\nReinstall the app.`
+    )
+    return
+  }
+
+  let logStream = null
+  try {
+    logStream = fs.createWriteStream(logPath, { flags: 'a' })
+    logStream.write(`\n--- ${new Date().toISOString()} starting ${nodeCmd} ${indexPath}\n`)
+  } catch (err) {
+    console.warn('[Harvest Electron] Could not open agent.log:', err.message)
+  }
+
   agentChild = spawn(nodeCmd, [indexPath], {
-    cwd: getAgentRoot(),
-    env: { ...process.env, HARVEST_CONFIG_DIR: configDir },
-    stdio: 'inherit',
+    cwd: agentRoot,
+    env: {
+      ...process.env,
+      HARVEST_CONFIG_DIR: configDir
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true
   })
+
+  if (agentChild.stdout) {
+    agentChild.stdout.on('data', (buf) => {
+      process.stdout.write(buf)
+      if (logStream) logStream.write(buf)
+    })
+  }
+  if (agentChild.stderr) {
+    agentChild.stderr.on('data', (buf) => {
+      process.stderr.write(buf)
+      if (logStream) logStream.write(buf)
+    })
+  }
 
   agentChild.on('error', (err) => {
     console.error('[Harvest Electron] Failed to start agent:', err)
     dialog.showErrorBox(
       'Shift Close Harvest Agent',
-      `Could not start the harvest agent.\n\nMake sure Node.js 20+ is installed and on your PATH, then try again.\n\n${err.message || String(err)}`
+      `Could not start the harvest agent.\n\n${err.message || String(err)}\n\nNode used: ${nodeCmd}`
     )
   })
 
   agentChild.on('exit', (code, signal) => {
+    if (logStream) {
+      try {
+        logStream.write(`\n--- exited code=${code} signal=${signal}\n`)
+        logStream.end()
+      } catch {}
+    }
     agentChild = null
     if (app.isQuitting) return
     if (code === 0 || signal === 'SIGTERM' || signal === 'SIGINT') return
     dialog.showErrorBox(
       'Shift Close Harvest Agent',
-      `The harvest agent stopped unexpectedly (code ${code ?? signal ?? 'unknown'}).\n\nTry running "npm start" from the harvest-agent folder to see the error.`
+      `The harvest agent stopped unexpectedly (code ${code ?? signal ?? 'unknown'}).\n\nSee log:\n${logPath}`
     )
   })
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId('Shift Close Harvest Agent')
+  app.setAppUserModelId('com.westline.shiftclose.harvest-agent')
 
   tray = new Tray(trayIcon())
   tray.setToolTip('Shift Close Harvest Agent — Starting…')

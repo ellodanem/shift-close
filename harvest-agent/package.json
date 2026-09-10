@@ -1,7 +1,10 @@
 {
   "name": "shift-close-harvest-agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
+  "author": {
+    "name": "Ellodane Enterprises"
+  },
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -12,6 +15,9 @@
     "customer-august": "node src/index.js --once --task=customer_accounts --month=2026-08",
     "vendor-august": "node src/index.js --once --task=vendor_invoices --month=2026-08",
     "electron": "electron .",
+    "icons": "node scripts/build-icons.mjs",
+    "bundle-node": "node scripts/bundle-node.js",
+    "build": "node scripts/build-win.js",
     "install-task": "powershell -ExecutionPolicy Bypass -File scripts/install-scheduled-task.ps1",
     "postinstall": "npx playwright install chromium"
   },
@@ -24,6 +30,69 @@
     "playwright": "^1.55.0"
   },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5"
+  },
+  "build": {
+    "directories": {
+      "output": "installer-release"
+    },
+    "appId": "com.westline.shiftclose.harvest-agent",
+    "productName": "Shift Close Harvest Agent",
+    "copyright": "Copyright © 2026 Ellodane Enterprises",
+    "asar": false,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": "nsis",
+      "publisherName": "Ellodane Enterprises",
+      "sign": null,
+      "signAndEditExecutable": false,
+      "signDlls": false,
+      "verifyUpdateCodeSignature": false,
+      "forceCodeSigning": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Shift Close Harvest Agent",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
+    "files": [
+      "src/**/*",
+      "electron/**/*",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/electron/**/*",
+      "!node_modules/electron-builder/**/*",
+      "!node_modules/@electron/**/*",
+      "!node_modules/sharp/**/*",
+      "!node_modules/png-to-ico/**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,readme}",
+      "!**/node_modules/*/{test,tests,__tests__,example,examples}",
+      "!vendor{,/**/*}",
+      "!installer-release{,/**/*}",
+      "!build{,/**/*}",
+      "!downloads{,/**/*}",
+      "!user-data{,/**/*}",
+      "!*.config.json",
+      "!.env"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/node",
+        "to": "node",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  },
+  "allowScripts": {
+    "electron@28.3.3": true,
+    "sharp@0.34.5": true
   }
 }

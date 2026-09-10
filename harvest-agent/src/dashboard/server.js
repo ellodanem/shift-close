@@ -14,14 +14,16 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
   app.use(express.static(path.join(__dirname, 'public')))
 
   app.get('/api/status', (req, res) => {
-    const cfg = loadConfig()
+    // Avoid loadConfig() here — it used to decrypt the secret via PowerShell on every
+    // poll and blocked the Node event loop (dashboard stuck on "Starting…").
     const pause = getPauseInfo()
+    const secretSet = hasStoredSecret() || !!config.agentSecret
     res.json({
-      agentKey: cfg.agentKey,
-      vercelUrl: cfg.vercelUrl,
-      cstoreUrl: cfg.cstoreUrl,
-      configured: !!(cfg.vercelUrl && cfg.agentSecret),
-      agentSecretSet: hasStoredSecret() || !!cfg.agentSecret,
+      agentKey: config.agentKey,
+      vercelUrl: config.vercelUrl,
+      cstoreUrl: config.cstoreUrl,
+      configured: !!(config.vercelUrl && secretSet),
+      agentSecretSet: secretSet,
       paused: isPaused(),
       pauseReason: pause?.reason || null,
       pauseMessage: pause?.message || null,
@@ -39,7 +41,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       recentTasks: (status.recentTasks || []).slice(0, 10),
       activity: activityLog.getAll().slice(0, 25),
       uptime: Math.floor(process.uptime() / 60) + ' min',
-      dashboardPort: cfg.dashboardPort || 3921
+      dashboardPort: config.dashboardPort || 3921
     })
   })
 
@@ -201,12 +203,24 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       return res.status(423).json({ ok: false, error: getPauseInfo()?.message || 'Agent is paused' })
     }
     const month = typeof req.body?.month === 'string' ? req.body.month : null
+    const customer = typeof req.body?.customer === 'string' ? req.body.customer.trim() : ''
+    const from = typeof req.body?.from === 'string' ? req.body.from.trim() : ''
     activityLog.add(
-      month ? `Manual customer accounts triggered (${month})` : 'Manual customer accounts triggered'
+      month
+        ? `Manual customer accounts triggered (${month}${customer ? `, ${customer}` : from ? `, from ${from}` : ', all'})`
+        : `Manual customer accounts triggered${customer ? ` (${customer})` : from ? ` (from ${from})` : ' (all)'}`
     )
-    actions.runCustomerAccounts('manual-dashboard', { month }).catch((err) => {
-      activityLog.add(`Customer accounts error: ${err.message}`)
-    })
+    actions
+      .runCustomerAccounts('manual-dashboard', {
+        ...(month ? { month } : {}),
+        ...(customer ? { customer } : {}),
+        ...(from ? { from } : {}),
+        // Dashboard default is the full Shift Close list unless a single customer is requested
+        all: !customer
+      })
+      .catch((err) => {
+        activityLog.add(`Customer accounts error: ${err.message}`)
+      })
     res.json({ ok: true, started: true })
   })
 

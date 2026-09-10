@@ -232,11 +232,25 @@ async function runCustomerAccountsCycle(reason, options = {}) {
     }
   }
   const runAll =
-    options.all === true || (options.all !== false && harvestAll && !customerQuery && !fromQuery)
+    Boolean(options.customer)
+      ? false
+      : options.all === true ||
+        options.from ||
+        harvestAll ||
+        // Manual dashboard / scheduled runs default to the full customer list
+        String(reason).startsWith('manual') ||
+        String(reason).startsWith('sched') ||
+        String(reason).startsWith('monthly')
 
   console.log(
     `[Harvest] Starting customer_accounts (${reason}${monthOpts ? ` ${monthOpts.year}-${String(monthOpts.month).padStart(2, '0')}` : ''}${
-      customerQuery ? ` ${customerQuery}` : fromQuery ? ` from ${fromQuery}` : runAll ? ' all' : ''
+      options.customer || customerQuery
+        ? ` ${options.customer || customerQuery}`
+        : options.from || fromQuery
+          ? ` from ${options.from || fromQuery}`
+          : runAll
+            ? ' all'
+            : ''
     })`
   )
   if (activityLog) activityLog.add(`Customer accounts started (${reason})`)
@@ -302,8 +316,8 @@ async function runCustomerAccountsCycle(reason, options = {}) {
   try {
     result = await runFirstCustomerCreditReport(config, {
       ...(monthOpts || {}),
-      customer: customerQuery || undefined,
-      from: fromQuery || undefined,
+      customer: options.customer || customerQuery || undefined,
+      from: options.from || fromQuery || undefined,
       all: runAll,
       onAccount: importCaptured,
       hooks: createLoginHooks(config)

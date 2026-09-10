@@ -15,6 +15,10 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'harvest-agent.config.json')
 const SECRET_DPAPI_FILE = path.join(CONFIG_DIR, 'agent-secret.dpapi')
 const SECRET_SAFE_FILE = path.join(CONFIG_DIR, 'agent-secret.bin')
 
+/** In-memory cache — DPAPI via PowerShell is slow and must not run on every dashboard poll. */
+let cachedSecret = null
+let secretCacheReady = false
+
 function safeStorageAvailable() {
   try {
     if (!process.versions.electron) return false
@@ -109,19 +113,25 @@ function decryptFromFallback() {
 }
 
 function getStoredSecret() {
+  if (secretCacheReady) return cachedSecret || ''
   try {
+    let value = ''
     if (safeStorageAvailable() && fs.existsSync(SECRET_SAFE_FILE)) {
-      return decryptFromSafeStorage()
-    }
-    if (fs.existsSync(SECRET_DPAPI_FILE)) {
+      value = decryptFromSafeStorage()
+    } else if (fs.existsSync(SECRET_DPAPI_FILE)) {
       const raw = fs.readFileSync(SECRET_DPAPI_FILE, 'utf8').trim()
-      if (raw.startsWith('{')) return decryptFromFallback()
-      if (process.platform === 'win32') return decryptFromDpapi()
+      if (raw.startsWith('{')) value = decryptFromFallback()
+      else if (process.platform === 'win32') value = decryptFromDpapi()
     }
+    cachedSecret = value || ''
+    secretCacheReady = true
+    return cachedSecret
   } catch (err) {
     console.warn('[Secrets] Could not read stored secret:', err.message)
+    cachedSecret = ''
+    secretCacheReady = true
+    return ''
   }
-  return ''
 }
 
 function setStoredSecret(secret) {
@@ -138,17 +148,22 @@ function setStoredSecret(secret) {
   } else {
     encryptWithFallback(secret)
   }
+  cachedSecret = secret
+  secretCacheReady = true
   scrubPlaintextFromConfig()
 }
 
 function clearStoredSecret() {
   if (fs.existsSync(SECRET_DPAPI_FILE)) fs.unlinkSync(SECRET_DPAPI_FILE)
   if (fs.existsSync(SECRET_SAFE_FILE)) fs.unlinkSync(SECRET_SAFE_FILE)
+  cachedSecret = ''
+  secretCacheReady = true
   scrubPlaintextFromConfig()
 }
 
 function hasStoredSecret() {
-  if (getStoredSecret()) return true
+  if (secretCacheReady) return Boolean(cachedSecret)
+  if (fs.existsSync(SECRET_SAFE_FILE) || fs.existsSync(SECRET_DPAPI_FILE)) return true
   if (!fs.existsSync(CONFIG_FILE)) return false
   try {
     const j = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
