@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconCallOut, useDropdownFixedPosition } from '@/app/components/IconDropdown'
 import RosterPayPeriodHoursBadge from '@/app/roster/RosterPayPeriodHoursBadge'
+import RosterShiftAssignControl from '@/app/roster/RosterShiftAssignControl'
 import {
   buildPayPeriodHoursByStaff,
   rosterHoursEntryKey
@@ -283,6 +284,9 @@ function formatPrettyDate(isoDate: string): string {
 
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+const rosterOutlineBtn =
+  'min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 inline-flex items-center justify-center'
+
 const isMobileDevice = () =>
   /Android|iPhone|iPad|iPod/i.test(
     typeof navigator !== 'undefined' ? navigator.userAgent : ''
@@ -309,10 +313,13 @@ export default function RosterPage() {
   const [error, setError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
+  const [requestsMenuOpen, setRequestsMenuOpen] = useState(false)
   const [smsSubmenuOpen, setSmsSubmenuOpen] = useState(false)
   const shareTriggerRef = useRef<HTMLButtonElement>(null)
+  const requestsTriggerRef = useRef<HTMLButtonElement>(null)
   const shareMenuRef = useRef<HTMLDivElement>(null)
   const shareMenuPos = useDropdownFixedPosition(shareMenuOpen, 'left', shareTriggerRef)
+  const requestsMenuPos = useDropdownFixedPosition(requestsMenuOpen, 'left', requestsTriggerRef)
   const [shareMenuLeft, setShareMenuLeft] = useState<number | null>(null)
 
   useLayoutEffect(() => {
@@ -404,16 +411,6 @@ export default function RosterPage() {
     ),
     [weekDates]
   )
-
-  // Week banner colour: past/locked = grey, current (editable Mon–Sat) = light green, future = light blue
-  const weekBannerStyle = useMemo(() => {
-    const today = formatInputDate(new Date())
-    const weekSunday = addDays(weekStart, 6)
-    const thisWeekMonday = formatInputDate(getMonday(new Date()))
-    if (today >= weekSunday) return { bg: 'bg-gray-200', text: 'text-gray-700' } // locked from Sunday
-    if (weekStart > thisWeekMonday) return { bg: 'bg-sky-100', text: 'text-sky-900' }
-    return { bg: 'bg-green-100', text: 'text-green-900' }
-  }, [weekStart])
 
   // Weeks lock on Sunday: once Sunday of that week arrives the roster is read-only
   const isPastWeek = useMemo(() => {
@@ -602,6 +599,15 @@ export default function RosterPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [shareMenuOpen])
+
+  useEffect(() => {
+    if (!requestsMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRequestsMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [requestsMenuOpen])
 
   const updateRosterStickyOffsets = () => {
     const bannerH = rosterBannerRef.current?.offsetHeight ?? 0
@@ -1655,130 +1661,166 @@ export default function RosterPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start mb-4 md:mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start mb-4 md:mb-5">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Roster</h1>
-            <p className="text-sm text-gray-600 mt-1 hidden sm:block">
-              Weekly staff roster using existing Staff as source of truth.
+            <h1 className="text-2xl md:text-[26px] font-semibold tracking-tight text-slate-900">Roster</h1>
+            <p className="text-sm text-slate-500 mt-1 hidden sm:block">
+              Week starting {formatPrettyDate(weekStart)}
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full md:w-auto shrink-0">
-            <a
-              href="/staff"
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-gray-300 text-gray-700 rounded font-semibold hover:bg-gray-50 text-sm sm:inline-block"
-            >
+          <div className="flex flex-wrap justify-end gap-2 w-full md:w-auto shrink-0">
+            <a href="/staff" className={rosterOutlineBtn}>
               Staff
             </a>
-            <a
-              href="/roster/staff-report"
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-white border border-indigo-600 text-indigo-800 rounded font-semibold hover:bg-indigo-50 text-sm sm:inline-block"
-            >
+            <a href="/roster/staff-report" className={rosterOutlineBtn}>
               <span className="md:hidden">Schedule</span>
               <span className="hidden md:inline">Schedule report</span>
             </a>
-            {canLogCallOut ? (
+            <div className="relative">
               <button
+                ref={requestsTriggerRef}
                 type="button"
-                onClick={() => openCallOutModal()}
-                className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-teal-600 text-white rounded font-semibold hover:bg-teal-700 text-sm"
+                onClick={() => setRequestsMenuOpen((o) => !o)}
+                className={rosterOutlineBtn}
               >
-                <span className="md:hidden">+ Call</span>
-                <span className="hidden md:inline">+ Call out</span>
+                Requests
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
-                setDayOffDate(formatInputDate(new Date()))
-                setDayOffRequestType('off')
-                setDayOffShiftTemplateId('')
-                setDayOffReason('')
-                setDayOffSuccess(false)
-                setShowDayOffModal(true)
-              }}
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-amber-500 text-white rounded font-semibold hover:bg-amber-600 text-sm"
-            >
-              <span className="md:hidden">+ Day off</span>
-              <span className="hidden md:inline">+ Day Off Request</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const today = formatInputDate(new Date())
-                setSickLeaveStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
-                setSickLeaveStartDate(today)
-                setSickLeaveEndDate(today)
-                setSickLeaveReason('')
-                setSickLeaveSuccess(false)
-                setShowSickLeaveModal(true)
-              }}
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-rose-500 text-white rounded font-semibold hover:bg-rose-600 text-sm"
-            >
-              <span className="md:hidden">+ Sick</span>
-              <span className="hidden md:inline">+ Sick Leave</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const defaultStaff = allStaff.find((s) => s.status === 'active' && s.role !== 'manager')
-                const today = formatInputDate(new Date())
-                const staffId = defaultStaff?.id ?? ''
-                setVacationStaffId(staffId)
-                setVacationStartDate(defaultStaff?.vacationStart || today)
-                setVacationEndDate(defaultStaff?.vacationEnd || today)
-                setVacationSuccess(false)
-                setShowVacationModal(true)
-              }}
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 bg-violet-500 text-white rounded font-semibold hover:bg-violet-600 text-sm"
-            >
-              <span className="md:hidden">+ Vacation</span>
-              <span className="hidden md:inline">+ Vacation</span>
-            </button>
-            <a
-              href="/roster/templates"
-              className="px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 flex items-center justify-center text-center bg-sky-600 text-white rounded font-semibold hover:bg-sky-700 text-sm sm:inline-block col-span-2 sm:col-span-1"
-            >
-              <span className="md:hidden">Shift presets</span>
-              <span className="hidden md:inline">Shift Presets</span>
+              {requestsMenuOpen && requestsMenuPos && typeof document !== 'undefined'
+                ? createPortal(
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setRequestsMenuOpen(false)}
+                        aria-hidden
+                      />
+                      <div
+                        style={{
+                          position: 'fixed',
+                          top: requestsMenuPos.top,
+                          left: requestsMenuPos.left,
+                          zIndex: 50
+                        }}
+                        className="w-56 py-1 bg-white border border-slate-200 rounded-lg shadow-lg"
+                      >
+                        {canLogCallOut ? (
+                          <button
+                            type="button"
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                            onClick={() => {
+                              setRequestsMenuOpen(false)
+                              openCallOutModal()
+                            }}
+                          >
+                            Call out
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                          onClick={() => {
+                            setRequestsMenuOpen(false)
+                            setDayOffStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
+                            setDayOffDate(formatInputDate(new Date()))
+                            setDayOffRequestType('off')
+                            setDayOffShiftTemplateId('')
+                            setDayOffReason('')
+                            setDayOffSuccess(false)
+                            setShowDayOffModal(true)
+                          }}
+                        >
+                          Day off request
+                        </button>
+                        <button
+                          type="button"
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                          onClick={() => {
+                            setRequestsMenuOpen(false)
+                            const today = formatInputDate(new Date())
+                            setSickLeaveStaffId(allStaff.find(s => s.status === 'active' && s.role !== 'manager')?.id ?? '')
+                            setSickLeaveStartDate(today)
+                            setSickLeaveEndDate(today)
+                            setSickLeaveReason('')
+                            setSickLeaveSuccess(false)
+                            setShowSickLeaveModal(true)
+                          }}
+                        >
+                          Sick leave
+                        </button>
+                        <button
+                          type="button"
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                          onClick={() => {
+                            setRequestsMenuOpen(false)
+                            const defaultStaff = allStaff.find((s) => s.status === 'active' && s.role !== 'manager')
+                            const today = formatInputDate(new Date())
+                            const staffId = defaultStaff?.id ?? ''
+                            setVacationStaffId(staffId)
+                            setVacationStartDate(defaultStaff?.vacationStart || today)
+                            setVacationEndDate(defaultStaff?.vacationEnd || today)
+                            setVacationSuccess(false)
+                            setShowVacationModal(true)
+                          }}
+                        >
+                          Vacation
+                        </button>
+                      </div>
+                    </>,
+                    document.body
+                  )
+                : null}
+            </div>
+            <a href="/roster/templates" className={rosterOutlineBtn}>
+              Shift presets
             </a>
           </div>
         </div>
 
         {/* Week picker and actions */}
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+        <div
+          ref={rosterBannerRef}
+          className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center"
+        >
+          <div className="flex flex-wrap items-stretch sm:items-center gap-1 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => handleChangeWeek(-1)}
-              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <span className="sm:hidden">← Prev week</span>
-              <span className="hidden sm:inline">← Previous week</span>
+              ← Prev
             </button>
             <button
               type="button"
               onClick={() => setWeekStart(formatInputDate(getMonday(new Date())))}
-              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2 rounded-lg text-sm font-semibold text-slate-900 bg-slate-50 ring-1 ring-slate-200"
             >
               This week
             </button>
             <button
               type="button"
               onClick={() => handleChangeWeek(1)}
-              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100 text-sm font-medium"
+              className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              Next week →
+              Next →
             </button>
           </div>
-          <div className="flex flex-row flex-wrap items-center gap-2 w-full sm:w-auto">
-            <label className="text-xs font-semibold text-gray-500 shrink-0">Week starting</label>
+          <div className="flex flex-row flex-wrap items-center gap-2">
+            <label className="text-sm text-slate-500 shrink-0">Week starting</label>
             <input
               type="date"
               value={weekStart}
               onChange={(e) => handleWeekStartPickerChange(e.target.value)}
-              className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1.5 border border-gray-300 rounded text-base sm:text-sm"
+              className="min-h-[44px] sm:min-h-0 px-3 py-2 border border-slate-200 rounded-lg text-sm"
             />
+            {isViewingCurrentWeek && !isPastWeek ? (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                This week
+              </span>
+            ) : null}
+            {isPastWeek ? (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                Past week · read-only
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -1788,35 +1830,22 @@ export default function RosterPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-visible">
-          <div
-            ref={rosterBannerRef}
-            className={`sticky top-0 z-30 px-3 sm:px-4 py-2 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:justify-between md:items-center shadow-sm ${weekBannerStyle.bg} ${weekBannerStyle.text}`}
-          >
-            <span className="text-sm font-semibold leading-snug">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-visible">
+          <div className="px-3 sm:px-4 py-2 border-b border-slate-200 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+            <span className="text-sm font-medium text-slate-600 leading-snug">
               <span className="md:hidden block">
                 {formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])}
               </span>
               <span className="hidden md:inline">
-                Weekly roster ({formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])})
+                {formatPrettyDate(weekStart)} – {formatPrettyDate(weekDates[6])}
               </span>
-              {isViewingCurrentWeek && !isPastWeek && (
-                <span className="mt-1 md:mt-0 md:ml-2 inline-block rounded bg-white/60 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-green-800">
-                  This week
-                </span>
-              )}
-              {isPastWeek && (
-                <span className="mt-1 md:mt-0 md:ml-2 block md:inline font-normal text-gray-600">
-                  Past week (read-only)
-                </span>
-              )}
             </span>
             <div className="flex flex-wrap items-stretch md:items-center gap-2 w-full md:w-auto">
               <button
                 type="button"
                 onClick={() => setCopyConfirmOpen(true)}
                 disabled={loading || sharing || rosterLockedEdit}
-                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-amber-600 text-amber-700 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-60"
+                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
               >
                 <span className="md:hidden">Copy prev week</span>
                 <span className="hidden md:inline">Copy previous week</span>
@@ -1868,7 +1897,7 @@ export default function RosterPage() {
                 type="button"
                 onClick={handleClearWeek}
                 disabled={loading || sharing || entries.length === 0 || rosterLockedEdit}
-                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-red-600 text-red-700 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+                className="flex-1 md:flex-none min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
               >
                 Clear week
               </button>
@@ -1878,7 +1907,7 @@ export default function RosterPage() {
                   type="button"
                   onClick={() => setShareMenuOpen((o) => !o)}
                   disabled={sharing || entries.length === 0}
-                  className="w-full md:w-auto min-h-[44px] md:min-h-0 px-3 py-2.5 md:py-1.5 border border-indigo-600 text-indigo-700 rounded text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60"
+                  className="w-full md:w-auto min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
                 >
                   Share ▼
                 </button>
@@ -2236,7 +2265,6 @@ export default function RosterPage() {
                           entry?.shiftTemplateId
                         )
                         const template = getTemplateForEntry(entry)
-                        const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
                         const cellLocked = isCellLocked(date) || ghost
                         const lastWeekHint = getLastWeekTooltip(s.id, date)
@@ -2245,17 +2273,6 @@ export default function RosterPage() {
                             key={date}
                             className="flex gap-2 px-3 py-2.5 items-start"
                             title={lastWeekHint}
-                            style={
-                              onVacation
-                                ? { backgroundColor: '#f3f4f6' }
-                                : onSickLeave
-                                  ? { backgroundColor: '#ffe4e6' }
-                                  : stationClosedHoliday
-                                    ? { backgroundColor: '#fff7ed' }
-                                    : bgColor
-                                      ? { backgroundColor: bgColor }
-                                      : undefined
-                            }
                           >
                             <div className="w-[5.25rem] shrink-0 pt-0.5">
                               <div className="text-xs font-bold text-gray-800">{dayLabels[idx]}</div>
@@ -2325,52 +2342,20 @@ export default function RosterPage() {
                                   </span>
                                 ) : null}
                               </div>
-                              {onVacation ? (
-                                <span className="text-sm font-medium text-gray-600">Vacation</span>
-                              ) : onSickLeave ? (
-                                <span className="text-sm font-medium text-rose-700">Sick leave</span>
-                              ) : stationClosedHoliday ? (
-                                <div className="text-sm text-amber-900">
-                                  <span className="font-semibold">Station closed</span>
-                                  {ph?.name ? <span className="block text-xs mt-0.5">{ph.name}</span> : null}
-                                </div>
-                              ) : cellLocked ? (
-                                <span className="text-sm font-medium text-gray-800">
-                                  {ph && !ph.stationClosed ? (
-                                    <>
-                                      <span className="block text-xs text-indigo-700 mb-0.5">{ph.name}</span>
-                                      {template?.name || 'Off'}
-                                    </>
-                                  ) : (
-                                    template?.name || 'Off'
-                                  )}
-                                </span>
-                              ) : (
-                                <select
-                                  value={entry?.shiftTemplateId || ''}
-                                  disabled={onSickLeave || onVacation}
-                                  onChange={(e) =>
-                                    setEntryFor(
-                                      s.id,
-                                      date,
-                                      e.target.value === '' ? null : e.target.value
-                                    )
-                                  }
-                                  title={shiftRequestMismatch?.tooltip}
-                                  className={`w-full min-h-[48px] px-2 py-2 border rounded-lg text-base bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                    shiftRequestMismatch
-                                      ? 'roster-shift-request-mismatch border-amber-500'
-                                      : 'border-gray-300'
-                                  }`}
-                                >
-                                  <option value="">Off</option>
-                                  {templates.map((t) => (
-                                    <option key={t.id} value={t.id}>
-                                      {t.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
+                              <RosterShiftAssignControl
+                                template={template}
+                                templates={templates}
+                                value={entry?.shiftTemplateId || ''}
+                                onChange={(id) => setEntryFor(s.id, date, id)}
+                                disabled={onSickLeave || onVacation}
+                                locked={cellLocked}
+                                onVacation={onVacation}
+                                onSickLeave={onSickLeave}
+                                stationClosed={!!stationClosedHoliday}
+                                holidayName={ph?.name}
+                                mismatch={!!shiftRequestMismatch}
+                                mismatchTooltip={shiftRequestMismatch?.tooltip}
+                              />
                             </div>
                           </div>
                         )
@@ -2395,9 +2380,9 @@ export default function RosterPage() {
                 <div ref={headerScrollRef} className="roster-table-x-scroll overflow-x-auto">
                   <table className="min-w-full w-full table-fixed border-separate border-spacing-0 text-sm">
                     {rosterTableColGroup}
-                    <thead className={weekBannerStyle.bg}>
+                    <thead className="bg-white">
                   <tr>
-                    <th className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider align-top ${weekBannerStyle.bg} ${weekBannerStyle.text}`}>
+                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider align-top text-slate-500 bg-white">
                       Staff
                     </th>
                     {weekDates.map((date, idx) => {
@@ -2408,12 +2393,12 @@ export default function RosterPage() {
                           key={date}
                           className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${
                             ph?.stationClosed
-                              ? 'bg-amber-100 text-amber-950'
+                              ? 'bg-amber-50 text-amber-950'
                               : ph
                                 ? 'bg-indigo-50 text-indigo-950'
                                 : dayLocked
-                                  ? 'bg-gray-200 text-gray-700'
-                                  : `${weekBannerStyle.bg} ${weekBannerStyle.text}`
+                                  ? 'bg-slate-50 text-slate-500'
+                                  : 'bg-white text-slate-500'
                           }`}
                           title={dayLocked ? 'This day is locked' : undefined}
                         >
@@ -2659,7 +2644,6 @@ export default function RosterPage() {
                           entry?.shiftTemplateId
                         )
                         const template = getTemplateForEntry(entry)
-                        const bgColor = template?.color || undefined
                         const birthday = isBirthdayOnDate(s, date)
                         const cellLocked = isCellLocked(date) || ghost
                         const lastWeekHint = getLastWeekTooltip(s.id, date)
@@ -2668,17 +2652,6 @@ export default function RosterPage() {
                             key={date}
                             className="px-1 py-1 text-center align-middle"
                             title={lastWeekHint}
-                            style={
-                              onVacation
-                                ? { backgroundColor: '#f3f4f6' }
-                                : onSickLeave
-                                  ? { backgroundColor: '#ffe4e6' }
-                                : stationClosedHoliday
-                                  ? { backgroundColor: '#fff7ed' }
-                                  : bgColor
-                                    ? { backgroundColor: bgColor }
-                                    : undefined
-                            }
                           >
                             <div className="flex flex-col items-center gap-0.5 justify-center min-h-[1.25rem]">
                               {birthday ? (
@@ -2737,54 +2710,23 @@ export default function RosterPage() {
                                   Blocked
                                 </span>
                               ) : null}
-                              {onVacation ? (
-                                <span className="text-xs font-medium text-gray-500">Vacation</span>
-                              ) : onSickLeave ? (
-                                <span className="text-xs font-medium text-rose-700">Sick leave</span>
-                              ) : stationClosedHoliday ? (
-                                <div className="px-0.5 py-1">
-                                  <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
-                                    Closed
-                                  </div>
-                                  <div className="text-[10px] text-amber-800 leading-tight mt-0.5">{ph?.name}</div>
-                                </div>
-                              ) : cellLocked ? (
-                                <span className="text-xs font-medium text-gray-700">
-                                  {ph && !ph.stationClosed ? (
-                                    <>
-                                      <span className="block text-[9px] text-indigo-700 mb-0.5">{ph.name}</span>
-                                      {template?.name || 'Off'}
-                                    </>
-                                  ) : (
-                                    template?.name || 'Off'
-                                  )}
-                                </span>
-                              ) : (
-                                <select
+                              <div className="w-full">
+                                <RosterShiftAssignControl
+                                  template={template}
+                                  templates={templates}
                                   value={entry?.shiftTemplateId || ''}
+                                  onChange={(id) => setEntryFor(s.id, date, id)}
                                   disabled={onSickLeave || onVacation}
-                                  onChange={(e) =>
-                                    setEntryFor(
-                                      s.id,
-                                      date,
-                                      e.target.value === '' ? null : e.target.value
-                                    )
-                                  }
-                                  title={shiftRequestMismatch?.tooltip}
-                                  className={`w-full max-w-[7rem] px-1 py-1 border rounded text-xs bg-white/80 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                    shiftRequestMismatch
-                                      ? 'roster-shift-request-mismatch border-amber-500'
-                                      : 'border-gray-300'
-                                  }`}
-                                >
-                                  <option value="">Off</option>
-                                  {templates.map((t) => (
-                                    <option key={t.id} value={t.id}>
-                                      {t.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
+                                  locked={cellLocked}
+                                  onVacation={onVacation}
+                                  onSickLeave={onSickLeave}
+                                  stationClosed={!!stationClosedHoliday}
+                                  holidayName={ph && !ph.stationClosed ? ph.name : ph?.name}
+                                  mismatch={!!shiftRequestMismatch}
+                                  mismatchTooltip={shiftRequestMismatch?.tooltip}
+                                  compact
+                                />
+                              </div>
                             </div>
                           </td>
                         )

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/app/components/AuthContext'
 import AttendanceSettingsContent from './components/AttendanceSettingsContent'
+import AttendanceWeekView from './components/AttendanceWeekView'
 import { normalizePublicAppUrl } from '@/lib/public-url'
 import { canViewArchivedAttendanceLogs } from '@/lib/roles'
 import {
@@ -114,7 +115,7 @@ interface DeviceSettings {
   attendance_clock_max_sample_delta_abs_minutes: string
 }
 
-type Tab = 'logs' | 'device' | 'agent' | 'instructions' | 'settings'
+type Tab = 'logs' | 'week' | 'device' | 'agent' | 'instructions' | 'settings'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
 const ATTENDANCE_LOGS_POLL_MS = 120_000
@@ -1505,55 +1506,49 @@ export default function AttendancePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              ZKTeco device integration — logs, staff sync, and device setup.
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[26px]">Attendance</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Punches against the roster · device setup stays on the other tabs
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             {currentPeriodPayDay && (
-              <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <div className="px-3 py-1.5 bg-amber-50 rounded-lg text-sm">
                 <span className="text-amber-800 font-medium">Pay day this period:</span>{' '}
                 <span className="text-amber-900">{formatDateDisplay(currentPeriodPayDay.date + 'T12:00:00')}</span>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setActiveTab('settings')}
-              className="px-4 py-2 border border-gray-300 bg-white text-gray-800 rounded font-semibold hover:bg-gray-50 inline-block text-sm shrink-0"
-            >
-              Settings
-            </button>
             <a
               href="/attendance/late-absent"
-              className="px-4 py-2 border border-amber-600 bg-white text-amber-900 rounded font-semibold hover:bg-amber-50 inline-block text-sm shrink-0"
+              className="px-3 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg font-medium hover:bg-slate-50 inline-block text-sm shrink-0"
             >
-              Late & absent
+              Late & Absent
             </a>
             <a
               href="/attendance/staff-report"
-              className="px-4 py-2 border border-indigo-600 bg-white text-indigo-800 rounded font-semibold hover:bg-indigo-50 inline-block text-sm shrink-0"
+              className="px-3 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg font-medium hover:bg-slate-50 inline-block text-sm shrink-0"
             >
               Attendance report
             </a>
             <a
               href="/attendance/pay-period"
-              className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 inline-block text-sm shrink-0"
+              className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 inline-block text-sm shrink-0"
             >
-              Pay Period Report
+              Extract Pay Period
             </a>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-4 border-b border-gray-200">
+        <div className="flex gap-1 mb-4 border-b border-slate-200 overflow-x-auto">
           {(
             [
-              { id: 'logs' as const, label: 'Attendance Logs' },
-              { id: 'device' as const, label: 'Device Management' },
-              { id: 'agent' as const, label: 'Windows Agent' },
+              { id: 'logs' as const, label: 'Logs' },
+              { id: 'week' as const, label: 'Week view' },
+              { id: 'device' as const, label: 'Device' },
+              { id: 'agent' as const, label: 'Agent' },
               { id: 'instructions' as const, label: 'Instructions' },
               { id: 'settings' as const, label: 'Settings' }
             ] as const
@@ -1562,10 +1557,10 @@ export default function AttendancePage() {
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`px-4 py-2 text-sm font-medium rounded-t border-b-2 transition-colors ${
+              className={`shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === id
-                  ? 'border-blue-600 text-blue-700 bg-white'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
               {label}
@@ -2832,6 +2827,8 @@ export default function AttendancePage() {
             )}
           </>
         )}
+
+        {activeTab === 'week' && <AttendanceWeekView />}
 
         {/* ── DEVICE MANAGEMENT TAB ── */}
         {activeTab === 'device' && (

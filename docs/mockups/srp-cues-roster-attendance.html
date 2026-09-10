@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Close — Roster &amp; Attendance sample</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .tabular { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="h-screen overflow-hidden bg-gray-50" data-mode="after" data-screen="roster">
+  <div class="h-12 shrink-0 bg-slate-900 text-white flex items-center gap-3 px-4 text-sm">
+    <span class="font-semibold">This pass only</span>
+    <span class="text-slate-400 hidden md:inline">Roster &amp; Attendance · app chrome unchanged</span>
+    <div class="ml-4 flex rounded-lg bg-slate-800 p-0.5">
+      <button type="button" data-screen-btn="roster" class="screen-btn px-3 py-1 text-xs font-medium rounded-md">Roster</button>
+      <button type="button" data-screen-btn="attendance" class="screen-btn px-3 py-1 text-xs font-medium rounded-md">Attendance</button>
+    </div>
+    <div class="ml-auto flex rounded-lg bg-slate-800 p-0.5">
+      <button type="button" data-mode-btn="before" class="mode-btn px-3 py-1 text-xs font-medium rounded-md">Today</button>
+      <button type="button" data-mode-btn="after" class="mode-btn px-3 py-1 text-xs font-medium rounded-md">Proposed</button>
+    </div>
+  </div>
+
+  <div class="flex h-[calc(100vh-3rem)] min-h-0">
+    <aside class="flex h-full w-60 shrink-0 flex-col bg-slate-900 text-white">
+      <div class="flex h-16 items-center px-4 border-b border-slate-700">
+        <span class="text-sm font-semibold text-slate-200">Shift Close</span>
+      </div>
+      <nav class="flex-1 px-3 py-4 space-y-1 text-sm font-medium">
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-200">Home</div>
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-200">Operations</div>
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-200">Financial</div>
+        <div id="nav-people" class="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-slate-700/90 text-white">People</div>
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-200">Setup</div>
+      </nav>
+      <div class="border-t border-slate-700 px-4 py-3 text-xs text-slate-300">
+        <div>Dane Elie</div>
+        <div class="text-[10px] text-slate-500">Owner</div>
+        <div class="mt-2 text-slate-300">Log out</div>
+      </div>
+    </aside>
+
+    <div class="flex min-w-0 min-h-0 flex-1 flex-col">
+      <header class="h-11 shrink-0 flex items-center justify-end gap-3 px-4 bg-slate-800 border-b border-slate-700 text-sm text-slate-200">
+        <span>Dane Elie <span class="text-xs text-slate-400">(owner)</span></span>
+        <span>Home</span>
+        <span class="font-medium">Log out</span>
+      </header>
+      <main id="main" class="min-h-0 flex-1 overflow-y-auto bg-gray-50"></main>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s, el = document) => el.querySelector(s)
+    const days = [
+      ['MON', '03'], ['TUE', '04'], ['WED', '05'], ['THU', '06'], ['FRI', '07'], ['SAT', '08'], ['SUN', '09']
+    ]
+    const attDays = [
+      ['MON', '15 Jun'], ['TUE', '16 Jun'], ['WED', '17 Jun'], ['THU', '18 Jun'], ['FRI', '19 Jun'], ['SAT', '20 Jun'], ['SUN', '21 Jun']
+    ]
+
+    const S = {
+      g: { bg: '#16a34a', label: '6-1', time: '06:00–13:00' },
+      b: { bg: '#2563eb', label: '1-9', time: '13:00–21:00' },
+      p: { bg: '#7c3aed', label: '7:30-2', time: '07:30–14:00' },
+      o: { bg: '#ea580c', label: '11-7', time: '11:00–19:00' },
+      k: { bg: '#334155', label: '8-4', time: '08:00–16:00' },
+      off: null
+    }
+
+    const roster = [
+      ['Althea F.', 'Supervisor', '41.5h', [S.g, S.g, S.g, null, S.g, S.g, S.p]],
+      ['Jovita H.', 'Supervisor', '48h', [S.b, S.b, S.b, S.b, S.b, S.b, null]],
+      ['Magdalene L.', 'Cashier', '27.5h', [null, null, null, S.g, S.g, S.g, S.p]],
+      ['Sylvana A.', 'Supervisor', '47h', [S.b, S.b, S.b, S.b, S.b, S.b, null]],
+      ['Natasha S.', 'Pump Attendant', '40.5h', [S.b, null, S.b, S.b, S.b, S.b, S.p]],
+      ['Octavia B.', 'Pump Attendant', '48h', [S.b, S.b, S.b, S.b, S.b, S.b, S.p]],
+      ['Eli H.', 'Pump Attendant', '42h', [S.g, S.g, S.g, S.g, S.g, S.g, null]],
+      ['Elenna J.', 'Pump Attendant', '48.5h', [S.b, S.b, null, S.b, S.b, S.b, S.p]],
+      ['Orena S.', 'Cashier', '47h', [S.g, S.g, S.g, S.g, S.g, S.g, null]],
+      ['Uranica B.', 'Pump Attendant', '44h', [S.g, S.g, S.g, S.g, S.g, S.k, null]],
+      ['Judan A.', 'Pump Attendant', '40h', [S.b, S.b, S.b, S.b, S.b, S.o, null]],
+      ['Jervis B.', 'Pump Attendant', '45h', [S.k, S.k, S.k, S.k, S.o, S.k, null]]
+    ]
+
+    function pill(text, cls) {
+      return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}">${text}</span>`
+    }
+
+    function shiftBlock(shift, after) {
+      if (!shift) {
+        return after
+          ? `<div class="h-[52px] rounded-lg border border-dashed border-slate-200 bg-white text-slate-300 text-lg flex items-center justify-center">+</div>`
+          : `<select class="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80"><option>Off</option></select>`
+      }
+      if (after) {
+        return `<div class="h-[52px] rounded-lg px-1.5 py-1 text-white text-center leading-tight" style="background:${shift.bg}">
+          <div class="text-[11px] font-semibold">${shift.label}</div>
+          <div class="text-[10px] opacity-90">${shift.time}</div>
+        </div>`
+      }
+      return `<div class="min-h-[40px] flex items-center justify-center" style="background:${shift.bg}">
+        <select class="w-full max-w-[7rem] px-1 py-1 border border-gray-300 rounded text-xs bg-white/80">
+          <option selected>${shift.label}</option>
+        </select>
+      </div>`
+    }
+
+    function outlineBtn(label) {
+      return `<button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">${label}</button>`
+    }
+    function fillBtn(label) {
+      return `<button class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white">${label}</button>`
+    }
+    function oldFill(label, cls) {
+      return `<button class="rounded px-3 py-2 text-sm font-semibold text-white ${cls}">${label}</button>`
+    }
+
+    function rosterPage() {
+      const after = document.body.dataset.mode === 'after'
+      const headerActions = after
+        ? `<div class="flex flex-wrap justify-end gap-2">
+             ${outlineBtn('Staff')}
+             ${outlineBtn('Schedule report')}
+             ${outlineBtn('Requests')}
+             ${outlineBtn('Shift presets')}
+           </div>`
+        : `<div class="flex flex-wrap justify-end gap-2">
+             <button class="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700">Staff</button>
+             <button class="rounded border border-indigo-600 bg-white px-3 py-2 text-sm font-semibold text-indigo-800">Schedule report</button>
+             ${oldFill('+ Call out', 'bg-teal-600')}
+             ${oldFill('+ Day Off Request', 'bg-amber-500')}
+             ${oldFill('+ Sick Leave', 'bg-rose-500')}
+             ${oldFill('+ Vacation', 'bg-violet-500')}
+             ${oldFill('Shift Presets', 'bg-sky-600')}
+           </div>`
+
+      const weekBar = after
+        ? `<div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+             <button class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600">← Prev</button>
+             <button class="rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-900 ring-1 ring-slate-200">This week</button>
+             <button class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600">Next →</button>
+             <span class="ml-2 text-sm text-slate-500">Week starting <span class="font-medium text-slate-800">03-Aug-2026</span></span>
+             ${pill('This week', 'bg-emerald-50 text-emerald-800')}
+             <span class="ml-auto flex gap-2">${outlineBtn('Copy previous week')}${outlineBtn('Clear week')}</span>
+           </div>`
+        : `<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+             <div class="flex gap-2">
+               <button class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm">← Previous week</button>
+               <button class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm">This week</button>
+               <button class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm">Next week →</button>
+             </div>
+             <div class="flex items-center gap-2 text-xs font-semibold text-gray-500">Week starting <input class="rounded border border-gray-300 px-2 py-1 text-sm" value="2026-08-03" /></div>
+           </div>`
+
+      const counts = after
+        ? `<div class="mb-2 flex flex-wrap items-center gap-2 px-1 text-xs">
+             <span class="text-slate-400 font-medium">COUNT</span>
+             ${[['6-1','#16a34a','5'],['1-9','#2563eb','4'],['7:30-2','#7c3aed','1'],['11-7','#ea580c','1'],['8-4','#334155','1']].map(([n,c,k]) =>
+               `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-white" style="background:${c}">${k} ${n}</span>`
+             ).join('')}
+           </div>`
+        : ''
+
+      const banner = after ? '' : `
+        <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-green-100 px-4 py-2 text-sm font-semibold text-green-900">
+          <span>Weekly roster (3 Aug 2026 – 9 Aug 2026) <span class="ml-2 rounded bg-white/60 px-1.5 py-0.5 text-xs font-bold uppercase text-green-800">This week</span></span>
+          <div class="flex gap-2">
+            <button class="rounded border border-amber-600 px-3 py-1 text-xs font-semibold text-amber-700">Copy previous week</button>
+            <button class="rounded border border-red-600 px-3 py-1 text-xs font-semibold text-red-700">Clear week</button>
+          </div>
+        </div>`
+
+      const tableWrap = after
+        ? 'overflow-hidden rounded-xl border border-slate-200 bg-white'
+        : 'overflow-hidden rounded-lg bg-white shadow'
+
+      return `
+        <div class="p-6 max-w-6xl mx-auto">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h1 class="${after ? 'text-[26px] font-semibold tracking-tight text-slate-900' : 'text-3xl font-bold text-gray-900'}">Roster</h1>
+              <p class="mt-1 text-sm text-slate-500">${after ? 'Week starting 03-Aug-2026 · Total Auto Demo' : 'Weekly staff roster using existing Staff as source of truth.'}</p>
+            </div>
+            ${headerActions}
+          </div>
+          ${weekBar}
+          <div class="${tableWrap}">
+            ${banner}
+            <div class="p-3">
+              ${counts}
+              <table class="w-full table-fixed text-sm">
+                <thead>
+                  <tr class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th class="w-[9.5rem] px-2 py-2 text-left">Staff</th>
+                    ${days.map(([d, n]) => `<th class="px-1 py-2 text-center">${d} ${n}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${roster.map(([name, role, hrs, cells]) => `
+                    <tr class="${after ? '' : 'border-t border-gray-100'}">
+                      <td class="px-2 py-1.5 align-top">
+                        <div class="font-medium text-slate-900 leading-tight">${name}</div>
+                        <div class="text-[11px] text-slate-500">${role}</div>
+                        <div class="text-[11px] text-slate-400">${hrs} scheduled</div>
+                      </td>
+                      ${cells.map((c) => `<td class="px-1 py-1 align-middle">${shiftBlock(c, after)}</td>`).join('')}
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`
+    }
+
+    function attStatus(kind, punches, after) {
+      if (kind === 'none') {
+        return after
+          ? `<div class="min-h-[88px] rounded-lg border border-slate-100 bg-slate-50/80 px-2 py-2 text-[11px] text-slate-400">No shift</div>`
+          : `<div class="min-h-[72px] rounded border border-gray-200 bg-white px-2 py-2 text-xs text-gray-400">Off</div>`
+      }
+      const map = {
+        P: after ? ['Present', 'bg-emerald-50 text-emerald-800', 'P'] : ['Present', 'bg-emerald-100 text-emerald-900 border border-emerald-200', 'P'],
+        L: after ? ['Late', 'bg-orange-50 text-orange-800', 'L'] : ['Late', 'bg-amber-100 text-amber-900 border border-amber-300', 'L'],
+        A: after ? ['Absent', 'bg-rose-50 text-rose-800', 'A'] : ['Absent', 'bg-red-100 text-red-900 border border-red-300', 'A'],
+        D: after ? ['Day off', 'bg-sky-50 text-sky-800', 'D'] : ['Day off', 'bg-sky-100 text-sky-900 border border-sky-200', 'D'],
+        V: after ? ['Vacation', 'bg-teal-50 text-teal-800', 'V'] : ['Vacation', 'bg-gray-100 text-gray-600', 'V']
+      }
+      const [label, cls, letter] = map[kind]
+      const times = (punches || []).map((t) => `<div class="tabular text-[10px] ${t.late ? 'text-orange-700' : t.out ? 'text-rose-600' : 'text-emerald-700'}">${t.t}</div>`).join('')
+      return `<div class="min-h-[88px] rounded-lg px-2 py-1.5 ${cls}">
+        <div class="flex items-center gap-1">
+          <span class="flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold ${after ? 'bg-white/70' : 'bg-white'}">${letter}</span>
+          <span class="text-[11px] font-semibold">${label}</span>
+        </div>
+        <div class="mt-1 space-y-0.5">${times}</div>
+      </div>`
+    }
+
+    function attendancePage() {
+      const after = document.body.dataset.mode === 'after'
+      const staff = [
+        { n: 'Althea Frank', r: 'Supervisor', row: ['V','V','V','V','V','V','V'], side: 'OK' },
+        { n: 'Jovita Henry', r: 'Supervisor', row: ['P','none','P','P','P','P','P'], side: 'OK' },
+        { n: 'Magdalene Lubrin', r: 'Cashier', row: ['P','L','P','P','L','A','none'], side: '2' },
+        { n: 'Natasha Sandiford', r: 'Pump Attendant', row: ['L','L','L','L','L','L','none'], side: '6' },
+        { n: 'Octavia Boudhar', r: 'Pump Attendant', row: ['L','none','L','L','L','L','P'], side: '5' },
+        { n: 'Eli Houson', r: 'Pump Attendant', row: ['P','D','P','P','P','P','P'], side: 'OK' },
+        { n: 'Elenna James', r: 'Pump Attendant', row: ['none','L','L','L','P','P','none'], side: '3' }
+      ]
+      const punches = {
+        P: [{ t: '13:02 in' }, { t: '21:01 out', out: true }],
+        L: [{ t: '06:18 in', late: true }, { t: '13:04 out', out: true }],
+        A: [{ t: 'No in-punch', late: true }],
+        D: [],
+        V: [],
+        none: []
+      }
+
+      if (!after) {
+        return `
+          <div class="p-6 max-w-6xl mx-auto">
+            <div class="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h1 class="text-2xl font-bold text-gray-900">Attendance</h1>
+                <p class="mt-1 text-sm text-gray-600">ZKTeco device integration — logs, staff sync, and device setup.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold">Settings</button>
+                <button class="rounded border border-amber-600 bg-white px-4 py-2 text-sm font-semibold text-amber-900">Late &amp; absent</button>
+                <button class="rounded border border-indigo-600 bg-white px-4 py-2 text-sm font-semibold text-indigo-800">Attendance report</button>
+                <button class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Pay Period Report</button>
+              </div>
+            </div>
+            <div class="mb-4 flex gap-1 border-b border-gray-200">
+              ${['Attendance Logs','Device Management','Windows Agent','Instructions','Settings'].map((t,i) =>
+                `<span class="border-b-2 px-4 py-2 text-sm font-medium ${i===0?'border-blue-600 text-blue-700 bg-white':'border-transparent text-gray-500'}">${t}</span>`
+              ).join('')}
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm mb-4 flex flex-wrap gap-2">
+              <button class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Sync</button>
+              <button class="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Add punch</button>
+              <button class="rounded border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-800">Bulk add</button>
+              <input class="rounded border border-gray-300 px-3 py-2 text-sm" placeholder="From date" />
+              <input class="rounded border border-gray-300 px-3 py-2 text-sm" placeholder="To date" />
+            </div>
+            <div class="flex gap-4">
+              <div class="flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <table class="w-full text-sm">
+                  <thead class="bg-gray-50 text-gray-600"><tr>
+                    <th class="px-3 py-2 text-left">Staff</th><th class="px-3 py-2 text-left">Time</th><th class="px-3 py-2 text-left">Type</th><th class="px-3 py-2 text-left">Status</th>
+                  </tr></thead>
+                  <tbody>
+                    ${[['Jovita Henry','13:02:11','in','full'],['Natasha Sandiford','06:18:04','in','irregular'],['Magdalene Lubrin','06:12:55','in','short_ok']].map((r) => `
+                      <tr class="border-t border-gray-100 ${r[3]==='irregular'?'bg-red-50/50':r[3]==='short_ok'?'bg-sky-50/50':'bg-emerald-50/35'}">
+                        <td class="px-3 py-2">${r[0]}</td><td class="px-3 py-2 tabular">${r[1]}</td><td class="px-3 py-2">${r[2]}</td>
+                        <td class="px-3 py-2">${r[3]==='irregular'?'Irregular':r[3]==='short_ok'?'Possible missed':'Full day'}</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>
+              <div class="w-52 shrink-0 rounded-lg border border-gray-200 bg-white p-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Staff</div>
+                ${['All','Althea Frank','Jovita Henry','Natasha Sandiford'].map((n,i) =>
+                  `<div class="flex items-center gap-2 rounded px-2 py-1.5 text-sm ${i===0?'bg-gray-100 font-medium':''}">
+                    <span class="h-2.5 w-2.5 rounded-[2px] ${i===3?'bg-red-500':i===2?'bg-emerald-500':'bg-sky-500'}"></span>${n}
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>`
+      }
+
+      return `
+        <div class="p-6 max-w-[1180px] mx-auto">
+          <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h1 class="text-[26px] font-semibold tracking-tight text-slate-900">Attendance</h1>
+              <p class="mt-1 text-sm text-slate-500">Total Auto Demo · America/St. Lucia</p>
+            </div>
+            <div class="flex flex-wrap justify-end gap-2">
+              ${outlineBtn('Late & Absent')}
+              ${outlineBtn('Attendance report')}
+              ${fillBtn('Extract Pay Period')}
+            </div>
+          </div>
+          <div class="mb-3 flex gap-4 border-b border-slate-200 text-sm">
+            <span class="border-b-2 border-transparent pb-2 text-slate-500">Logs</span>
+            <span class="border-b-2 border-blue-600 pb-2 font-medium text-blue-700">Week view</span>
+            <span class="border-b-2 border-transparent pb-2 text-slate-400">Device</span>
+            <span class="border-b-2 border-transparent pb-2 text-slate-400">Agent</span>
+            <span class="ml-auto border-b-2 border-transparent pb-2 text-slate-400">Settings</span>
+          </div>
+          <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <select class="h-9 rounded-lg border border-slate-200 px-2 text-sm"><option>All roles</option></select>
+            <div class="flex h-9 min-w-[180px] items-center rounded-lg border border-slate-200 px-3 text-sm text-slate-400">Search employee</div>
+            <label class="ml-2 flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" /> Show archived staff</label>
+          </div>
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm">← Prev</button>
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold">This week</button>
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm">Next →</button>
+            <span class="text-sm text-slate-500">Jump to 15/06/2026</span>
+            ${pill('6 irregularities this week', 'bg-rose-50 text-rose-800')}
+            ${pill('OT alerts', 'bg-amber-50 text-amber-900')}
+          </div>
+          <div class="flex gap-4 items-start">
+            <div class="min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
+              <table class="w-full table-fixed text-sm">
+                <thead>
+                  <tr class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th class="w-[9.5rem] px-2 py-2 text-left">Staff</th>
+                    ${attDays.map(([d, n]) => `<th class="px-1 py-2 text-center">${d}<div class="normal-case font-medium text-slate-400">${n}</div></th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${staff.map((s) => `
+                    <tr>
+                      <td class="px-2 py-1 align-top">
+                        <div class="flex items-center gap-2">
+                          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-[10px] font-semibold text-white">${s.n.split(' ').map(p=>p[0]).join('')}</span>
+                          <div>
+                            <div class="font-medium text-slate-900 leading-tight">${s.n.split(' ')[0]} ${s.n.split(' ')[1][0]}.</div>
+                            <div class="text-[11px] text-slate-500">${s.r}</div>
+                          </div>
+                        </div>
+                      </td>
+                      ${s.row.map((k) => `<td class="px-1 py-1 align-top">${attStatus(k, punches[k], true)}</td>`).join('')}
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+              <p class="mt-2 px-1 text-[11px] text-slate-400">Late after 10 min, absent after 60 min with no in-punch. OT uses worked hours for the week. Existing Logs / Device / Agent tabs stay.</p>
+            </div>
+            <aside class="w-56 shrink-0 rounded-xl border border-slate-200 bg-white p-3">
+              <div class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Staff this week</div>
+              ${staff.map((s) => `
+                <div class="flex items-center justify-between gap-2 py-1.5">
+                  <span class="truncate text-sm text-slate-800">${s.n.split(' ')[0]} ${s.n.split(' ')[1]}</span>
+                  ${s.side === 'OK'
+                    ? pill('OK', 'bg-emerald-50 text-emerald-800')
+                    : pill(s.side, 'bg-rose-50 text-rose-800')}
+                </div>`).join('')}
+            </aside>
+          </div>
+        </div>`
+    }
+
+    function markActive(sel, key, val) {
+      document.querySelectorAll(sel).forEach((b) => {
+        const on = b.dataset[key] === val
+        b.className = `${sel === '.screen-btn' ? 'screen-btn' : 'mode-btn'} rounded-md px-3 py-1 text-xs font-medium ${on ? 'bg-white text-slate-900' : 'text-slate-300'}`
+      })
+    }
+
+    function render() {
+      const screen = document.body.dataset.screen
+      const mode = document.body.dataset.mode
+      $('#main').innerHTML = screen === 'attendance' ? attendancePage() : rosterPage()
+      markActive('.screen-btn', 'screenBtn', screen)
+      markActive('.mode-btn', 'modeBtn', mode)
+    }
+
+    document.body.addEventListener('click', (e) => {
+      const s = e.target.closest('[data-screen-btn]')
+      const m = e.target.closest('[data-mode-btn]')
+      if (s) { document.body.dataset.screen = s.dataset.screenBtn; render() }
+      if (m) { document.body.dataset.mode = m.dataset.modeBtn; render() }
+    })
+    render()
+  </script>
+</body>
+</html>
