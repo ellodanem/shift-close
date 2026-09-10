@@ -1426,15 +1426,16 @@ export default function DashboardPage() {
           const renderOne = (id: DashboardWidgetId) => (
             <>
             {id === 'customer-ar-glance' && summary && (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6 w-full min-w-0">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-blue-950 tracking-tight">
-                Customer accounts — {summary.monthName} {summary.year}
-              </h2>
-              <p className="text-sm text-slate-500 mt-1 leading-snug">
-                Totals and collections at a glance. Hover charge and payment amounts for
-                change since the last import.
-              </p>
+          <div className="w-full min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  Customer accounts
+                </h2>
+                <p className="mt-0.5 text-sm text-gray-600">
+                  {summary.monthName} {summary.year}
+                </p>
+              </div>
             </div>
 
             {arSummary ? (
@@ -1450,79 +1451,108 @@ export default function DashboardPage() {
                 const staleCount = collections?.count ?? 0
                 const staleTotal = collections?.totalBalance ?? 0
                 const trackedWithBalance = staleArAccounts?.trackedAccounts ?? 0
+                const noPaymentsThisMonth = Math.abs(arSummary.payments) < 0.01
+                const accountsHref = `/customer-accounts?month=${monthKey}`
+                const payHref = `/customer-accounts?month=${monthKey}&pay=1`
 
                 return (
-                  <div className="space-y-5">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Total A/R (closing)
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {reconciled ? (
+                        <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-800">
+                          Reconciled
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800">
+                          Out of balance
+                        </span>
+                      )}
+                      {!reconciled && posClosing != null ? (
+                        <span className="font-mono text-xs text-gray-600">
+                          POS {posClosing >= computedClosing ? '+' : ''}
+                          ${formatCurrency(posClosing - computedClosing)}
+                        </span>
+                      ) : null}
+                      {arSummary.updatedAt ? (
+                        <span className="text-xs text-gray-400">
+                          Last import {formatDateTime(arSummary.updatedAt)}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="text-xs font-medium text-gray-500">Opening</div>
+                        <div className="mt-1 font-mono text-lg font-semibold text-gray-900">
+                          ${formatCurrency(arSummary.opening)}
+                        </div>
                       </div>
-                      <div className="mt-1 text-3xl font-bold text-blue-950 tabular-nums">
-                        ${formatCurrency(computedClosing)}
-                      </div>
-                      <p className="mt-2 text-sm text-slate-600 tabular-nums">
-                        This month{' '}
-                        <span
-                          className="font-medium text-blue-950 cursor-help"
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="text-xs font-medium text-gray-500">Charges</div>
+                        <div
+                          className="mt-1 cursor-help font-mono text-lg font-semibold text-gray-900"
                           title={customerArDeltaTitle(
                             'Charges',
                             arSummary.charges,
                             arSummary.chargesPrevious
                           )}
                         >
-                          +${formatCurrency(arSummary.charges)} charges
-                        </span>
-                        {' · '}
-                        <span
-                          className="font-medium text-blue-950 cursor-help"
+                          ${formatCurrency(arSummary.charges)}
+                        </div>
+                      </div>
+                      <div
+                        className={`rounded-lg border p-3 ${
+                          noPaymentsThisMonth
+                            ? 'border-amber-200 bg-amber-50/70'
+                            : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div
+                          className={`text-xs font-medium ${
+                            noPaymentsThisMonth ? 'text-amber-800' : 'text-gray-500'
+                          }`}
+                        >
+                          Payments this month
+                        </div>
+                        <div
+                          className={`mt-1 cursor-help font-mono text-lg font-semibold ${
+                            noPaymentsThisMonth ? 'text-amber-950' : 'text-gray-900'
+                          }`}
                           title={customerArDeltaTitle(
                             'Payments',
                             arSummary.payments,
                             arSummary.paymentsPrevious
                           )}
                         >
-                          −${formatCurrency(arSummary.payments)} payments
-                        </span>
-                      </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                        {reconciled ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200 font-medium">
-                            Reconciled
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
-                            POS differs
-                          </span>
-                        )}
-                        <span className="text-slate-500 tabular-nums">
-                          Opening ${formatCurrency(arSummary.opening)}
-                        </span>
-                        {arSummary.updatedAt && (
-                          <span className="text-slate-400">
-                            Last import {formatDateTime(arSummary.updatedAt)}
-                          </span>
-                        )}
+                          ${formatCurrency(arSummary.payments)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
+                        <div className="text-xs font-medium text-indigo-800">Closing</div>
+                        <div className="mt-1 font-mono text-xl font-semibold text-gray-900 sm:text-2xl">
+                          ${formatCurrency(computedClosing)}
+                        </div>
                       </div>
                     </div>
 
                     {isFullAccess && staleArAccounts && trackedWithBalance > 0 && (
-                      <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 px-4 py-3">
+                      <div>
                         {staleCount === 0 ? (
-                          <p className="text-sm font-medium text-emerald-800">
+                          <p className="text-sm font-medium text-green-800">
                             All tracked accounts paid within 30 days.
                           </p>
                         ) : (
                           <>
-                            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-                              <h3 className="text-sm font-semibold text-amber-950">
+                            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-gray-800">
                                 Collections — 30+ days
                               </h3>
-                              <p className="text-xs text-amber-900 tabular-nums">
+                              <p className="text-xs tabular-nums text-gray-600">
                                 {staleCount} account{staleCount === 1 ? '' : 's'} · $
                                 {formatCurrency(staleTotal)} overdue
                               </p>
                             </div>
-                            <div className="divide-y divide-amber-100/80 rounded-md border border-amber-100 bg-white/70">
+                            <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
                               {topStaleAccounts.map((row) => {
                                 const status = staleAccountStatus(row)
                                 return (
@@ -1530,21 +1560,21 @@ export default function DashboardPage() {
                                     key={row.account}
                                     type="button"
                                     onClick={() =>
-                                      router.push(`/customer-accounts?month=${monthKey}`)
+                                      router.push(
+                                        `${accountsHref}&account=${encodeURIComponent(row.account)}`
+                                      )
                                     }
-                                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-amber-50/80 transition-colors first:rounded-t-md last:rounded-b-md"
+                                    className="flex min-h-[44px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-indigo-50/40 first:rounded-t-lg last:rounded-b-lg sm:min-h-0"
                                   >
-                                    <div className="min-w-0">
-                                      <div className="text-sm font-medium text-slate-900 truncate">
-                                        {row.account}
-                                      </div>
+                                    <div className="min-w-0 truncate text-sm font-medium text-gray-900">
+                                      {row.account}
                                     </div>
-                                    <div className="text-right shrink-0">
-                                      <div className="text-sm font-semibold text-slate-900 tabular-nums">
+                                    <div className="shrink-0 text-right">
+                                      <div className="font-mono text-sm font-semibold text-gray-900">
                                         ${formatCurrency(row.balance)}
                                       </div>
                                       <div
-                                        className={`text-xs font-medium mt-0.5 ${status.className}`}
+                                        className={`mt-0.5 text-xs font-medium ${status.className}`}
                                       >
                                         {status.text}
                                       </div>
@@ -1554,7 +1584,7 @@ export default function DashboardPage() {
                               })}
                             </div>
                             {staleCount > topStaleAccounts.length && (
-                              <p className="mt-2 text-xs text-slate-500">
+                              <p className="mt-2 text-xs text-gray-500">
                                 +{staleCount - topStaleAccounts.length} more on Customer
                                 Accounts
                               </p>
@@ -1565,19 +1595,24 @@ export default function DashboardPage() {
                     )}
 
                     {!isStakeholder && !isSupervisorLike && (
-                      <div className="flex flex-wrap gap-2 pt-1">
+                      <div className="grid grid-cols-1 gap-2 pt-1 sm:flex sm:flex-wrap">
                         <button
                           type="button"
-                          onClick={() =>
-                            router.push(`/customer-accounts?month=${monthKey}`)
-                          }
-                          className="px-4 py-2 bg-indigo-600 text-white rounded font-semibold text-sm hover:bg-indigo-700"
+                          onClick={() => router.push(payHref)}
+                          className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
+                        >
+                          Record payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => router.push(accountsHref)}
+                          className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0"
                         >
                           Open Customer Accounts
                         </button>
                         <Link
                           href={`/customer-accounts/statement?startDate=${startDate}&endDate=${endDate}&mode=summary`}
-                          className="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded font-semibold text-sm hover:bg-gray-50"
+                          className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0"
                         >
                           Account Statement
                         </Link>
@@ -1587,20 +1622,20 @@ export default function DashboardPage() {
                 )
               })()
             ) : !isStakeholder && !isSupervisorLike ? (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-6 text-center">
-                <p className="text-sm text-slate-600">
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/40 px-4 py-6 text-center">
+                <p className="text-sm text-gray-600">
                   No customer A/R data for {summary.monthName} {summary.year}.
                 </p>
                 <button
                   type="button"
                   onClick={() => router.push('/customer-accounts')}
-                  className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                  className="mt-3 min-h-[44px] text-sm font-semibold text-indigo-600 hover:text-indigo-800 sm:min-h-0"
                 >
-                  Import on Customer Accounts →
+                  Open Customer Accounts
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">Customer A/R is not shown for your role.</p>
+              <p className="text-xs text-gray-400">Customer A/R is not shown for your role.</p>
             )}
           </div>
             )}

@@ -66,9 +66,13 @@ function monthDateRange(monthKey: string): { startDate: string; endDate: string 
 }
 
 function MonthParamSync({
-  onMonth
+  onMonth,
+  onPay,
+  onAccount
 }: {
   onMonth: (monthKey: string) => void
+  onPay?: () => void
+  onAccount?: (account: string) => void
 }) {
   const searchParams = useSearchParams()
 
@@ -77,7 +81,10 @@ function MonthParamSync({
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       onMonth(monthParam)
     }
-  }, [searchParams, onMonth])
+    const account = searchParams.get('account')?.trim()
+    if (account) onAccount?.(account)
+    if (searchParams.get('pay') === '1') onPay?.()
+  }, [searchParams, onMonth, onPay, onAccount])
 
   return null
 }
@@ -330,6 +337,14 @@ export default function CustomerAccountsPage() {
     if (account) setPaymentAccount(account)
     setPaymentFormOpen(true)
   }
+
+  const applyPayQuery = useCallback(() => {
+    setPaymentFormOpen(true)
+  }, [])
+
+  const applyAccountQuery = useCallback((account: string) => {
+    setSelectedLedgerAccount(account)
+  }, [])
 
   const addDirectoryCustomer = async () => {
     const name = newCustomerName.trim()
@@ -591,7 +606,11 @@ export default function CustomerAccountsPage() {
       />
 
       <Suspense fallback={null}>
-        <MonthParamSync onMonth={applyWorkingMonth} />
+        <MonthParamSync
+          onMonth={applyWorkingMonth}
+          onPay={applyPayQuery}
+          onAccount={applyAccountQuery}
+        />
       </Suspense>
 
       <div className="max-w-6xl mx-auto">
