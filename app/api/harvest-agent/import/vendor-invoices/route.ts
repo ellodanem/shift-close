@@ -62,23 +62,30 @@ export async function POST(request: NextRequest) {
       month: Number.isFinite(month) && month >= 1 && month <= 12 ? month : undefined
     })
 
-    const messageParts = [
-      `${result.vendorName}: Cstore ${result.cstoreCount}, Shift Close ${result.shiftCloseCount}, added ${result.created}, skipped ${result.skipped}`
-    ]
-    if (result.suffixed.length) {
-      messageParts.push(
-        `${result.suffixed.length} numbered with a letter (${result.suffixed
-          .map((s) => `${s.original}→${s.stored}`)
-          .join(', ')})`
-      )
+    let message: string
+    if (result.errors.length) {
+      message =
+        result.errors.map((e) => e.message).filter(Boolean).join('; ') ||
+        `Import failed for ${vendor}`
+    } else {
+      const parts = [
+        `${result.vendorName}: Cstore ${result.cstoreCount}, Shift Close ${result.shiftCloseCount}, added ${result.created}, skipped ${result.skipped}`
+      ]
+      if (result.suffixed.length) {
+        parts.push(
+          `${result.suffixed.length} numbered with a letter (${result.suffixed
+            .map((s) => `${s.original}→${s.stored}`)
+            .join(', ')})`
+        )
+      }
+      if (result.vendorCreated) parts.push('new vendor')
+      message = parts.join(', ')
     }
-    if (result.vendorCreated) messageParts.push('new vendor')
-    if (result.errors.length) messageParts.push(`${result.errors.length} error(s)`)
 
     return NextResponse.json({
       ...result,
       empty: result.created === 0 && result.skipped === 0 && parsed.length === 0,
-      message: messageParts.join(', ')
+      message
     })
   } catch (error) {
     console.error('Harvest vendor-invoice import error:', error)

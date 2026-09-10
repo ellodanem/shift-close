@@ -177,20 +177,26 @@ export async function importHarvestVendorInvoices(params: {
     select: { id: true, name: true, cstoreName: true, isVatRegistered: true }
   })
   let vendor = matchVendorRow(vendors, cstoreName)
-  let vendorCreated = false
 
   if (!vendor) {
-    vendor = await prisma.vendor.create({
-      data: {
-        name: cstoreName,
-        cstoreName,
-        notificationEmail: placeholderVendorEmail(cstoreName),
-        notes: 'Created by harvest agent',
-        isVatRegistered: false
-      },
-      select: { id: true, name: true, cstoreName: true, isVatRegistered: true }
-    })
-    vendorCreated = true
+    return {
+      vendorId: '',
+      vendorName: cstoreName,
+      cstoreName,
+      vendorCreated: false,
+      isVatRegistered: false,
+      cstoreCount,
+      shiftCloseCount: 0,
+      created: 0,
+      skipped: 0,
+      suffixed: [],
+      errors: [
+        {
+          invoiceNumber: '',
+          message: `No Shift Close vendor mapped for Cstore "${cstoreName}". Set Cstore name on the correct vendor (Vendors → Cstore names), then re-run.`
+        }
+      ]
+    }
   } else if (!vendor.cstoreName) {
     vendor = await prisma.vendor.update({
       where: { id: vendor.id },
@@ -332,7 +338,7 @@ export async function importHarvestVendorInvoices(params: {
     vendorId: vendor.id,
     vendorName: vendor.name,
     cstoreName,
-    vendorCreated,
+    vendorCreated: false,
     isVatRegistered: vendor.isVatRegistered,
     cstoreCount,
     shiftCloseCount,

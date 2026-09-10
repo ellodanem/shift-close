@@ -33,9 +33,23 @@ harvest-agent/user-data/
 harvest-agent/harvest-agent.config.json
 harvest-agent/.env
 harvest-agent/downloads/
+harvest-agent/vendor/
+harvest-agent/build/
+harvest-agent/installer-release/
+harvest-agent/agent-state.json
+harvest-agent/agent-secret.dpapi
+harvest-agent/agent-secret.bin
+harvest-agent/shift-close/
+
 
 # vercel
 .vercel
+
+# local database dumps (Phase 1 Neon → Raff)
+/dumps/
+
+# portable pg_dump (not committed)
+/tools/pgsql/
 
 # typescript
 *.tsbuildinfo
@@ -49,3 +63,4 @@ next-env.d.ts
 /public/uploads
 !/public/uploads/.gitkeep
 
+.env*

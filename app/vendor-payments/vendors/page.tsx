@@ -113,6 +113,13 @@ export default function VendorsPage() {
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
             <button
               type="button"
+              onClick={() => router.push('/vendor-payments/vendors/cstore-mapping')}
+              className="min-h-[44px] rounded bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:min-h-0"
+            >
+              Cstore names
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setShowImportModal(true)
                 setImportResult(null)
