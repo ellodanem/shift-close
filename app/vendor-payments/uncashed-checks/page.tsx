@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatAmount } from '@/lib/fuelPayments'
-import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import { formatAmount, roundMoney } from '@/lib/fuelPayments'
+import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 import {
   type MonthFilterType,
   matchesMonthFilter,
@@ -92,6 +92,35 @@ function tabButtonClass(active: boolean) {
   }`
 }
 
+function checkMatchesSearch(check: CheckRow, query: string): boolean {
+  const raw = query.trim()
+  if (!raw) return true
+
+  const q = raw.toLowerCase()
+  const qNoHash = q.replace(/^#/, '')
+
+  if (check.payee.toLowerCase().includes(q)) return true
+
+  const ref = check.bankRef.toLowerCase()
+  if (ref.includes(q) || ref.replace(/^#/, '').includes(qNoHash)) return true
+
+  const amountQuery = q.replace(/[$,]/g, '')
+  if (!amountQuery) return false
+
+  const rounded = roundMoney(check.totalAmount)
+  const haystack = [
+    rounded.toFixed(2),
+    formatAmount(check.totalAmount).toLowerCase(),
+    formatAmount(check.totalAmount).replace(/,/g, ''),
+    String(rounded)
+  ]
+
+  if (haystack.some((value) => value.includes(amountQuery))) return true
+
+  const asNumber = Number(amountQuery)
+  return !Number.isNaN(asNumber) && roundMoney(asNumber) === rounded
+}
+
 export default function CheckManagementPage() {
   const router = useRouter()
   const [uncashedChecks, setUncashedChecks] = useState<CheckRow[]>([])
@@ -100,10 +129,14 @@ export default function CheckManagementPage() {
   const [activeTab, setActiveTab] = useState<TabType>('uncashed')
   const [monthFilter, setMonthFilter] = useState<MonthFilterType>('all')
   const [customMonth, setCustomMonth] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [clearingId, setClearingId] = useState<string | null>(null)
+  const [pendingClear, setPendingClear] = useState<CheckRow | null>(null)
+  const [pendingDateEdit, setPendingDateEdit] = useState<CheckRow | null>(null)
+  const [clearedDate, setClearedDate] = useState('')
 
-  const fetchChecks = async () => {
-    setLoading(true)
+  const fetchChecks = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     try {
       const [uncashedRes, clearedRes] = await Promise.all([
         fetch('/api/vendor-payments/uncashed-checks', { cache: 'no-store' }),
@@ -132,8 +165,10 @@ export default function CheckManagementPage() {
   const activeChecks = activeTab === 'uncashed' ? uncashedChecks : clearedChecks
 
   const filteredChecks = useMemo(() => {
-    const matched = activeChecks.filter((check) =>
-      matchesMonthFilter(check.paymentDate, monthFilter, customMonth)
+    const matched = activeChecks.filter(
+      (check) =>
+        matchesMonthFilter(check.paymentDate, monthFilter, customMonth) &&
+        checkMatchesSearch(check, searchQuery)
     )
 
     if (monthFilter === 'all') {
@@ -145,7 +180,24 @@ export default function CheckManagementPage() {
       if (dateCmp !== 0) return dateCmp
       return a.bankRef.localeCompare(b.bankRef)
     })
-  }, [activeChecks, monthFilter, customMonth])
+  }, [activeChecks, monthFilter, customMonth, searchQuery])
+
+  const otherTabMatchCount = useMemo(() => {
+    if (!searchQuery.trim()) return 0
+    const otherChecks = activeTab === 'uncashed' ? clearedChecks : uncashedChecks
+    return otherChecks.filter(
+      (check) =>
+        matchesMonthFilter(check.paymentDate, monthFilter, customMonth) &&
+        checkMatchesSearch(check, searchQuery)
+    ).length
+  }, [
+    activeTab,
+    clearedChecks,
+    customMonth,
+    monthFilter,
+    searchQuery,
+    uncashedChecks
+  ])
 
   const totalAmount = useMemo(
     () => filteredChecks.reduce((sum, check) => sum + check.totalAmount, 0),
@@ -154,23 +206,48 @@ export default function CheckManagementPage() {
 
   const monthLabel = monthFilterLabel(monthFilter, customMonth)
 
-  const handleMarkCleared = async (id: string) => {
-    if (
-      !confirm(
-        'Mark this check as cleared? This will deduct the amount from available funds.'
-      )
-    ) {
-      return
-    }
+  const pendingCheck = pendingClear ?? pendingDateEdit
+  const isEditingClearedDate = pendingDateEdit != null
 
-    setClearingId(id)
+  const openClearModal = (check: CheckRow) => {
+    setPendingDateEdit(null)
+    setPendingClear(check)
+    setClearedDate('')
+  }
+
+  const openDateEditModal = (check: CheckRow) => {
+    setPendingClear(null)
+    setPendingDateEdit(check)
+    setClearedDate(
+      check.clearedAt ? invoiceDateToInputValue(check.clearedAt) : ''
+    )
+  }
+
+  const closeCheckModal = () => {
+    if (clearingId) return
+    setPendingClear(null)
+    setPendingDateEdit(null)
+    setClearedDate('')
+  }
+
+  const handleConfirmClear = async () => {
+    if (!pendingClear) return
+
+    setClearingId(pendingClear.id)
     try {
+      const trimmedDate = clearedDate.trim()
       const res = await fetch(
-        `/api/vendor-payments/uncashed-checks/${encodeURIComponent(id)}/clear`,
-        { method: 'PATCH' }
+        `/api/vendor-payments/uncashed-checks/${encodeURIComponent(pendingClear.id)}/clear`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trimmedDate ? { clearedAt: trimmedDate } : {})
+        }
       )
       if (res.ok) {
-        fetchChecks()
+        setPendingClear(null)
+        setClearedDate('')
+        fetchChecks({ silent: true })
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to clear check')
@@ -178,6 +255,40 @@ export default function CheckManagementPage() {
     } catch (error) {
       console.error('Error clearing check:', error)
       alert('Failed to clear check')
+    } finally {
+      setClearingId(null)
+    }
+  }
+
+  const handleConfirmDateEdit = async () => {
+    if (!pendingDateEdit) return
+    const trimmedDate = clearedDate.trim()
+    if (!trimmedDate) {
+      alert('Choose a cleared date.')
+      return
+    }
+
+    setClearingId(pendingDateEdit.id)
+    try {
+      const res = await fetch(
+        `/api/vendor-payments/uncashed-checks/${encodeURIComponent(pendingDateEdit.id)}/cleared-at`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clearedAt: trimmedDate })
+        }
+      )
+      if (res.ok) {
+        setPendingDateEdit(null)
+        setClearedDate('')
+        fetchChecks({ silent: true })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to update cleared date')
+      }
+    } catch (error) {
+      console.error('Error updating cleared date:', error)
+      alert('Failed to update cleared date')
     } finally {
       setClearingId(null)
     }
@@ -194,20 +305,34 @@ export default function CheckManagementPage() {
         : 'Checks cleared at the bank — vendor payments and cashbook expenses'
     }
 
+    const searchLabel = searchQuery.trim()
+      ? ` matching “${searchQuery.trim()}”`
+      : ''
+    const monthBit = monthLabel ? ` in ${monthLabel}` : ''
     const scope =
-      monthLabel && filteredCount !== totalCount
-        ? `${filteredCount} of ${totalCount} check${totalCount === 1 ? '' : 's'} in ${monthLabel}`
-        : `${filteredCount} check${filteredCount === 1 ? '' : 's'}`
+      filteredCount !== totalCount
+        ? `${filteredCount} of ${totalCount} check${totalCount === 1 ? '' : 's'}${monthBit}${searchLabel}`
+        : `${filteredCount} check${filteredCount === 1 ? '' : 's'}${monthBit}${searchLabel}`
 
     if (isUncashed) {
       return `${scope} outstanding totaling ${formatAmount(totalAmount)}`
     }
 
     return `${scope} cleared totaling ${formatAmount(totalAmount)}`
-  }, [activeTab, activeChecks.length, filteredChecks.length, monthLabel, totalAmount])
+  }, [
+    activeTab,
+    activeChecks.length,
+    filteredChecks.length,
+    monthLabel,
+    searchQuery,
+    totalAmount
+  ])
 
-  const emptyMessage =
-    activeTab === 'uncashed' ? 'No uncashed checks.' : 'No cleared checks.'
+  const emptyMessage = searchQuery.trim()
+    ? `No ${activeTab} checks match “${searchQuery.trim()}”.`
+    : activeTab === 'uncashed'
+      ? 'No uncashed checks.'
+      : 'No cleared checks.'
 
   if (loading) {
     return (
@@ -243,6 +368,23 @@ export default function CheckManagementPage() {
               Make Payment
             </button>
           </div>
+        </div>
+
+        <div className="mb-4 max-w-sm">
+          <label
+            htmlFor="check-search"
+            className="mb-1 block text-xs font-medium text-gray-500"
+          >
+            Search
+          </label>
+          <input
+            id="check-search"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Amount, vendor, or check #"
+            className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:py-1.5"
+          />
         </div>
 
         <div className="mb-4">
@@ -318,14 +460,29 @@ export default function CheckManagementPage() {
         {filteredChecks.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm sm:p-12">
             <p className="mb-4 text-gray-500">{emptyMessage}</p>
-            {activeTab === 'uncashed' && (
+            {searchQuery.trim() && otherTabMatchCount > 0 ? (
               <button
                 type="button"
-                onClick={() => router.push('/vendor-payments/make-payment')}
+                onClick={() =>
+                  setActiveTab(activeTab === 'uncashed' ? 'cleared' : 'uncashed')
+                }
                 className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
               >
-                Make Payment
+                View {otherTabMatchCount} match
+                {otherTabMatchCount === 1 ? '' : 'es'} in{' '}
+                {activeTab === 'uncashed' ? 'Cleared' : 'Uncashed'}
               </button>
+            ) : (
+              activeTab === 'uncashed' &&
+              !searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/vendor-payments/make-payment')}
+                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
+                >
+                  Make Payment
+                </button>
+              )
             )}
           </div>
         ) : (
@@ -345,9 +502,11 @@ export default function CheckManagementPage() {
                       <div className="mt-0.5 font-mono text-sm text-gray-700">
                         #{check.bankRef}
                       </div>
-                      {activeTab === 'cleared' && check.clearedAt && (
+                      {activeTab === 'cleared' && (
                         <div className="mt-1 text-xs text-green-700">
-                          Cleared {formatDate(check.clearedAt)}
+                          {check.clearedAt
+                            ? `Cleared ${formatDate(check.clearedAt)}`
+                            : 'Cleared'}
                         </div>
                       )}
                     </div>
@@ -359,11 +518,23 @@ export default function CheckManagementPage() {
                     <div className="mt-3 border-t border-gray-100 pt-3">
                       <button
                         type="button"
-                        onClick={() => handleMarkCleared(check.id)}
+                        onClick={() => openClearModal(check)}
                         disabled={clearingId === check.id}
                         className="min-h-[44px] w-full rounded bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                       >
                         {clearingId === check.id ? 'Clearing...' : 'Mark as cleared'}
+                      </button>
+                    </div>
+                  )}
+                  {activeTab === 'cleared' && (
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => openDateEditModal(check)}
+                        disabled={clearingId === check.id}
+                        className="min-h-[44px] w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {clearingId === check.id ? 'Saving...' : 'Change cleared date'}
                       </button>
                     </div>
                   )}
@@ -433,7 +604,18 @@ export default function CheckManagementPage() {
                       </td>
                       {activeTab === 'cleared' && (
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                          {check.clearedAt ? formatDate(check.clearedAt) : '—'}
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {check.clearedAt ? formatDate(check.clearedAt) : '—'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openDateEditModal(check)}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                            >
+                              Change
+                            </button>
+                          </div>
                         </td>
                       )}
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-gray-900">
@@ -443,7 +625,7 @@ export default function CheckManagementPage() {
                         <td className="whitespace-nowrap px-6 py-4 text-right">
                           <button
                             type="button"
-                            onClick={() => handleMarkCleared(check.id)}
+                            onClick={() => openClearModal(check)}
                             disabled={clearingId === check.id}
                             className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                           >
@@ -476,6 +658,91 @@ export default function CheckManagementPage() {
           </>
         )}
       </div>
+
+      {pendingCheck && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onClick={closeCheckModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-check-title"
+            className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="clear-check-title"
+              className="text-lg font-bold text-gray-900"
+            >
+              {isEditingClearedDate
+                ? 'Set cleared date'
+                : 'Mark check as cleared'}
+            </h2>
+            {!isEditingClearedDate && (
+              <p className="mt-2 text-sm text-gray-600">
+                This will deduct {formatAmount(pendingCheck.totalAmount)} from
+                available funds.
+              </p>
+            )}
+            <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+              <div className="font-medium text-gray-900">{pendingCheck.payee}</div>
+              <div className="mt-0.5 font-mono text-gray-700">
+                #{pendingCheck.bankRef}
+              </div>
+            </div>
+            <div className="mt-4">
+              <label
+                htmlFor="cleared-date"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Cleared date{isEditingClearedDate ? '' : ' (optional)'}
+              </label>
+              <input
+                id="cleared-date"
+                type="date"
+                value={clearedDate}
+                onChange={(e) => setClearedDate(e.target.value)}
+                className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+              />
+              {!isEditingClearedDate && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Leave blank to use today.
+                </p>
+              )}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={closeCheckModal}
+                disabled={clearingId === pendingCheck.id}
+                className="min-h-[44px] rounded bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-300 disabled:opacity-50 sm:min-h-0"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={
+                  isEditingClearedDate
+                    ? handleConfirmDateEdit
+                    : handleConfirmClear
+                }
+                disabled={clearingId === pendingCheck.id}
+                className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 sm:min-h-0"
+              >
+                {clearingId === pendingCheck.id
+                  ? isEditingClearedDate
+                    ? 'Saving...'
+                    : 'Clearing...'
+                  : isEditingClearedDate
+                    ? 'Save date'
+                    : 'Mark as cleared'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

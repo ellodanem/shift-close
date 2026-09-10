@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
-import { clearUncashedCheck } from '@/lib/uncashedChecks'
+import { updateCheckClearedAt } from '@/lib/uncashedChecks'
 
-function parseOptionalClearedAt(body: unknown): Date | undefined {
-  if (!body || typeof body !== 'object') return undefined
+function parseClearedAt(body: unknown): Date {
+  const raw =
+    body && typeof body === 'object'
+      ? (body as { clearedAt?: unknown }).clearedAt
+      : undefined
 
-  const raw = (body as { clearedAt?: unknown }).clearedAt
-  if (raw == null || raw === '') return undefined
   if (typeof raw !== 'string' || !isYmd(raw.trim())) {
     throw new Error('Invalid cleared date')
   }
@@ -14,7 +15,7 @@ function parseOptionalClearedAt(body: unknown): Date | undefined {
   return ymdToUtcNoonDate(raw.trim())
 }
 
-// PATCH mark check as cleared (deduct from balance)
+// PATCH update the cleared date on an already-cleared check
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,18 +23,18 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
-    const clearedAt = parseOptionalClearedAt(body)
-    await clearUncashedCheck(id, clearedAt)
+    const clearedAt = parseClearedAt(body)
+    await updateCheckClearedAt(id, clearedAt)
     return NextResponse.json({ success: true })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to clear check'
-    console.error('Error clearing check:', error)
+    const message = error instanceof Error ? error.message : 'Failed to update cleared date'
+    console.error('Error updating cleared date:', error)
 
     if (message === 'Batch not found' || message === 'Cashbook entry not found') {
       return NextResponse.json({ error: message }, { status: 404 })
     }
     if (
-      message === 'Check already cleared' ||
+      message === 'Check is not cleared' ||
       message === 'Only check payments can be cleared' ||
       message === 'Entry is not a check payment' ||
       message === 'Clear this check from its vendor payment batch' ||
@@ -43,6 +44,6 @@ export async function PATCH(
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    return NextResponse.json({ error: 'Failed to clear check' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update cleared date' }, { status: 500 })
   }
 }

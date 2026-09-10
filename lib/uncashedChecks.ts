@@ -1,6 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
+import { businessTodayYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
+
+function resolveClearedAt(clearedAt?: Date | null): Date {
+  if (clearedAt instanceof Date && !Number.isNaN(clearedAt.getTime())) {
+    return clearedAt
+  }
+  return ymdToUtcNoonDate(businessTodayYmd())
+}
 
 export type UncashedCheckSource = 'vendor' | 'cashbook'
 
@@ -227,11 +235,16 @@ export async function sumUncashedChecks(): Promise<number> {
   )
 }
 
-export async function clearUncashedCheck(compositeId: string): Promise<void> {
+export async function clearUncashedCheck(
+  compositeId: string,
+  clearedAt?: Date | null
+): Promise<void> {
   const parsed = parseUncashedCheckId(compositeId)
   if (!parsed) {
     throw new Error('Invalid check id')
   }
+
+  const resolvedClearedAt = resolveClearedAt(clearedAt)
 
   if (parsed.source === 'vendor') {
     const batch = await prisma.vendorPaymentBatch.findUnique({
@@ -253,15 +266,14 @@ export async function clearUncashedCheck(compositeId: string): Promise<void> {
     const amount = roundMoney(batch.totalAmount)
     await deductFromBalance(amount)
 
-    const clearedAt = new Date()
     await prisma.vendorPaymentBatch.update({
       where: { id: batch.id },
-      data: { clearedAt }
+      data: { clearedAt: resolvedClearedAt }
     })
 
     await prisma.cashbookEntry.updateMany({
       where: { vendorPaymentBatchId: batch.id },
-      data: { clearedAt }
+      data: { clearedAt: resolvedClearedAt }
     })
 
     return
@@ -292,6 +304,75 @@ export async function clearUncashedCheck(compositeId: string): Promise<void> {
 
   await prisma.cashbookEntry.update({
     where: { id: entry.id },
-    data: { clearedAt: new Date() }
+    data: { clearedAt: resolvedClearedAt }
+  })
+}
+
+export async function updateCheckClearedAt(
+  compositeId: string,
+  clearedAt: Date
+): Promise<void> {
+  const parsed = parseUncashedCheckId(compositeId)
+  if (!parsed) {
+    throw new Error('Invalid check id')
+  }
+
+  if (!(clearedAt instanceof Date) || Number.isNaN(clearedAt.getTime())) {
+    throw new Error('Invalid cleared date')
+  }
+
+  if (parsed.source === 'vendor') {
+    const batch = await prisma.vendorPaymentBatch.findUnique({
+      where: { id: parsed.rawId }
+    })
+
+    if (!batch) {
+      throw new Error('Batch not found')
+    }
+
+    if (batch.paymentMethod !== 'check') {
+      throw new Error('Only check payments can be cleared')
+    }
+
+    if (!batch.clearedAt) {
+      throw new Error('Check is not cleared')
+    }
+
+    await prisma.vendorPaymentBatch.update({
+      where: { id: batch.id },
+      data: { clearedAt }
+    })
+
+    await prisma.cashbookEntry.updateMany({
+      where: { vendorPaymentBatchId: batch.id },
+      data: { clearedAt }
+    })
+
+    return
+  }
+
+  const entry = await prisma.cashbookEntry.findUnique({
+    where: { id: parsed.rawId }
+  })
+
+  if (!entry) {
+    throw new Error('Cashbook entry not found')
+  }
+
+  if (entry.debitCheck <= 0) {
+    throw new Error('Entry is not a check payment')
+  }
+
+  if (!entry.clearedAt) {
+    throw new Error('Check is not cleared')
+  }
+
+  if (entry.vendorPaymentBatchId) {
+    throw new Error('Clear this check from its vendor payment batch')
+  }
+
+  await prisma.cashbookEntry.update({
+    where: { id: entry.id },
+    data: { clearedAt }
   })
 }
