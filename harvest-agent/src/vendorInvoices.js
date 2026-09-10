@@ -74,7 +74,7 @@ function isSkippedVendor(name) {
 }
 
 const SKIPPED_VENDOR_MESSAGE =
-  'skipped (handled in Fuel Payments — LPG)'
+  'skipped on vendor job — use LPG invoices (Rubis West Indies → Fuel Payments)'
 
 function usableVendorName(text) {
   const t = String(text || '').trim()
@@ -505,6 +505,12 @@ async function scrapeAllInvoicePages(scope) {
 }
 
 function pickVendorTargets(cstoreNames, options = {}) {
+  if (options.rubisLpg) {
+    const list = (cstoreNames || []).filter(usableVendorName)
+    const matched = list.find(isSkippedVendor)
+    return matched ? [matched] : ['Rubis West Indies']
+  }
+
   const skipped = (cstoreNames || []).filter(usableVendorName).filter(isSkippedVendor)
   if (skipped.length > 0) {
     console.log(
@@ -569,7 +575,7 @@ async function runVendorInvoices(config, options = {}) {
   const month = Number(options.month) || current[1]
   const hooks = options.hooks || {}
 
-  if (options.vendor && isSkippedVendor(options.vendor)) {
+  if (options.vendor && isSkippedVendor(options.vendor) && !options.rubisLpg) {
     const message = `${options.vendor}: ${SKIPPED_VENDOR_MESSAGE}`
     console.log(`[Cstore] ${message}`)
     return {
@@ -599,7 +605,7 @@ async function runVendorInvoices(config, options = {}) {
   try {
     const login = await ensureLoggedIn(page, config, hooks)
     if (!login.ok) {
-      return { ...login, taskKey: 'vendor_invoices' }
+      return { ...login, taskKey: options.rubisLpg ? 'lpg_invoices' : 'vendor_invoices' }
     }
 
     await openPurchaseInvoices(page, config, hooks)
@@ -616,7 +622,7 @@ async function runVendorInvoices(config, options = {}) {
     }
 
     let targets = pickVendorTargets(names, options)
-    if (targets.length === 0 && options.vendor) {
+    if (targets.length === 0 && options.vendor && !options.rubisLpg) {
       if (isSkippedVendor(options.vendor)) {
         const message = `${options.vendor}: ${SKIPPED_VENDOR_MESSAGE}`
         return {
@@ -643,7 +649,7 @@ async function runVendorInvoices(config, options = {}) {
       targets = [options.vendor]
     }
     if (targets.length === 0) {
-      await saveDebug(page, debugDir, 'vendor-invoices-no-vendors')
+      await saveDebug(page, debugDir, options.rubisLpg ? 'lpg-invoices-no-rubis' : 'vendor-invoices-no-vendors')
       return {
         ok: false,
         loginRequired: false,
@@ -651,13 +657,15 @@ async function runVendorInvoices(config, options = {}) {
         year,
         month,
         results: [],
-        message: 'No vendors found on the Cstore purchase invoices page'
+        message: options.rubisLpg
+          ? 'Rubis West Indies not found on the Cstore purchase invoices page'
+          : 'No vendors found on the Cstore purchase invoices page'
       }
     }
 
     const results = []
     for (const vendorName of targets) {
-      if (isSkippedVendor(vendorName)) {
+      if (isSkippedVendor(vendorName) && !options.rubisLpg) {
         const message = `${vendorName}: ${SKIPPED_VENDOR_MESSAGE}`
         console.log(`[Cstore] ${message}`)
         results.push({
@@ -685,7 +693,7 @@ async function runVendorInvoices(config, options = {}) {
           invoices: [],
           message: err.message || String(err)
         }
-        await saveDebug(page, debugDir, 'vendor-invoices-error')
+        await saveDebug(page, debugDir, options.rubisLpg ? 'lpg-invoices-error' : 'vendor-invoices-error')
       }
       if (typeof options.onVendor === 'function') {
         captured = (await options.onVendor(captured)) || captured
@@ -703,6 +711,7 @@ async function runVendorInvoices(config, options = {}) {
       month,
       results,
       vendor: results.length === 1 ? results[0].vendor : null,
+      invoices: options.rubisLpg ? results[0]?.invoices || [] : undefined,
       message:
         results.length === 1
           ? results[0].message

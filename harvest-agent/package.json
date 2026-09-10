@@ -1,6 +1,6 @@
 {
   "name": "shift-close-harvest-agent",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
   "author": {
     "name": "Ellodane Enterprises"
@@ -15,6 +15,7 @@
     "customer-august": "node src/index.js --once --task=customer_accounts --month=2026-08",
     "vendor-august": "node src/index.js --once --task=vendor_invoices --month=2026-08",
     "fuel-one": "node src/index.js --once --task=fuel_invoices",
+    "lpg-one": "node src/index.js --once --task=lpg_invoices",
     "electron": "electron .",
     "icons": "node scripts/build-icons.mjs",
     "bundle-node": "node scripts/bundle-node.js",

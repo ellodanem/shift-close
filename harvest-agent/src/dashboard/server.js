@@ -60,6 +60,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       customerAccountsSchedule: cfg.customerAccountsSchedule,
       vendorInvoicesSchedule: cfg.vendorInvoicesSchedule,
       fuelInvoicesSchedule: cfg.fuelInvoicesSchedule,
+      lpgInvoicesSchedule: cfg.lpgInvoicesSchedule,
       agentSecretSet: hasStoredSecret() || !!cfg.agentSecret
     })
   })
@@ -99,6 +100,9 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
     if (body.fuelInvoicesSchedule !== undefined) {
       updates.fuelInvoicesSchedule = body.fuelInvoicesSchedule
     }
+    if (body.lpgInvoicesSchedule !== undefined) {
+      updates.lpgInvoicesSchedule = body.lpgInvoicesSchedule
+    }
 
     saveConfig(updates)
     Object.assign(config, loadConfig())
@@ -108,6 +112,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       customerAccountsSchedule: config.customerAccountsSchedule,
       vendorInvoicesSchedule: config.vendorInvoicesSchedule,
       fuelInvoicesSchedule: config.fuelInvoicesSchedule,
+      lpgInvoicesSchedule: config.lpgInvoicesSchedule,
       timeZone: config.timeZone,
       runOnStart: config.runOnStart
     }})
@@ -272,6 +277,27 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       })
       .catch((err) => {
         activityLog.add(`Fuel invoices error: ${err.message}`)
+      })
+    res.json({ ok: true, started: true })
+  })
+
+  app.post('/api/run-lpg-invoices', async (req, res) => {
+    if (!actions.runLpgInvoices) {
+      return res.status(501).json({ ok: false, error: 'Not available' })
+    }
+    if (isPaused()) {
+      return res.status(423).json({ ok: false, error: getPauseInfo()?.message || 'Agent is paused' })
+    }
+    const month = typeof req.body?.month === 'string' ? req.body.month : null
+    activityLog.add(
+      month ? `Manual LPG invoices triggered (${month})` : 'Manual LPG invoices triggered'
+    )
+    actions
+      .runLpgInvoices('manual-dashboard', {
+        ...(month ? { month } : {})
+      })
+      .catch((err) => {
+        activityLog.add(`LPG invoices error: ${err.message}`)
       })
     res.json({ ok: true, started: true })
   })

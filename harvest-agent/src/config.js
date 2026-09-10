@@ -58,6 +58,16 @@ const DEFAULTS = {
     dayOfMonth: 2,
     monthScope: 'current',
     all: true
+  },
+  lpgInvoicesSchedule: {
+    frequency: 'off',
+    enabled: false,
+    hour: 10,
+    minute: 30,
+    daysOfWeek: [2],
+    dayOfMonth: 2,
+    monthScope: 'previous',
+    all: true
   }
 }
 
@@ -171,6 +181,10 @@ function loadConfig() {
     fuelInvoicesSchedule: normalizeJobSchedule(
       fileConfig.fuelInvoicesSchedule,
       DEFAULTS.fuelInvoicesSchedule
+    ),
+    lpgInvoicesSchedule: normalizeJobSchedule(
+      fileConfig.lpgInvoicesSchedule,
+      DEFAULTS.lpgInvoicesSchedule
     ),
     agentSecretSet: Boolean(agentSecret) || hasStoredSecret()
   }

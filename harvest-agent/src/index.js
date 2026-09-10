@@ -4,6 +4,7 @@
  * One-shot: node src/index.js --once --task=customer_accounts
  *            node src/index.js --once --task=vendor_invoices --month=2026-08 --vendor=Acado
  *            node src/index.js --once --task=fuel_invoices --month=2026-09
+ *            node src/index.js --once --task=lpg_invoices --month=2026-08
  */
 
 require('dotenv').config()
@@ -14,7 +15,7 @@ const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
 const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendFuelInvoiceImport } = require('./shiftCloseClient')
-const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, formatSlotHours } = require('./schedule')
+const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
 const { notifyCloudPaused } = require('./pauseNotify')
 const ActivityLog = require('./activityLog')
@@ -41,6 +42,7 @@ let stopSlotWatcher = null
 let stopCustomerMonthly = null
 let stopVendorMonthly = null
 let stopFuelMonthly = null
+let stopLpgMonthly = null
 let running = false
 let pauseNotified = false
 let activityLog = null
@@ -51,7 +53,8 @@ function scheduleSummaryLabel(config) {
   const cust = describeCustomerSchedule(config.customerAccountsSchedule, config.timeZone)
   const vend = describeVendorSchedule(config.vendorInvoicesSchedule, config.timeZone)
   const fuel = describeFuelSchedule(config.fuelInvoicesSchedule, config.timeZone)
-  return `${keep} · ${cust} · ${vend} · ${fuel}`
+  const lpg = describeLpgSchedule(config.lpgInvoicesSchedule, config.timeZone)
+  return `${keep} · ${cust} · ${vend} · ${fuel} · ${lpg}`
 }
 
 function createLoginHooks(config) {
@@ -590,6 +593,7 @@ async function runFuelInvoicesCycle(reason, options = {}) {
       const imported = await sendFuelInvoiceImport(config, {
         year: result.year,
         month: result.month,
+        type: 'Fuel',
         invoices: result.invoices
       })
       result = {
@@ -619,6 +623,109 @@ async function runFuelInvoicesCycle(reason, options = {}) {
   return result
 }
 
+async function runLpgInvoicesCycle(reason, options = {}) {
+  if (running) {
+    console.log(`[Harvest] Skip ${reason} — a job is already running`)
+    return
+  }
+  if (isPaused()) {
+    const info = getPauseInfo()
+    console.log(`[Harvest] Skip ${reason} — paused (${info?.reason || 'paused'})`)
+    if (activityLog) activityLog.add(`Skipped LPG invoices (${info?.message || 'paused'})`)
+    return
+  }
+
+  running = true
+  if (status) status.jobRunning = true
+  const config = loadConfig()
+  const startedAt = new Date()
+
+  let monthOpts = parsedMonth
+  if (options.year && options.month) {
+    monthOpts = { year: Number(options.year), month: Number(options.month) }
+  } else if (options.month && /^(\d{4})-(\d{2})$/.test(options.month)) {
+    monthOpts = {
+      year: Number(options.month.slice(0, 4)),
+      month: Number(options.month.slice(5, 7))
+    }
+  }
+
+  console.log(
+    `[Harvest] Starting lpg_invoices (${reason}${monthOpts ? ` ${monthOpts.year}-${String(monthOpts.month).padStart(2, '0')}` : ''})`
+  )
+  if (activityLog) activityLog.add(`LPG invoices started (${reason})`)
+
+  try {
+    await sendHeartbeat(config, {
+      paused: false,
+      pauseReason: null
+    })
+    if (status) status.lastHeartbeatAt = new Date().toISOString()
+  } catch (err) {
+    console.error('[Harvest] Heartbeat failed:', err.message)
+  }
+
+  let result
+  try {
+    result = await runVendorInvoices(config, {
+      ...(monthOpts || {}),
+      rubisLpg: true,
+      hooks: createLoginHooks(config)
+    })
+  } catch (err) {
+    result = { ok: false, loginRequired: false, message: err.message || String(err) }
+  }
+
+  const extra = { reason, vendor: result?.vendor || 'Rubis West Indies' }
+  const invoices = Array.isArray(result?.invoices)
+    ? result.invoices
+    : Array.isArray(result?.results?.[0]?.invoices)
+      ? result.results[0].invoices
+      : null
+
+  if (result?.ok && Array.isArray(invoices)) {
+    try {
+      const imported = await sendFuelInvoiceImport(config, {
+        year: result.year || monthOpts?.year,
+        month: result.month || monthOpts?.month,
+        type: 'LPG',
+        invoices
+      })
+      result = {
+        ...result,
+        ok: !imported.errors?.length,
+        message:
+          imported.message ||
+          `LPG: Cstore ${imported.cstoreCount}, added ${imported.created}, skipped ${imported.skipped}`,
+        invoices: undefined,
+        results: undefined
+      }
+      extra.created = imported.created
+      extra.skipped = imported.skipped
+      extra.cstoreCount = imported.cstoreCount
+    } catch (err) {
+      result = {
+        ...result,
+        ok: false,
+        message: `Cstore Rubis invoices captured but Shift Close import failed: ${err.message}`,
+        invoices: undefined,
+        results: undefined
+      }
+    }
+  } else if (result?.ok) {
+    result = {
+      ...result,
+      invoices: undefined,
+      results: undefined
+    }
+  }
+
+  await recordJob(config, 'lpg_invoices', startedAt, result, extra)
+  running = false
+  if (status) status.jobRunning = false
+  return result
+}
+
 function startDashboard(config) {
   const { createDashboardServer } = require('./dashboard/server')
   const app = createDashboardServer(config, activityLog, status, {
@@ -627,6 +734,7 @@ function startDashboard(config) {
     runCustomerAccounts: runCustomerAccountsCycle,
     runVendorInvoices: runVendorInvoicesCycle,
     runFuelInvoices: runFuelInvoicesCycle,
+    runLpgInvoices: runLpgInvoicesCycle,
     onResume: () => {
       pauseNotified = false
       if (status) status.paused = false
@@ -744,6 +852,22 @@ function start() {
     }
   })
 
+  stopLpgMonthly = startJobScheduleWatcher({
+    timeZone: config.timeZone,
+    getSchedule: () => loadConfig().lpgInvoicesSchedule,
+    onFire: ({ key, frequency }) => {
+      const cfg = loadConfig()
+      const sched = cfg.lpgInvoicesSchedule
+      const target = monthForScope(cfg.timeZone, sched.monthScope)
+      const month = `${target.year}-${String(target.month).padStart(2, '0')}`
+      activityLog?.add(`Scheduled LPG invoices (${frequency}, ${month})`)
+      return runLpgInvoicesCycle(`sched:${key}`, {
+        year: target.year,
+        month: target.month
+      })
+    }
+  })
+
   setInterval(() => {
     if (status) status.nextSlotLabel = scheduleSummaryLabel(loadConfig())
   }, 60_000)
@@ -753,6 +877,7 @@ function start() {
       `${describeCustomerSchedule(config.customerAccountsSchedule, config.timeZone)}. ` +
       `${describeVendorSchedule(config.vendorInvoicesSchedule, config.timeZone)}. ` +
       `${describeFuelSchedule(config.fuelInvoicesSchedule, config.timeZone)}. ` +
+      `${describeLpgSchedule(config.lpgInvoicesSchedule, config.timeZone)}. ` +
       `Use dashboard Schedule to change.`
   )
 }
@@ -773,6 +898,10 @@ function stop() {
   if (stopFuelMonthly) {
     stopFuelMonthly()
     stopFuelMonthly = null
+  }
+  if (stopLpgMonthly) {
+    stopLpgMonthly()
+    stopLpgMonthly = null
   }
   if (httpServer) {
     httpServer.close()
@@ -816,6 +945,12 @@ async function runCliOnce() {
     return
   }
 
+  if (taskName === 'lpg_invoices') {
+    const result = await runLpgInvoicesCycle('once')
+    process.exit(result?.ok ? 0 : 1)
+    return
+  }
+
   const keepResult = await runKeepaliveCycle('once')
   process.exit(keepResult?.ok ? 0 : 1)
 }
@@ -840,5 +975,6 @@ module.exports = {
   runCstoreSignInCycle,
   runCustomerAccountsCycle,
   runVendorInvoicesCycle,
-  runFuelInvoicesCycle
+  runFuelInvoicesCycle,
+  runLpgInvoicesCycle
 }

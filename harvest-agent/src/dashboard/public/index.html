@@ -106,6 +106,7 @@
         <button type="button" class="btn btn-outline" id="btnCustomers">Run customer accounts</button>
         <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
         <button type="button" class="btn btn-outline" id="btnFuelInvoices">Run fuel invoices</button>
+        <button type="button" class="btn btn-outline" id="btnLpgInvoices">Run LPG invoices</button>
       </div>
       <div class="grid2" style="margin-top:14px">
         <div class="field">
@@ -252,6 +253,46 @@
         <select id="fuelScope">
           <option value="current">Current calendar month</option>
           <option value="previous">Previous calendar month</option>
+        </select>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">LPG invoices (Rubis West Indies grocery)</h3>
+      <div class="grid2">
+        <div class="field">
+          <label for="lpgFreq">Frequency</label>
+          <select id="lpgFreq">
+            <option value="off">Off</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="lpgHour" type="number" min="0" max="23" placeholder="Hour" />
+            <input id="lpgMinute" type="number" min="0" max="59" placeholder="Min" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="lpgWeeklyRow" style="display:none">
+        <label>Days of week</label>
+        <div class="dow" id="lpgDow"></div>
+      </div>
+      <div class="grid2" id="lpgMonthlyRow" style="display:none">
+        <div class="field">
+          <label for="lpgDay">Day of month (1–28)</label>
+          <input id="lpgDay" type="number" min="1" max="28" />
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="field">
+        <label for="lpgScope">Harvest which month’s data</label>
+        <select id="lpgScope">
+          <option value="previous">Previous calendar month</option>
+          <option value="current">Current calendar month</option>
         </select>
       </div>
 
@@ -413,6 +454,7 @@
       fillJobSchedule('cust', cfg.customerAccountsSchedule)
       fillJobSchedule('vend', cfg.vendorInvoicesSchedule)
       fillJobSchedule('fuel', cfg.fuelInvoicesSchedule)
+      fillJobSchedule('lpg', cfg.lpgInvoicesSchedule)
 
       const badge = $('secretBadge')
       if (cfg.agentSecretSet) {
@@ -470,12 +512,14 @@
       $('btnCustomers').disabled = disabled
       $('btnVendorInvoices').disabled = disabled
       $('btnFuelInvoices').disabled = disabled
+      $('btnLpgInvoices').disabled = disabled
       $('btnResume').disabled = !s.paused
     }
 
     $('custFreq').onchange = () => syncJobRows('cust')
     $('vendFreq').onchange = () => syncJobRows('vend')
     $('fuelFreq').onchange = () => syncJobRows('fuel')
+    $('lpgFreq').onchange = () => syncJobRows('lpg')
 
     $('btnTestConnection').onclick = async () => {
       try {
@@ -507,6 +551,7 @@
         const cust = readJobSchedule('cust')
         const vend = readJobSchedule('vend')
         const fuel = readJobSchedule('fuel')
+        const lpg = readJobSchedule('lpg')
         if (cust.frequency === 'weekly' && cust.daysOfWeek.length === 0) {
           return toast('Pick at least one weekday for customer accounts', false)
         }
@@ -516,6 +561,9 @@
         if (fuel.frequency === 'weekly' && fuel.daysOfWeek.length === 0) {
           return toast('Pick at least one weekday for fuel invoices', false)
         }
+        if (lpg.frequency === 'weekly' && lpg.daysOfWeek.length === 0) {
+          return toast('Pick at least one weekday for LPG invoices', false)
+        }
         await api('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -524,7 +572,8 @@
             runOnStart: $('runOnStart').checked,
             customerAccountsSchedule: cust,
             vendorInvoicesSchedule: vend,
-            fuelInvoicesSchedule: fuel
+            fuelInvoicesSchedule: fuel,
+            lpgInvoicesSchedule: lpg
           })
         })
         toast('Schedule saved — takes effect immediately')
@@ -622,6 +671,19 @@
           body: JSON.stringify(month ? { month } : {})
         })
         toast('Fuel invoices job started (unpaid gas deliveries)')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnLpgInvoices').onclick = async () => {
+      try {
+        const month = $('monthKey').value.trim()
+        await api('/api/run-lpg-invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(month ? { month } : {})
+        })
+        toast('LPG invoices job started (Rubis West Indies)')
         await refresh()
       } catch (e) { toast(e.message, false) }
     }

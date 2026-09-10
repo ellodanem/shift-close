@@ -220,6 +220,10 @@ function describeFuelSchedule(schedule, timeZone) {
   return describeJobSchedule('Fuel invoices', schedule, timeZone)
 }
 
+function describeLpgSchedule(schedule, timeZone) {
+  return describeJobSchedule('LPG invoices', schedule, timeZone)
+}
+
 module.exports = {
   WEEKDAY_NAMES,
   zonedParts,
@@ -237,5 +241,6 @@ module.exports = {
   describeCustomerSchedule,
   describeVendorSchedule,
   describeFuelSchedule,
+  describeLpgSchedule,
   describeJobSchedule
 }
