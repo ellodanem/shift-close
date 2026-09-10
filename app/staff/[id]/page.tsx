@@ -719,6 +719,18 @@ function EditStaffPageInner() {
                       className={inputClass}
                     />
                   </div>
+                  {canViewStaffSensitive && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">NIC number</label>
+                      <input
+                        type="text"
+                        value={formData.nicNumber}
+                        onChange={(e) => setFormData({ ...formData, nicNumber: e.target.value })}
+                        className={inputClass}
+                        placeholder="National ID / NIC"
+                      />
+                    </div>
+                  )}
                   <div className="sm:col-span-2 lg:col-span-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Address <span className="text-red-500">*</span>
@@ -806,6 +818,9 @@ function EditStaffPageInner() {
                 <FieldDisplay label="First name" value={formData.firstName} />
                 <FieldDisplay label="Last name" value={formData.lastName} />
                 <FieldDisplay label="Date of birth" value={formData.dateOfBirth} />
+                {canViewStaffSensitive && (
+                  <FieldDisplay label="NIC number" value={formData.nicNumber || null} />
+                )}
                 <FieldDisplay label="Address" value={formData.address} />
                 <FieldDisplay label="Mobile (WhatsApp)" value={formData.mobileNumber} />
                 <FieldDisplay label="Role" value={selectedRole?.name} />
@@ -1398,16 +1413,6 @@ function EditStaffPageInner() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">NIC number</label>
-                    <input
-                      type="text"
-                      value={formData.nicNumber}
-                      onChange={(e) => setFormData({ ...formData, nicNumber: e.target.value })}
-                      className={inputClass}
-                      placeholder="National ID / NIC"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                     <input
                       type="text"
@@ -1434,7 +1439,6 @@ function EditStaffPageInner() {
               </>
             ) : (
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
-                <FieldDisplay label="NIC number" value={formData.nicNumber || null} />
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
               </dl>
