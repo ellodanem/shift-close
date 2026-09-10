@@ -140,6 +140,8 @@ function EditStaffPageInner() {
     router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
     setEditing(false)
     setError(null)
+    setDocumentMenuId(null)
+    setShowUploadPanel(false)
   }
 
   const [formData, setFormData] = useState({
@@ -193,6 +195,8 @@ function EditStaffPageInner() {
   const [savingVacation, setSavingVacation] = useState(false)
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
   const [formSnapshot, setFormSnapshot] = useState<typeof formData | null>(null)
+  const [documentMenuId, setDocumentMenuId] = useState<string | null>(null)
+  const [showUploadPanel, setShowUploadPanel] = useState(false)
 
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === formData.roleId) ?? null,
@@ -212,6 +216,17 @@ function EditStaffPageInner() {
       router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
     }
   }, [activeTab, canViewStaffSensitive, id, router, searchParams])
+
+  useEffect(() => {
+    if (!documentMenuId) return
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('[data-doc-menu]')) return
+      setDocumentMenuId(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [documentMenuId])
 
   useEffect(() => {
     fetch('/api/staff-roles')
@@ -1286,25 +1301,43 @@ function EditStaffPageInner() {
               <h2 className="text-lg font-semibold text-gray-900">
                 Documents{documents.length > 0 ? ` (${documents.length})` : ''}
               </h2>
-              <button
-                type="button"
-                onClick={() => setShowTemplateSelection(true)}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
-              >
-                + Generate document
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateSelection(true)}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded text-sm font-medium hover:bg-gray-50"
+                >
+                  Generate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadPanel((open) => !open)}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
+                >
+                  {showUploadPanel ? 'Close upload' : '+ New document'}
+                </button>
+              </div>
             </div>
 
-            <StaffDocumentUpload
-              staffId={id}
-              onUploadComplete={() => {
-                fetchDocuments()
-                fetchSickLeaves()
-              }}
-            />
+            {showUploadPanel && (
+              <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <StaffDocumentUpload
+                  staffId={id}
+                  onUploadComplete={() => {
+                    fetchDocuments()
+                    fetchSickLeaves()
+                    setShowUploadPanel(false)
+                  }}
+                />
+              </div>
+            )}
 
-            {documents.length > 0 && (
-              <div className="mt-5 overflow-x-auto border border-gray-200 rounded-lg">
+            {documents.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">
+                No documents yet. Upload a file or generate one.
+              </p>
+            ) : (
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1318,7 +1351,7 @@ function EditStaffPageInner() {
                         Uploaded
                       </th>
                       <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
+                        <span className="sr-only">Actions</span>
                       </th>
                     </tr>
                   </thead>
@@ -1343,21 +1376,55 @@ function EditStaffPageInner() {
                           {formatShortDate(doc.uploadedAt)}
                         </td>
                         <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                          <a
-                            href={doc.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 mr-3"
-                          >
-                            Open
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDocument(doc.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            Delete
-                          </button>
+                          <div className="relative inline-block text-left" data-doc-menu>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDocumentMenuId((current) => (current === doc.id ? null : doc.id))
+                              }
+                              className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                              aria-label={`Actions for ${doc.fileName}`}
+                              aria-expanded={documentMenuId === doc.id}
+                            >
+                              ⋯
+                            </button>
+                            {documentMenuId === doc.id && (
+                              <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                                <button
+                                  type="button"
+                                  className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => {
+                                    setPreviewDocument({
+                                      fileName: doc.fileName,
+                                      fileUrl: doc.fileUrl
+                                    })
+                                    setDocumentMenuId(null)
+                                  }}
+                                >
+                                  Preview
+                                </button>
+                                <a
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => setDocumentMenuId(null)}
+                                >
+                                  Download
+                                </a>
+                                <button
+                                  type="button"
+                                  className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                  onClick={() => {
+                                    setDocumentMenuId(null)
+                                    void handleDeleteDocument(doc.id)
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

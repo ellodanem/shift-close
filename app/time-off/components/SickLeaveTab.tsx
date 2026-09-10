@@ -299,7 +299,7 @@ export default function SickLeaveTab() {
                   <tr key={r.id} className="border-b border-gray-100">
                     <td className="px-4 py-2.5 font-medium text-gray-900">
                       <Link
-                        href={`/staff/${r.staffId}`}
+                        href={`/staff/${r.staffId}?tab=time-off`}
                         className="text-blue-700 hover:text-blue-900"
                       >
                         {staffDisplayLabel(r)}

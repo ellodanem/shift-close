@@ -192,7 +192,7 @@ export default function StaffDocumentUpload({ staffId, onUploadComplete }: Staff
           onClick={handleClick}
           className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
         >
-          Upload Document
+          Choose files
         </button>
       </div>
       <input

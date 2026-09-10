@@ -324,7 +324,7 @@ export default function VacationDayOffTab() {
                       <tr key={v.staffId} className="border-b border-gray-100">
                         <td className="px-4 py-2.5 font-medium text-gray-900">
                           <Link
-                            href={`/staff/${v.staffId}`}
+                            href={`/staff/${v.staffId}?tab=time-off`}
                             className="text-blue-700 hover:text-blue-900"
                           >
                             {staffDisplayLabel(v)}
@@ -374,7 +374,7 @@ export default function VacationDayOffTab() {
                       <tr key={d.id} className="border-b border-gray-100">
                         <td className="px-4 py-2.5 font-medium text-gray-900">
                           <Link
-                            href={`/staff/${d.staffId}`}
+                            href={`/staff/${d.staffId}?tab=time-off`}
                             className="text-blue-700 hover:text-blue-900"
                           >
                             {staffDisplayLabel(d)}

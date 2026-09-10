@@ -3000,7 +3000,7 @@ export default function RosterPage() {
                 {vacationStaffId && (
                   <p className="text-xs text-gray-500">
                     <a
-                      href={`/staff/${vacationStaffId}`}
+                      href={`/staff/${vacationStaffId}?tab=time-off`}
                       className="text-violet-600 hover:text-violet-800 font-medium"
                     >
                       Open staff profile
