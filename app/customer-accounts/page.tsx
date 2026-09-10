@@ -100,7 +100,8 @@ export default function CustomerAccountsPage() {
   const [accountSearch, setAccountSearch] = useState('')
   const [accountSort, setAccountSort] = useState<
     'name-asc' | 'name-desc' | 'closing-desc'
-  >('name-asc')
+  >('closing-desc')
+  const [paymentFormOpen, setPaymentFormOpen] = useState(false)
 
   const [openingInput, setOpeningInput] = useState<string>('')
   const [chargesInput, setChargesInput] = useState<string>('')
@@ -307,6 +308,29 @@ export default function CustomerAccountsPage() {
     return list
   }, [accounts, accountSearch, accountSort])
 
+  const accountTotals = useMemo(
+    () => ({
+      opening: accounts.reduce((s, a) => s + a.opening, 0),
+      charges: accounts.reduce((s, a) => s + a.charges, 0),
+      payments: accounts.reduce((s, a) => s + a.payments, 0),
+      closing: accounts.reduce((s, a) => s + a.closing, 0)
+    }),
+    [accounts]
+  )
+
+  const activeCustomerCount = directory.filter((c) => c.active).length
+  const inactiveCustomerCount = directory.filter((c) => !c.active).length
+  const paymentMatch = accounts.find(
+    (a) => a.account.toLowerCase() === paymentAccount.trim().toLowerCase()
+  )
+  const noPaymentsThisMonth =
+    accounts.length > 0 && Math.abs(accountTotals.payments) < 0.01
+
+  const openRecordPayment = (account?: string) => {
+    if (account) setPaymentAccount(account)
+    setPaymentFormOpen(true)
+  }
+
   const addDirectoryCustomer = async () => {
     const name = newCustomerName.trim()
     if (!name) return
@@ -384,6 +408,7 @@ export default function CustomerAccountsPage() {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       })
       await fetchPayments()
+      await fetchAccountsForMonth(workingMonth)
     } catch (err) {
       console.error(err)
       alert(err instanceof Error ? err.message : 'Failed to record payment')
@@ -545,8 +570,17 @@ export default function CustomerAccountsPage() {
 
   const { startDate: monthStart, endDate: monthEnd } = monthDateRange(workingMonth)
 
+  useEffect(() => {
+    if (!paymentFormOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPaymentFormOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [paymentFormOpen])
+
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-28 sm:p-8 md:pb-10">
       <input
         ref={excelInputRef}
         type="file"
@@ -562,58 +596,95 @@ export default function CustomerAccountsPage() {
 
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Customer Accounts</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              The customer list lives in Shift Close. A new month rolls last month&apos;s
-              closing into opening. Excel is optional totals, not how names are created.
-            </p>
-            <p className="text-xs text-gray-500 mt-2 max-w-2xl">
-              <span className="font-medium text-gray-600">Detail:</span> Open Ledger
-              to import a Cstore Credit Report, or let the harvest agent run it.
+        <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+              Customer Accounts
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              {activeCustomerCount} customer{activeCustomerCount === 1 ? '' : 's'}
+              {inactiveCustomerCount > 0 ? ` · ${inactiveCustomerCount} inactive` : ''}
+              {' · '}harvest uses this list
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+            <div className="col-span-2 sm:col-auto">
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Working month
+              </label>
+              <input
+                type="month"
+                value={workingMonth}
+                onChange={(e) => applyWorkingMonth(e.target.value)}
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:w-auto"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => openRecordPayment()}
+              className="col-span-2 hidden min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 md:inline-flex md:items-center md:self-end"
+            >
+              Record payment
+            </button>
+            <Link
+              href="/customer-accounts/statement"
+              className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0 md:self-end"
+            >
+              Account Statement
+            </Link>
             <button
               type="button"
               onClick={() => excelInputRef.current?.click()}
               disabled={importing}
-              className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 md:self-end"
             >
               {importing ? 'Importing…' : 'Import Excel'}
             </button>
-            <Link
-              href="/customer-accounts/statement"
-              className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0"
-            >
-              Account Statement
-            </Link>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {workingMonthReconciliation ? (
+              <>
+                {workingMonthReconciliation.reconciled ? (
+                  <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-800">
+                    Reconciled
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800">
+                    Out of balance
+                  </span>
+                )}
+                <span className="font-mono text-xs text-gray-600">
+                  Difference{' '}
+                  {workingMonthReconciliation.diff >= 0 ? '+' : ''}
+                  {formatAmount(workingMonthReconciliation.diff)} vs POS
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-gray-500">
+                No POS closing recorded for {formatMonthLabelFromKey(workingMonth)}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setDirectoryOpen((v) => !v)}
-            className="flex w-full items-center justify-between text-left"
+            className="min-h-[44px] text-left text-sm font-medium text-indigo-600 hover:text-indigo-800 sm:min-h-0"
           >
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">Customer list</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {directory.filter((c) => c.active).length} active
-                {directory.some((c) => !c.active)
-                  ? ` · ${directory.filter((c) => !c.active).length} inactive`
-                  : ''}
-                . Harvest jobs use this list, not the Cstore dropdown order.
-              </p>
-            </div>
-            <span className="text-sm text-indigo-600 font-medium">
-              {directoryOpen ? 'Hide' : 'Manage'}
-            </span>
+            {directoryOpen
+              ? 'Hide customer list'
+              : `Manage ${activeCustomerCount} customers`}
           </button>
-          {directoryOpen && (
-            <div className="mt-4 space-y-4">
+        </div>
+
+        {directoryOpen && (
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="mb-4 text-xs text-gray-500">
+            Harvest jobs use this list, not the Cstore dropdown order.
+          </p>
+            <div className="space-y-4">
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-end">
                 <div className="min-w-0 flex-1 sm:flex-none">
                   <label className="mb-1 block text-xs font-medium text-gray-700">
@@ -719,49 +790,53 @@ export default function CustomerAccountsPage() {
                 </>
               )}
             </div>
-          )}
         </div>
+        )}
 
-        {/* Working month bar */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Working month
-                </label>
-                <input
-                  type="month"
-                  value={workingMonth}
-                  onChange={(e) => applyWorkingMonth(e.target.value)}
-                  className="min-h-[44px] rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0"
-                />
+        {!loadingAccounts && accounts.length > 0 && (
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+              <div className="text-xs font-medium text-gray-500">Opening</div>
+              <div className="mt-1 font-mono text-lg font-semibold text-gray-900 sm:text-xl">
+                {formatAmount(accountTotals.opening)}
               </div>
-              <p className="text-xs text-gray-500 sm:pb-2 sm:max-w-xs">
-                Drives import, account list, and recorded payments for{' '}
-                {formatMonthLabelFromKey(workingMonth)}.
-              </p>
             </div>
-            {workingMonthReconciliation && (
-              <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-2">
-                {workingMonthReconciliation.reconciled ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-800 border border-green-200 font-medium text-xs">
-                    Reconciled
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-800 border border-red-200 font-medium text-xs">
-                    Out of balance
-                  </span>
-                )}
-                <span className="text-xs text-gray-600 font-mono">
-                  Difference{' '}
-                  {workingMonthReconciliation.diff >= 0 ? '+' : ''}
-                  {formatAmount(workingMonthReconciliation.diff)} vs POS
-                </span>
+            <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+              <div className="text-xs font-medium text-gray-500">Charges</div>
+              <div className="mt-1 font-mono text-lg font-semibold text-gray-900 sm:text-xl">
+                {formatAmount(accountTotals.charges)}
               </div>
-            )}
+            </div>
+            <div
+              className={`rounded-lg border p-3 sm:p-4 ${
+                noPaymentsThisMonth
+                  ? 'border-amber-200 bg-amber-50/70'
+                  : 'border-gray-200 bg-white'
+              }`}
+            >
+              <div
+                className={`text-xs font-medium ${
+                  noPaymentsThisMonth ? 'text-amber-800' : 'text-gray-500'
+                }`}
+              >
+                Payments this month
+              </div>
+              <div
+                className={`mt-1 font-mono text-lg font-semibold sm:text-xl ${
+                  noPaymentsThisMonth ? 'text-amber-950' : 'text-gray-900'
+                }`}
+              >
+                {formatAmount(accountTotals.payments)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 sm:p-4">
+              <div className="text-xs font-medium text-indigo-800">Closing</div>
+              <div className="mt-1 font-mono text-xl font-semibold text-gray-900 sm:text-2xl">
+                {formatAmount(accountTotals.closing)}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Account Breakdown — primary */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
@@ -786,9 +861,9 @@ export default function CustomerAccountsPage() {
                 }
                 className="min-h-[44px] rounded border border-gray-300 bg-white px-3 py-2 text-sm sm:min-h-0 sm:py-1.5"
               >
+                <option value="closing-desc">Closing (high–low)</option>
                 <option value="name-asc">Name A–Z</option>
                 <option value="name-desc">Name Z–A</option>
-                <option value="closing-desc">Closing (high–low)</option>
               </select>
             </div>
           </div>
@@ -812,38 +887,33 @@ export default function CustomerAccountsPage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {filteredAccounts.map((acc) => (
+                {filteredAccounts.map((acc) => {
+                  const quiet =
+                    Math.abs(acc.closing) < 0.01 && Math.abs(acc.charges) < 0.01
+                  return (
                   <div
                     key={acc.id}
-                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                    className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm ${
+                      quiet ? 'opacity-60' : ''
+                    }`}
                   >
-                    <div className="font-medium text-gray-900">
-                      {acc.account}
-                      {acc.rolled ? (
-                        <span className="ml-2 text-[11px] font-normal text-gray-500">
-                          rolled from last month
-                        </span>
-                      ) : null}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 font-medium text-gray-900">
+                        {acc.account}
+                        {acc.rolled ? (
+                          <span className="ml-2 text-[11px] font-normal text-gray-500">
+                            rolled from last month
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 font-mono text-base font-semibold text-gray-900">
+                        {formatAmount(acc.closing)}
+                      </div>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
-                      <div>
-                        Opening{' '}
-                        <span className="font-mono text-gray-900">{formatAmount(acc.opening)}</span>
-                      </div>
-                      <div>
-                        Charges{' '}
-                        <span className="font-mono text-gray-900">{formatAmount(acc.charges)}</span>
-                      </div>
-                      <div>
-                        Payments{' '}
-                        <span className="font-mono text-gray-900">{formatAmount(acc.payments)}</span>
-                      </div>
-                      <div>
-                        Closing{' '}
-                        <span className="font-mono font-semibold text-gray-900">
-                          {formatAmount(acc.closing)}
-                        </span>
-                      </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      Opening {formatAmount(acc.opening)}
+                      {' · '}Charges {formatAmount(acc.charges)}
+                      {' · '}Payments {formatAmount(acc.payments)}
                     </div>
                     <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
                       <button
@@ -861,34 +931,12 @@ export default function CustomerAccountsPage() {
                       </Link>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div className="rounded-lg border border-gray-300 bg-gray-100 p-3 text-sm font-semibold">
-                  <div className="text-gray-900">Total</div>
-                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-normal text-gray-600">
-                    <div>
-                      Opening{' '}
-                      <span className="font-mono font-semibold text-gray-900">
-                        {formatAmount(accounts.reduce((s, a) => s + a.opening, 0))}
-                      </span>
-                    </div>
-                    <div>
-                      Charges{' '}
-                      <span className="font-mono font-semibold text-gray-900">
-                        {formatAmount(accounts.reduce((s, a) => s + a.charges, 0))}
-                      </span>
-                    </div>
-                    <div>
-                      Payments{' '}
-                      <span className="font-mono font-semibold text-gray-900">
-                        {formatAmount(accounts.reduce((s, a) => s + a.payments, 0))}
-                      </span>
-                    </div>
-                    <div>
-                      Closing{' '}
-                      <span className="font-mono font-semibold text-gray-900">
-                        {formatAmount(accounts.reduce((s, a) => s + a.closing, 0))}
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-900">Total</span>
+                    <span className="font-mono">{formatAmount(accountTotals.closing)}</span>
                   </div>
                 </div>
               </div>
@@ -911,15 +959,28 @@ export default function CustomerAccountsPage() {
                     <th className="px-4 py-2 text-right font-semibold text-gray-700">
                       Closing
                     </th>
-                    <th className="px-4 py-2 text-right font-semibold text-gray-700">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredAccounts.map((acc) => (
-                    <tr key={acc.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 font-medium text-gray-900">
+                  {filteredAccounts.map((acc) => {
+                    const quiet =
+                      Math.abs(acc.closing) < 0.01 && Math.abs(acc.charges) < 0.01
+                    return (
+                    <tr
+                      key={acc.id}
+                      className={`cursor-pointer hover:bg-indigo-50/40 ${
+                        quiet ? 'text-gray-400' : ''
+                      }`}
+                      onClick={() => setSelectedLedgerAccount(acc.account)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelectedLedgerAccount(acc.account)
+                        }
+                      }}
+                      tabIndex={0}
+                    >
+                      <td className={`px-4 py-2 font-medium ${quiet ? '' : 'text-gray-900'}`}>
                         {acc.account}
                         {acc.rolled ? (
                           <span className="ml-2 text-[11px] font-normal text-gray-500">
@@ -936,64 +997,62 @@ export default function CustomerAccountsPage() {
                       <td className="px-4 py-2 text-right font-mono">
                         {formatAmount(acc.payments)}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono font-semibold">
+                      <td className={`px-4 py-2 text-right font-mono font-semibold ${quiet ? '' : 'text-gray-900'}`}>
                         {formatAmount(acc.closing)}
                       </td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLedgerAccount(acc.account)}
-                          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm mr-3"
-                        >
-                          Ledger
-                        </button>
-                        <Link
-                          href={`/customer-accounts/statement?account=${encodeURIComponent(acc.account)}&startDate=${monthStart}&endDate=${monthEnd}&mode=summary`}
-                          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-                        >
-                          Statement
-                        </Link>
-                      </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   <tr className="bg-gray-100 font-semibold">
                     <td className="px-4 py-2 text-gray-900">Total</td>
                     <td className="px-4 py-2 text-right font-mono">
-                      {formatAmount(accounts.reduce((s, a) => s + a.opening, 0))}
+                      {formatAmount(accountTotals.opening)}
                     </td>
                     <td className="px-4 py-2 text-right font-mono">
-                      {formatAmount(accounts.reduce((s, a) => s + a.charges, 0))}
+                      {formatAmount(accountTotals.charges)}
                     </td>
                     <td className="px-4 py-2 text-right font-mono">
-                      {formatAmount(accounts.reduce((s, a) => s + a.payments, 0))}
+                      {formatAmount(accountTotals.payments)}
                     </td>
                     <td className="px-4 py-2 text-right font-mono">
-                      {formatAmount(accounts.reduce((s, a) => s + a.closing, 0))}
+                      {formatAmount(accountTotals.closing)}
                     </td>
-                    <td />
                   </tr>
                 </tbody>
               </table>
+              <p className="mt-2 text-xs text-gray-500">
+                Click a row to open the ledger. Use Account Statement in the header
+                for a printable statement.
+              </p>
               </div>
             </>
           )}
         </div>
 
         {/* Company roll-forward — secondary */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-gray-800">
-                Company roll-forward
-              </h2>
-              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                Reconciliation
+        <details className="group mb-4 rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-800">
+                  Company roll-forward
+                </h2>
+                <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                  Reconciliation
+                </span>
+              </div>
+              <span className="text-xs font-medium text-indigo-600 group-open:hidden">
+                Show months
+              </span>
+              <span className="hidden text-xs font-medium text-indigo-600 group-open:inline">
+                Hide months
               </span>
             </div>
-            <p className="text-xs text-gray-500">
-              Closing (computed) = Opening + Charges − Payments
-            </p>
-          </div>
+          </summary>
+          <div className="mt-4">
+          <p className="mb-4 text-xs text-gray-500">
+            Closing (computed) = Opening + Charges − Payments
+          </p>
 
           {loading ? (
             <p className="text-gray-600 text-sm">Loading summaries…</p>
@@ -1146,20 +1205,70 @@ export default function CustomerAccountsPage() {
               )}
             </>
           )}
-        </div>
+          </div>
+        </details>
 
-        {/* Record payment — collapsed */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-          <details className="group">
-            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2 list-none">
-              <span className="text-indigo-600 font-semibold">+</span>
-              <span>Record payment</span>
-              <span className="text-xs text-gray-500 font-normal">
-                Capture a payment as received
-              </span>
-            </summary>
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end lg:gap-4">
+        {/* Record payment modal */}
+        {paymentFormOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+            onClick={() => setPaymentFormOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="record-payment-title"
+          >
+            <div
+              className="mb-8 mt-4 w-full max-w-lg rounded-lg border border-gray-200 bg-white sm:mt-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-gray-200 px-5 py-4">
+                <h2 id="record-payment-title" className="text-lg font-semibold text-gray-900">
+                  Record payment
+                </h2>
+                <p className="mt-0.5 text-xs text-gray-600">
+                  {formatMonthLabelFromKey(workingMonth)}
+                  {noPaymentsThisMonth
+                    ? ' · payments this month are still $0.00'
+                    : ''}
+                </p>
+              </div>
+              <div className="space-y-4 p-5">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                    Customer
+                  </label>
+                  <input
+                    list="customer-account-names"
+                    type="text"
+                    value={paymentAccount}
+                    onChange={(e) => setPaymentAccount(e.target.value)}
+                    placeholder="e.g. Distillers, Barbay"
+                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <datalist id="customer-account-names">
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.account} />
+                    ))}
+                  </datalist>
+                  {paymentMatch ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Closing {formatAmount(paymentMatch.closing)}
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                    Amount
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 font-mono text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Date
@@ -1168,51 +1277,37 @@ export default function CustomerAccountsPage() {
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:w-auto"
-                  />
-                </div>
-                <div className="sm:col-span-2 lg:min-w-[160px] lg:flex-1">
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
-                    Customer
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentAccount}
-                    onChange={(e) => setPaymentAccount(e.target.value)}
-                    placeholder="e.g. Distillers, Barbay"
-                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0"
+                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">
-                    Amount
+                    Type
                   </label>
-                  <input
-                    type="text"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:w-28"
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      ['cash', 'Cash'],
+                      ['check', 'Check'],
+                      ['eft', 'EFT']
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          setPaymentType((prev) => (prev === value ? '' : value))
+                        }
+                        className={`min-h-[44px] rounded border px-3 py-2 text-sm font-semibold ${
+                          paymentType === value
+                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
-                    Type (optional)
-                  </label>
-                  <select
-                    value={paymentType}
-                    onChange={(e) =>
-                      setPaymentType(e.target.value as '' | 'cash' | 'check' | 'eft')
-                    }
-                    className="min-h-[44px] w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:min-w-[7.5rem]"
-                  >
-                    <option value="">—</option>
-                    <option value="cash">Cash</option>
-                    <option value="check">Check</option>
-                    <option value="eft">EFT</option>
-                  </select>
-                </div>
-                <div className="min-w-[120px]">
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Ref (optional)
                   </label>
@@ -1221,123 +1316,77 @@ export default function CustomerAccountsPage() {
                     value={paymentRef}
                     onChange={(e) => setPaymentRef(e.target.value)}
                     placeholder="Cheque #"
-                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0"
+                    className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleRecordPayment()}
-                  disabled={savingPayment}
-                  className="min-h-[44px] rounded bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 sm:min-h-0 lg:self-end"
-                >
-                  {savingPayment ? 'Saving…' : 'Record'}
-                </button>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                  Recorded payments — {formatMonthLabelFromKey(workingMonth)}
-                </h3>
-                {loadingPayments ? (
-                  <p className="text-sm text-gray-500">Loading…</p>
-                ) : payments.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No payments recorded for this month.
+                {noPaymentsThisMonth ? (
+                  <p className="text-xs text-gray-500">
+                    This will reduce the {formatMonthLabelFromKey(workingMonth)} closing.
+                    Payments this month are still $0.00.
                   </p>
-                ) : (
-                  <>
-                    <div className="space-y-3 md:hidden">
+                ) : null}
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentFormOpen(false)}
+                    className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRecordPayment()}
+                    disabled={savingPayment}
+                    className="min-h-[44px] rounded bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {savingPayment ? 'Saving…' : 'Save payment'}
+                  </button>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="mb-2 text-sm font-semibold text-gray-700">
+                    Recorded this month
+                  </h3>
+                  {loadingPayments ? (
+                    <p className="text-sm text-gray-500">Loading…</p>
+                  ) : payments.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      No payments recorded for {formatMonthLabelFromKey(workingMonth)}.
+                    </p>
+                  ) : (
+                    <div className="max-h-48 space-y-2 overflow-y-auto">
                       {payments.map((p) => (
                         <div
                           key={p.id}
-                          className="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm"
+                          className="flex items-start justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-medium text-gray-900">{p.account}</div>
-                              <div className="mt-0.5 text-xs text-gray-600">
-                                {formatCstoreDisplayDate(p.date)}
-                              </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900">{p.account}</div>
+                            <div className="text-xs text-gray-600">
+                              {formatCstoreDisplayDate(p.date)}
+                              {' · '}
+                              {formatPaymentTypeLabel(p.paymentMethod)}
+                              {p.ref ? ` · ${p.ref}` : ''}
                             </div>
-                            <span className="shrink-0 font-mono font-semibold text-gray-900">
-                              {formatAmount(p.amount)}
-                            </span>
                           </div>
-                          <div className="mt-2 text-xs text-gray-600">
-                            {formatPaymentTypeLabel(p.paymentMethod)}
-                            {p.ref ? ` · Ref ${p.ref}` : ''}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="rounded-lg border border-gray-300 bg-gray-100 p-3 text-sm font-semibold">
-                        <div className="flex items-center justify-between">
-                          <span>Total</span>
-                          <span className="font-mono">
-                            {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
+                          <span className="shrink-0 font-mono font-semibold text-gray-900">
+                            {formatAmount(p.amount)}
                           </span>
                         </div>
+                      ))}
+                      <div className="flex justify-between text-sm font-semibold">
+                        <span>Total</span>
+                        <span className="font-mono">
+                          {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
+                        </span>
                       </div>
                     </div>
-                    <div className="hidden overflow-x-auto md:block">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                            Date
-                          </th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                            Customer
-                          </th>
-                          <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                            Amount
-                          </th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                            Type
-                          </th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                            Ref
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {payments.map((p) => (
-                          <tr key={p.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-900 whitespace-nowrap">
-                              {formatCstoreDisplayDate(p.date)}
-                            </td>
-                            <td className="px-3 py-2 font-medium text-gray-900">
-                              {p.account}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono">
-                              {formatAmount(p.amount)}
-                            </td>
-                            <td className="px-3 py-2 text-gray-700">
-                              {formatPaymentTypeLabel(p.paymentMethod)}
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">{p.ref || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-gray-100">
-                        <tr className="font-semibold">
-                          <td className="px-3 py-2" colSpan={2}>
-                            Total
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {formatAmount(payments.reduce((s, p) => s + p.amount, 0))}
-                          </td>
-                          <td className="px-3 py-2" />
-                          <td className="px-3 py-2" />
-                        </tr>
-                      </tfoot>
-                    </table>
-                    </div>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </details>
-        </div>
+          </div>
+        )}
 
         {/* Manual entry — collapsed */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
@@ -1446,6 +1495,18 @@ export default function CustomerAccountsPage() {
           />
         )}
       </div>
+
+      {!paymentFormOpen && !selectedLedgerAccount ? (
+        <div className="fixed bottom-[4.75rem] left-4 right-4 z-40 md:hidden">
+          <button
+            type="button"
+            onClick={() => openRecordPayment()}
+            className="min-h-[44px] w-full rounded bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Record payment
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
