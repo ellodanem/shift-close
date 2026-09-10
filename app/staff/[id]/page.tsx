@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from '../DocumentGenerationModal'
+import BankSelect from '../BankSelect'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { useAuth } from '@/app/components/AuthContext'
 
@@ -1414,12 +1415,10 @@ function EditStaffPageInner() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
-                    <input
-                      type="text"
+                    <BankSelect
                       value={formData.bankName}
-                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                      onChange={(bankName) => setFormData({ ...formData, bankName })}
                       className={inputClass}
-                      placeholder="e.g. BOSL"
                     />
                   </div>
                   <div>

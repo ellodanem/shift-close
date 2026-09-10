@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import BankSelect from '../BankSelect'
 
 interface StaffRole {
   id: string
@@ -258,12 +259,10 @@ export default function NewStaffPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Bank
               </label>
-              <input
-                type="text"
+              <BankSelect
                 value={formData.bankName}
-                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                onChange={(bankName) => setFormData({ ...formData, bankName })}
                 className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Bank name"
               />
             </div>
 
