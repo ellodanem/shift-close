@@ -234,6 +234,17 @@ export default function VendorBatchesPage() {
                     <button
                       type="button"
                       onClick={() =>
+                        router.push(
+                          `/vendor-payments/make-payment?vendorId=${batch.vendorId}&applyBatchId=${batch.id}`
+                        )
+                      }
+                      className="min-h-[44px] text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                    >
+                      Add invoices
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
                         router.push(`/vendor-payments/make-payment/share/${batch.id}`)
                       }
                       className="min-h-[44px] text-sm font-medium text-green-600 hover:text-green-900"
@@ -315,6 +326,17 @@ export default function VendorBatchesPage() {
                             className="text-blue-600 hover:text-blue-900"
                           >
                             Vendor
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(
+                                `/vendor-payments/make-payment?vendorId=${batch.vendorId}&applyBatchId=${batch.id}`
+                              )
+                            }
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Add invoices
                           </button>
                           <button
                             type="button"

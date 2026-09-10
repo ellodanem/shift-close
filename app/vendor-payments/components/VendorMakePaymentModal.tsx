@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
-import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 import {
   VendorQuickEditInvoiceModal,
   type VendorQuickEditInvoice
@@ -27,6 +27,28 @@ interface VendorInvoice {
   notes?: string | null
 }
 
+interface RecentVendorBatch {
+  id: string
+  paymentDate: string
+  paymentMethod: string
+  bankRef: string
+  totalAmount: number
+  invoiceCount: number
+  clearedAt: string | null
+  transferDescription: string | null
+}
+
+interface ApplyBatchDetail {
+  id: string
+  paymentDate: string
+  paymentMethod: string
+  bankRef: string
+  totalAmount: number
+  clearedAt: string | null
+  transferDescription: string | null
+  invoices: { invoiceNumber: string }[]
+}
+
 function formatDate(d: string | null) {
   if (!d) return '—'
   return formatInvoiceDate(d)
@@ -40,20 +62,34 @@ function invoiceTotal(inv: VendorInvoice) {
   return inv.amount + (inv.vat ?? 0)
 }
 
+function formatPaymentMethod(method: string) {
+  const m = method.trim().toLowerCase()
+  if (m === 'eft') return 'EFT'
+  if (m === 'check' || m === 'cheque') return 'Check'
+  return method
+}
+
 function buildAutoTransferDescription(
   paymentMethod: 'eft' | 'check',
   invoices: VendorInvoice[],
-  selectedInvoiceIds: Set<string>
+  selectedInvoiceIds: Set<string>,
+  existingInvoiceNumbers: string[] = []
 ) {
-  if (paymentMethod !== 'eft' || selectedInvoiceIds.size === 0) return ''
+  if (paymentMethod !== 'eft') return ''
 
   const selectedInvoiceNumbers = invoices
     .filter((inv) => selectedInvoiceIds.has(inv.id))
     .map((inv) => inv.invoiceNumber)
     .filter(Boolean)
 
-  if (selectedInvoiceNumbers.length === 0) return ''
-  return `Total Auto ${selectedInvoiceNumbers.join(' ')}`
+  const numbers = [...existingInvoiceNumbers, ...selectedInvoiceNumbers]
+  if (numbers.length === 0) return ''
+  return `Total Auto ${numbers.join(' ')}`
+}
+
+function batchOptionLabel(batch: RecentVendorBatch) {
+  const countLabel = `${batch.invoiceCount} invoice${batch.invoiceCount === 1 ? '' : 's'}`
+  return `${formatPaymentMethod(batch.paymentMethod)} ${batch.bankRef} · ${formatInvoiceDate(batch.paymentDate)} · ${formatAmount(batch.totalAmount)} (${countLabel})`
 }
 
 export function VendorMakePaymentModal({
@@ -61,12 +97,14 @@ export function VendorMakePaymentModal({
   onClose,
   initialVendorId,
   initialSelectedCsv,
+  initialApplyBatchId = '',
   onSuccess
 }: {
   open: boolean
   onClose: () => void
   initialVendorId: string
   initialSelectedCsv: string
+  initialApplyBatchId?: string
   onSuccess: (batchId: string) => void
 }) {
   const router = useRouter()
@@ -80,6 +118,9 @@ export function VendorMakePaymentModal({
   const [bankRef, setBankRef] = useState('')
   const [transferDescription, setTransferDescription] = useState('')
   const [addToCashbook, setAddToCashbook] = useState(true)
+  const [applyBatchId, setApplyBatchId] = useState('')
+  const [recentBatches, setRecentBatches] = useState<RecentVendorBatch[]>([])
+  const [applyBatchDetail, setApplyBatchDetail] = useState<ApplyBatchDetail | null>(null)
   const [balance, setBalance] = useState<{
     availableFunds: number
     uncashedChecksTotal: number
@@ -87,6 +128,8 @@ export function VendorMakePaymentModal({
   } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<VendorQuickEditInvoice | null>(null)
+
+  const applyingToExisting = Boolean(applyBatchId)
 
   useEffect(() => {
     if (!open) return
@@ -96,9 +139,11 @@ export function VendorMakePaymentModal({
     setTransferDescription('')
     setAddToCashbook(true)
     setSelectedVendorId(initialVendorId)
+    setApplyBatchId(initialApplyBatchId)
+    setApplyBatchDetail(null)
     setProcessing(false)
     setEditingInvoice(null)
-  }, [open, initialVendorId])
+  }, [open, initialVendorId, initialApplyBatchId])
 
   useEffect(() => {
     if (!open) return
@@ -177,11 +222,112 @@ export function VendorMakePaymentModal({
   }, [open, selectedVendorId, initialVendorId, initialSelectedCsv])
 
   useEffect(() => {
+    if (!open || !selectedVendorId) {
+      setRecentBatches([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/vendor-payments/batches?vendorId=${encodeURIComponent(selectedVendorId)}&limit=30`
+        )
+        if (!res.ok || cancelled) return
+        const data: RecentVendorBatch[] = await res.json()
+        if (cancelled) return
+        const next = Array.isArray(data) ? data : []
+        setRecentBatches((prev) => {
+          const keep = prev.find(
+            (batch) =>
+              batch.id === applyBatchId && !next.some((row) => row.id === batch.id)
+          )
+          return keep ? [keep, ...next] : next
+        })
+      } catch (e) {
+        console.error('Error fetching vendor payment batches', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedVendorId, applyBatchId])
+
+  useEffect(() => {
+    if (!applyBatchDetail) return
+    setRecentBatches((prev) => {
+      if (prev.some((batch) => batch.id === applyBatchDetail.id)) return prev
+      return [
+        {
+          id: applyBatchDetail.id,
+          paymentDate: applyBatchDetail.paymentDate,
+          paymentMethod: applyBatchDetail.paymentMethod,
+          bankRef: applyBatchDetail.bankRef,
+          totalAmount: applyBatchDetail.totalAmount,
+          invoiceCount: applyBatchDetail.invoices.length,
+          clearedAt: applyBatchDetail.clearedAt,
+          transferDescription: applyBatchDetail.transferDescription
+        },
+        ...prev
+      ]
+    })
+  }, [applyBatchDetail])
+
+  useEffect(() => {
+    if (!open || !applyBatchId) {
+      setApplyBatchDetail(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/vendor-payments/batches/${applyBatchId}`)
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (cancelled) return
+        const method = String(data.paymentMethod || '').toLowerCase() === 'check' ? 'check' : 'eft'
+        setApplyBatchDetail({
+          id: data.id,
+          paymentDate: data.paymentDate,
+          paymentMethod: method,
+          bankRef: data.bankRef,
+          totalAmount: data.totalAmount,
+          clearedAt: data.clearedAt,
+          transferDescription: data.transferDescription,
+          invoices: Array.isArray(data.invoices) ? data.invoices : []
+        })
+        setPaymentDate(invoiceDateToInputValue(data.paymentDate))
+        setPaymentMethod(method)
+        setBankRef(String(data.bankRef || ''))
+      } catch (e) {
+        console.error('Error fetching payment batch', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, applyBatchId])
+
+  useEffect(() => {
     if (!open) return
+    const existingNumbers = applyingToExisting
+      ? (applyBatchDetail?.invoices || []).map((inv) => inv.invoiceNumber).filter(Boolean)
+      : []
     setTransferDescription(
-      buildAutoTransferDescription(paymentMethod, invoices, selectedInvoiceIds)
+      buildAutoTransferDescription(
+        paymentMethod,
+        invoices,
+        selectedInvoiceIds,
+        existingNumbers
+      )
     )
-  }, [open, paymentMethod, invoices, selectedInvoiceIds])
+  }, [
+    open,
+    paymentMethod,
+    invoices,
+    selectedInvoiceIds,
+    applyingToExisting,
+    applyBatchDetail
+  ])
 
   const handleToggleInvoice = (invoiceId: string) => {
     const newSelected = new Set(selectedInvoiceIds)
@@ -221,6 +367,17 @@ export function VendorMakePaymentModal({
     }
   }
 
+  const handleApplyBatchChange = (nextId: string) => {
+    setApplyBatchId(nextId)
+    if (!nextId) {
+      setApplyBatchDetail(null)
+      setPaymentDate(todayYmd())
+      setPaymentMethod('eft')
+      setBankRef('')
+      setAddToCashbook(true)
+    }
+  }
+
   const handleMakePayment = async () => {
     if (!selectedVendorId) {
       alert('Please select a vendor')
@@ -230,43 +387,54 @@ export function VendorMakePaymentModal({
       alert('Please select at least one invoice')
       return
     }
-    if (!bankRef.trim()) {
+    if (!applyingToExisting && !bankRef.trim()) {
       alert('Please enter a bank reference or check number')
       return
     }
 
     const vendor = vendors.find((v) => v.id === selectedVendorId)
     const confirmed = window.confirm(
-      `Mark ${selectedInvoiceIds.size} invoice(s) as paid?\n\nVendor: ${vendor?.name}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}\n${addToCashbook ? '\nAdd to Cashbook: Yes' : ''}`
+      applyingToExisting
+        ? `Add ${selectedInvoiceIds.size} invoice(s) to the existing payment?\n\nVendor: ${vendor?.name}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}`
+        : `Mark ${selectedInvoiceIds.size} invoice(s) as paid?\n\nVendor: ${vendor?.name}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}\n${addToCashbook ? '\nAdd to Cashbook: Yes' : ''}`
     )
     if (!confirmed) return
 
     setProcessing(true)
     try {
-      const res = await fetch('/api/vendor-payments/make-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorId: selectedVendorId,
-          paymentDate,
-          paymentMethod,
-          bankRef: bankRef.trim(),
-          selectedInvoiceIds: Array.from(selectedInvoiceIds),
-          transferDescription: transferDescription.trim() || undefined,
-          addToCashbook
-        })
-      })
+      const res = applyingToExisting
+        ? await fetch(`/api/vendor-payments/batches/${applyBatchId}/apply-invoices`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              selectedInvoiceIds: Array.from(selectedInvoiceIds),
+              transferDescription: transferDescription.trim() || undefined
+            })
+          })
+        : await fetch('/api/vendor-payments/make-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              vendorId: selectedVendorId,
+              paymentDate,
+              paymentMethod,
+              bankRef: bankRef.trim(),
+              selectedInvoiceIds: Array.from(selectedInvoiceIds),
+              transferDescription: transferDescription.trim() || undefined,
+              addToCashbook
+            })
+          })
 
       if (res.ok) {
         const data = await res.json()
         onSuccess(data.batch.id)
       } else {
         const err = await res.json().catch(() => ({}))
-        alert(err.error || 'Failed to make payment')
+        alert(err.error || (applyingToExisting ? 'Failed to add invoices to payment' : 'Failed to make payment'))
       }
     } catch (error) {
       console.error('Error making payment:', error)
-      alert('Failed to make payment')
+      alert(applyingToExisting ? 'Failed to add invoices to payment' : 'Failed to make payment')
     } finally {
       setProcessing(false)
     }
@@ -275,12 +443,17 @@ export function VendorMakePaymentModal({
   const selectedTotal = invoices
     .filter((inv) => selectedInvoiceIds.has(inv.id))
     .reduce((sum, inv) => sum + invoiceTotal(inv), 0)
+  const existingTotal = applyBatchDetail?.totalAmount ?? 0
+  const combinedTotal = existingTotal + selectedTotal
+  const fundsAlreadyDeducted =
+    applyingToExisting &&
+    (applyBatchDetail?.paymentMethod === 'eft' || applyBatchDetail?.clearedAt != null)
 
-  const bankRefMissing = !bankRef.trim()
+  const bankRefMissing = !applyingToExisting && !bankRef.trim()
   const canSubmitPayment =
     !!selectedVendorId &&
     selectedInvoiceIds.size > 0 &&
-    !bankRefMissing &&
+    (applyingToExisting || !bankRefMissing) &&
     !processing
 
   if (!open) return null
@@ -303,10 +476,12 @@ export function VendorMakePaymentModal({
               id="vendor-make-payment-title"
               className="text-xl font-bold text-gray-900 sm:text-2xl"
             >
-              Make vendor payment
+              {applyingToExisting ? 'Add invoices to payment' : 'Make vendor payment'}
             </h2>
             <p className="text-sm text-gray-600">
-              Select vendor and invoices, then choose EFT or check.
+              {applyingToExisting
+                ? 'Select the missed invoices to attach to this existing payment.'
+                : 'Select vendor and invoices, then choose EFT or check. You can also add invoices to a previous payment.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -352,7 +527,10 @@ export function VendorMakePaymentModal({
                   </label>
                   <select
                     value={selectedVendorId}
-                    onChange={(e) => setSelectedVendorId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedVendorId(e.target.value)
+                      handleApplyBatchChange('')
+                    }}
                     className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   >
                     <option value="">Select vendor</option>
@@ -365,13 +543,32 @@ export function VendorMakePaymentModal({
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Apply to previous payment
+                  </label>
+                  <select
+                    value={applyBatchId}
+                    onChange={(e) => handleApplyBatchChange(e.target.value)}
+                    disabled={!selectedVendorId}
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 disabled:bg-gray-50"
+                  >
+                    <option value="">New payment</option>
+                    {recentBatches.map((batch) => (
+                      <option key={batch.id} value={batch.id}>
+                        {batchOptionLabel(batch)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Payment date
                   </label>
                   <input
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+                    disabled={applyingToExisting}
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 disabled:bg-gray-50"
                   />
                 </div>
                 <div>
@@ -383,7 +580,8 @@ export function VendorMakePaymentModal({
                     onChange={(e) =>
                       setPaymentMethod(e.target.value as 'eft' | 'check')
                     }
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+                    disabled={applyingToExisting}
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 disabled:bg-gray-50"
                   >
                     <option value="eft">EFT</option>
                     <option value="check">Check</option>
@@ -392,16 +590,17 @@ export function VendorMakePaymentModal({
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
                     {paymentMethod === 'check' ? 'Check number' : 'Bank ref'}{' '}
-                    <span className="text-red-500">*</span>
+                    {!applyingToExisting && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="text"
-                    required
+                    required={!applyingToExisting}
                     value={bankRef}
                     onChange={(e) => setBankRef(e.target.value)}
                     placeholder={paymentMethod === 'check' ? 'e.g. 1234' : 'e.g. 18921926'}
+                    disabled={applyingToExisting}
                     aria-invalid={bankRefMissing}
-                    className={`min-h-[44px] w-full rounded-md border px-3 py-2 font-mono focus:outline-none focus:ring-2 sm:min-h-0 ${
+                    className={`min-h-[44px] w-full rounded-md border px-3 py-2 font-mono focus:outline-none focus:ring-2 sm:min-h-0 disabled:bg-gray-50 ${
                       bankRefMissing
                         ? 'border-red-300 focus:ring-red-500'
                         : 'border-gray-300 focus:ring-blue-500'
@@ -429,18 +628,29 @@ export function VendorMakePaymentModal({
                     />
                   </div>
                 )}
-                <div className="md:col-span-2 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="vendorPayAddCashbook"
-                    checked={addToCashbook}
-                    onChange={(e) => setAddToCashbook(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <label htmlFor="vendorPayAddCashbook" className="text-sm text-gray-700">
-                    Add to Cashbook (Rec. Gen)
-                  </label>
-                </div>
+                {!applyingToExisting && (
+                  <div className="md:col-span-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="vendorPayAddCashbook"
+                      checked={addToCashbook}
+                      onChange={(e) => setAddToCashbook(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="vendorPayAddCashbook" className="text-sm text-gray-700">
+                      Add to Cashbook (Rec. Gen)
+                    </label>
+                  </div>
+                )}
+                {applyingToExisting && applyBatchDetail && (
+                  <div className="md:col-span-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                    Current payment total {formatAmount(existingTotal)}. Adding{' '}
+                    {formatAmount(selectedTotal)} brings it to {formatAmount(combinedTotal)}.
+                    {fundsAlreadyDeducted
+                      ? ' Available funds and the cashbook entry will be updated.'
+                      : ' This check is still uncashed, so available funds stay the same until it is cashed. The check amount will increase.'}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -548,10 +758,17 @@ export function VendorMakePaymentModal({
                         {selectedInvoiceIds.size > 0 ? (
                           <>
                             <span>{selectedInvoiceIds.size} invoice(s) selected</span>
-                            <span className="font-semibold text-gray-800">Total:</span>
+                            <span className="font-semibold text-gray-800">
+                              {applyingToExisting ? 'Adding:' : 'Total:'}
+                            </span>
                             <span className="text-lg font-bold text-gray-950">
                               {formatAmount(selectedTotal)}
                             </span>
+                            {applyingToExisting && (
+                              <span className="text-gray-700">
+                                New payment total {formatAmount(combinedTotal)}
+                              </span>
+                            )}
                           </>
                         ) : (
                           <span className="text-amber-600">
@@ -574,7 +791,11 @@ export function VendorMakePaymentModal({
                         }
                         className="min-h-[44px] w-full rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-70 sm:min-h-0 sm:w-auto"
                       >
-                        {processing ? 'Processing…' : 'Make payment'}
+                        {processing
+                          ? 'Processing…'
+                          : applyingToExisting
+                            ? 'Add to payment'
+                            : 'Make payment'}
                       </button>
                     </div>
                   </>

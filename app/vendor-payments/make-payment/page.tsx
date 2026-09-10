@@ -12,8 +12,10 @@ function VendorMakePaymentRedirectInner() {
     q.set('pay', '1')
     const v = searchParams.get('vendorId')
     const s = searchParams.get('selected')
+    const apply = searchParams.get('applyBatchId')
     if (v) q.set('vendorId', v)
     if (s) q.set('selected', s)
+    if (apply) q.set('applyBatchId', apply)
     router.replace(`/vendor-payments/invoices?${q.toString()}`)
   }, [router, searchParams])
 

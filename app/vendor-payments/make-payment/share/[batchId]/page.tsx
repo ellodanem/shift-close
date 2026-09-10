@@ -15,6 +15,7 @@ interface PaidVendorInvoice {
 
 interface VendorBatch {
   id: string
+  vendorId: string
   paymentDate: string
   paymentMethod: string
   bankRef: string
@@ -141,13 +142,24 @@ export default function VendorSharePaymentPage() {
               {batch.bankRef}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-4">
             <button
               type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
               className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
               ← Vendors
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/vendor-payments/make-payment?vendorId=${batch.vendorId}&applyBatchId=${batch.id}`
+                )
+              }
+              className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
+            >
+              Add invoices
             </button>
             <button
               type="button"

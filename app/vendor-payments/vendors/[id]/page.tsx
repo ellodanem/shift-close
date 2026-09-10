@@ -1039,7 +1039,18 @@ function VendorDetailPageInner() {
                         {formatAmount(b.totalAmount)}
                       </span>
                     </div>
-                    <div className="mt-3 border-t border-gray-100 pt-3">
+                    <div className="mt-3 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/vendor-payments/make-payment?vendorId=${id}&applyBatchId=${b.id}`
+                          )
+                        }
+                        className="min-h-[44px] text-sm font-medium text-blue-600 hover:text-blue-900"
+                      >
+                        Add invoices
+                      </button>
                       <button
                         type="button"
                         onClick={() =>
@@ -1063,6 +1074,7 @@ function VendorDetailPageInner() {
                       <th className="pb-1 pr-4">Ref</th>
                       <th className="pb-1 pr-8 text-right">Amount</th>
                       <th className="pb-1">Status</th>
+                      <th className="pb-1 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1080,6 +1092,30 @@ function VendorDetailPageInner() {
                           ) : (
                             <span className="text-green-600">Cleared</span>
                           )}
+                        </td>
+                        <td className="py-2 text-right">
+                          <div className="flex justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(
+                                  `/vendor-payments/make-payment?vendorId=${id}&applyBatchId=${b.id}`
+                                )
+                              }
+                              className="text-sm font-medium text-blue-600 hover:text-blue-900"
+                            >
+                              Add invoices
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(`/vendor-payments/make-payment/share/${b.id}`)
+                              }
+                              className="text-sm font-medium text-green-600 hover:text-green-900"
+                            >
+                              Share
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

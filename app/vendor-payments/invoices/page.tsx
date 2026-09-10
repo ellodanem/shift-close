@@ -109,15 +109,18 @@ function VendorInvoicesPageInner() {
   const [showPayModal, setShowPayModal] = useState(false)
   const [payModalVendorId, setPayModalVendorId] = useState('')
   const [payModalSelectedCsv, setPayModalSelectedCsv] = useState('')
+  const [payModalApplyBatchId, setPayModalApplyBatchId] = useState('')
 
   const openMakePaymentModal = (vendorId: string, selectedCsv: string) => {
     setPayModalVendorId(vendorId)
     setPayModalSelectedCsv(selectedCsv)
+    setPayModalApplyBatchId('')
     setShowPayModal(true)
   }
 
   const closeMakePaymentModal = () => {
     setShowPayModal(false)
+    setPayModalApplyBatchId('')
   }
 
   useEffect(() => {
@@ -125,8 +128,10 @@ function VendorInvoicesPageInner() {
     if (pay !== '1') return
     const v = searchParams.get('vendorId') || ''
     const s = searchParams.get('selected') || ''
+    const apply = searchParams.get('applyBatchId') || ''
     setPayModalVendorId(v)
     setPayModalSelectedCsv(s)
+    setPayModalApplyBatchId(apply)
     setShowPayModal(true)
     router.replace('/vendor-payments/invoices', { scroll: false })
   }, [searchParams, router])
@@ -948,6 +953,7 @@ function VendorInvoicesPageInner() {
           onClose={closeMakePaymentModal}
           initialVendorId={payModalVendorId}
           initialSelectedCsv={payModalSelectedCsv}
+          initialApplyBatchId={payModalApplyBatchId}
           onSuccess={(batchId) => {
             void fetchInvoices()
             void refreshCounts()

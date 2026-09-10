@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const vendorId = searchParams.get('vendorId')
+    const limitRaw = searchParams.get('limit')
+    const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : NaN
+    const take =
+      Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, 100)
+        : undefined
 
     const where: {
       paymentDate?: { gte: Date; lte: Date }
@@ -43,7 +49,8 @@ export async function GET(request: NextRequest) {
         },
         _count: { select: { invoices: true } }
       },
-      orderBy: [{ paymentDate: 'desc' }, { bankRef: 'asc' }]
+      orderBy: [{ paymentDate: 'desc' }, { bankRef: 'asc' }],
+      ...(take ? { take } : {})
     })
 
     const rows = batches.map((batch) => {
