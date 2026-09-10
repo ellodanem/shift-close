@@ -165,6 +165,7 @@ function EditStaffPageInner() {
   const [loading, setLoading] = useState(true)
   const [loadingRoles, setLoadingRoles] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [shiftCount, setShiftCount] = useState(0)
@@ -466,6 +467,23 @@ function EditStaffPageInner() {
     }
   }
 
+  const handleDeleteStaff = async () => {
+    if (!confirm(`Are you sure you want to delete ${displayName}?`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/staff/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete staff')
+      }
+      router.push('/staff')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete staff')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const openVacationModal = () => {
     setVacationStart(formData.vacationStart || '')
     setVacationEnd(formData.vacationEnd || '')
@@ -635,6 +653,14 @@ function EditStaffPageInner() {
                 className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
               >
                 Back to list
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteStaff}
+                disabled={deleting}
+                className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded font-medium hover:bg-red-50 disabled:opacity-60"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

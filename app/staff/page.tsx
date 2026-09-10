@@ -23,17 +23,15 @@ function StaffTable({
   getRoleDisplayName,
   getRoleColor,
   getStatusColor,
-  onEdit,
-  onGenerate,
-  onDelete
+  onOpen,
+  onGenerate
 }: {
   members: Staff[]
   getRoleDisplayName: (member: Staff) => string
   getRoleColor: (roleName: string) => string
   getStatusColor: (status: string) => string
-  onEdit: (id: string) => void
+  onOpen: (id: string) => void
   onGenerate: (id: string) => void
-  onDelete: (id: string, name: string) => void
 }) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -59,15 +57,27 @@ function StaffTable({
               Device user ID
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
+              <span className="sr-only">Generate</span>
             </th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {members.map((member) => (
-            <tr key={member.id} className="hover:bg-gray-50">
+            <tr
+              key={member.id}
+              onClick={() => onOpen(member.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onOpen(member.id)
+                }
+              }}
+              tabIndex={0}
+              role="link"
+              className="hover:bg-gray-50 cursor-pointer focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+            >
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-gray-900">{member.name}</div>
+                <div className="text-sm font-medium text-blue-700 hover:text-blue-900">{member.name}</div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span
@@ -95,20 +105,15 @@ function StaffTable({
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
-                  onClick={() => onGenerate(member.id)}
-                  className="text-green-600 hover:text-green-900 mr-4"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onGenerate(member.id)
+                  }}
+                  className="text-green-600 hover:text-green-900"
                   title="Generate Document"
                 >
                   📄
-                </button>
-                <button onClick={() => onEdit(member.id)} className="text-blue-600 hover:text-blue-900 mr-4">
-                  Edit
-                </button>
-                <button
-                  onClick={() => onDelete(member.id, member.name)}
-                  className="text-red-600 hover:text-red-900"
-                >
-                  Delete
                 </button>
               </td>
             </tr>
@@ -204,30 +209,6 @@ export default function StaffPage() {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete ${name}?`)) {
-      return
-    }
-
-    try {
-      const res = await fetch(`/api/staff/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        alert(error.error || 'Failed to delete staff')
-        return
-      }
-
-      // Refresh the list
-      fetchStaff()
-    } catch (error) {
-      console.error('Error deleting staff:', error)
-      alert('Failed to delete staff')
-    }
-  }
-
   const getStatusColor = (status: string) => {
     return status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
   }
@@ -301,9 +282,8 @@ export default function StaffPage() {
             getRoleDisplayName={getRoleDisplayName}
             getRoleColor={getRoleColor}
             getStatusColor={getStatusColor}
-            onEdit={(id) => router.push(`/staff/${id}`)}
+            onOpen={(id) => router.push(`/staff/${id}`)}
             onGenerate={handleOpenGenerate}
-            onDelete={handleDelete}
           />
         )}
 
@@ -330,9 +310,8 @@ export default function StaffPage() {
                   getRoleDisplayName={getRoleDisplayName}
                   getRoleColor={getRoleColor}
                   getStatusColor={getStatusColor}
-                  onEdit={(id) => router.push(`/staff/${id}`)}
+                  onOpen={(id) => router.push(`/staff/${id}`)}
                   onGenerate={handleOpenGenerate}
-                  onDelete={handleDelete}
                 />
               </div>
             )}
