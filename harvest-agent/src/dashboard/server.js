@@ -59,6 +59,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       dashboardPort: cfg.dashboardPort,
       customerAccountsSchedule: cfg.customerAccountsSchedule,
       vendorInvoicesSchedule: cfg.vendorInvoicesSchedule,
+      fuelInvoicesSchedule: cfg.fuelInvoicesSchedule,
       agentSecretSet: hasStoredSecret() || !!cfg.agentSecret
     })
   })
@@ -95,6 +96,9 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
     if (body.vendorInvoicesSchedule !== undefined) {
       updates.vendorInvoicesSchedule = body.vendorInvoicesSchedule
     }
+    if (body.fuelInvoicesSchedule !== undefined) {
+      updates.fuelInvoicesSchedule = body.fuelInvoicesSchedule
+    }
 
     saveConfig(updates)
     Object.assign(config, loadConfig())
@@ -103,6 +107,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       slotHours: config.slotHours,
       customerAccountsSchedule: config.customerAccountsSchedule,
       vendorInvoicesSchedule: config.vendorInvoicesSchedule,
+      fuelInvoicesSchedule: config.fuelInvoicesSchedule,
       timeZone: config.timeZone,
       runOnStart: config.runOnStart
     }})
@@ -246,6 +251,27 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       })
       .catch((err) => {
         activityLog.add(`Vendor invoices error: ${err.message}`)
+      })
+    res.json({ ok: true, started: true })
+  })
+
+  app.post('/api/run-fuel-invoices', async (req, res) => {
+    if (!actions.runFuelInvoices) {
+      return res.status(501).json({ ok: false, error: 'Not available' })
+    }
+    if (isPaused()) {
+      return res.status(423).json({ ok: false, error: getPauseInfo()?.message || 'Agent is paused' })
+    }
+    const month = typeof req.body?.month === 'string' ? req.body.month : null
+    activityLog.add(
+      month ? `Manual fuel invoices triggered (${month})` : 'Manual fuel invoices triggered'
+    )
+    actions
+      .runFuelInvoices('manual-dashboard', {
+        ...(month ? { month } : {})
+      })
+      .catch((err) => {
+        activityLog.add(`Fuel invoices error: ${err.message}`)
       })
     res.json({ ok: true, started: true })
   })

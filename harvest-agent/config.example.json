@@ -26,5 +26,14 @@
     "dayOfMonth": 2,
     "monthScope": "previous",
     "all": true
+  },
+  "fuelInvoicesSchedule": {
+    "frequency": "off",
+    "hour": 10,
+    "minute": 0,
+    "daysOfWeek": [2],
+    "dayOfMonth": 2,
+    "monthScope": "current",
+    "all": true
   }
 }

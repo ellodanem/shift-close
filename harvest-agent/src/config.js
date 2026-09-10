@@ -48,6 +48,16 @@ const DEFAULTS = {
     dayOfMonth: 2,
     monthScope: 'previous',
     all: true
+  },
+  fuelInvoicesSchedule: {
+    frequency: 'off',
+    enabled: false,
+    hour: 10,
+    minute: 0,
+    daysOfWeek: [2],
+    dayOfMonth: 2,
+    monthScope: 'current',
+    all: true
   }
 }
 
@@ -157,6 +167,10 @@ function loadConfig() {
     vendorInvoicesSchedule: normalizeJobSchedule(
       fileConfig.vendorInvoicesSchedule,
       DEFAULTS.vendorInvoicesSchedule
+    ),
+    fuelInvoicesSchedule: normalizeJobSchedule(
+      fileConfig.fuelInvoicesSchedule,
+      DEFAULTS.fuelInvoicesSchedule
     ),
     agentSecretSet: Boolean(agentSecret) || hasStoredSecret()
   }

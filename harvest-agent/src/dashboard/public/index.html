@@ -105,6 +105,7 @@
         <button type="button" class="btn btn-primary" id="btnKeepalive">Run keep-alive now</button>
         <button type="button" class="btn btn-outline" id="btnCustomers">Run customer accounts</button>
         <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
+        <button type="button" class="btn btn-outline" id="btnFuelInvoices">Run fuel invoices</button>
       </div>
       <div class="grid2" style="margin-top:14px">
         <div class="field">
@@ -211,6 +212,46 @@
         <select id="vendScope">
           <option value="previous">Previous calendar month</option>
           <option value="current">Current calendar month</option>
+        </select>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Fuel invoices (Gas Delivery unpaid)</h3>
+      <div class="grid2">
+        <div class="field">
+          <label for="fuelFreq">Frequency</label>
+          <select id="fuelFreq">
+            <option value="off">Off</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="fuelHour" type="number" min="0" max="23" placeholder="Hour" />
+            <input id="fuelMinute" type="number" min="0" max="59" placeholder="Min" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="fuelWeeklyRow" style="display:none">
+        <label>Days of week</label>
+        <div class="dow" id="fuelDow"></div>
+      </div>
+      <div class="grid2" id="fuelMonthlyRow" style="display:none">
+        <div class="field">
+          <label for="fuelDay">Day of month (1–28)</label>
+          <input id="fuelDay" type="number" min="1" max="28" />
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="field">
+        <label for="fuelScope">Harvest which month’s data</label>
+        <select id="fuelScope">
+          <option value="current">Current calendar month</option>
+          <option value="previous">Previous calendar month</option>
         </select>
       </div>
 
@@ -371,6 +412,7 @@
 
       fillJobSchedule('cust', cfg.customerAccountsSchedule)
       fillJobSchedule('vend', cfg.vendorInvoicesSchedule)
+      fillJobSchedule('fuel', cfg.fuelInvoicesSchedule)
 
       const badge = $('secretBadge')
       if (cfg.agentSecretSet) {
@@ -427,11 +469,13 @@
       $('btnKeepalive').disabled = disabled
       $('btnCustomers').disabled = disabled
       $('btnVendorInvoices').disabled = disabled
+      $('btnFuelInvoices').disabled = disabled
       $('btnResume').disabled = !s.paused
     }
 
     $('custFreq').onchange = () => syncJobRows('cust')
     $('vendFreq').onchange = () => syncJobRows('vend')
+    $('fuelFreq').onchange = () => syncJobRows('fuel')
 
     $('btnTestConnection').onclick = async () => {
       try {
@@ -462,11 +506,15 @@
       try {
         const cust = readJobSchedule('cust')
         const vend = readJobSchedule('vend')
+        const fuel = readJobSchedule('fuel')
         if (cust.frequency === 'weekly' && cust.daysOfWeek.length === 0) {
           return toast('Pick at least one weekday for customer accounts', false)
         }
         if (vend.frequency === 'weekly' && vend.daysOfWeek.length === 0) {
           return toast('Pick at least one weekday for vendor invoices', false)
+        }
+        if (fuel.frequency === 'weekly' && fuel.daysOfWeek.length === 0) {
+          return toast('Pick at least one weekday for fuel invoices', false)
         }
         await api('/api/config', {
           method: 'POST',
@@ -475,7 +523,8 @@
             slotHoursText: $('slotHoursText').value.trim(),
             runOnStart: $('runOnStart').checked,
             customerAccountsSchedule: cust,
-            vendorInvoicesSchedule: vend
+            vendorInvoicesSchedule: vend,
+            fuelInvoicesSchedule: fuel
           })
         })
         toast('Schedule saved — takes effect immediately')
@@ -560,6 +609,19 @@
           })
         })
         toast(vendor ? `Vendor invoices job started (${vendor})` : 'Vendor invoices job started (all)')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnFuelInvoices').onclick = async () => {
+      try {
+        const month = $('monthKey').value.trim()
+        await api('/api/run-fuel-invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(month ? { month } : {})
+        })
+        toast('Fuel invoices job started (unpaid gas deliveries)')
         await refresh()
       } catch (e) { toast(e.message, false) }
     }

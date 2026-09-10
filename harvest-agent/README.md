@@ -12,8 +12,11 @@ This is **not** the ZKTeco attendance agent in `agent/`. It runs on a dedicated 
 | `cstore_keepalive` | On start, then 7:00 and 19:00 America/St_Lucia | Pass if the Cstore dashboard is visible |
 | `customer_accounts` | Manual or CLI | Imports customer credit reports into Shift Close |
 | `vendor_invoices` | Manual or CLI | Scrapes Grocery → Purchases → Invoices and adds invoices in Shift Close |
+| `fuel_invoices` | Manual or CLI | Scrapes Gas → Delivery (unpaid only), reads B.O.L via Edit, adds **Fuel** invoices |
 
 Vendor invoices have no export. The agent selects a vendor and month, reads the table (including pagination), and posts rows to Shift Close. Existing invoices (same vendor, number, date, and amount) are skipped. If a vendor reuses an invoice number, a letter is appended (`2062886A`) and that mapping is included in the harvest summary email. VAT-registered vendors in Shift Close split the Cstore amount using the global VAT rate; new Cstore-only vendors are created with VAT off.
+
+Fuel invoices come from **Gas → Delivery**, not grocery vendor invoices. Only **Un-Paid** deliveries are imported as type **Fuel**. The invoice number is the B.O.L from the Edit modal. Numbers already in Fuel Payments (any status) are skipped. Rubis West Indies grocery rows remain skipped on the vendor job.
 
 Cstore passwords stay in the local Chrome profile (`user-data/`). They are not stored in Shift Close. The **harvest secret** is stored encrypted on this PC (Windows DPAPI or Electron safeStorage) — enter it once in the dashboard; it cannot be viewed afterward.
 
@@ -74,6 +77,7 @@ All times use `timeZone` (default `America/St_Lucia`). Configure in the dashboar
 | Cstore keep-alive | Daily at listed hours (`slotHours`), optional on start |
 | Customer accounts | Off / Daily / Weekly (pick weekdays) / Monthly (day 1–28), plus time and which data month |
 | Vendor invoices | Same as customer accounts |
+| Fuel invoices | Same; defaults to **current** month (unpaid gas deliveries) |
 
 Examples: weekly **Tue at 16:00** current month; monthly **day 2 at 08:00** previous month. The agent process must stay running.
 

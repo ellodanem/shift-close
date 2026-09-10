@@ -216,6 +216,10 @@ function describeVendorSchedule(schedule, timeZone) {
   return describeJobSchedule('Vendor invoices', schedule, timeZone)
 }
 
+function describeFuelSchedule(schedule, timeZone) {
+  return describeJobSchedule('Fuel invoices', schedule, timeZone)
+}
+
 module.exports = {
   WEEKDAY_NAMES,
   zonedParts,
@@ -232,5 +236,6 @@ module.exports = {
   scheduleMatchesNow,
   describeCustomerSchedule,
   describeVendorSchedule,
+  describeFuelSchedule,
   describeJobSchedule
 }

@@ -31,6 +31,7 @@ async function pageLooksLoggedIn(page) {
   const path = urlPathname(url)
   if (path.includes('customercreditreport')) return true
   if (path.includes('grocerypurchase') || path.includes('purchaseinvoice')) return true
+  if (path.includes('gasdelivery') || path.includes('gas/delivery')) return true
   if (path.includes('taskdashboard') || path.includes('/content/tasks')) return true
 
   const body = ((await page.locator('body').innerText().catch(() => '')) || '').toLowerCase()
@@ -41,6 +42,7 @@ async function pageLooksLoggedIn(page) {
     body.includes('task dashboard') ||
     body.includes('customer account report') ||
     body.includes('manage purchases') ||
+    body.includes("your store's delivery list") ||
     body.includes('critical tasks')
   ) {
     return true
