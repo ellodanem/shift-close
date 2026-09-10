@@ -590,105 +590,99 @@ function EditStaffPageInner() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto">
-        <nav className="mb-4 text-sm text-gray-500" aria-label="Breadcrumb">
-          <ol className="flex flex-wrap items-center gap-1.5">
-            <li>
-              <Link href="/staff" className="text-blue-600 hover:text-blue-800">
-                Staff
-              </Link>
-            </li>
-            <li aria-hidden="true">›</li>
-            <li className="text-gray-700 font-medium truncate max-w-[min(100%,20rem)]">{displayName}</li>
-          </ol>
-        </nav>
+    <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 z-20 border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-4 sm:pt-6">
+          <nav className="mb-3 text-sm text-gray-500" aria-label="Breadcrumb">
+            <ol className="flex flex-wrap items-center gap-1.5">
+              <li>
+                <Link href="/staff" className="text-blue-600 hover:text-blue-800">
+                  Staff
+                </Link>
+              </li>
+              <li aria-hidden="true">›</li>
+              <li className="text-gray-700 font-medium truncate max-w-[min(100%,20rem)]">{displayName}</li>
+            </ol>
+          </nav>
 
-        {/* Identity header */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-5 sm:px-6 mb-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-4 min-w-0">
-              <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-semibold text-slate-700"
-                aria-hidden
-              >
-                {initialsFor(formData.firstName, formData.lastName, displayName)}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
-                  <span
-                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                      statusActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {statusActive ? 'Active' : 'Inactive'}
-                  </span>
-                  {onVacation && (
-                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
-                      On vacation
-                    </span>
-                  )}
-                  {formData.punchExempt && (
-                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
-                      Punch exempt
-                    </span>
-                  )}
+          {/* Identity header */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-4 sm:px-6 mb-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-4 min-w-0">
+                <div
+                  className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-semibold text-slate-700"
+                  aria-hidden
+                >
+                  {initialsFor(formData.firstName, formData.lastName, displayName)}
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-                  {selectedRole && (
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
                     <span
-                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
-                      style={{ backgroundColor: selectedRole.badgeColor || '#64748b' }}
+                      className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                        statusActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                      }`}
                     >
-                      {selectedRole.name}
+                      {statusActive ? 'Active' : 'Inactive'}
                     </span>
-                  )}
-                  {formData.startDate && <span>Started {formData.startDate}</span>}
-                  {formData.deviceUserId && (
-                    <span className="font-mono tabular-nums">Device #{formData.deviceUserId}</span>
-                  )}
+                    {onVacation && (
+                      <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                        On vacation
+                      </span>
+                    )}
+                    {formData.punchExempt && (
+                      <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
+                        Punch exempt
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                    {selectedRole && (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                        style={{ backgroundColor: selectedRole.badgeColor || '#64748b' }}
+                      >
+                        {selectedRole.name}
+                      </span>
+                    )}
+                    {formData.startDate && <span>Started {formData.startDate}</span>}
+                    {formData.deviceUserId && (
+                      <span className="font-mono tabular-nums">Device #{formData.deviceUserId}</span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
-              {(activeTab === 'profile' || activeTab === 'attendance' || activeTab === 'payroll') &&
-                !editing && (
-                  <button
-                    type="button"
-                    onClick={startEditing}
-                    className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
-                  >
-                    Edit
-                  </button>
-                )}
-              <button
-                type="button"
-                onClick={() => router.push('/staff')}
-                className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
-              >
-                Back to list
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteStaff}
-                disabled={deleting}
-                className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded font-medium hover:bg-red-50 disabled:opacity-60"
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {(activeTab === 'profile' || activeTab === 'attendance' || activeTab === 'payroll') &&
+                  !editing && (
+                    <button
+                      type="button"
+                      onClick={startEditing}
+                      className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
+                    >
+                      Edit
+                    </button>
+                  )}
+                <button
+                  type="button"
+                  onClick={() => router.push('/staff')}
+                  className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
+                >
+                  Back to list
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteStaff}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded font-medium hover:bg-red-50 disabled:opacity-60"
+                >
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {shiftCount > 0 && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-            This staff member is referenced by {shiftCount} shift(s). Changes will affect future shifts only.
-          </div>
-        )}
-
-        {/* Section tabs */}
-        <div className="border-b border-gray-200 mb-4">
+          {/* Section tabs */}
           <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Staff profile sections">
             {visibleTabs.map((tab) => {
               const isActive = activeTab === tab.id
@@ -710,6 +704,14 @@ function EditStaffPageInner() {
             })}
           </nav>
         </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-6">
+        {shiftCount > 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+            This staff member is referenced by {shiftCount} shift(s). Changes will affect future shifts only.
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
