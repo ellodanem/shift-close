@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from '../DocumentGenerationModal'
 import { businessTodayYmd } from '@/lib/datetime-policy'
+import { useAuth } from '@/app/components/AuthContext'
 
 interface Staff {
   id: string
@@ -70,10 +71,75 @@ interface StaffCallOut {
   recordedByLabel?: string | null
 }
 
-export default function EditStaffPage() {
+type StaffTab = 'profile' | 'time-off' | 'documents' | 'attendance' | 'payroll'
+
+const STAFF_TABS: { id: StaffTab; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'time-off', label: 'Time off' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'attendance', label: 'Attendance' },
+  { id: 'payroll', label: 'Payroll' }
+]
+
+function parseStaffTab(value: string | null): StaffTab {
+  if (value === 'time-off' || value === 'documents' || value === 'attendance' || value === 'payroll') {
+    return value
+  }
+  return 'profile'
+}
+
+function FieldDisplay({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dd className="mt-0.5 text-sm text-gray-900 break-words">{value || '—'}</dd>
+    </div>
+  )
+}
+
+function initialsFor(firstName: string, lastName: string, fallback: string) {
+  const a = firstName.trim().charAt(0)
+  const b = lastName.trim().charAt(0)
+  const initials = `${a}${b}`.toUpperCase()
+  if (initials.trim()) return initials
+  return fallback.trim().charAt(0).toUpperCase() || '?'
+}
+
+function documentTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    'sick-leave': 'Sick Leave',
+    contract: 'Contract',
+    id: 'ID/Passport',
+    other: 'Other'
+  }
+  return labels[type] || type
+}
+
+function formatShortDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
+
+function EditStaffPageInner() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const id = params.id as string
+  const { canViewStaffSensitive } = useAuth()
+
+  const activeTab = parseStaffTab(searchParams.get('tab'))
+  const setActiveTab = (tab: StaffTab) => {
+    const next = new URLSearchParams(searchParams.toString())
+    if (tab === 'profile') next.delete('tab')
+    else next.set('tab', tab)
+    const qs = next.toString()
+    router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
+    setEditing(false)
+    setError(null)
+  }
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -98,6 +164,7 @@ export default function EditStaffPage() {
   const [loading, setLoading] = useState(true)
   const [loadingRoles, setLoadingRoles] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [shiftCount, setShiftCount] = useState(0)
   const [documents, setDocuments] = useState<StaffDocument[]>([])
@@ -123,34 +190,50 @@ export default function EditStaffPage() {
   const [vacationEnd, setVacationEnd] = useState('')
   const [savingVacation, setSavingVacation] = useState(false)
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
+  const [formSnapshot, setFormSnapshot] = useState<typeof formData | null>(null)
+
+  const selectedRole = useMemo(
+    () => roles.find((r) => r.id === formData.roleId) ?? null,
+    [roles, formData.roleId]
+  )
+
+  const visibleTabs = useMemo(
+    () => STAFF_TABS.filter((tab) => tab.id !== 'payroll' || canViewStaffSensitive),
+    [canViewStaffSensitive]
+  )
 
   useEffect(() => {
-    // Fetch available roles first
+    if (activeTab === 'payroll' && !canViewStaffSensitive) {
+      const next = new URLSearchParams(searchParams.toString())
+      next.delete('tab')
+      const qs = next.toString()
+      router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
+    }
+  }, [activeTab, canViewStaffSensitive, id, router, searchParams])
+
+  useEffect(() => {
     fetch('/api/staff-roles')
-      .then(res => res.json())
+      .then((res) => res.json())
       .then((data: StaffRole[]) => {
         setRoles(data)
         setLoadingRoles(false)
-        // Then fetch staff data
         fetchStaff()
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error fetching roles:', err)
         setLoadingRoles(false)
         fetchStaff()
       })
-    
+
     fetchDocuments()
     fetchDayOffs()
     fetchCallOuts()
     fetchSickLeaves()
-    
-    // Check if generate parameter is in URL - show template selection modal instead of auto-generating
+
     const params = new URLSearchParams(window.location.search)
     const generate = params.get('generate')
     if (generate) {
       setShowTemplateSelection(true)
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [id])
@@ -192,9 +275,7 @@ export default function EditStaffPage() {
   }
 
   const sickLeaveCoversDate = (date: string) =>
-    sickLeaves.some(
-      (sl) => sl.status !== 'denied' && sl.startDate <= date && sl.endDate >= date
-    )
+    sickLeaves.some((sl) => sl.status !== 'denied' && sl.startDate <= date && sl.endDate >= date)
 
   const fetchSickLeaves = async () => {
     try {
@@ -310,7 +391,7 @@ export default function EditStaffPage() {
       const data: Staff = await res.json()
       const first = data.firstName ?? (data.name ? data.name.split(' ')[0] ?? '' : '')
       const last = data.lastName ?? (data.name ? data.name.split(' ').slice(1).join(' ') ?? '' : '')
-      setFormData({
+      const next = {
         firstName: first,
         lastName: last,
         dateOfBirth: data.dateOfBirth || '',
@@ -327,7 +408,8 @@ export default function EditStaffPage() {
         vacationStart: (data as any).vacationStart || '',
         vacationEnd: (data as any).vacationEnd || '',
         punchExempt: (data as any).punchExempt === true
-      })
+      }
+      setFormData(next)
       setShiftCount(data._count?.shifts || 0)
     } catch (error) {
       console.error('Error fetching staff:', error)
@@ -335,6 +417,19 @@ export default function EditStaffPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const startEditing = () => {
+    setFormSnapshot({ ...formData })
+    setEditing(true)
+    setError(null)
+  }
+
+  const cancelEditing = () => {
+    if (formSnapshot) setFormData(formSnapshot)
+    setFormSnapshot(null)
+    setEditing(false)
+    setError(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -360,7 +455,9 @@ export default function EditStaffPage() {
         throw new Error(errorData.error || 'Failed to update staff')
       }
 
-      router.push('/staff')
+      setFormSnapshot(null)
+      setEditing(false)
+      await fetchStaff()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update staff')
     } finally {
@@ -421,6 +518,9 @@ export default function EditStaffPage() {
   const isPdfFile = (url: string, fileName: string) =>
     url.toLowerCase().includes('.pdf') || fileName.toLowerCase().endsWith('.pdf')
 
+  const inputClass =
+    'w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -429,114 +529,304 @@ export default function EditStaffPage() {
     )
   }
 
+  const statusActive = formData.status === 'active'
+  const onVacation =
+    !!formData.vacationStart &&
+    !!formData.vacationEnd &&
+    formData.vacationStart <= businessTodayYmd() &&
+    formData.vacationEnd >= businessTodayYmd()
+
+  const editFooter = (
+    <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+      <button
+        type="button"
+        onClick={cancelEditing}
+        className="px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        disabled={saving}
+        className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+      >
+        {saving ? 'Saving...' : 'Save changes'}
+      </button>
+    </div>
+  )
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Edit Staff Member</h1>
-          <button
-            onClick={() => router.push('/staff')}
-            className="px-4 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
-          >
-            Cancel
-          </button>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+      <div className="max-w-6xl mx-auto">
+        <nav className="mb-4 text-sm text-gray-500" aria-label="Breadcrumb">
+          <ol className="flex flex-wrap items-center gap-1.5">
+            <li>
+              <Link href="/staff" className="text-blue-600 hover:text-blue-800">
+                Staff
+              </Link>
+            </li>
+            <li aria-hidden="true">›</li>
+            <li className="text-gray-700 font-medium truncate max-w-[min(100%,20rem)]">{displayName}</li>
+          </ol>
+        </nav>
+
+        {/* Identity header */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-5 sm:px-6 mb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-4 min-w-0">
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-semibold text-slate-700"
+                aria-hidden
+              >
+                {initialsFor(formData.firstName, formData.lastName, displayName)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                      statusActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {statusActive ? 'Active' : 'Inactive'}
+                  </span>
+                  {onVacation && (
+                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                      On vacation
+                    </span>
+                  )}
+                  {formData.punchExempt && (
+                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
+                      Punch exempt
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                  {selectedRole && (
+                    <span
+                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                      style={{ backgroundColor: selectedRole.badgeColor || '#64748b' }}
+                    >
+                      {selectedRole.name}
+                    </span>
+                  )}
+                  {formData.startDate && <span>Started {formData.startDate}</span>}
+                  {formData.deviceUserId && (
+                    <span className="font-mono tabular-nums">Device #{formData.deviceUserId}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {(activeTab === 'profile' || activeTab === 'attendance' || activeTab === 'payroll') &&
+                !editing && (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
+                  >
+                    Edit
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={() => router.push('/staff')}
+                className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
+              >
+                Back to list
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Shift Count Warning */}
         {shiftCount > 0 && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-yellow-800">
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
             This staff member is referenced by {shiftCount} shift(s). Changes will affect future shifts only.
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {/* First name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                First name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="First name"
-              />
-            </div>
-            {/* Last name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Last name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Last name"
-              />
-            </div>
-
-            {/* Role */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role <span className="text-red-500">*</span>
-              </label>
-              {loadingRoles ? (
-                <div className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-500">
-                  Loading roles...
-                </div>
-              ) : (
-                <select
-                  required
-                  value={formData.roleId}
-                  onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        {/* Section tabs */}
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Staff profile sections">
+            {visibleTabs.map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${
+                    isActive
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
                 >
-                  {roles.length === 0 && (
-                    <option value="">No roles available</option>
-                  )}
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+                  {tab.label}
+                  {tab.id === 'documents' && documents.length > 0 ? ` (${documents.length})` : ''}
+                </button>
+              )
+            })}
+          </nav>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>
+        )}
+
+        {/* Profile */}
+        {activeTab === 'profile' && (
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-gray-900">Personal & role</h2>
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
+            {editing ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
+                    <input
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      className={inputClass}
+                      placeholder="Home address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mobile (WhatsApp)</label>
+                    <input
+                      type="tel"
+                      value={formData.mobileNumber}
+                      onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. +1 242 555 1234"
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">Used for roster WhatsApp links. Include country code.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role <span className="text-red-500">*</span>
+                    </label>
+                    {loadingRoles ? (
+                      <div className={`${inputClass} bg-gray-50 text-gray-500`}>Loading roles...</div>
+                    ) : (
+                      <select
+                        required
+                        value={formData.roleId}
+                        onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
+                        className={inputClass}
+                      >
+                        {roles.length === 0 && <option value="">No roles available</option>}
+                        {roles.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Status <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <textarea
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      rows={3}
+                      className={inputClass}
+                      placeholder="Additional notes about this staff member"
+                    />
+                  </div>
+                </div>
+                {editFooter}
+              </>
+            ) : (
+              <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
+                <FieldDisplay label="First name" value={formData.firstName} />
+                <FieldDisplay label="Last name" value={formData.lastName} />
+                <FieldDisplay label="Date of birth" value={formData.dateOfBirth} />
+                <FieldDisplay label="Address" value={formData.address} />
+                <FieldDisplay label="Mobile (WhatsApp)" value={formData.mobileNumber} />
+                <FieldDisplay label="Role" value={selectedRole?.name} />
+                <FieldDisplay
+                  label="Status"
+                  value={statusActive ? 'Active' : 'Inactive'}
+                />
+                <FieldDisplay label="Start date" value={formData.startDate} />
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <FieldDisplay label="Notes" value={formData.notes || null} />
+                </div>
+              </dl>
+            )}
+          </form>
+        )}
 
-            {/* Vacation */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vacation
-              </label>
+        {/* Time off */}
+        {activeTab === 'time-off' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">Vacation</h2>
               {formData.vacationStart && formData.vacationEnd ? (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm text-gray-700">
@@ -552,596 +842,607 @@ export default function EditStaffPage() {
               <button
                 type="button"
                 onClick={openVacationModal}
-                className="mt-2 px-3 py-1.5 text-sm border border-amber-600 text-amber-700 rounded font-medium hover:bg-amber-50"
+                className="mt-3 px-3 py-1.5 text-sm border border-amber-600 text-amber-700 rounded font-medium hover:bg-amber-50"
               >
                 {formData.vacationStart && formData.vacationEnd ? 'Change vacation' : 'Set vacation'}
               </button>
             </div>
 
-            {/* Date of Birth */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Start Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Mobile (WhatsApp) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile (WhatsApp)
-              </label>
-              <input
-                type="tel"
-                value={formData.mobileNumber}
-                onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. +1 242 555 1234 or 12425551234"
-              />
-              <p className="text-xs text-gray-500 mt-0.5">Used to send roster via WhatsApp (wa.me). Include country code.</p>
-            </div>
-
-            {/* Address */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Address <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Home address"
-              />
-            </div>
-
-            {/* NIC Number */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                NIC Number
-              </label>
-              <input
-                type="text"
-                value={formData.nicNumber}
-                onChange={(e) => setFormData({ ...formData, nicNumber: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="National ID / NIC"
-              />
-            </div>
-
-            {/* Bank */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bank
-              </label>
-              <input
-                type="text"
-                value={formData.bankName}
-                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. BOSL"
-              />
-            </div>
-
-            {/* Account Number */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Account Number
-              </label>
-              <input
-                type="text"
-                value={formData.accountNumber}
-                onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Bank account number"
-              />
-            </div>
-
-            {/* Device User ID (ZKTeco attendance) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Device User ID (Attendance)
-              </label>
-              <input
-                type="text"
-                value={formData.deviceUserId}
-                onChange={(e) => setFormData({ ...formData, deviceUserId: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. 108 (matches ZKTeco device user ID)"
-              />
-              <p className="text-xs text-gray-500 mt-0.5">Links this staff to ZKTeco attendance device for clock in/out.</p>
-            </div>
-
-            <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.punchExempt}
-                  onChange={(e) => setFormData({ ...formData, punchExempt: e.target.checked })}
-                  className="mt-1 rounded border-gray-300"
-                />
-                <span>
-                  <span className="text-sm font-medium text-gray-900">Punch exemption (no clock)</span>
-                  <span className="block text-xs text-gray-600 mt-0.5">
-                    Exclude from pay period hours report. Present/absent treats them as present unless marked absent for
-                    the day.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Additional notes about this staff member"
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="mt-6 flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={() => router.push('/staff')}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-
-        {/* Call outs */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">Call outs</h2>
-            <Link href="/time-off?tab=call-outs" className="text-sm font-medium text-teal-700 hover:text-teal-900">
-              Log on Time Off page →
-            </Link>
-          </div>
-          <p className="text-xs text-gray-500 mb-4">
-            Phone log only — does not change hours. Sick leave on the same day is shown separately.
-          </p>
-          {callOuts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No call outs recorded.</p>
-          ) : (
-            <div className="space-y-2">
-              {[...callOuts].map((c) => {
-                const overlap = sickLeaveCoversDate(c.date)
-                return (
-                  <div
-                    key={c.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded border border-teal-100 bg-teal-50/50"
-                  >
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-gray-900">{c.date}</span>
-                      <span className="text-sm text-gray-500 ml-2">
-                        {new Date(c.calledAt).toLocaleString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                      {c.notes ? (
-                        <span className="text-sm text-gray-600 block truncate">{c.notes}</span>
-                      ) : null}
-                      {c.recordedByLabel ? (
-                        <span className="text-xs text-gray-400 block">Logged by {c.recordedByLabel}</span>
-                      ) : null}
-                    </div>
-                    {overlap ? (
-                      <span className="text-[10px] font-semibold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
-                        + sick leave
-                      </span>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Day Off Requests Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Day Off Requests</h2>
-
-          <div className="flex flex-wrap gap-3 items-end mb-5">
-            <div className="flex-1 min-w-[120px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input
-                type="date"
-                value={dayOffDate}
-                onChange={e => setDayOffDate(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="flex-1 min-w-[140px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input
-                type="text"
-                value={dayOffReason}
-                onChange={e => setDayOffReason(e.target.value)}
-                placeholder="e.g. Medical appointment"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!dayOffDate || savingDayOff}
-              onClick={async () => {
-                setSavingDayOff(true)
-                try {
-                  const res = await fetch(`/api/staff/${id}/day-off`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
-                  })
-                  if (res.ok) {
-                    setDayOffDate('')
-                    setDayOffReason('')
-                    fetchDayOffs()
-                  } else {
-                    alert('Failed to save day off request')
-                  }
-                } catch {
-                  alert('Failed to save day off request')
-                } finally {
-                  setSavingDayOff(false)
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
-            >
-              {savingDayOff ? 'Saving…' : '+ Add'}
-            </button>
-          </div>
-
-          {dayOffs.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No day off requests recorded.</p>
-          ) : (
-            <div className="space-y-2">
-              {[...dayOffs].sort((a, b) => b.date.localeCompare(a.date)).map(d => {
-                const isPast = d.date < businessTodayYmd()
-                const statusColors: Record<string, string> = {
-                  approved: 'bg-green-100 text-green-800',
-                  denied: 'bg-red-100 text-red-800',
-                  requested: 'bg-yellow-100 text-yellow-800'
-                }
-                return (
-                  <div key={d.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : 'border-blue-100 bg-blue-50'}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{d.date}</span>
-                      {d.reason && <span className="text-sm text-gray-500 truncate">{d.reason}</span>}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[d.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                        {d.status}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm('Remove this day off request?')) return
-                          try {
-                            await fetch(`/api/staff/day-off/${d.id}`, { method: 'DELETE' })
-                            fetchDayOffs()
-                          } catch {
-                            alert('Failed to delete')
-                          }
-                        }}
-                        className="text-gray-400 hover:text-red-600 text-sm leading-none"
-                        title="Remove"
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Call outs</h2>
+                <Link
+                  href="/time-off?tab=call-outs"
+                  className="text-sm font-medium text-teal-700 hover:text-teal-900"
+                >
+                  Log on Time Off page →
+                </Link>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                Phone log only — does not change hours. Sick leave on the same day is shown separately.
+              </p>
+              {callOuts.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No call outs recorded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {[...callOuts].map((c) => {
+                    const overlap = sickLeaveCoversDate(c.date)
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded border border-teal-100 bg-teal-50/50"
                       >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-900">{c.date}</span>
+                          <span className="text-sm text-gray-500 ml-2">
+                            {new Date(c.calledAt).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {c.notes ? (
+                            <span className="text-sm text-gray-600 block truncate">{c.notes}</span>
+                          ) : null}
+                          {c.recordedByLabel ? (
+                            <span className="text-xs text-gray-400 block">Logged by {c.recordedByLabel}</span>
+                          ) : null}
+                        </div>
+                        {overlap ? (
+                          <span className="text-[10px] font-semibold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
+                            + sick leave
+                          </span>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Sick Leave Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Sick Leave</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Day off requests</h2>
+              <div className="flex flex-wrap gap-3 items-end mb-5">
+                <div className="flex-1 min-w-[120px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={dayOffDate}
+                    onChange={(e) => setDayOffDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={dayOffReason}
+                    onChange={(e) => setDayOffReason(e.target.value)}
+                    placeholder="e.g. Medical appointment"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={!dayOffDate || savingDayOff}
+                  onClick={async () => {
+                    setSavingDayOff(true)
+                    try {
+                      const res = await fetch(`/api/staff/${id}/day-off`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ date: dayOffDate, reason: dayOffReason })
+                      })
+                      if (res.ok) {
+                        setDayOffDate('')
+                        setDayOffReason('')
+                        fetchDayOffs()
+                      } else {
+                        alert('Failed to save day off request')
+                      }
+                    } catch {
+                      alert('Failed to save day off request')
+                    } finally {
+                      setSavingDayOff(false)
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {savingDayOff ? 'Saving…' : '+ Add'}
+                </button>
+              </div>
 
-          <div className="flex flex-wrap gap-3 items-end mb-5">
-            <div className="min-w-[120px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-              <input
-                type="date"
-                value={sickLeaveStartDate}
-                onChange={e => setSickLeaveStartDate(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
+              {dayOffs.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No day off requests recorded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {[...dayOffs]
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .map((d) => {
+                      const isPast = d.date < businessTodayYmd()
+                      const statusColors: Record<string, string> = {
+                        approved: 'bg-green-100 text-green-800',
+                        denied: 'bg-red-100 text-red-800',
+                        requested: 'bg-yellow-100 text-yellow-800'
+                      }
+                      return (
+                        <div
+                          key={d.id}
+                          className={`flex items-center justify-between px-3 py-2 rounded border ${
+                            isPast ? 'border-gray-200 bg-gray-50' : 'border-blue-100 bg-blue-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                              {d.date}
+                            </span>
+                            {d.reason && <span className="text-sm text-gray-500 truncate">{d.reason}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                                statusColors[d.status] ?? 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {d.status}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm('Remove this day off request?')) return
+                                try {
+                                  await fetch(`/api/staff/day-off/${d.id}`, { method: 'DELETE' })
+                                  fetchDayOffs()
+                                } catch {
+                                  alert('Failed to delete')
+                                }
+                              }}
+                              className="text-gray-400 hover:text-red-600 text-sm leading-none"
+                              title="Remove"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
             </div>
-            <div className="min-w-[120px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-              <input
-                type="date"
-                value={sickLeaveEndDate}
-                onChange={e => setSickLeaveEndDate(e.target.value)}
-                min={sickLeaveStartDate}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="flex-1 min-w-[140px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input
-                type="text"
-                value={sickLeaveReason}
-                onChange={e => setSickLeaveReason(e.target.value)}
-                placeholder="e.g. Flu"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="min-w-[180px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor&apos;s note <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input
-                ref={sickLeaveDocInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.pdf"
-                onChange={e => setSickLeaveDocFile(e.target.files?.[0] ?? null)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-rose-50 file:text-rose-700"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!sickLeaveStartDate || savingSickLeave || !!(sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)}
-              onClick={async () => {
-                setSavingSickLeave(true)
-                try {
-                  const end = sickLeaveEndDate || sickLeaveStartDate
-                  const res = await fetch(`/api/staff/${id}/sick-leave`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ startDate: sickLeaveStartDate, endDate: end, reason: sickLeaveReason })
-                  })
-                  if (!res.ok) {
-                    alert('Failed to save sick leave')
-                    return
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Sick leave</h2>
+              <div className="flex flex-wrap gap-3 items-end mb-5">
+                <div className="min-w-[120px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                  <input
+                    type="date"
+                    value={sickLeaveStartDate}
+                    onChange={(e) => setSickLeaveStartDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="min-w-[120px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                  <input
+                    type="date"
+                    value={sickLeaveEndDate}
+                    onChange={(e) => setSickLeaveEndDate(e.target.value)}
+                    min={sickLeaveStartDate}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sickLeaveReason}
+                    onChange={(e) => setSickLeaveReason(e.target.value)}
+                    placeholder="e.g. Flu"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="min-w-[180px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Doctor&apos;s note <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    ref={sickLeaveDocInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    onChange={(e) => setSickLeaveDocFile(e.target.files?.[0] ?? null)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-rose-50 file:text-rose-700"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    !sickLeaveStartDate ||
+                    savingSickLeave ||
+                    !!(sickLeaveEndDate && sickLeaveEndDate < sickLeaveStartDate)
                   }
-                  const created = await res.json()
-                  if (sickLeaveDocFile) {
-                    await uploadSickLeaveDocument(created.id, sickLeaveDocFile)
-                  }
-                  setSickLeaveStartDate('')
-                  setSickLeaveEndDate('')
-                  setSickLeaveReason('')
-                  setSickLeaveDocFile(null)
-                  if (sickLeaveDocInputRef.current) sickLeaveDocInputRef.current.value = ''
-                  fetchSickLeaves()
-                  fetchDocuments()
-                } catch {
-                  alert('Failed to save sick leave')
-                } finally {
-                  setSavingSickLeave(false)
-                }
-              }}
-              className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-semibold hover:bg-rose-700 disabled:opacity-50 whitespace-nowrap"
-            >
-              {savingSickLeave ? 'Saving…' : '+ Add'}
-            </button>
-          </div>
+                  onClick={async () => {
+                    setSavingSickLeave(true)
+                    try {
+                      const end = sickLeaveEndDate || sickLeaveStartDate
+                      const res = await fetch(`/api/staff/${id}/sick-leave`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          startDate: sickLeaveStartDate,
+                          endDate: end,
+                          reason: sickLeaveReason
+                        })
+                      })
+                      if (!res.ok) {
+                        alert('Failed to save sick leave')
+                        return
+                      }
+                      const created = await res.json()
+                      if (sickLeaveDocFile) {
+                        await uploadSickLeaveDocument(created.id, sickLeaveDocFile)
+                      }
+                      setSickLeaveStartDate('')
+                      setSickLeaveEndDate('')
+                      setSickLeaveReason('')
+                      setSickLeaveDocFile(null)
+                      if (sickLeaveDocInputRef.current) sickLeaveDocInputRef.current.value = ''
+                      fetchSickLeaves()
+                      fetchDocuments()
+                    } catch {
+                      alert('Failed to save sick leave')
+                    } finally {
+                      setSavingSickLeave(false)
+                    }
+                  }}
+                  className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-semibold hover:bg-rose-700 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {savingSickLeave ? 'Saving…' : '+ Add'}
+                </button>
+              </div>
 
-          {sickLeaves.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No sick leave recorded.</p>
-          ) : (
-            <div className="space-y-2">
-              {[...sickLeaves].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(s => {
-                const isPast = s.endDate < businessTodayYmd()
-                const statusColors: Record<string, string> = {
-                  approved: 'bg-green-100 text-green-800',
-                  denied: 'bg-red-100 text-red-800',
-                  requested: 'bg-yellow-100 text-yellow-800'
-                }
-                const rangeLabel = s.startDate === s.endDate ? s.startDate : `${s.startDate} – ${s.endDate}`
-                return (
-                  <div key={s.id} className={`flex items-center justify-between px-3 py-2 rounded border ${isPast ? 'border-gray-200 bg-gray-50' : 'border-rose-200 bg-rose-50'}`}>
-                    <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                      <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{rangeLabel}</span>
-                      {s.reason && <span className="text-sm text-gray-500 truncate">{s.reason}</span>}
-                      {s.documents && s.documents.length > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {s.documents.map((doc) => (
-                            <div key={doc.id} className="inline-flex items-center gap-1">
-                              <a
-                                href={doc.fileUrl}
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  setPreviewDocument({ fileName: doc.fileName, fileUrl: doc.fileUrl })
-                                }}
-                                className="text-sm text-rose-700 hover:text-rose-900 underline"
-                              >
-                                📄 {doc.fileName}
-                              </a>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!confirm('Delete this sick leave document?')) return
+              {sickLeaves.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No sick leave recorded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {[...sickLeaves]
+                    .sort((a, b) => b.startDate.localeCompare(a.startDate))
+                    .map((s) => {
+                      const isPast = s.endDate < businessTodayYmd()
+                      const statusColors: Record<string, string> = {
+                        approved: 'bg-green-100 text-green-800',
+                        denied: 'bg-red-100 text-red-800',
+                        requested: 'bg-yellow-100 text-yellow-800'
+                      }
+                      const rangeLabel =
+                        s.startDate === s.endDate ? s.startDate : `${s.startDate} – ${s.endDate}`
+                      return (
+                        <div
+                          key={s.id}
+                          className={`flex items-center justify-between px-3 py-2 rounded border ${
+                            isPast ? 'border-gray-200 bg-gray-50' : 'border-rose-200 bg-rose-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                            <span className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                              {rangeLabel}
+                            </span>
+                            {s.reason && <span className="text-sm text-gray-500 truncate">{s.reason}</span>}
+                            {s.documents && s.documents.length > 0 && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {s.documents.map((doc) => (
+                                  <div key={doc.id} className="inline-flex items-center gap-1">
+                                    <a
+                                      href={doc.fileUrl}
+                                      onClick={(e) => {
+                                        e.preventDefault()
+                                        setPreviewDocument({
+                                          fileName: doc.fileName,
+                                          fileUrl: doc.fileUrl
+                                        })
+                                      }}
+                                      className="text-sm text-rose-700 hover:text-rose-900 underline"
+                                    >
+                                      {doc.fileName}
+                                    </a>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!confirm('Delete this sick leave document?')) return
+                                        try {
+                                          const res = await fetch(
+                                            `/api/staff/${id}/sick-leave/${s.id}/documents?documentId=${doc.id}`,
+                                            { method: 'DELETE' }
+                                          )
+                                          if (!res.ok) throw new Error('Delete failed')
+                                          fetchSickLeaves()
+                                        } catch {
+                                          alert('Failed to delete sick leave document')
+                                        }
+                                      }}
+                                      className="text-xs text-red-600 hover:text-red-800"
+                                      title="Delete document"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <label className="text-xs text-rose-700 hover:text-rose-900 underline cursor-pointer">
+                              {uploadingSickLeaveDocId === s.id ? 'Uploading…' : 'Add doc'}
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,.pdf"
+                                className="hidden"
+                                disabled={uploadingSickLeaveDocId === s.id}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  e.currentTarget.value = ''
+                                  if (!file) return
+                                  setUploadingSickLeaveDocId(s.id)
                                   try {
-                                    const res = await fetch(
-                                      `/api/staff/${id}/sick-leave/${s.id}/documents?documentId=${doc.id}`,
-                                      { method: 'DELETE' }
-                                    )
-                                    if (!res.ok) throw new Error('Delete failed')
+                                    await uploadSickLeaveDocument(s.id, file)
                                     fetchSickLeaves()
-                                  } catch {
-                                    alert('Failed to delete sick leave document')
+                                    fetchDocuments()
+                                  } catch (err) {
+                                    alert(
+                                      err instanceof Error
+                                        ? err.message
+                                        : 'Failed to upload sick leave document'
+                                    )
+                                  } finally {
+                                    setUploadingSickLeaveDocId(null)
                                   }
                                 }}
-                                className="text-xs text-red-600 hover:text-red-800"
-                                title="Delete document"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
+                              />
+                            </label>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                                statusColors[s.status] ?? 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {s.status}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm('Remove this sick leave record?')) return
+                                try {
+                                  await fetch(`/api/staff/sick-leave/${s.id}`, { method: 'DELETE' })
+                                  fetchSickLeaves()
+                                } catch {
+                                  alert('Failed to delete')
+                                }
+                              }}
+                              className="text-gray-400 hover:text-red-600 text-sm leading-none"
+                              title="Remove"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <label className="text-xs text-rose-700 hover:text-rose-900 underline cursor-pointer">
-                        {uploadingSickLeaveDocId === s.id ? 'Uploading…' : 'Add doc'}
-                        <input
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          disabled={uploadingSickLeaveDocId === s.id}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0]
-                            e.currentTarget.value = ''
-                            if (!file) return
-                            setUploadingSickLeaveDocId(s.id)
-                            try {
-                              await uploadSickLeaveDocument(s.id, file)
-                              fetchSickLeaves()
-                              fetchDocuments()
-                            } catch (err) {
-                              alert(err instanceof Error ? err.message : 'Failed to upload sick leave document')
-                            } finally {
-                              setUploadingSickLeaveDocId(null)
-                            }
-                          }}
-                        />
-                      </label>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[s.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                        {s.status}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm('Remove this sick leave record?')) return
-                          try {
-                            await fetch(`/api/staff/sick-leave/${s.id}`, { method: 'DELETE' })
-                            fetchSickLeaves()
-                          } catch {
-                            alert('Failed to delete')
-                          }
-                        }}
-                        className="text-gray-400 hover:text-red-600 text-sm leading-none"
-                        title="Remove"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Documents Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">Documents</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowTemplateSelection(true)}
-                className="px-3 py-1.5 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
-              >
-                Generate Document
-              </button>
+                      )
+                    })}
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          <StaffDocumentUpload
+        {/* Documents */}
+        {activeTab === 'documents' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Documents{documents.length > 0 ? ` (${documents.length})` : ''}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowTemplateSelection(true)}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700"
+              >
+                + Generate document
+              </button>
+            </div>
+
+            <StaffDocumentUpload
               staffId={id}
-              onUploadComplete={() => { fetchDocuments(); fetchSickLeaves() }}
+              onUploadComplete={() => {
+                fetchDocuments()
+                fetchSickLeaves()
+              }}
             />
 
-          {documents.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {documents.map((doc) => {
-                const getTypeLabel = (type: string) => {
-                  const labels: Record<string, string> = {
-                    'sick-leave': 'Sick Leave',
-                    'contract': 'Contract',
-                    'id': 'ID/Passport',
-                    'other': 'Other'
-                  }
-                  return labels[type] || type
-                }
+            {documents.length > 0 && (
+              <div className="mt-5 overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Uploaded
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {documents.map((doc) => (
+                      <tr key={doc.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewDocument({ fileName: doc.fileName, fileUrl: doc.fileUrl })
+                            }
+                            className="text-left text-blue-600 hover:text-blue-800"
+                          >
+                            {doc.fileName}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {documentTypeLabel(doc.type)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                          {formatShortDate(doc.uploadedAt)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 mr-3"
+                          >
+                            Open
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
-                const formatDate = (dateStr: string) => {
-                  return new Date(dateStr).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })
-                }
-
-                return (
-                  <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">
-                        {doc.fileUrl.endsWith('.pdf') ? '📄' : '🖼️'}
-                      </span>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{doc.fileName}</div>
-                        <div className="text-xs text-gray-500">
-                          {getTypeLabel(doc.type)} • Uploaded {formatDate(doc.uploadedAt)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        View
-                      </a>
-                      <button
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
+        {/* Attendance */}
+        {activeTab === 'attendance' && (
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-gray-900 mb-5">Attendance</h2>
+            {editing ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Device user ID
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.deviceUserId}
+                      onChange={(e) => setFormData({ ...formData, deviceUserId: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 108"
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Links this staff to ZKTeco attendance device for clock in/out.
+                    </p>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 sm:col-span-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.punchExempt}
+                        onChange={(e) =>
+                          setFormData({ ...formData, punchExempt: e.target.checked })
+                        }
+                        className="mt-1 rounded border-gray-300"
+                      />
+                      <span>
+                        <span className="text-sm font-medium text-gray-900">
+                          Punch exemption (no clock)
+                        </span>
+                        <span className="block text-xs text-gray-600 mt-0.5">
+                          Exclude from pay period hours report. Present/absent treats them as present
+                          unless marked absent for the day.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                {editFooter}
+              </>
+            ) : (
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                <FieldDisplay label="Device user ID" value={formData.deviceUserId || null} />
+                <FieldDisplay
+                  label="Punch exemption"
+                  value={formData.punchExempt ? 'Yes — no clock required' : 'No'}
+                />
+              </dl>
+            )}
+          </form>
+        )}
+
+        {/* Payroll */}
+        {activeTab === 'payroll' && canViewStaffSensitive && (
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-gray-900 mb-5">Payroll</h2>
+            {editing ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NIC number</label>
+                    <input
+                      type="text"
+                      value={formData.nicNumber}
+                      onChange={(e) => setFormData({ ...formData, nicNumber: e.target.value })}
+                      className={inputClass}
+                      placeholder="National ID / NIC"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
+                    <input
+                      type="text"
+                      value={formData.bankName}
+                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. BOSL"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Account number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.accountNumber}
+                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                      className={inputClass}
+                      placeholder="Bank account number"
+                    />
+                  </div>
+                </div>
+                {editFooter}
+              </>
+            ) : (
+              <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
+                <FieldDisplay label="NIC number" value={formData.nicNumber || null} />
+                <FieldDisplay label="Bank" value={formData.bankName || null} />
+                <FieldDisplay label="Account number" value={formData.accountNumber || null} />
+              </dl>
+            )}
+          </form>
+        )}
       </div>
 
-      {/* Template Selection Modal */}
       {showTemplateSelection && (
         <DocumentGenerationModal
           staffId={id}
@@ -1151,13 +1452,14 @@ export default function EditStaffPage() {
         />
       )}
 
-      {/* Document Generation Modal */}
       {showGenerateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1).replace('-', ' ')} - {displayName}
+                {selectedTemplate.charAt(0).toUpperCase() +
+                  selectedTemplate.slice(1).replace('-', ' ')}{' '}
+                - {displayName}
               </h3>
               <button
                 onClick={() => setShowGenerateModal(false)}
@@ -1190,7 +1492,6 @@ export default function EditStaffPage() {
         </div>
       )}
 
-      {/* Vacation Modal */}
       {showVacationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
@@ -1249,12 +1550,13 @@ export default function EditStaffPage() {
         </div>
       )}
 
-      {/* Sick Leave Document Preview Modal */}
       {previewDocument && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-4 max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col shadow-xl">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-base font-semibold text-gray-900 truncate">{previewDocument.fileName}</h3>
+              <h3 className="text-base font-semibold text-gray-900 truncate">
+                {previewDocument.fileName}
+              </h3>
               <button
                 type="button"
                 onClick={() => setPreviewDocument(null)}
@@ -1303,3 +1605,16 @@ export default function EditStaffPage() {
   )
 }
 
+export default function EditStaffPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      }
+    >
+      <EditStaffPageInner />
+    </Suspense>
+  )
+}
