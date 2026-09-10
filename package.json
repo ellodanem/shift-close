@@ -14,6 +14,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "db:backup": "node scripts/backup-raff.mjs",
     "db:migrate-from-sqlite": "node scripts/migrate-sqlite-to-neon.js",
     "db:delete-pay-periods": "node scripts/delete-all-pay-periods.cjs",
     "db:backfill-extracted": "node scripts/backfill-attendance-extracted.cjs",
