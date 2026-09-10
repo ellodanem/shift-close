@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Close — visual sample (SRP cues)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .tabular { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="bg-slate-200 h-screen overflow-hidden" data-mode="after" data-screen="home">
+  <!-- Sample controls — not part of the product chrome -->
+  <div class="h-12 shrink-0 bg-slate-900 text-white flex items-center gap-3 px-4 text-sm">
+    <span class="font-semibold tracking-tight">Later pass (parked)</span>
+    <span class="text-slate-400 hidden sm:inline">Shell / Home / payments — not this Roster &amp; Attendance pass</span>
+    <div class="ml-4 flex rounded-lg bg-slate-800 p-0.5">
+      <button type="button" data-screen-btn="home" class="screen-btn rounded-md px-3 py-1 text-xs font-medium">Home</button>
+      <button type="button" data-screen-btn="shifts" class="screen-btn rounded-md px-3 py-1 text-xs font-medium">Shift List</button>
+      <button type="button" data-screen-btn="vendor" class="screen-btn rounded-md px-3 py-1 text-xs font-medium">Vendor invoices</button>
+    </div>
+    <div class="ml-auto flex rounded-lg bg-slate-800 p-0.5">
+      <button type="button" data-mode-btn="before" class="mode-btn rounded-md px-3 py-1 text-xs font-medium">Today</button>
+      <button type="button" data-mode-btn="after" class="mode-btn rounded-md px-3 py-1 text-xs font-medium">Proposed</button>
+    </div>
+  </div>
+
+  <div class="flex h-[calc(100vh-3rem)] min-h-0">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="flex h-full w-60 shrink-0 flex-col">
+      <div id="brand" class="flex h-14 items-center gap-2.5 px-4 border-b"></div>
+      <div id="pay-banner" class="hidden"></div>
+      <nav class="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 text-sm font-medium">
+        <button type="button" class="nav-row" data-nav="home" data-screen-btn="home">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Home
+        </button>
+        <button type="button" class="nav-row" data-nav="operations" data-screen-btn="shifts">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Operations
+        </button>
+        <button type="button" class="nav-row" data-nav="financial" data-screen-btn="vendor">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Financial
+        </button>
+        <div class="nav-row opacity-80 pointer-events-none">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Reports
+        </div>
+        <div class="nav-row opacity-80 pointer-events-none">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          People
+        </div>
+        <div class="nav-row opacity-80 pointer-events-none">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          Mobile
+        </div>
+        <div class="nav-row opacity-80 pointer-events-none">
+          <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Setup
+        </div>
+      </nav>
+      <div id="sidebar-foot" class="border-t px-4 py-3 text-xs"></div>
+    </aside>
+
+    <div class="flex min-w-0 min-h-0 flex-1 flex-col">
+      <header id="topbar" class="h-11 shrink-0 flex items-center gap-2 px-4"></header>
+      <main class="min-h-0 flex-1 overflow-y-auto" id="main"></main>
+    </div>
+  </div>
+
+  <script>
+    const $ = (sel, el = document) => el.querySelector(sel)
+    const $$ = (sel, el = document) => [...el.querySelectorAll(sel)]
+
+    const icons = {
+      shifts: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+      roster: '<path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>',
+      attendance: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+      vendor: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>',
+      fuel: '<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>',
+      eod: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>',
+      reports: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+      staff: '<path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>'
+    }
+
+    const tiles = [
+      { id: 'shifts', label: 'Shifts', color: '#0891b2' },
+      { id: 'roster', label: 'Roster', color: '#16a34a' },
+      { id: 'attendance', label: 'Attendance', color: '#4f46e5' },
+      { id: 'vendor', label: 'Vendor Payments', color: '#ea580c' },
+      { id: 'fuel', label: 'Fuel Payments', color: '#2563eb' },
+      { id: 'eod', label: 'End of Day', color: '#0d9488' },
+      { id: 'reports', label: 'Reports', color: '#ca8a04' },
+      { id: 'staff', label: 'Staff', color: '#64748b' }
+    ]
+
+    function svgIcon(id, cls) {
+      return `<svg class="${cls}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">${icons[id]}</svg>`
+    }
+
+    function badge(kind) {
+      const after = document.body.dataset.mode === 'after'
+      const map = {
+        ok: after
+          ? 'bg-emerald-50 text-emerald-800'
+          : 'border border-green-300 bg-green-100 text-green-800',
+        review: after
+          ? 'bg-amber-50 text-amber-900'
+          : 'border border-yellow-300 bg-yellow-100 text-yellow-800',
+        draft: after
+          ? 'bg-yellow-50 text-yellow-900'
+          : 'border border-yellow-300 bg-yellow-100 text-yellow-800',
+        absent: after
+          ? 'bg-rose-50 text-rose-800'
+          : 'border border-red-300 bg-red-100 text-red-800'
+      }
+      const label = { ok: 'OK', review: 'Needs review', draft: 'Draft', absent: 'Absent' }[kind]
+      const extra = after ? 'px-2 py-0.5 text-[11px] font-semibold rounded-full' : 'px-2 py-1 text-xs font-semibold rounded-full'
+      return `<span class="inline-flex items-center ${extra} ${map[kind]}">${label}</span>`
+    }
+
+    function renderChrome() {
+      const after = document.body.dataset.mode === 'after'
+      const screen = document.body.dataset.screen
+      const sidebar = $('#sidebar')
+      const brand = $('#brand')
+      const pay = $('#pay-banner')
+      const foot = $('#sidebar-foot')
+      const topbar = $('#topbar')
+
+      if (after) {
+        sidebar.className = 'flex h-full w-60 shrink-0 flex-col bg-white border-r border-slate-200'
+        brand.className = 'flex h-14 items-center gap-2.5 px-4 border-b border-slate-200'
+        brand.innerHTML = `
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-[11px] font-bold tracking-tight text-white">SC</span>
+          <span class="text-sm font-semibold text-slate-900">Shift Close</span>`
+        pay.className = 'mx-3 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950'
+        pay.textContent = 'Pay day — Accounting will process payments'
+        pay.classList.remove('hidden')
+        foot.className = 'border-t border-slate-200 px-4 py-3 text-xs text-slate-500'
+        foot.innerHTML = `<div class="font-medium text-slate-700">Dane Elie</div><div class="capitalize">Owner</div>`
+        topbar.className = 'h-14 shrink-0 flex items-center gap-3 px-6 bg-white border-b border-slate-200'
+        topbar.innerHTML = `
+          <div class="flex h-9 w-72 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/></svg>
+            Search pages
+          </div>
+          <span class="ml-auto text-sm text-slate-600">dane.elieus@gmail.com</span>
+          <button type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700">Sign out</button>`
+      } else {
+        sidebar.className = 'flex h-full w-60 shrink-0 flex-col bg-slate-900 text-white'
+        brand.className = 'flex h-16 items-center justify-between px-4 border-b border-slate-700'
+        brand.innerHTML = `<span class="text-sm font-semibold text-slate-200">Shift Close</span>`
+        pay.className = 'flex-shrink-0 border-b border-amber-300/20 bg-amber-500/80 px-3 py-2 text-sm font-semibold text-white'
+        pay.innerHTML = '💰 Today is Pay Day — Accounting will process payments'
+        pay.classList.remove('hidden')
+        foot.className = 'border-t border-slate-700 px-3 py-3 text-xs text-slate-300'
+        foot.innerHTML = `<div>Dane Elie</div><div class="text-[10px] text-slate-500">Owner</div>
+          <div class="mt-2 flex items-center justify-between">
+            <span class="text-xl">ℹ️</span>
+            <span class="rounded-md px-2 py-1 text-xs text-slate-300">Log out</span>
+          </div>`
+        topbar.className = 'h-11 shrink-0 flex items-center justify-end gap-2 px-4 bg-slate-800 border-b border-slate-700 text-slate-200'
+        topbar.innerHTML = `
+          <span class="rounded-md p-2">⌕</span>
+          <span class="rounded-md p-2">☆</span>
+          <span class="text-sm">Dane Elie <span class="text-xs text-slate-400">(owner)</span></span>
+          <span class="text-sm text-slate-300">Home</span>
+          <span class="text-sm font-medium">Log out</span>`
+      }
+
+      $$('.nav-row').forEach((row) => {
+        const active =
+          (screen === 'home' && row.dataset.nav === 'home') ||
+          (screen === 'shifts' && row.dataset.nav === 'operations') ||
+          (screen === 'vendor' && row.dataset.nav === 'financial')
+        if (after) {
+          row.className = `nav-row flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ${
+            active ? 'bg-blue-50 text-blue-800' : 'text-slate-600 hover:bg-slate-50'
+          }`
+        } else {
+          row.className = `nav-row flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ${
+            active ? 'bg-slate-700/90 text-white' : 'text-slate-200'
+          }`
+        }
+      })
+
+      $$('.screen-btn').forEach((b) => {
+        b.className = `screen-btn rounded-md px-3 py-1 text-xs font-medium ${
+          b.dataset.screenBtn === screen ? 'bg-white text-slate-900' : 'text-slate-300'
+        }`
+      })
+      $$('.mode-btn').forEach((b) => {
+        b.className = `mode-btn rounded-md px-3 py-1 text-xs font-medium ${
+          b.dataset.modeBtn === document.body.dataset.mode ? 'bg-white text-slate-900' : 'text-slate-300'
+        }`
+      })
+    }
+
+    function tileHtml(t) {
+      const after = document.body.dataset.mode === 'after'
+      if (after) {
+        return `
+          <div class="flex h-[7.25rem] w-[7.25rem] flex-col items-center rounded-xl border border-slate-200 bg-white pt-5">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700">${svgIcon(t.id, 'h-5 w-5')}</span>
+            <span class="mt-auto mb-2.5 px-2 text-center text-[12px] font-semibold leading-tight text-slate-800">${t.label}</span>
+          </div>`
+      }
+      return `
+        <div class="flex h-[7.5rem] w-[7.5rem] flex-col items-center rounded-2xl text-white pt-7" style="background:${t.color}">
+          ${svgIcon(t.id, 'h-8 w-8 text-white')}
+          <span class="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">${t.label}</span>
+        </div>`
+    }
+
+    function chip(label, on) {
+      const after = document.body.dataset.mode === 'after'
+      if (after) {
+        return `<button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium ${
+          on ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'
+        }">${label}</button>`
+      }
+      return `<button type="button" class="rounded px-3 py-2 text-sm font-semibold ${
+        on ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'
+      }">${label}</button>`
+    }
+
+    function homePage() {
+      const after = document.body.dataset.mode === 'after'
+      const filters = after
+        ? `<div class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">${chip('Current month', true)}${chip('Previous', false)}${chip('Custom', false)}</div>`
+        : `<div class="flex flex-wrap gap-2">${chip('Current Month', true)}${chip('Previous Month', false)}${chip('Custom', false)}</div>`
+
+      return `
+        <div class="${after ? 'px-8 py-6' : 'px-6 py-4'} max-w-7xl mx-auto">
+          <div class="mb-5 ${after ? 'flex items-start justify-between' : ''}">
+            <div>
+              <h1 class="${after ? 'text-[28px] font-semibold tracking-tight text-slate-900' : 'text-3xl font-bold text-blue-950'}">Home</h1>
+              <p class="mt-1 text-sm ${after ? 'text-slate-500' : 'text-slate-500'}">${after ? 'Total Auto Demo · America/St. Lucia' : 'Shortcuts stay on top. Dashboard insights stay below.'}</p>
+            </div>
+            ${after ? `<div class="flex gap-2">
+              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Late &amp; Absent</button>
+              <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white">New shift</button>
+            </div>` : ''}
+          </div>
+          <div class="flex gap-3 overflow-x-auto pb-2">${tiles.map(tileHtml).join('')}</div>
+          <div class="${after ? 'mt-6 mb-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400' : 'mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500'}">Dashboard</div>
+          ${filters}
+          <div class="mt-4 grid grid-cols-12 gap-4">
+            <div class="col-span-5 ${after ? 'rounded-xl border border-slate-200 bg-white p-5' : 'rounded-lg border border-slate-200 bg-white p-5 shadow-sm'}">
+              <div class="text-sm font-semibold ${after ? 'text-slate-900' : 'text-blue-950'}">Customer accounts — September 2026</div>
+              <p class="mt-1 text-sm text-slate-500">Totals and collections at a glance.</p>
+              <div class="mt-4 ${after ? 'rounded-xl bg-slate-50 px-4 py-4' : 'rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-4'}">
+                <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total A/R (closing)</div>
+                <div class="mt-1 text-3xl font-bold tabular ${after ? 'text-slate-900' : 'text-blue-950'}">$142,608.41</div>
+                <p class="mt-2 text-sm text-slate-600">This month +$18,240.12 charges · −$9,410.00 payments</p>
+                <div class="mt-3">${badge('ok').replace('OK', 'Reconciled')}</div>
+              </div>
+            </div>
+            <div class="col-span-7 grid grid-cols-2 gap-4">
+              ${[
+                ['Last shift recorded', '10 Sep 2026 (6–1)', 'Jovita Henry · 2:14 pm'],
+                ['Shifts pending review', '3', 'Need O/S reviewed + notes'],
+                ['Incomplete days', '1', 'Missing shifts'],
+                ['Over/Short (MTD)', '−$42.18', 'Short']
+              ].map(([k, v, s], i) => `
+                <div class="${after ? 'rounded-xl border border-slate-200 bg-white p-4' : 'rounded-lg border border-gray-200 bg-white p-4 shadow-sm'} ${!after && i === 1 ? 'border-amber-300' : ''}">
+                  <div class="text-xs font-medium text-slate-500">${k}</div>
+                  <div class="mt-1 text-lg font-semibold ${i === 1 && after ? 'text-amber-700' : i === 2 && after ? 'text-rose-700' : after ? 'text-slate-900' : i === 1 ? 'text-amber-600 text-3xl font-bold' : i === 2 ? 'text-red-600 text-3xl font-bold' : 'text-gray-900'}">${v}</div>
+                  <div class="mt-1 text-xs text-slate-500">${s}</div>
+                </div>`).join('')}
+            </div>
+            <div class="col-span-12 ${after ? 'rounded-xl border border-slate-200 bg-white p-5' : 'rounded-lg border border-gray-200 bg-white p-4 shadow-sm'}">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold ${after ? 'text-slate-900' : 'text-gray-900'}">On shift today</div>
+                ${after ? '<span class="text-xs font-medium text-rose-800 bg-rose-50 rounded-full px-2 py-0.5">1 irregularity</span>' : ''}
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                ${[['Althea Frank','Absent'],['Jovita Henry','Present'],['Magdalene Lubrin','Present'],['Sylvana Aimable','Late']].map(([n,s]) => `
+                  <div class="flex items-center gap-2 rounded-lg ${after ? 'border border-slate-200 px-2.5 py-1.5' : 'bg-gray-100 px-2 py-1'}">
+                    <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white ${s==='Absent'?'bg-rose-500':s==='Late'?'bg-orange-500':'bg-emerald-600'}">${n.split(' ').map(p=>p[0]).join('')}</span>
+                    <span class="text-sm text-slate-800">${n}</span>
+                    <span class="text-xs ${s==='Absent'?'text-rose-700':s==='Late'?'text-orange-700':'text-emerald-700'}">${s}</span>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`
+    }
+
+    function shiftsPage() {
+      const after = document.body.dataset.mode === 'after'
+      const rows = [
+        ['10-Sep-2026', '6–1', 'Jovita Henry', '+12.40', 'OK', 'ok'],
+        ['10-Sep-2026', '1–9', 'Natasha Sandiford', '−8.15', 'Needs review', 'review'],
+        ['09-Sep-2026', '6–1', 'Magdalene Lubrin', '+0.20', 'OK', 'ok'],
+        ['09-Sep-2026', '1–9', 'Octavia Boudhar', '--', 'Draft', 'draft'],
+        ['08-Sep-2026', '6–1', 'Althea Frank', '−42.00', 'Needs review', 'review']
+      ]
+      const filters = after
+        ? `<div class="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+             <div class="inline-flex items-center gap-1 rounded-lg bg-slate-50 p-0.5">${chip('This week', true)}${chip('Last week', false)}${chip('This month', false)}${chip('All', false)}</div>
+             <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+             <div class="flex h-9 min-w-[200px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-400">Search supervisor</div>
+             <span class="ml-auto text-xs text-slate-500">5 shifts</span>
+           </div>`
+        : `<div class="flex flex-wrap gap-2">${chip('All', false)}${chip('This Week', true)}${chip('Last Week', false)}${chip('This Month', false)}${chip('Last Month', false)}${chip('Custom ▼', false)}
+           <span class="text-sm text-gray-600 self-center">(5 shifts)</span></div>`
+
+      return `
+        <div class="${after ? 'px-8 py-6' : 'px-8 py-4'} max-w-6xl mx-auto">
+          <div class="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h1 class="${after ? 'text-[28px] font-semibold tracking-tight text-slate-900' : 'text-3xl font-bold text-gray-900'}">Shift List</h1>
+              ${after ? '<p class="mt-1 text-sm text-slate-500">This week · Total Auto Demo</p>' : ''}
+            </div>
+            <button class="${after ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white' : 'rounded bg-blue-600 px-6 py-2 font-semibold text-white'}">+ New Shift</button>
+          </div>
+          <div class="mb-4">${filters}</div>
+          <div class="${after ? 'overflow-hidden rounded-xl border border-slate-200 bg-white' : 'overflow-hidden rounded border border-gray-200 bg-white shadow-sm'}">
+            <table class="w-full text-sm">
+              <thead class="${after ? 'bg-white text-slate-500 border-b border-slate-200' : 'bg-gray-100 text-gray-700'}">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold">Date</th>
+                  <th class="px-4 py-3 text-left font-semibold">Shift</th>
+                  <th class="px-4 py-3 text-left font-semibold">Supervisor</th>
+                  <th class="px-4 py-3 text-right font-semibold">Over/Short</th>
+                  <th class="px-4 py-3 text-right font-semibold">Deposit</th>
+                  <th class="px-4 py-3 text-center font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map((r) => `
+                  <tr class="border-t ${after ? 'border-slate-100 hover:bg-slate-50' : 'border-gray-200 hover:bg-gray-50'}">
+                    <td class="px-4 py-3 text-slate-900">${r[0]}</td>
+                    <td class="px-4 py-3">${r[1]}</td>
+                    <td class="px-4 py-3">${r[2]}</td>
+                    <td class="px-4 py-3 text-right font-semibold tabular ${String(r[3]).startsWith('+') ? 'text-emerald-700' : String(r[3]).startsWith('−') ? 'text-rose-700' : 'text-slate-400'}">${r[3]}</td>
+                    <td class="px-4 py-3 text-right tabular">12,480.00</td>
+                    <td class="px-4 py-3 text-center">${badge(r[5])}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+          ${after ? '<p class="mt-3 text-xs text-slate-400">Late after 10 min, absent after 60 min with no in-punch. Over/short hidden until reviewed.</p>' : ''}
+        </div>`
+    }
+
+    function vendorPage() {
+      const after = document.body.dataset.mode === 'after'
+      const tab = (label, on) => after
+        ? `<span class="shrink-0 border-b-2 px-1 py-3 text-sm font-medium ${on ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500'}">${label}</span>`
+        : `<span class="shrink-0 border-b-2 px-1 py-4 text-sm font-medium ${on ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'}">${label}</span>`
+
+      const actions = after
+        ? `<div class="flex flex-wrap justify-end gap-2">
+             <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Reports</button>
+             <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Balance</button>
+             <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Vendors</button>
+             <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">+ Add invoice</button>
+             <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Make payment</button>
+           </div>`
+        : `<div class="flex flex-wrap justify-end gap-2">
+             <button class="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white">📄 Reports</button>
+             <button class="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white">Balance</button>
+             <button class="rounded bg-slate-600 px-4 py-2 text-sm font-semibold text-white">Vendors</button>
+             <button class="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Make payment</button>
+             <button class="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Add invoice</button>
+           </div>`
+
+      const monthFilters = after
+        ? `<div class="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+             <select class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"><option>All vendors</option></select>
+             <div class="inline-flex items-center gap-1 rounded-lg bg-slate-50 p-0.5">${chip('This month', true)}${chip('Last month', false)}${chip('All', false)}</div>
+             <span class="ml-auto text-sm text-slate-600">Available <span class="font-semibold tabular text-slate-900">$48,220.00</span></span>
+           </div>`
+        : `<div class="space-y-3">
+             <div class="inline-flex flex-wrap gap-x-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
+               <span class="font-semibold">Available:</span> $48,220.00
+               <span class="text-gray-400">|</span>
+               <span class="font-semibold">Planned:</span> $6,410.00
+             </div>
+             <div class="flex flex-wrap gap-2">${chip('All', false)}${chip('This Month', true)}${chip('Last Month', false)}${chip('Custom', false)}</div>
+           </div>`
+
+      return `
+        <div>
+          <div class="${after ? 'border-b border-slate-200 bg-white' : 'border-b border-gray-200 bg-white'}">
+            <div class="mx-auto max-w-7xl px-8 flex gap-6">
+              ${tab('Invoices', true)}${tab('Batches', false)}${tab('Vendors', false)}${tab('Check Management', false)}${tab('All Invoices Report', false)}
+            </div>
+          </div>
+          <div class="${after ? 'px-8 py-6' : 'px-8 py-4'} max-w-7xl mx-auto">
+            <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h1 class="${after ? 'text-[28px] font-semibold tracking-tight text-slate-900' : 'text-3xl font-bold text-gray-900'}">Vendor invoices</h1>
+                <p class="mt-1 text-sm ${after ? 'text-slate-500' : 'text-gray-600'}">All vendors in one list — filter by vendor, then pay in batch</p>
+              </div>
+              ${actions}
+            </div>
+            ${monthFilters}
+            <div class="mt-4 ${after ? 'overflow-hidden rounded-xl border border-slate-200 bg-white' : 'overflow-hidden rounded border border-gray-200 bg-white shadow-sm'}">
+              <table class="w-full text-sm">
+                <thead class="${after ? 'text-slate-500 border-b border-slate-200' : 'bg-gray-100 text-gray-700'}">
+                  <tr>
+                    <th class="px-4 py-3 text-left font-semibold">Vendor</th>
+                    <th class="px-4 py-3 text-left font-semibold">Invoice</th>
+                    <th class="px-4 py-3 text-left font-semibold">Date</th>
+                    <th class="px-4 py-3 text-right font-semibold">Amount</th>
+                    <th class="px-4 py-3 text-center font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${[
+                    ['Massy Stores', 'INV-10421', '04 Sep 2026', '2,184.50', 'review'],
+                    ['Rubis', 'INV-8831', '02 Sep 2026', '18,640.00', 'ok'],
+                    ['Peter & Company', 'INV-2290', '01 Sep 2026', '356.77', 'draft']
+                  ].map((r) => `
+                    <tr class="border-t ${after ? 'border-slate-100' : 'border-gray-200'}">
+                      <td class="px-4 py-3 font-medium text-slate-900">${r[0]}</td>
+                      <td class="px-4 py-3">${r[1]}</td>
+                      <td class="px-4 py-3">${r[2]}</td>
+                      <td class="px-4 py-3 text-right tabular font-medium">$${r[3]}</td>
+                      <td class="px-4 py-3 text-center">${badge(r[4]).replace('Needs review','Pending').replace('OK','Paid').replace('Draft','Unpaid')}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`
+    }
+
+    function render() {
+      renderChrome()
+      const screen = document.body.dataset.screen
+      const html = screen === 'shifts' ? shiftsPage() : screen === 'vendor' ? vendorPage() : homePage()
+      $('#main').style.background = document.body.dataset.mode === 'after' ? '#f8fafc' : '#f9fafb'
+      $('#main').innerHTML = html
+    }
+
+    document.body.addEventListener('click', (e) => {
+      const s = e.target.closest('[data-screen-btn]')
+      const m = e.target.closest('[data-mode-btn]')
+      if (s) {
+        document.body.dataset.screen = s.dataset.screenBtn
+        render()
+      }
+      if (m) {
+        document.body.dataset.mode = m.dataset.modeBtn
+        render()
+      }
+    })
+
+    render()
+  </script>
+</body>
+</html>
