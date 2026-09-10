@@ -63,7 +63,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
       { label: 'Fuel Batches', href: '/fuel-payments/batches', permission: 'financial.fuel' },
       { label: 'Fuel Monthly', href: '/fuel-payments/monthly-report', permission: 'financial.fuel' },
       { label: 'Vendor Payments', href: '/vendor-payments/invoices', permission: 'financial.vendor' },
-      { label: 'Vendor Batches', href: '/vendor-payments/batches', permission: 'financial.vendor' }
+      { label: 'Vendor Batches', href: '/vendor-payments/batches', permission: 'financial.vendor' },
+      {
+        label: 'Check Management',
+        href: '/vendor-payments/uncashed-checks',
+        permission: 'financial.vendor'
+      }
     ]
   },
   {

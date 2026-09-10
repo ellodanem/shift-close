@@ -89,7 +89,7 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
   },
   {
     id: 'uncashed-checks',
-    label: 'Uncashed checks',
+    label: 'Check Management',
     href: '/vendor-payments/uncashed-checks',
     tileClass: 'bg-amber-500',
     matchPrefixes: ['/vendor-payments/uncashed-checks']
