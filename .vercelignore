@@ -1,11 +1,15 @@
 # Desktop agents and local tooling are not needed on Vercel.
 # Leaving them in the upload can get traced into Function bundles
 # and burn Hobby Functions Storage.
-agent
-harvest-agent
-scripts
-dumps
-tools
-docs
+#
+# IMPORTANT: patterns must be rooted with `/`. A bare `harvest-agent`
+# also matches `app/api/harvest-agent/**` and removes those API routes
+# from production (imports then 404).
+/agent
+/harvest-agent
+/scripts
+/dumps
+/tools
+/docs
 *.md
 !README.md
