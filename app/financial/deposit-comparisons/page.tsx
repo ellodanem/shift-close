@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { endOfDayPath, parseFocusDate } from '@/lib/daily-close-path'
 import CustomDatePicker from '../../days/CustomDatePicker'
 import {
   BankStatusGlyph,
@@ -932,14 +934,19 @@ function filterButtonClass(active: boolean): string {
   }`
 }
 
-export default function DepositComparisonsPage() {
+function DepositComparisonsPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const focusDate = parseFocusDate(searchParams.get('date'))
   const [hideCleared, setHideCleared] = useState(false)
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set())
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() =>
+    focusDate ? new Set([focusDate]) : new Set()
+  )
   const prevFullyClearedRef = useRef<Map<string, boolean>>(new Map())
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]['value']>('all')
   const [bagQuery, setBagQuery] = useState('')
-  const [activeFilter, setActiveFilter] = useState<DateFilterType>('thisMonth')
-  const [customDate, setCustomDate] = useState('')
+  const [activeFilter, setActiveFilter] = useState<DateFilterType>(() => (focusDate ? 'custom' : 'thisMonth'))
+  const [customDate, setCustomDate] = useState(() => focusDate ?? '')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const loadedRangeKeys = useRef(new Set<string>())
@@ -959,6 +966,28 @@ export default function DepositComparisonsPage() {
   } | null>(null)
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null)
   const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null)
+
+  const clearFocusDate = useCallback(() => {
+    if (!searchParams.get('date')) return
+    router.replace('/financial/deposit-comparisons', { scroll: false })
+  }, [router, searchParams])
+
+  const selectFilter = useCallback(
+    (filter: DateFilterType) => {
+      setActiveFilter(filter)
+      if (filter !== 'custom') setShowCustomPicker(false)
+      clearFocusDate()
+    },
+    [clearFocusDate]
+  )
+
+  useEffect(() => {
+    if (!focusDate) return
+    setActiveFilter('custom')
+    setCustomDate(focusDate)
+    setExpandedDates(new Set([focusDate]))
+    setHideCleared(false)
+  }, [focusDate])
 
   useEffect(() => {
     void fetch('/api/financial/deposit-comparisons/discrepancy-email', { cache: 'no-store' })
@@ -1166,6 +1195,22 @@ export default function DepositComparisonsPage() {
           </div>
         </div>
 
+        {focusDate ? (
+          <div className="flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Showing <span className="font-semibold">{focusDate}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href={endOfDayPath(focusDate)} className="font-semibold text-blue-700 hover:underline">
+                Back to End of Day
+              </Link>
+              <button type="button" onClick={clearFocusDate} className="font-medium text-blue-800 hover:underline">
+                Show all dates
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight sm:text-3xl">Bank deposit & debit comparisons</h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
@@ -1230,50 +1275,35 @@ export default function DepositComparisonsPage() {
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
             <button
               type="button"
-              onClick={() => {
-                setActiveFilter('all')
-                setShowCustomPicker(false)
-              }}
+              onClick={() => selectFilter('all')}
               className={filterButtonClass(activeFilter === 'all')}
             >
               All
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveFilter('thisWeek')
-                setShowCustomPicker(false)
-              }}
+              onClick={() => selectFilter('thisWeek')}
               className={filterButtonClass(activeFilter === 'thisWeek')}
             >
               This Week
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveFilter('lastWeek')
-                setShowCustomPicker(false)
-              }}
+              onClick={() => selectFilter('lastWeek')}
               className={filterButtonClass(activeFilter === 'lastWeek')}
             >
               Last Week
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveFilter('thisMonth')
-                setShowCustomPicker(false)
-              }}
+              onClick={() => selectFilter('thisMonth')}
               className={filterButtonClass(activeFilter === 'thisMonth')}
             >
               This Month
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveFilter('lastMonth')
-                setShowCustomPicker(false)
-              }}
+              onClick={() => selectFilter('lastMonth')}
               className={filterButtonClass(activeFilter === 'lastMonth')}
             >
               Last Month
@@ -1282,7 +1312,7 @@ export default function DepositComparisonsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setActiveFilter('custom')
+                  selectFilter('custom')
                   setShowCustomPicker(!showCustomPicker)
                 }}
                 className={`${filterButtonClass(activeFilter === 'custom')} w-full sm:w-auto`}
@@ -1297,6 +1327,7 @@ export default function DepositComparisonsPage() {
                       setCustomDate(date)
                       setActiveFilter('custom')
                       setShowCustomPicker(false)
+                      clearFocusDate()
                     }}
                     onClose={() => setShowCustomPicker(false)}
                   />
@@ -1433,6 +1464,12 @@ export default function DepositComparisonsPage() {
                             </button>
                           )
                         ) : null}
+                        <Link
+                          href={endOfDayPath(date)}
+                          className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          End of Day
+                        </Link>
                         <DayStatusGlyph status={dayStatus} />
                       </div>
                     </div>
@@ -1539,9 +1576,14 @@ function ItemRowRecordLinks({ r }: { r: Row }) {
     )
   }
   return (
-    <Link href={`/shifts/${r.shiftId}`} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
-      Open shift
-    </Link>
+    <div className="flex flex-wrap gap-x-2 gap-y-1">
+      <Link href={`/shifts/${r.shiftId}`} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
+        Open shift
+      </Link>
+      <Link href={endOfDayPath(r.date)} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
+        EOD
+      </Link>
+    </div>
   )
 }
 
@@ -1723,5 +1765,13 @@ function NotesCell({
         fullWidth ? 'w-full' : 'w-full min-w-[7rem] max-w-[14rem]'
       }`}
     />
+  )
+}
+
+export default function DepositComparisonsPageRoute() {
+  return (
+    <Suspense fallback={<p className="px-4 py-8 text-center text-sm text-slate-500">Loading…</p>}>
+      <DepositComparisonsPage />
+    </Suspense>
   )
 }

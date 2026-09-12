@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef, useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
+import { depositComparisonsPath, endOfDayPath } from '@/lib/daily-close-path'
 import {
   getMissingFields,
   isShiftFullyReviewed,
@@ -1082,19 +1084,27 @@ export default function ShiftDetailPage() {
         
         {/* Document Scans - Link to End of Day */}
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">📄 Document Scans</h3>
               <p className="text-sm text-gray-600">
                 View and manage deposit and debit scans for this day on the End of Day page.
               </p>
             </div>
-            <button
-              onClick={() => router.push('/days')}
-              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 whitespace-nowrap ml-4"
-            >
-              View End of Day
-            </button>
+            <div className="flex flex-col items-stretch gap-2 sm:items-end sm:ml-4">
+              <Link
+                href={endOfDayPath(shift.date)}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 whitespace-nowrap text-center"
+              >
+                Continue to End of Day
+              </Link>
+              <Link
+                href={depositComparisonsPath(shift.date)}
+                className="text-sm font-medium text-blue-700 hover:underline text-center sm:text-right"
+              >
+                Review deposits for this date
+              </Link>
+            </div>
           </div>
         </div>
         

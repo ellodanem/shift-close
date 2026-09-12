@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import Link from 'next/link'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
 import { DayReport } from '@/lib/types'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { isDebitScanComplete } from '@/lib/day-scan-status'
@@ -152,14 +154,21 @@ function BagNumberChips({ bags }: { bags: string[] }) {
   )
 }
 
-export default function DaysPage() {
+function DaysPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const focusDate = parseFocusDate(searchParams.get('date'))
   const [dayReports, setDayReports] = useState<DayReport[]>([])
   const [loading, setLoading] = useState(true)
   const [rangeLoading, setRangeLoading] = useState(false)
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
-  const [activeFilter, setActiveFilter] = useState<FilterType>('thisMonth')
-  const [customMonth, setCustomMonth] = useState<string>('')
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() =>
+    focusDate ? new Set([focusDate]) : new Set()
+  )
+  const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
+    if (!focusDate) return 'thisMonth'
+    return focusDate.slice(0, 7) === businessTodayYmd().slice(0, 7) ? 'thisMonth' : 'custom'
+  })
+  const [customMonth, setCustomMonth] = useState<string>(() => (focusDate ? focusDate.slice(0, 7) : ''))
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const loadedRangeKeys = useRef(new Set<string>())
@@ -172,6 +181,32 @@ export default function DaysPage() {
   const [emailOther, setEmailOther] = useState('')
   const [emailSending, setEmailSending] = useState(false)
   const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
+
+  const clearFocusDate = useCallback(() => {
+    if (!searchParams.get('date')) return
+    router.replace('/days', { scroll: false })
+  }, [router, searchParams])
+
+  const selectFilter = useCallback(
+    (filter: FilterType) => {
+      setActiveFilter(filter)
+      if (filter !== 'custom') setShowCustomPicker(false)
+      clearFocusDate()
+    },
+    [clearFocusDate]
+  )
+
+  useEffect(() => {
+    if (!focusDate) return
+    setExpandedDates(new Set([focusDate]))
+    const month = focusDate.slice(0, 7)
+    if (month === businessTodayYmd().slice(0, 7)) {
+      setActiveFilter('thisMonth')
+    } else {
+      setCustomMonth(month)
+      setActiveFilter('custom')
+    }
+  }, [focusDate])
 
   // Close custom picker when clicking outside
   useEffect(() => {
@@ -360,6 +395,13 @@ export default function DaysPage() {
     if (!query?.from || !query.to) return dayReports
     return dayReports.filter((r) => r.date >= query.from! && r.date <= query.to!)
   }, [dayReports, activeFilter, customMonth])
+
+  useEffect(() => {
+    if (!focusDate || loading || rangeLoading) return
+    const el = document.getElementById(`eod-day-${focusDate}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focusDate, loading, rangeLoading, filteredReports.length])
   
   const getOsColor = (amount: number) => {
     if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
@@ -561,15 +603,27 @@ export default function DaysPage() {
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day</h1>
         </div>
+        {focusDate ? (
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Opened for <span className="font-semibold">{focusDate}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href={depositComparisonsPath(focusDate)} className="font-semibold text-blue-700 hover:underline">
+                Review deposits for this date
+              </Link>
+              <button type="button" onClick={clearFocusDate} className="font-medium text-blue-800 hover:underline">
+                Show all days
+              </button>
+            </div>
+          </div>
+        ) : null}
         
         {/* Filter Buttons */}
         <div className="mb-6 space-y-2">
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <button
-            onClick={() => {
-              setActiveFilter('all')
-              setShowCustomPicker(false)
-            }}
+            onClick={() => selectFilter('all')}
             className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'all'
                 ? 'bg-blue-600 text-white'
@@ -579,10 +633,7 @@ export default function DaysPage() {
             All
           </button>
           <button
-            onClick={() => {
-              setActiveFilter('thisWeek')
-              setShowCustomPicker(false)
-            }}
+            onClick={() => selectFilter('thisWeek')}
             className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisWeek'
                 ? 'bg-blue-600 text-white'
@@ -592,10 +643,7 @@ export default function DaysPage() {
             This Week
           </button>
           <button
-            onClick={() => {
-              setActiveFilter('lastWeek')
-              setShowCustomPicker(false)
-            }}
+            onClick={() => selectFilter('lastWeek')}
             className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastWeek'
                 ? 'bg-blue-600 text-white'
@@ -605,10 +653,7 @@ export default function DaysPage() {
             Last Week
           </button>
           <button
-            onClick={() => {
-              setActiveFilter('thisMonth')
-              setShowCustomPicker(false)
-            }}
+            onClick={() => selectFilter('thisMonth')}
             className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'thisMonth'
                 ? 'bg-blue-600 text-white'
@@ -618,10 +663,7 @@ export default function DaysPage() {
             This Month
           </button>
           <button
-            onClick={() => {
-              setActiveFilter('lastMonth')
-              setShowCustomPicker(false)
-            }}
+            onClick={() => selectFilter('lastMonth')}
             className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
               activeFilter === 'lastMonth'
                 ? 'bg-blue-600 text-white'
@@ -633,7 +675,7 @@ export default function DaysPage() {
           <div className="relative col-span-2 sm:col-span-1" ref={customPickerRef}>
             <button
               onClick={() => {
-                setActiveFilter('custom')
+                selectFilter('custom')
                 setShowCustomPicker(!showCustomPicker)
               }}
               className={`min-h-[44px] w-full rounded px-3 py-2 text-xs font-semibold transition-colors sm:w-auto sm:px-4 sm:text-sm ${
@@ -659,6 +701,7 @@ export default function DaysPage() {
                     setCustomMonth(e.target.value)
                     setActiveFilter('custom')
                     setShowCustomPicker(false)
+                    clearFocusDate()
                   }}
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
@@ -703,7 +746,13 @@ export default function DaysPage() {
               const dayBags = uniqueDayBagNumbers(dayReport)
               
               return (
-                <div key={dayReport.date} className="bg-white shadow-sm border border-gray-200 rounded">
+                <div
+                  id={`eod-day-${dayReport.date}`}
+                  key={dayReport.date}
+                  className={`bg-white shadow-sm border rounded ${
+                    focusDate === dayReport.date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
+                  }`}
+                >
                   {/* Clickable Header */}
                   <div
                     className="p-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
@@ -884,6 +933,13 @@ export default function DaysPage() {
                             </div>
                           </div>
                         )}
+                        <Link
+                          href={depositComparisonsPath(dayReport.date)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full rounded border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100 sm:w-auto"
+                        >
+                          Review deposits
+                        </Link>
                         <button
                           onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
                           className="w-full rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto"
@@ -1156,6 +1212,18 @@ export default function DaysPage() {
         )
       })()}
     </div>
+  )
+}
+
+export default function DaysPageRoute() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
+      }
+    >
+      <DaysPage />
+    </Suspense>
   )
 }
 
