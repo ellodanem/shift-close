@@ -26,6 +26,7 @@ Cstore passwords stay in the local Chrome profile (`user-data/`). They are not s
 ### Login safety
 
 - The agent clicks **Login at most once per job** (after Cloudflare if shown).
+- If the Cloudflare **Verify you are human** box stays unchecked, the dashboard shows a warning; after **5 minutes** (`cloudflareWaitMs`) jobs **pause** until you check the box and click **Resume**.
 - If Cstore rejects login or login fails after submit, **all jobs pause** until an admin verifies the password in Chrome and clicks **Resume** in the local dashboard.
 - The agent never retries a failed password automatically.
 

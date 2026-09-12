@@ -20,7 +20,8 @@ async function notifyCloudPaused(config, { reason, message }) {
       details: {
         pauseReason,
         code: pauseReason,
-        loginFailed: pauseReason === 'cstore_login_failed'
+        loginFailed: pauseReason === 'cstore_login_failed',
+        cloudflarePending: pauseReason === 'cloudflare_pending'
       },
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),

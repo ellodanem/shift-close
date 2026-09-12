@@ -186,7 +186,7 @@ async function loginFailureDetected(page) {
   return false
 }
 
-async function trySubmitLoginAfterTurnstile(page, state) {
+async function trySubmitLoginAfterTurnstile(page, state, hooks = {}) {
   if (!isCstoreLoginUrl(page.url())) return
   if (await pageLooksLoggedIn(page)) return
   if (state.submitUsed) return
@@ -204,12 +204,26 @@ async function trySubmitLoginAfterTurnstile(page, state) {
   const hasCf = await pageHasTurnstile(page)
   const solved = await turnstileLooksSolved(page)
   if (hasCf && !solved) {
-    if (!state.waitingLogged) {
-      console.log('[Cstore] Waiting for Cloudflare “Verify you are human”')
-      state.waitingLogged = true
+    if (!state.cfWaitingSince) {
+      state.cfWaitingSince = Date.now()
+      console.log(
+        '[Cstore] Waiting for Cloudflare “Verify you are human” — click the checkbox in the browser window'
+      )
+      if (typeof hooks.onCloudflareWaiting === 'function') {
+        await hooks.onCloudflareWaiting({
+          message:
+            'Cloudflare check needed — click “Verify you are human” in the Cstore browser window'
+        })
+      }
     }
-    return
+    state.waitingLogged = true
+    return { cloudflarePending: true }
   }
+
+  if (state.cfWaitingSince && typeof hooks.onCloudflareCleared === 'function') {
+    await hooks.onCloudflareCleared()
+  }
+  state.cfWaitingSince = null
 
   if (!state.clickLogged) {
     const filled = await loginFormFilled(page)
@@ -258,8 +272,9 @@ async function waitForSession(page, config, hooks = {}, options = {}) {
           'Cstore login required. Run with headed: true once and sign in, then leave the agent running.'
       }
     }
+    const cfWaitMs = Number(config.cloudflareWaitMs) || 5 * 60 * 1000
     console.log(
-      `[Cstore] Login required — enter credentials in the browser window (${Math.round(config.loginWaitMs / 1000)}s)`
+      `[Cstore] Login required — enter credentials in the browser window (${Math.round(config.loginWaitMs / 1000)}s; Cloudflare ${Math.round(cfWaitMs / 1000)}s)`
     )
     const loginState = {
       submitUsed: false,
@@ -267,16 +282,39 @@ async function waitForSession(page, config, hooks = {}, options = {}) {
       credentialsFilled: false,
       waitingLogged: false,
       clickLogged: false,
-      nudged: false
+      nudged: false,
+      cfWaitingSince: null
     }
     const deadline = Date.now() + config.loginWaitMs
     while (Date.now() < deadline) {
-      await trySubmitLoginAfterTurnstile(page, loginState)
+      await trySubmitLoginAfterTurnstile(page, loginState, hooks)
       await sleep(1000)
       ok = await pageLooksLoggedIn(page)
       if (ok) {
         loginRequired = false
+        if (typeof hooks.onCloudflareCleared === 'function') {
+          await hooks.onCloudflareCleared()
+        }
         break
+      }
+
+      if (loginState.cfWaitingSince) {
+        const waited = Date.now() - loginState.cfWaitingSince
+        if (waited >= cfWaitMs) {
+          const message =
+            'Cloudflare “Verify you are human” was not completed in time. Click the checkbox in the Cstore browser, then click Resume.'
+          if (!manualSignIn && typeof hooks.onLoginFailure === 'function') {
+            await hooks.onLoginFailure({ reason: 'cloudflare_pending', message })
+          }
+          return {
+            ok: false,
+            loginRequired: true,
+            loginFailed: true,
+            cloudflarePending: true,
+            url: page.url(),
+            message
+          }
+        }
       }
 
       if (loginState.submitUsed && loginState.credentialsFilled) {
@@ -315,6 +353,23 @@ async function waitForSession(page, config, hooks = {}, options = {}) {
   }
 
   if (!ok) {
+    const cfPending = Boolean(
+      (await pageHasTurnstile(page).catch(() => false)) &&
+        !(await turnstileLooksSolved(page).catch(() => false))
+    )
+    if (cfPending && !manualSignIn && typeof hooks.onLoginFailure === 'function') {
+      const message =
+        'Cloudflare “Verify you are human” was not completed in time. Click the checkbox in the Cstore browser, then click Resume.'
+      await hooks.onLoginFailure({ reason: 'cloudflare_pending', message })
+      return {
+        ok: false,
+        loginRequired: true,
+        loginFailed: true,
+        cloudflarePending: true,
+        url: page.url(),
+        message
+      }
+    }
     return {
       ok: false,
       loginRequired,

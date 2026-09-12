@@ -1,6 +1,6 @@
 {
   "name": "shift-close-harvest-agent",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
   "author": {
     "name": "Ellodane Enterprises"

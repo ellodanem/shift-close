@@ -59,6 +59,19 @@ function scheduleSummaryLabel(config) {
 
 function createLoginHooks(config) {
   return {
+    onCloudflareWaiting: async ({ message }) => {
+      if (activityLog) activityLog.add(message)
+      if (status) {
+        status.cloudflarePending = true
+        status.cloudflareMessage = message
+      }
+    },
+    onCloudflareCleared: async () => {
+      if (status) {
+        status.cloudflarePending = false
+        status.cloudflareMessage = null
+      }
+    },
     onLoginFailure: async ({ reason, message }) => {
       if (isPaused() && pauseNotified) return
       pauseAgent(reason, message)
@@ -68,6 +81,10 @@ function createLoginHooks(config) {
         status.paused = true
         status.cstoreSessionOk = false
         status.cstoreSessionAt = new Date().toISOString()
+        if (reason === 'cloudflare_pending') {
+          status.cloudflarePending = true
+          status.cloudflareMessage = message
+        }
       }
       await notifyCloudPaused(config, { reason, message })
     }
@@ -114,6 +131,7 @@ async function recordJob(config, taskKey, startedAt, result, extraDetails = {}) 
         url: result.url || null,
         loginRequired: Boolean(result.loginRequired),
         loginFailed: Boolean(result.loginFailed),
+        cloudflarePending: Boolean(result.cloudflarePending),
         account: result.account || null,
         code: result.code || null,
         ...extraDetails
@@ -737,7 +755,11 @@ function startDashboard(config) {
     runLpgInvoices: runLpgInvoicesCycle,
     onResume: () => {
       pauseNotified = false
-      if (status) status.paused = false
+      if (status) {
+        status.paused = false
+        status.cloudflarePending = false
+        status.cloudflareMessage = null
+      }
       const cfg = loadConfig()
       sendHeartbeat(cfg, { paused: false, pauseReason: null }).catch(() => {})
     }
@@ -766,6 +788,8 @@ function start() {
     lastHeartbeatError: null,
     jobRunning: false,
     paused: isPaused(),
+    cloudflarePending: false,
+    cloudflareMessage: null,
     recentTasks: [],
     nextSlotLabel: scheduleSummaryLabel(config)
   }

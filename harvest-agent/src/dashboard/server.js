@@ -38,6 +38,8 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       lastHeartbeatError: status.lastHeartbeatError,
       jobRunning: status.jobRunning === true,
       nextSlotLabel: status.nextSlotLabel || null,
+      cloudflarePending: status.cloudflarePending === true,
+      cloudflareMessage: status.cloudflareMessage || null,
       recentTasks: (status.recentTasks || []).slice(0, 10),
       activity: activityLog.getAll().slice(0, 25),
       uptime: Math.floor(process.uptime() / 60) + ' min',

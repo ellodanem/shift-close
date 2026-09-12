@@ -75,6 +75,10 @@
       </div>
     </div>
 
+    <div id="cfBanner" class="banner banner-warn" style="display:none">
+      <strong>Cloudflare check</strong> — <span id="cfText">Click “Verify you are human” in the Cstore browser window.</span>
+    </div>
+
     <div id="configBanner" class="banner banner-warn" style="display:none">
       Set your Shift Close URL and harvest secret below before jobs can run.
     </div>
@@ -482,15 +486,25 @@
         $('headerDot').className = 'status-dot dot-red'
         $('pauseBanner').style.display = 'block'
         $('pauseText').textContent = s.pauseMessage || s.pauseReason || 'Jobs are paused'
+        $('cfBanner').style.display = 'none'
+      } else if (s.cloudflarePending) {
+        $('headerDot').className = 'status-dot dot-yellow'
+        $('pauseBanner').style.display = 'none'
+        $('cfBanner').style.display = 'block'
+        $('cfText').textContent =
+          s.cloudflareMessage || 'Click “Verify you are human” in the Cstore browser window.'
       } else if (!s.configured) {
         $('headerDot').className = 'status-dot dot-yellow'
         $('pauseBanner').style.display = 'none'
+        $('cfBanner').style.display = 'none'
       } else if (s.cstoreSessionOk === true) {
         $('headerDot').className = 'status-dot dot-green'
         $('pauseBanner').style.display = 'none'
+        $('cfBanner').style.display = 'none'
       } else {
         $('headerDot').className = 'status-dot dot-yellow'
         $('pauseBanner').style.display = 'none'
+        $('cfBanner').style.display = 'none'
       }
 
       $('configBanner').style.display = s.configured ? 'none' : 'block'

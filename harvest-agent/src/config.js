@@ -26,6 +26,8 @@ const DEFAULTS = {
   slotHours: [7, 19],
   timeZone: 'America/St_Lucia',
   loginWaitMs: 10 * 60 * 1000,
+  /** Max wait for unchecked Cloudflare Turnstile before pausing (headed). */
+  cloudflareWaitMs: 5 * 60 * 1000,
   dashboardPort: 3921,
   userDataDir: path.join(CONFIG_DIR, 'user-data'),
   /** Job schedule: frequency off|daily|weekly|monthly (off until set in dashboard). */
@@ -166,6 +168,8 @@ function loadConfig() {
     slotHours: slotHours.length ? slotHours : DEFAULTS.slotHours,
     timeZone: process.env.HARVEST_TZ || fileConfig.timeZone || DEFAULTS.timeZone,
     loginWaitMs: Number(fileConfig.loginWaitMs) || DEFAULTS.loginWaitMs,
+    cloudflareWaitMs:
+      Number(fileConfig.cloudflareWaitMs) || DEFAULTS.cloudflareWaitMs,
     dashboardPort: Number(fileConfig.dashboardPort) || DEFAULTS.dashboardPort,
     userDataDir: fileConfig.userDataDir
       ? path.resolve(CONFIG_DIR, fileConfig.userDataDir)
