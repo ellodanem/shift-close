@@ -9,6 +9,35 @@ export function isReportOnlyPayPeriodRow(row: Pick<PayPeriodRow, 'staffId'>): bo
   return row.staffId.startsWith(REPORT_ONLY_PAY_PERIOD_STAFF_ID_PREFIX)
 }
 
+export function isBlankReportOnlyPayPeriodRow(
+  row: Pick<PayPeriodRow, 'staffId' | 'staffName'>
+): boolean {
+  return isReportOnlyPayPeriodRow(row) && !row.staffName.trim()
+}
+
+function asStaffNameRef(row: unknown): Pick<PayPeriodRow, 'staffId' | 'staffName'> | null {
+  if (!row || typeof row !== 'object') return null
+  const r = row as { staffId?: unknown; staffName?: unknown }
+  if (typeof r.staffId !== 'string') return null
+  return {
+    staffId: r.staffId,
+    staffName: typeof r.staffName === 'string' ? r.staffName : ''
+  }
+}
+
+/** Error when any added (report-only) staff row has no name. */
+export function blankReportOnlyStaffSaveError(rows: unknown): string | null {
+  if (!Array.isArray(rows)) return null
+  const count = rows.reduce((n, row) => {
+    const ref = asStaffNameRef(row)
+    return n + (ref && isBlankReportOnlyPayPeriodRow(ref) ? 1 : 0)
+  }, 0)
+  if (count === 0) return null
+  return count === 1
+    ? 'Name or delete the blank staff row before saving.'
+    : `Name or delete the ${count} blank staff rows before saving.`
+}
+
 export function createReportOnlyPayPeriodRow(): PayPeriodRow {
   const id =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -75,7 +104,9 @@ export function withPayPeriodStaffFullNames<T extends { rows: PayPeriodRow[] }>(
   const rows = sortPayPeriodRowsByStaffName(
     data.rows.map((r) => ({
       ...r,
-      staffName: resolvePayPeriodStaffDisplayName(r, nameByStaffId)
+      staffName: isReportOnlyPayPeriodRow(r)
+        ? r.staffName
+        : resolvePayPeriodStaffDisplayName(r, nameByStaffId)
     })),
     nameByStaffId
   )

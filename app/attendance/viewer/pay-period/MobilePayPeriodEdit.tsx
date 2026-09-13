@@ -5,6 +5,7 @@ import { formatSavedPayPeriodDateRange } from '@/lib/pay-period-email'
 import { formatDateDisplay } from '@/lib/pay-period-excel'
 import type { PayPeriodExcelData, PayPeriodExcelRow } from '@/lib/pay-period-excel'
 import {
+  blankReportOnlyStaffSaveError,
   createReportOnlyPayPeriodRow,
   isReportOnlyPayPeriodRow,
   resolvePayPeriodPreviousRow
@@ -52,15 +53,41 @@ export default function MobilePayPeriodEdit({
     const rows = [...data.rows]
     rows[index] = { ...rows[index], [field]: value }
     setData({ ...data, rows })
+    setSaveError(null)
   }
 
   const addReportOnlyRow = () => {
     const rows = [...data.rows, createReportOnlyPayPeriodRow()]
     setData({ ...data, rows })
     setStaffIndex(rows.length - 1)
+    setSaveError(null)
+  }
+
+  const removeReportOnlyRow = () => {
+    if (!row || !isReportOnlyPayPeriodRow(row)) return
+    const rows = data.rows.filter((_, i) => i !== safeIndex)
+    setData({ ...data, rows })
+    setStaffIndex((i) => Math.min(i, Math.max(0, rows.length - 1)))
+    setSaveError(null)
+  }
+
+  const requestSave = () => {
+    const blankStaffError = blankReportOnlyStaffSaveError(data.rows)
+    if (blankStaffError) {
+      setSaveError(blankStaffError)
+      return
+    }
+    setSaveError(null)
+    setConfirmOpen(true)
   }
 
   const handleSave = async () => {
+    const blankStaffError = blankReportOnlyStaffSaveError(data.rows)
+    if (blankStaffError) {
+      setConfirmOpen(false)
+      setSaveError(blankStaffError)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
@@ -154,6 +181,13 @@ export default function MobilePayPeriodEdit({
                     className={fieldInput}
                   />
                   <p className="text-xs text-slate-500 mt-1">Report only — not added to Staff module.</p>
+                  <button
+                    type="button"
+                    onClick={removeReportOnlyRow}
+                    className="mt-3 w-full min-h-[44px] rounded-lg border border-red-500/40 bg-red-950/30 text-sm font-medium text-red-200 hover:bg-red-900/40"
+                  >
+                    Delete this row
+                  </button>
                 </div>
               ) : (
                 <h2 className="text-base font-semibold text-slate-100 mb-4">{row.staffName}</h2>
@@ -292,8 +326,6 @@ export default function MobilePayPeriodEdit({
             />
           </div>
         )}
-
-        {saveError ? <p className="mt-3 text-sm text-red-300">{saveError}</p> : null}
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-700 bg-slate-900/98 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -325,9 +357,10 @@ export default function MobilePayPeriodEdit({
           >
             + Add staff row
           </button>
+          {saveError ? <p className="text-sm text-red-300 mb-2">{saveError}</p> : null}
           <button
             type="button"
-            onClick={() => setConfirmOpen(true)}
+            onClick={requestSave}
             className="w-full min-h-[48px] rounded-lg bg-blue-600 text-base font-semibold text-white hover:bg-blue-500 active:scale-[0.99]"
           >
             Save changes

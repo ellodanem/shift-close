@@ -22,6 +22,7 @@ import {
 } from '@/lib/pay-period-email'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
 import {
+  blankReportOnlyStaffSaveError,
   createReportOnlyPayPeriodRow,
   isReportOnlyPayPeriodRow,
   resolvePayPeriodStaffDisplayName,
@@ -200,6 +201,7 @@ export default function PayPeriodPage() {
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
   const [staffPayrollById, setStaffPayrollById] = useState<Record<string, StaffPayrollSnapshot>>({})
   const [staffNameById, setStaffNameById] = useState<Record<string, string>>({})
+  const blankStaffSaveError = reportData ? blankReportOnlyStaffSaveError(reportData.rows) : null
 
   const loadStaffPayroll = async (staffIds: string[]) => {
     const ids = [...new Set(staffIds.filter(Boolean))]
@@ -297,11 +299,35 @@ export default function PayPeriodPage() {
     setReportData({ ...reportData, rows: [...reportData.rows, createReportOnlyPayPeriodRow()] })
   }
 
+  const removeReportOnlyRow = (index: number) => {
+    if (!reportData) return
+    const row = reportData.rows[index]
+    if (!row || !isReportOnlyPayPeriodRow(row)) return
+    setReportData({
+      ...reportData,
+      rows: reportData.rows.filter((_, i) => i !== index)
+    })
+  }
+
+  const requestSave = () => {
+    if (!reportData) return
+    if (blankStaffSaveError) {
+      alert(blankStaffSaveError)
+      return
+    }
+    setShowConfirm(true)
+  }
+
   const payPeriodStaffIdsForPayroll = (rows: PayPeriodRow[]) =>
     rows.map((r) => r.staffId).filter((id) => !isReportOnlyPayPeriodRow({ staffId: id }))
 
   const handleSave = async () => {
     if (!reportData) return
+    if (blankStaffSaveError) {
+      setShowConfirm(false)
+      alert(blankStaffSaveError)
+      return
+    }
     const wasEditing = !!editingSavedId
     setSaving(true)
     try {
@@ -324,7 +350,10 @@ export default function PayPeriodPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           })
-      if (!res.ok) throw new Error('Failed to save')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(typeof body.error === 'string' ? body.error : 'Failed to save')
+      }
       setShowConfirm(false)
       setShowModal(false)
       setReportData(null)
@@ -738,13 +767,23 @@ export default function PayPeriodPage() {
                     <tr key={r.staffId} className="border-b border-gray-200">
                       <td className="py-1">
                         {reportOnly ? (
-                          <input
-                            type="text"
-                            value={r.staffName}
-                            onChange={(e) => updateRow(i, 'staffName', e.target.value)}
-                            placeholder="Staff name"
-                            className="w-full min-w-[10rem] border border-gray-300 rounded px-2 py-1"
-                          />
+                          <span className="inline-flex w-full min-w-[10rem] items-center gap-2">
+                            <input
+                              type="text"
+                              value={r.staffName}
+                              onChange={(e) => updateRow(i, 'staffName', e.target.value)}
+                              placeholder="Staff name"
+                              className="w-full border border-gray-300 rounded px-2 py-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeReportOnlyRow(i)}
+                              className="shrink-0 text-xs font-medium text-red-700 hover:text-red-900 underline"
+                              aria-label={`Remove ${r.staffName.trim() || 'blank staff'} row`}
+                            >
+                              Delete
+                            </button>
+                          </span>
                         ) : (
                           <span className="inline-flex flex-wrap items-center gap-1">
                             {resolvePayPeriodStaffDisplayName(r, staffNameById)}
@@ -853,6 +892,10 @@ export default function PayPeriodPage() {
                 />
               </div>
 
+              {blankStaffSaveError ? (
+                <p className="text-sm text-amber-800 mb-3">{blankStaffSaveError}</p>
+              ) : null}
+
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
@@ -866,7 +909,7 @@ export default function PayPeriodPage() {
                   Close
                 </button>
                 <button
-                  onClick={() => setShowConfirm(true)}
+                  onClick={requestSave}
                   className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
                 >
                   Save

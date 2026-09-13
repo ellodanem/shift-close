@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blankReportOnlyStaffSaveError } from '@/lib/pay-period-rows'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -54,6 +55,10 @@ export async function PATCH(
     if (rows !== undefined) {
       if (!Array.isArray(rows)) {
         return NextResponse.json({ error: 'rows must be an array when provided' }, { status: 400 })
+      }
+      const blankStaffError = blankReportOnlyStaffSaveError(rows)
+      if (blankStaffError) {
+        return NextResponse.json({ error: blankStaffError }, { status: 400 })
       }
       data.rowsBeforeLastEdit = existing.rows
       data.rows = JSON.stringify(rows)

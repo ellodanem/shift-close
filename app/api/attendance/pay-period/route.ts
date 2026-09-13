@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { markPunchesExtractedForPayPeriod } from '@/lib/attendance-extraction'
 import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
+import { blankReportOnlyStaffSaveError } from '@/lib/pay-period-rows'
 import { prisma } from '@/lib/prisma'
 import { readStationTimeZone } from '@/lib/present-absence'
 
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
 
     if (!YMD.test(startDate) || !YMD.test(endDate)) {
       return NextResponse.json({ error: 'startDate and endDate must be YYYY-MM-DD' }, { status: 400 })
+    }
+
+    const blankStaffError = blankReportOnlyStaffSaveError(rows)
+    if (blankStaffError) {
+      return NextResponse.json({ error: blankStaffError }, { status: 400 })
     }
 
     const tz = await readStationTimeZone()
