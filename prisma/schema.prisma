@@ -174,9 +174,35 @@ model ShiftClose {
   overShortItems   OverShortItem[]
   supervisorStaff  Staff?           @relation(fields: [supervisorId], references: [id])
   depositRecords   DepositRecord[]
+  sales            ShiftSale[]
 
   @@unique([date, shift])
   @@map("shift_close")
+}
+
+/// Department (or later POS-line) sales for a shift. Manual now; POS can upsert the same rows later.
+model ShiftSale {
+  id        String   @id @default(cuid())
+  shiftId   String   @map("shift_id")
+  /// unleaded | diesel | lpg | lubricants | cstore | other
+  category  String
+  label     String   @default("")
+  quantity  Float?
+  unit      String?
+  amount    Float    @default(0)
+  /// manual | pos
+  source    String   @default("manual")
+  /// Empty for department totals; POS SKU/dept id when imported.
+  posKey    String   @default("") @map("pos_key")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  shift ShiftClose @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, category, posKey])
+  @@index([shiftId])
+  @@map("shift_sales")
 }
 
 /// Calendar-day flag: selected deposit line(s) are missing scanned slip(s); optional email + daily digest while open.

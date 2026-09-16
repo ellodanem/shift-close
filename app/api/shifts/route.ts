@@ -4,6 +4,7 @@ import { calculateShiftClose } from '@/lib/calculations'
 import { addCalendarDaysYmd, businessTodayYmd, isYmd } from '@/lib/datetime-policy'
 import { buildShiftsList } from '@/lib/shifts-list'
 import { syncShiftDepositsToCashbook } from '@/lib/cashbook-deposit-sync'
+import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -130,6 +131,15 @@ export async function POST(request: NextRequest) {
         totalDeposits: calculated.totalDeposits
       }
     })
+
+    if (Array.isArray(body.sales)) {
+      await replaceDepartmentSales(
+        prisma,
+        shift.id,
+        body.sales,
+        { unleaded: Number(body.unleaded) || 0, diesel: Number(body.diesel) || 0 }
+      )
+    }
     
     // Move files from draft to shift directory if they exist
     try {
@@ -213,7 +223,8 @@ export async function POST(request: NextRequest) {
     
     // Fetch updated shift
     const updatedShift = await prisma.shiftClose.findUnique({
-      where: { id: shift.id }
+      where: { id: shift.id },
+      include: { sales: shiftSalesInclude }
     })
 
     if (updatedShift?.status === 'closed') {

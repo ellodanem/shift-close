@@ -16,7 +16,14 @@ import type { ShiftType } from '@/lib/types'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 import { MAX_DEPOSIT_BAGS, normalizeBagNumbers, parseBagNumbers, parseDeposits } from '@/lib/deposit-comparison-rows'
 import ShiftCountSystemGrid from '../ShiftCountSystemGrid'
+import ShiftSalesGrid from '../ShiftSalesGrid'
 import { buildCountSystemRows, correctionHighlights } from '@/lib/shift-count-system-rows'
+import {
+  mergeDepartmentSales,
+  systemTenderTotal,
+  type ShiftSaleFormRow,
+  type ShiftSaleRow
+} from '@/lib/shift-sales'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -72,6 +79,7 @@ interface Shift {
   overShortExplanation?: string | null
   osReviewed?: number | null
   osLegitAsIs?: boolean
+  sales?: ShiftSaleRow[]
   overShortItems?: Array<{
     id: string
     type: string
@@ -128,6 +136,7 @@ export default function ShiftDetailPage() {
     countMassyCoupons: 0,
     unleaded: 0,
     diesel: 0,
+    sales: mergeDepartmentSales([], { unleaded: 0, diesel: 0 }),
     deposits: [] as number[],
     depositBagNumbers: [''] as string[],
     notes: ''
@@ -175,6 +184,10 @@ export default function ShiftDetailPage() {
             countMassyCoupons: data.countMassyCoupons || 0,
             unleaded: data.unleaded || 0,
             diesel: data.diesel || 0,
+            sales: mergeDepartmentSales(data.sales, {
+              unleaded: data.unleaded || 0,
+              diesel: data.diesel || 0
+            }),
             deposits,
             depositBagNumbers: bagNumbers.length > 0 ? bagNumbers : [''],
             notes: data.notes || ''
@@ -213,6 +226,10 @@ export default function ShiftDetailPage() {
                     countMassyCoupons: draft.countMassyCoupons ?? data.countMassyCoupons ?? 0,
                     unleaded: draft.unleaded ?? data.unleaded ?? 0,
                     diesel: draft.diesel ?? data.diesel ?? 0,
+                    sales: mergeDepartmentSales(draft.sales ?? data.sales, {
+                      unleaded: draft.unleaded ?? data.unleaded ?? 0,
+                      diesel: draft.diesel ?? data.diesel ?? 0
+                    }),
                     deposits: parseDeposits(JSON.stringify(Array.isArray(draft.deposits) ? draft.deposits : [])),
                     depositBagNumbers:
                       Array.isArray(draftBags) && draftBags.length > 0 ? draftBags : [''],
@@ -941,6 +958,25 @@ export default function ShiftDetailPage() {
             </div>
           </div>
         </div>
+        
+        <ShiftSalesGrid
+          rows={editData.sales}
+          extraLines={shift.sales}
+          fuelUnleaded={isEditable ? editData.unleaded : shift.unleaded}
+          fuelDiesel={isEditable ? editData.diesel : shift.diesel}
+          tenderTotal={systemTenderTotal(isEditable ? editData : shift)}
+          editable={isEditable}
+          highlighted={changedFields.has('sales')}
+          hasStoredSales={Array.isArray(shift.sales) && shift.sales.length > 0}
+          onChange={(category, patch) =>
+            setEditData((prev) => ({
+              ...prev,
+              sales: prev.sales.map((row: ShiftSaleFormRow) =>
+                row.category === category ? { ...row, ...patch, source: 'manual' } : row
+              )
+            }))
+          }
+        />
         
         {/* Notes */}
         <div className="mb-6">

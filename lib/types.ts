@@ -37,6 +37,17 @@ export interface ShiftCloseInput {
   missingDataNotes?: string
   overShortExplained?: boolean
   overShortExplanation?: string
+  /** Department sales (manual now; POS can fill later). */
+  sales?: Array<{
+    category: string
+    label?: string
+    quantity?: number | null
+    unit?: string | null
+    amount: number
+    source?: 'manual' | 'pos'
+    posKey?: string
+    sortOrder?: number
+  }>
 }
 
 export interface ShiftCloseWithCalculations extends ShiftCloseInput {

@@ -8,7 +8,14 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
 import { MAX_DEPOSIT_BAGS, normalizeBagNumbers } from '@/lib/deposit-comparison-rows'
 import ShiftCountSystemGrid from '../ShiftCountSystemGrid'
+import ShiftSalesGrid from '../ShiftSalesGrid'
 import { buildCountSystemRows } from '@/lib/shift-count-system-rows'
+import {
+  defaultDepartmentSales,
+  mergeDepartmentSales,
+  systemTenderTotal,
+  type ShiftSaleFormRow
+} from '@/lib/shift-sales'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
@@ -35,6 +42,7 @@ export default function NewShiftPage() {
     countMassyCoupons: 0,
     unleaded: 0,
     diesel: 0,
+    sales: defaultDepartmentSales(),
     deposits: [0],
     depositBagNumbers: [''],
     notes: '',
@@ -78,7 +86,11 @@ export default function NewShiftPage() {
             ? draft.depositBagNumbers.length > 0
               ? draft.depositBagNumbers
               : ['']
-            : ['']
+            : [''],
+          sales: mergeDepartmentSales(draft.sales, {
+            unleaded: draft.unleaded ?? 0,
+            diesel: draft.diesel ?? 0
+          })
         })
         setHasDraft(true)
       } catch (error) {
@@ -204,6 +216,7 @@ export default function NewShiftPage() {
         countMassyCoupons: safeNum(formData.countMassyCoupons),
         unleaded: safeNum(formData.unleaded),
         diesel: safeNum(formData.diesel),
+        sales: formData.sales,
         deposits: formData.deposits
           .map(d => safeNum(d))
           .filter(d => d > 0), // Remove 0 values (empty/placeholder deposits)
@@ -264,6 +277,7 @@ export default function NewShiftPage() {
       countMassyCoupons: 0,
       unleaded: 0,
       diesel: 0,
+      sales: defaultDepartmentSales(),
       deposits: [0],
       depositBagNumbers: [''],
       notes: '',
@@ -600,6 +614,22 @@ export default function NewShiftPage() {
               </div>
             </div>
           </div>
+          
+          <ShiftSalesGrid
+            rows={formData.sales}
+            fuelUnleaded={formData.unleaded}
+            fuelDiesel={formData.diesel}
+            tenderTotal={systemTenderTotal(formData)}
+            editable
+            onChange={(category, patch) =>
+              setFormData((prev) => ({
+                ...prev,
+                sales: prev.sales.map((row: ShiftSaleFormRow) =>
+                  row.category === category ? { ...row, ...patch, source: 'manual' } : row
+                )
+              }))
+            }
+          />
           
           {/* Notes */}
           <div>

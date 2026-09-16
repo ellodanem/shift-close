@@ -5,6 +5,7 @@ import {
   shouldSyncDepositsAfterShiftUpdate,
   syncShiftDepositsToCashbook
 } from '@/lib/cashbook-deposit-sync'
+import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +22,8 @@ export async function GET(
         },
         overShortItems: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
-        }
+        },
+        sales: shiftSalesInclude
       }
     })
     
@@ -334,6 +336,21 @@ export async function PATCH(
       }
     }
     
+    if ('sales' in body) {
+      const fuel = {
+        unleaded: 'unleaded' in updateData ? Number(updateData.unleaded) || 0 : existingShift.unleaded,
+        diesel: 'diesel' in updateData ? Number(updateData.diesel) || 0 : existingShift.diesel
+      }
+      const salesResult = await replaceDepartmentSales(prisma, id, body.sales, fuel)
+      if (salesResult.changed && !isDraft) {
+        changes.push({
+          field: 'sales',
+          oldValue: salesResult.snapshotBefore,
+          newValue: salesResult.snapshotAfter
+        })
+      }
+    }
+
     // Create correction records for all changes (except notes, which are tracked separately)
     if (changes.length > 0 && !isDraft) {
       await Promise.all(
@@ -378,7 +395,8 @@ export async function PATCH(
         },
         overShortItems: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
-        }
+        },
+        sales: shiftSalesInclude
       }
     })
 
