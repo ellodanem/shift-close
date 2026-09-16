@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BankSelect from '../BankSelect'
 import { useAuth } from '@/app/components/AuthContext'
+import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
 interface StaffRole {
   id: string
@@ -37,7 +38,8 @@ export default function NewStaffPage() {
     accountNumber: '',
     mobileNumber: '',
     notes: '',
-    punchExempt: false
+    punchExempt: false,
+    reliabilityGrade: 'C'
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -143,6 +145,11 @@ export default function NewStaffPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
+                    <StaffReliabilityGrade
+                      grade={formData.reliabilityGrade}
+                      persist={false}
+                      onChange={(grade) => setFormData((prev) => ({ ...prev, reliabilityGrade: grade }))}
+                    />
                     <span
                       className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                         statusActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'

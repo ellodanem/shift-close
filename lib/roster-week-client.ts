@@ -24,6 +24,7 @@ export interface RosterStaffClient {
   dateOfBirth?: string | null
   vacationStart?: string | null
   vacationEnd?: string | null
+  reliabilityGrade?: string | null
 }
 
 export function getMonday(date: Date): Date {

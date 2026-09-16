@@ -18,6 +18,7 @@ import {
   staffIdsBelowMinOffDays
 } from '@/lib/roster-settings'
 import CallOutCalledAtFields from '@/app/components/CallOutCalledAtFields'
+import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 import {
   buildCallOutTooltip,
   combineCalledAtParts,
@@ -60,6 +61,7 @@ interface Staff {
   mobileNumber?: string | null
   /** YYYY-MM-DD — used to show a birthday marker on the roster when the cell date matches month/day */
   dateOfBirth?: string | null
+  reliabilityGrade?: string | null
 }
 
 function isBirthdayOnDate(staff: Staff, isoDate: string): boolean {
@@ -2152,6 +2154,7 @@ export default function RosterPage() {
                             </span>
                           ) : null}
                           <span className="truncate">{s.firstName?.trim() || s.name}</span>
+                          <StaffReliabilityGrade staffId={s.id} grade={s.reliabilityGrade} size="sm" />
                         </div>
                       </div>
                       {!rosterLockedEdit && !ghost && (
@@ -2530,6 +2533,7 @@ export default function RosterPage() {
                               </span>
                             ) : null}
                             <span>{s.firstName?.trim() || s.name}</span>
+                            <StaffReliabilityGrade staffId={s.id} grade={s.reliabilityGrade} size="sm" />
                           </div>
                         </div>
                         {!rosterLockedEdit && !ghost && (

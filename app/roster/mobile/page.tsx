@@ -43,6 +43,7 @@ import {
   countOffDaysForStaffInWeek
 } from '@/lib/roster-settings'
 import { useAuth } from '@/app/components/AuthContext'
+import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
 interface ShiftTemplate {
   id: string
@@ -733,35 +734,38 @@ export default function RosterMobilePage() {
                     return (
                     <tr key={s.id} className={`border-b border-slate-700/80 last:border-0 ${ghost ? 'opacity-75' : ''}`}>
                       <td
-                        className={`sticky left-0 z-10 border-r border-slate-700 p-0.5 font-medium whitespace-nowrap max-w-[5rem] ${
+                        className={`sticky left-0 z-10 border-r border-slate-700 p-0.5 font-medium whitespace-nowrap max-w-[6.5rem] ${
                           ghost ? 'bg-slate-800/60 text-gray-400' : 'bg-slate-800 text-slate-100'
                         } ${staffBelowMinOff.has(s.id) ? 'roster-staff-off-days-warning' : ''}`}
                       >
-                        {canEditRoster && !isPastWeek && !ghost ? (
-                          <button
-                            type="button"
-                            onClick={() => setFillStaffId(s.id)}
-                            className="w-full min-h-[40px] px-1.5 py-1.5 text-left truncate rounded-md text-blue-200 hover:bg-slate-700/80 active:bg-slate-700"
-                            title={
-                              staffOffDaysWarningTitle(s) ??
-                              `${staffDisplayName(s)} — tap to fill entire week`
-                            }
-                          >
-                            {s.firstName?.trim() || s.name.split(' ')[0]}
-                          </button>
-                        ) : (
-                          <span
-                            className="flex items-center gap-0.5 px-1.5 py-1.5 truncate"
-                            title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
-                          >
-                            {ghost ? (
-                              <span className="shrink-0 text-[10px]" role="img" aria-label="Inactive staff">
-                                👻
-                              </span>
-                            ) : null}
-                            {s.firstName?.trim() || s.name.split(' ')[0]}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-0.5 min-w-0">
+                          {canEditRoster && !isPastWeek && !ghost ? (
+                            <button
+                              type="button"
+                              onClick={() => setFillStaffId(s.id)}
+                              className="min-h-[40px] min-w-0 flex-1 px-1.5 py-1.5 text-left truncate rounded-md text-blue-200 hover:bg-slate-700/80 active:bg-slate-700"
+                              title={
+                                staffOffDaysWarningTitle(s) ??
+                                `${staffDisplayName(s)} — tap to fill entire week`
+                              }
+                            >
+                              {s.firstName?.trim() || s.name.split(' ')[0]}
+                            </button>
+                          ) : (
+                            <span
+                              className="flex items-center gap-0.5 px-1.5 py-1.5 truncate min-w-0 flex-1"
+                              title={ghost ? GHOST_ROSTER_STAFF_TITLE : staffOffDaysWarningTitle(s) ?? staffDisplayName(s)}
+                            >
+                              {ghost ? (
+                                <span className="shrink-0 text-[10px]" role="img" aria-label="Inactive staff">
+                                  👻
+                                </span>
+                              ) : null}
+                              {s.firstName?.trim() || s.name.split(' ')[0]}
+                            </span>
+                          )}
+                          <StaffReliabilityGrade staffId={s.id} grade={s.reliabilityGrade} size="sm" />
+                        </div>
                       </td>
                       {weekDates.map((date) => {
                         const entry = getEntryFor(s.id, date)

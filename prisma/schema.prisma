@@ -29,6 +29,8 @@ model Staff {
   /// Salaried / no clock: excluded from pay period hours report; present/absent auto-present unless marked absent.
   punchExempt   Boolean  @default(false) @map("punch_exempt")
   sortOrder     Int      @default(0) @map("sort_order")
+  /// Placeholder letter grade A–F. Will become a calculated reliability score.
+  reliabilityGrade String? @map("reliability_grade")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

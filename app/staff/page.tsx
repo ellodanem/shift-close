@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DocumentGenerationModal from './DocumentGenerationModal'
+import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
 interface Staff {
   id: string
@@ -16,6 +17,7 @@ interface Staff {
   roleId: string | null
   staffRole?: { id: string; name: string; badgeColor: string | null } | null
   notes: string
+  reliabilityGrade?: string | null
 }
 
 function StaffTable({
@@ -77,7 +79,10 @@ function StaffTable({
               className="hover:bg-gray-50 cursor-pointer focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
             >
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-blue-700 hover:text-blue-900">{member.name}</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="text-sm font-medium text-blue-700 hover:text-blue-900">{member.name}</div>
+                  <StaffReliabilityGrade staffId={member.id} grade={member.reliabilityGrade} />
+                </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span

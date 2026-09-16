@@ -6,6 +6,7 @@ import { canViewStaffSensitiveFields } from '@/lib/roles'
 import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
 import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
+import { parseReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(
   request: NextRequest,
@@ -60,7 +61,8 @@ export async function PATCH(
       notes,
       vacationStart,
       vacationEnd,
-      punchExempt
+      punchExempt,
+      reliabilityGrade
     } = body
 
     const data: Record<string, unknown> = {
@@ -78,6 +80,16 @@ export async function PATCH(
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
       ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null }),
       ...(punchExempt !== undefined && { punchExempt: punchExempt === true })
+    }
+
+    if (reliabilityGrade !== undefined) {
+      if (reliabilityGrade !== null && String(reliabilityGrade).trim() !== '') {
+        const parsed = parseReliabilityGrade(reliabilityGrade)
+        if (!parsed) {
+          return NextResponse.json({ error: 'Reliability score must be A, B, C, D, or F' }, { status: 400 })
+        }
+        data.reliabilityGrade = parsed
+      }
     }
 
     if (firstName !== undefined || lastName !== undefined) {

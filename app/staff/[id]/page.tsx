@@ -8,6 +8,7 @@ import DocumentGenerationModal from '../DocumentGenerationModal'
 import BankSelect from '../BankSelect'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { useAuth } from '@/app/components/AuthContext'
+import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
 interface Staff {
   id: string
@@ -23,6 +24,7 @@ interface Staff {
   vacationStart?: string | null
   vacationEnd?: string | null
   mobileNumber?: string | null
+  reliabilityGrade?: string | null
   _count?: {
     shifts: number
   }
@@ -160,7 +162,8 @@ function EditStaffPageInner() {
     notes: '',
     vacationStart: '' as string,
     vacationEnd: '' as string,
-    punchExempt: false
+    punchExempt: false,
+    reliabilityGrade: '' as string
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -424,7 +427,8 @@ function EditStaffPageInner() {
         notes: data.notes,
         vacationStart: (data as any).vacationStart || '',
         vacationEnd: (data as any).vacationEnd || '',
-        punchExempt: (data as any).punchExempt === true
+        punchExempt: (data as any).punchExempt === true,
+        reliabilityGrade: data.reliabilityGrade || ''
       }
       setFormData(next)
       setShiftCount(data._count?.shifts || 0)
@@ -618,6 +622,11 @@ function EditStaffPageInner() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
+                    <StaffReliabilityGrade
+                      staffId={id}
+                      grade={formData.reliabilityGrade}
+                      onChange={(grade) => setFormData((prev) => ({ ...prev, reliabilityGrade: grade }))}
+                    />
                     <span
                       className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                         statusActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'

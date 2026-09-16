@@ -9,6 +9,7 @@ import {
   parseExplicitDeviceUserIdInput
 } from '@/lib/device-user-id'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
+import { parseReliabilityGrade, randomPlaceholderReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,7 +68,8 @@ export async function POST(request: NextRequest) {
       mobileNumber,
       notes,
       punchExempt,
-      deviceUserId: deviceUserIdBody
+      deviceUserId: deviceUserIdBody,
+      reliabilityGrade: reliabilityGradeBody
     } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
@@ -92,6 +94,14 @@ export async function POST(request: NextRequest) {
       if (!parsed.ok) {
         return NextResponse.json({ error: parsed.error }, { status: 400 })
       }
+    }
+
+    let reliabilityGrade = parseReliabilityGrade(reliabilityGradeBody)
+    if (reliabilityGradeBody !== undefined && reliabilityGradeBody !== null && reliabilityGradeBody !== '' && !reliabilityGrade) {
+      return NextResponse.json({ error: 'Reliability score must be A, B, C, D, or F' }, { status: 400 })
+    }
+    if (!reliabilityGrade) {
+      reliabilityGrade = randomPlaceholderReliabilityGrade(first, last, displayName)
     }
 
     let resolvedRole = (role || 'cashier').toString()
@@ -155,7 +165,8 @@ export async function POST(request: NextRequest) {
                 accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
                 mobileNumber: mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null,
                 notes: notes || '',
-                punchExempt: punchExempt === true
+                punchExempt: punchExempt === true,
+                reliabilityGrade
               }
             })
           },
