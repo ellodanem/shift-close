@@ -255,6 +255,18 @@ export default function FuelComparisonPage() {
     return { ...t, totalGallonsCur, totalGallonsPrev, variance: totalGallonsCur - totalGallonsPrev }
   })()
 
+  // Running variance from the 1st of the month through each day (for hover tooltip)
+  const cumulativeVariances = (() => {
+    let sum = 0
+    return localDays.map(d => {
+      const variance =
+        litresToGallons(d.gasLitresCur) + litresToGallons(d.dieselLitresCur) -
+        (litresToGallons(d.gasLitresPrev) + litresToGallons(d.dieselLitresPrev))
+      sum += variance
+      return sum
+    })
+  })()
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -361,7 +373,7 @@ export default function FuelComparisonPage() {
                       <th colSpan={4} className="border border-gray-300 px-2 py-2 text-center font-semibold text-gray-700">Litres</th>
                       <th colSpan={4} className="border border-gray-300 px-2 py-2 text-center font-semibold text-gray-700">Gallons</th>
                       <th colSpan={2} className="border border-gray-300 px-2 py-2 text-center font-semibold text-gray-700">Total</th>
-                      <th className="border border-gray-300 px-3 py-2 text-center font-semibold text-gray-700">Variance</th>
+                      <th className="border border-gray-300 px-3 py-2 text-center font-semibold text-gray-700" title="Hover a day for cumulative variance from the 1st">Variance</th>
                     </tr>
                     <tr className="bg-gray-50">
                       <th className="border border-gray-300 px-3 py-1.5 text-left text-xs text-gray-600"></th>
@@ -391,6 +403,8 @@ export default function FuelComparisonPage() {
                       const cellClass = (base: string) =>
                         highlight ? `${base} bg-amber-100` : base
                       const title = d.missingShiftInfo ? `Missing: ${d.missingShiftInfo}` : undefined
+                      const cumulative = cumulativeVariances[i]
+                      const cumulativeLabel = `Cumulative: ${cumulative >= 0 ? '' : '-'}${formatNum(Math.abs(cumulative))}`
                       return (
                         <tr key={d.date} className="hover:bg-gray-50">
                           <td className={`border border-gray-300 px-3 py-2 font-medium text-gray-900 ${highlight ? 'bg-amber-100' : ''}`} title={title}>
@@ -422,8 +436,17 @@ export default function FuelComparisonPage() {
                           <td className="border border-gray-300 px-2 py-2 text-right">{formatNum(dieselGallonsPrev)}</td>
                           <td className={cellClass('border border-gray-300 px-2 py-2 text-right font-medium')} title={title}>{formatNum(totalCur)}</td>
                           <td className="border border-gray-300 px-2 py-2 text-right font-medium">{formatNum(totalPrev)}</td>
-                          <td className={`${cellClass('border border-gray-300 px-2 py-2 text-right font-medium')} ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`} title={title}>
+                          <td
+                            className={`group relative ${cellClass('border border-gray-300 px-2 py-2 text-right font-medium')} ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                            title={title}
+                          >
                             {variance >= 0 ? '' : '-'}{formatNum(Math.abs(variance))}
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+                            >
+                              {cumulativeLabel}
+                            </span>
                           </td>
                         </tr>
                       )
