@@ -161,6 +161,21 @@ export function tryParseOptionalLitres(value: unknown): LitresParseResult {
   return { ok: true, value: n }
 }
 
+/** Fill blank Fuel invoice litres from harvest; never overwrite a value already stored (including 0). */
+export function harvestFuelVolumePatch(
+  existing: { unleadedLitres: number | null; dieselLitres: number | null },
+  incoming: { unleadedLitres: number | null; dieselLitres: number | null }
+): { unleadedLitres?: number | null; dieselLitres?: number | null } | null {
+  const patch: { unleadedLitres?: number | null; dieselLitres?: number | null } = {}
+  if (existing.unleadedLitres == null && incoming.unleadedLitres != null) {
+    patch.unleadedLitres = incoming.unleadedLitres
+  }
+  if (existing.dieselLitres == null && incoming.dieselLitres != null) {
+    patch.dieselLitres = incoming.dieselLitres
+  }
+  return Object.keys(patch).length ? patch : null
+}
+
 export function parseRequiredLitres(value: unknown): number {
   const parsed = tryParseOptionalLitres(value)
   if (!parsed.ok || parsed.value == null) {

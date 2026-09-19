@@ -619,12 +619,14 @@ async function runFuelInvoicesCycle(reason, options = {}) {
         ok: !imported.errors?.length,
         message:
           imported.message ||
-          `Fuel: Cstore unpaid ${imported.cstoreCount}, added ${imported.created}, skipped ${imported.skipped}`,
+          `Fuel: Cstore unpaid ${imported.cstoreCount}, added ${imported.created}, skipped ${imported.skipped}` +
+            (imported.volumesUpdated ? `, volumes ${imported.volumesUpdated}` : ''),
         invoices: undefined
       }
       extra.created = imported.created
       extra.skipped = imported.skipped
       extra.cstoreCount = imported.cstoreCount
+      extra.volumesUpdated = imported.volumesUpdated
     } catch (err) {
       result = {
         ...result,

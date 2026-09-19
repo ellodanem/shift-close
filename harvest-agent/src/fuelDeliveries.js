@@ -1,13 +1,15 @@
 /**
  * fuelDeliveries.js — Cstore Gas → Delivery scrape (unpaid only).
- * Opens each unpaid row's Edit modal to read B.O.L No as the invoice number,
- * then posts Fuel invoices to Shift Close.
+ * Opens each unpaid row's Edit modal to read B.O.L No as the invoice number
+ * and Regular/Diesel litres (list columns or Net volume purchased on the modal).
+ * Then posts Fuel invoices to Shift Close.
  */
 
 const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
+const { mergeDeliveryVolumes } = require('./fuelVolumes')
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -285,9 +287,31 @@ async function readUnpaidDeliveryRows(scope) {
       const m = String(s || '').replace(/,/g, '').match(/\$?\s*(\d+(\.\d{1,2})?)/)
       return m ? Number(m[1]) : NaN
     }
+    function parseVolume(s) {
+      const raw = String(s || '')
+      const threeDec = raw.replace(/,/g, '').match(/(\d+\.\d{3})\b/)
+      if (threeDec) {
+        const n = Number(threeDec[1])
+        return Number.isFinite(n) && n >= 0 ? n : null
+      }
+      const withoutMoney = raw.replace(/\$\s*[\d,]+(\.\d+)?/g, ' ').replace(/,/g, '')
+      const m = withoutMoney.match(/(\d+(?:\.\d+)?)/)
+      if (!m) return null
+      const n = Number(m[1])
+      return Number.isFinite(n) && n >= 0 ? n : null
+    }
     function parseDate(s) {
       const m = String(s || '').trim().match(/(\d{1,2}\/\d{1,2}\/\d{4})/)
       return m ? m[1] : ''
+    }
+    function cellText(cell) {
+      if (!cell) return ''
+      const input = cell.querySelector('input:not([type="hidden"]), textarea')
+      if (input) {
+        const v = String(input.value || input.getAttribute('value') || '').trim()
+        if (v) return v
+      }
+      return cell.innerText || ''
     }
 
     const tables = Array.from(document.querySelectorAll('table'))
@@ -301,6 +325,10 @@ async function readUnpaidDeliveryRows(scope) {
 
       const dateIdx = headers.findIndex((h) => h === 'date' || h.includes('delivery'))
       const totalIdx = headers.findIndex((h) => h.includes('invoice total') || h === 'total')
+      const regularIdx = headers.findIndex((h) => h === 'regular' || h.startsWith('regular'))
+      const plusIdx = headers.findIndex((h) => h === 'plus')
+      const superIdx = headers.findIndex((h) => h === 'super')
+      const dieselIdx = headers.findIndex((h) => h === 'diesel')
       if (dateIdx < 0 && totalIdx < 0) continue
 
       const bodyRows = table.querySelectorAll('tbody tr')
@@ -324,7 +352,11 @@ async function readUnpaidDeliveryRows(scope) {
           invoiceDate,
           amount,
           load: loadMatch ? loadMatch[1] : '',
-          key: `${invoiceDate}|${loadMatch ? loadMatch[1] : ''}|${amount}`
+          key: `${invoiceDate}|${loadMatch ? loadMatch[1] : ''}|${amount}`,
+          regular: regularIdx >= 0 ? parseVolume(cellText(cells[regularIdx])) : null,
+          plus: plusIdx >= 0 ? parseVolume(cellText(cells[plusIdx])) : null,
+          superGrade: superIdx >= 0 ? parseVolume(cellText(cells[superIdx])) : null,
+          diesel: dieselIdx >= 0 ? parseVolume(cellText(cells[dieselIdx])) : null
         })
       })
       if (rows.length) break
@@ -469,6 +501,77 @@ async function readBolNumber(page) {
   return ''
 }
 
+async function readModalGradeVolumes(page) {
+  const fromModal = await page
+    .evaluate(() => {
+      function norm(s) {
+        return String(s || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase()
+      }
+      function parseVolume(s) {
+        const raw = String(s || '')
+        const threeDec = raw.replace(/,/g, '').match(/(\d+\.\d{3})\b/)
+        if (threeDec) {
+          const n = Number(threeDec[1])
+          return Number.isFinite(n) && n >= 0 ? n : null
+        }
+        const withoutMoney = raw.replace(/\$\s*[\d,]+(\.\d+)?/g, ' ').replace(/,/g, '')
+        const m = withoutMoney.match(/(\d+(?:\.\d+)?)/)
+        if (!m) return null
+        const n = Number(m[1])
+        return Number.isFinite(n) && n >= 0 ? n : null
+      }
+      function cellText(cell) {
+        if (!cell) return ''
+        const input = cell.querySelector('input:not([type="hidden"]), textarea')
+        if (input) {
+          const v = String(input.value || input.getAttribute('value') || '').trim()
+          if (v) return v
+        }
+        return cell.innerText || ''
+      }
+
+      const roots = Array.from(
+        document.querySelectorAll('.modal, [role="dialog"], .ui-dialog, .modal-dialog, .k-window, body')
+      )
+      for (const root of roots) {
+        const tables = Array.from(root.querySelectorAll('table'))
+        for (const table of tables) {
+          const headerCells = Array.from(table.querySelectorAll('thead th, thead td, tr:first-child th'))
+          const headers = headerCells.map((el) => norm(el.innerText))
+          const gradeIdx = headers.findIndex((h) => h === 'grade' || h.includes('grade'))
+          const netIdx = headers.findIndex((h) => h.includes('net volume'))
+          const grossIdx = headers.findIndex((h) => h.includes('gross volume'))
+          const volIdx = netIdx >= 0 ? netIdx : grossIdx
+          if (gradeIdx < 0 || volIdx < 0) continue
+
+          const out = { regular: null, plus: null, superGrade: null, diesel: null }
+          const bodyRows = table.querySelectorAll('tbody tr')
+          const list = bodyRows.length ? bodyRows : table.querySelectorAll('tr')
+          list.forEach((tr) => {
+            const cells = Array.from(tr.querySelectorAll('td, th'))
+            if (cells.length < 2) return
+            const grade = norm(cells[gradeIdx]?.innerText || '')
+            const volume = parseVolume(cellText(cells[volIdx]))
+            if (grade === 'regular') out.regular = volume
+            else if (grade === 'plus') out.plus = volume
+            else if (grade === 'super') out.superGrade = volume
+            else if (grade === 'diesel') out.diesel = volume
+          })
+          if (out.regular != null || out.diesel != null || out.plus != null || out.superGrade != null) {
+            return out
+          }
+        }
+      }
+      return null
+    })
+    .catch(() => null)
+
+  return fromModal
+}
+
 async function closeUpdateModal(page) {
   const closed = await clickFirstVisible(page, [
     page.getByRole('button', { name: /^cancel$/i }),
@@ -526,6 +629,7 @@ async function scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir) {
       }
 
       const bol = await readBolNumber(page)
+      const modalVolumes = await readModalGradeVolumes(page)
       await closeUpdateModal(page)
 
       if (!bol) {
@@ -535,12 +639,18 @@ async function scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir) {
       }
       if (seenBols.has(bol)) continue
       seenBols.add(bol)
+      const volumes = mergeDeliveryVolumes(next, modalVolumes)
       invoices.push({
         invoiceNumber: bol,
         invoiceDate: next.invoiceDate,
-        amount: next.amount
+        amount: next.amount,
+        unleadedLitres: volumes.unleadedLitres,
+        dieselLitres: volumes.dieselLitres
       })
-      console.log(`[Cstore] Captured Fuel invoice ${bol} · ${next.invoiceDate} · $${next.amount}`)
+      console.log(
+        `[Cstore] Captured Fuel invoice ${bol} · ${next.invoiceDate} · $${next.amount}` +
+          ` · U ${volumes.unleadedLitres ?? '—'} L / D ${volumes.dieselLitres ?? '—'} L`
+      )
     }
 
     if (!(await goToNextDeliveryPage(scope))) break

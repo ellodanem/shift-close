@@ -6,6 +6,7 @@ import {
   computeBook,
   computeFuelExpectancy,
   dipDeltasFromBook,
+  harvestFuelVolumePatch,
   lastWeekdaySamples,
   usableLitres,
   weekendEndYmd,
@@ -211,5 +212,38 @@ describe('fuel expectancy forecasts', () => {
     assert.equal(rest.typical.unleaded.enough, false)
     assert.ok(rest.typical.unleaded.shortBy > 0)
     assert.equal(result.book?.usable.unleaded, 500)
+  })
+})
+
+describe('harvest fuel invoice volume backfill', () => {
+  it('fills only blank litre fields and treats zero as real', () => {
+    assert.deepEqual(
+      harvestFuelVolumePatch(
+        { unleadedLitres: null, dieselLitres: null },
+        { unleadedLitres: 15138, dieselLitres: 7592 }
+      ),
+      { unleadedLitres: 15138, dieselLitres: 7592 }
+    )
+    assert.deepEqual(
+      harvestFuelVolumePatch(
+        { unleadedLitres: 100, dieselLitres: null },
+        { unleadedLitres: 15138, dieselLitres: 7592 }
+      ),
+      { dieselLitres: 7592 }
+    )
+    assert.equal(
+      harvestFuelVolumePatch(
+        { unleadedLitres: 15138, dieselLitres: 7592 },
+        { unleadedLitres: 1, dieselLitres: 2 }
+      ),
+      null
+    )
+    assert.deepEqual(
+      harvestFuelVolumePatch(
+        { unleadedLitres: null, dieselLitres: null },
+        { unleadedLitres: 0, dieselLitres: 0 }
+      ),
+      { unleadedLitres: 0, dieselLitres: 0 }
+    )
   })
 })

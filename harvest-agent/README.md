@@ -12,12 +12,12 @@ This is **not** the ZKTeco attendance agent in `agent/`. It runs on a dedicated 
 | `cstore_keepalive` | On start, then 7:00 and 19:00 America/St_Lucia | Pass if the Cstore dashboard is visible |
 | `customer_accounts` | Manual or CLI | Imports customer credit reports into Shift Close |
 | `vendor_invoices` | Manual or CLI | Scrapes Grocery → Purchases → Invoices and adds invoices in Shift Close |
-| `fuel_invoices` | Manual or CLI | Scrapes Gas → Delivery (unpaid only), reads B.O.L via Edit, adds **Fuel** invoices |
+| `fuel_invoices` | Manual or CLI | Scrapes Gas → Delivery (unpaid only), reads B.O.L via Edit, adds **Fuel** invoices with Regular/Diesel litres |
 | `lpg_invoices` | Manual or CLI | Scrapes Grocery → Purchases → **Rubis West Indies**, adds **LPG** invoices |
 
 Vendor invoices have no export. The agent selects a vendor and month, reads the table (including pagination), and posts rows to Shift Close. Existing invoices (same vendor, number, date, and amount) are skipped. If a vendor reuses an invoice number, a letter is appended (`2062886A`) and that mapping is included in the harvest summary email. VAT-registered vendors in Shift Close split the Cstore amount using the global VAT rate; new Cstore-only vendors are created with VAT off.
 
-**Fuel** invoices come from **Gas → Delivery** (unpaid only; B.O.L = invoice number; type **Fuel**).
+**Fuel** invoices come from **Gas → Delivery** (unpaid only; B.O.L = invoice number; type **Fuel**). Unleaded litres = Regular + Plus + Super; diesel = Diesel. Those figures are read from the list columns or the Edit modal **Net volume purchased** (either is enough). Existing Fuel invoices with blank litres are filled on the next harvest; values already entered are left alone.
 
 **LPG** invoices come from grocery **Rubis West Indies** (type **LPG**). That vendor stays skipped on the vendor job. Numbers already in Fuel Payments (any status) are skipped.
 

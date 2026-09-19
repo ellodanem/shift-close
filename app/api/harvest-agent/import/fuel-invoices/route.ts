@@ -36,10 +36,18 @@ export async function POST(request: NextRequest) {
         typeof r.type === 'string' && (VALID_TYPES as readonly string[]).includes(r.type.trim())
           ? (r.type.trim() as HarvestFuelInvoiceType)
           : undefined
+      const litres = (value: unknown): number | null | undefined => {
+        if (value === undefined) return undefined
+        if (value === null || value === '') return null
+        const n = typeof value === 'number' ? value : Number(value)
+        return Number.isFinite(n) ? n : null
+      }
       return {
         invoiceNumber: typeof r.invoiceNumber === 'string' ? r.invoiceNumber : String(r.invoiceNumber ?? ''),
         invoiceDate: typeof r.invoiceDate === 'string' ? r.invoiceDate : String(r.invoiceDate ?? ''),
         amount: typeof r.amount === 'number' ? r.amount : Number(r.amount),
+        unleadedLitres: litres(r.unleadedLitres),
+        dieselLitres: litres(r.dieselLitres),
         ...(rowType ? { type: rowType } : {})
       }
     })
@@ -59,6 +67,9 @@ export async function POST(request: NextRequest) {
         `${result.type} invoice import failed`
     } else {
       message = `${result.type}: Cstore ${result.cstoreCount}, added ${result.created}, skipped ${result.skipped}`
+      if (result.volumesUpdated) {
+        message += `, volumes ${result.volumesUpdated}`
+      }
     }
 
     return NextResponse.json({

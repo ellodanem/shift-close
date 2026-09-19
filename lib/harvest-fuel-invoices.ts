@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { harvestFuelVolumePatch, tryParseOptionalLitres } from '@/lib/fuel-inventory'
 
 const FUEL_INVOICE_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment'] as const
 export type HarvestFuelInvoiceType = (typeof FUEL_INVOICE_TYPES)[number]
@@ -10,6 +11,8 @@ export type HarvestFuelInvoiceRow = {
   invoiceDate: string
   amount: number
   type?: HarvestFuelInvoiceType
+  unleadedLitres?: number | null
+  dieselLitres?: number | null
 }
 
 export type ImportHarvestFuelInvoicesResult = {
@@ -17,6 +20,7 @@ export type ImportHarvestFuelInvoicesResult = {
   shiftCloseCount: number
   created: number
   skipped: number
+  volumesUpdated: number
   type: HarvestFuelInvoiceType
   errors: { invoiceNumber?: string; message: string }[]
   createdNumbers: string[]
@@ -40,10 +44,19 @@ function resolveType(value: unknown, fallback: HarvestFuelInvoiceType): HarvestF
   return fallback
 }
 
+function litresFromHarvestField(value: unknown): number | null {
+  const parsed = tryParseOptionalLitres(value)
+  if (!parsed.ok) return null
+  return parsed.value
+}
+
+export { harvestFuelVolumePatch }
+
 /**
  * Import Cstore rows into Fuel Payments.
  * Default type Fuel (Gas Delivery). Rubis grocery harvest uses type LPG.
- * Skips any invoice number already present (pending, simulated, or paid).
+ * Existing invoice numbers are not created again. Fuel invoices with blank litres
+ * are backfilled from Cstore; litres already stored are left alone.
  */
 export async function importHarvestFuelInvoices(params: {
   invoices: HarvestFuelInvoiceRow[]
@@ -63,6 +76,7 @@ export async function importHarvestFuelInvoices(params: {
   const createdNumbers: string[] = []
   let created = 0
   let skipped = 0
+  let volumesUpdated = 0
 
   const normalized = params.invoices
     .map((row) => {
@@ -74,7 +88,9 @@ export async function importHarvestFuelInvoices(params: {
           ? String(row.invoiceDate).trim().slice(0, 10)
           : null)
       const type = resolveType(row.type, invoiceType)
-      return { invoiceNumber, amount, ymd, rawDate: row.invoiceDate, type }
+      const unleadedLitres = type === 'Fuel' ? litresFromHarvestField(row.unleadedLitres) : null
+      const dieselLitres = type === 'Fuel' ? litresFromHarvestField(row.dieselLitres) : null
+      return { invoiceNumber, amount, ymd, rawDate: row.invoiceDate, type, unleadedLitres, dieselLitres }
     })
     .filter((row) => {
       if (!row.invoiceNumber || !row.ymd || !Number.isFinite(row.amount) || row.amount <= 0) {
@@ -92,7 +108,13 @@ export async function importHarvestFuelInvoices(params: {
     numbers.length
       ? prisma.invoice.findMany({
           where: { invoiceNumber: { in: numbers } },
-          select: { invoiceNumber: true }
+          select: {
+            id: true,
+            invoiceNumber: true,
+            type: true,
+            unleadedLitres: true,
+            dieselLitres: true
+          }
         })
       : Promise.resolve([]),
     numbers.length
@@ -103,6 +125,7 @@ export async function importHarvestFuelInvoices(params: {
       : Promise.resolve([])
   ])
 
+  const existingByNumber = new Map(existingInvoices.map((r) => [r.invoiceNumber, r]))
   const known = new Set([
     ...existingInvoices.map((r) => r.invoiceNumber),
     ...existingPaid.map((r) => r.invoiceNumber)
@@ -123,6 +146,27 @@ export async function importHarvestFuelInvoices(params: {
   for (const row of normalized) {
     if (known.has(row.invoiceNumber)) {
       skipped++
+      const existing = existingByNumber.get(row.invoiceNumber)
+      if (existing && existing.type === 'Fuel') {
+        const patch = harvestFuelVolumePatch(existing, {
+          unleadedLitres: row.unleadedLitres,
+          dieselLitres: row.dieselLitres
+        })
+        if (patch) {
+          try {
+            await prisma.invoice.update({
+              where: { id: existing.id },
+              data: patch
+            })
+            existing.unleadedLitres = patch.unleadedLitres ?? existing.unleadedLitres
+            existing.dieselLitres = patch.dieselLitres ?? existing.dieselLitres
+            volumesUpdated++
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err)
+            errors.push({ invoiceNumber: row.invoiceNumber, message })
+          }
+        }
+      }
       continue
     }
 
@@ -139,7 +183,9 @@ export async function importHarvestFuelInvoices(params: {
           invoiceDate,
           dueDate,
           notes,
-          status: 'pending'
+          status: 'pending',
+          unleadedLitres: row.type === 'Fuel' ? row.unleadedLitres : null,
+          dieselLitres: row.type === 'Fuel' ? row.dieselLitres : null
         }
       })
       known.add(row.invoiceNumber)
@@ -156,6 +202,7 @@ export async function importHarvestFuelInvoices(params: {
     shiftCloseCount,
     created,
     skipped,
+    volumesUpdated,
     type: invoiceType,
     errors,
     createdNumbers
