@@ -22,6 +22,12 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItemConfig[] = [
     permission: 'settings'
   },
   {
+    label: 'Fuel prices',
+    href: '/settings/fuel-prices',
+    shortcutId: 'settings-fuel-prices',
+    permission: 'settings'
+  },
+  {
     label: 'Email (SMTP)',
     href: '/settings/smtp',
     shortcutId: 'settings-smtp',

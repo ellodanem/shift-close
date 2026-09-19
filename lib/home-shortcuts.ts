@@ -43,6 +43,7 @@ export type HomeShortcutId =
   | 'settings'
   | 'settings-users'
   | 'settings-fuel-data'
+  | 'settings-fuel-prices'
   | 'settings-smtp'
   | 'settings-email-recipients'
   | 'settings-end-of-day-email'

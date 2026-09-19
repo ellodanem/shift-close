@@ -388,6 +388,33 @@ model FuelTankReading {
   @@map("fuel_tank_readings")
 }
 
+/// Posted pump (selling) and supplier (cost) prices per litre. Time-bounded; current row has effectiveTo = null.
+/// Same-day corrections supersede the previous row instead of rewriting it.
+model FuelPrice {
+  id             String    @id @default(cuid())
+  /// unleaded | diesel
+  product        String
+  /// selling (pump) | cost (supplier)
+  kind           String
+  pricePerLitre  Float     @map("price_per_litre")
+  unit           String    @default("litre")
+  /// Inclusive YYYY-MM-DD
+  effectiveFrom  String    @map("effective_from")
+  /// Inclusive last day; null = still current
+  effectiveTo    String?   @map("effective_to")
+  /// manual | invoice
+  source         String    @default("manual")
+  notes          String    @default("")
+  createdBy      String    @default("admin") @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  /// Set when a same-day correction replaces this row. Hidden from current/on-date lookups.
+  supersededAt   DateTime? @map("superseded_at")
+
+  @@index([product, kind, effectiveFrom])
+  @@index([product, kind, supersededAt])
+  @@map("fuel_prices")
+}
+
 // Correction log for invoice edits
 model InvoiceCorrection {
   id        String @id @default(cuid())
