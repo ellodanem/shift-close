@@ -14,7 +14,6 @@ import {
 import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH } from '@/lib/scans-mobile'
-import OperationsChecklistPanel from './OperationsChecklistPanel'
 import RentDueBanner from './RentDueBanner'
 import { recordShortcutVisit } from '@/lib/home-shortcuts'
 
@@ -74,7 +73,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
             children
           )}
         </main>
-        <OperationsChecklistPanel />
       </div>
     </div>
   )
