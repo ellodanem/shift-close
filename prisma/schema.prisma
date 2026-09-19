@@ -350,6 +350,9 @@ model Invoice {
   dueDate       DateTime @map("due_date") // invoiceDate + 5 days
   status        String   @default("pending") // 'pending' | 'simulated' | 'paid'
   notes         String?  @default("")
+  /// Delivery litres for tank inventory (Fuel type). Null = not entered, ignored. Zero is a real volume.
+  unleadedLitres Float?  @map("unleaded_litres")
+  dieselLitres   Float?  @map("diesel_litres")
 
   // Link to paid invoice if paid
   paidInvoiceId String?      @unique @map("paid_invoice_id")
@@ -363,7 +366,26 @@ model Invoice {
   @@index([invoiceNumber])
   @@index([status])
   @@index([dueDate])
+  @@index([type, invoiceDate])
   @@map("invoices")
+}
+
+/// Opening tank readings and later dip corrections. Append-only; do not rewrite invoices or shifts.
+model FuelTankReading {
+  id             String   @id @default(cuid())
+  date           String // YYYY-MM-DD; opening is start of this day
+  kind           String // 'opening' | 'dip'
+  unleadedLitres Float    @map("unleaded_litres")
+  dieselLitres   Float    @map("diesel_litres")
+  unleadedDelta  Float    @default(0) @map("unleaded_delta")
+  dieselDelta    Float    @default(0) @map("diesel_delta")
+  notes          String   @default("")
+  createdBy      String   @default("admin") @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@index([kind, date])
+  @@map("fuel_tank_readings")
 }
 
 // Correction log for invoice edits

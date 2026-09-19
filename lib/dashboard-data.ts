@@ -13,6 +13,7 @@ import { fetchStaleArAccounts } from '@/lib/customer-ar-stale-payments'
 import { isFullAccessRole, isSupervisorLike, normalizeAppRole } from '@/lib/roles'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 import { prisma } from '@/lib/prisma'
+import { loadFuelExpectancy, toFuelExpectancyGlance } from '@/lib/fuel-inventory-data'
 
 export type DashboardMonthSummary = {
   year: number
@@ -676,7 +677,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     arSummary,
     cashbookSummary,
     fuelMtdSold,
-    staleArAccounts
+    staleArAccounts,
+    fuelExpectancy
   ] = await Promise.all([
     fetchDashboardMonthSummary({ year, month }),
     fetchDashboardUpcoming(),
@@ -687,7 +689,13 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     skipFinancial ? Promise.resolve(null) : fetchCustomerArSummaryFirst(year, month),
     skipFinancial ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
     fetchDashboardFuelMtdSold(year, month),
-    fullFinancialAccess ? fetchStaleArAccounts() : Promise.resolve(null)
+    fullFinancialAccess ? fetchStaleArAccounts() : Promise.resolve(null),
+    loadFuelExpectancy({ canManage: isFullAccessRole(role) })
+      .then(toFuelExpectancyGlance)
+      .catch((err) => {
+        console.error('fuel expectancy bootstrap', err)
+        return null
+      })
   ])
 
   let fuelExpense: number | null = null
@@ -710,6 +718,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     arSummary,
     cashbookSummary,
     fuelMtdSold,
-    staleArAccounts
+    staleArAccounts,
+    fuelExpectancy
   }
 }

@@ -80,6 +80,12 @@ export default function ExpectedRevenuePage() {
             Expected revenue
           </span>
           <Link
+            href="/insights/fuel-expectancy"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Fuel expectancy
+          </Link>
+          <Link
             href="/insights/deposit-debit-scans"
             className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
           >

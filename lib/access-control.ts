@@ -149,6 +149,7 @@ export function apiWriteAllowedForRole(
     return pathnameAllowedForRole(pathname, role)
   }
   if (isFullAccessRole(role)) return true
+  if (pathname.startsWith('/api/fuel-inventory')) return false
   if (normalizeAppRole(role) === 'stakeholder') {
     return (
       pathname.startsWith('/api/auth/') ||

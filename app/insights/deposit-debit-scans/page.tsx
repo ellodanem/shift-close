@@ -335,6 +335,12 @@ export default function DepositDebitScansPage() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-4 flex flex-wrap gap-2 text-sm">
           <Link
+            href="/insights/fuel-expectancy"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Fuel expectancy
+          </Link>
+          <Link
             href="/insights/expected-revenue"
             className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
           >

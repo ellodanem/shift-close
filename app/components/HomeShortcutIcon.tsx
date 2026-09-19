@@ -55,6 +55,9 @@ const ICONS: Record<HomeShortcutId, { d: string | string[]; viewBox?: string }> 
   'expected-revenue': {
     d: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'
   },
+  'fuel-expectancy': {
+    d: 'M19.428 15.341A8 8 0 116.582 8.659m12.846 6.682L21 21m-1.572-5.659L15 10m-3-3h.01M9 10h.01M12 13h.01'
+  },
   'deposit-scans': {
     d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'
   },

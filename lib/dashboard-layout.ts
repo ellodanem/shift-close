@@ -6,6 +6,7 @@ export const DASHBOARD_WIDGET_IDS = [
   'month-summary',
   'fuel-mtd-deposit-block',
   'customer-ar-glance',
+  'fuel-expectancy',
   'fuel-volume',
   'average-deposit',
   'recent-fuel-payment',
@@ -116,6 +117,12 @@ export function loadDashboardLayout(userId?: string): DashboardWidgetId[] {
       const vi = merged.indexOf('fuel-volume')
       if (vi >= 0) merged.splice(vi + 1, 0, 'average-deposit')
       else merged.push('average-deposit')
+    }
+    if (missing.includes('fuel-expectancy')) {
+      merged = merged.filter((id) => id !== 'fuel-expectancy')
+      const vi = merged.indexOf('fuel-volume')
+      if (vi >= 0) merged.splice(vi, 0, 'fuel-expectancy')
+      else merged.push('fuel-expectancy')
     }
     return normalizeDashboardLayout(ensureCustomerArAfterSummary(merged))
   } catch {

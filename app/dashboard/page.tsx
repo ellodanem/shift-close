@@ -179,6 +179,19 @@ interface FuelMtdSoldPayload {
   periodLabel: string
 }
 
+interface FuelExpectancyGlance {
+  asOfDate: string
+  weekdayName: string
+  hasOpening: boolean
+  unleadedOnHand: number
+  dieselOnHand: number
+  unleadedUsable: number
+  dieselUsable: number
+  todayEnoughTypical: { unleaded: boolean; diesel: boolean }
+  todayShortByTypical: { unleaded: number; diesel: number }
+  daysOfCoverTypical: { unleaded: number; diesel: number }
+}
+
 /** Minutes from midnight for unknown labels — sorts after real shift starts. */
 const ROSTER_SHIFT_SORT_FALLBACK = 24 * 60 + 10_000
 
@@ -248,6 +261,7 @@ function monthDateRangeFromKey(monthKey: string): { startDate: string; endDate: 
 }
 
 const TRENDS_WIDGET_IDS: DashboardWidgetId[] = [
+  'fuel-expectancy',
   'fuel-volume',
   'average-deposit',
   'recent-fuel-payment'
@@ -275,6 +289,7 @@ export default function DashboardPage() {
   const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [fuelMtdSold, setFuelMtdSold] = useState<FuelMtdSoldPayload | null>(null)
+  const [fuelExpectancy, setFuelExpectancy] = useState<FuelExpectancyGlance | null>(null)
   const [fuelMtdLoadState, setFuelMtdLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [fuelMtdView, setFuelMtdView] = useState<'mtd' | 'avg'>('mtd')
   const [loading, setLoading] = useState(true)
@@ -466,6 +481,10 @@ export default function DashboardPage() {
       const mtd = data.fuelMtdSold as FuelMtdSoldPayload | null | undefined
       if (mtd && typeof mtd.avgUnleadedPerDay === 'number') setFuelMtdSold(mtd)
       else setFuelMtdSold(null)
+
+      const expectancy = data.fuelExpectancy as FuelExpectancyGlance | null | undefined
+      if (expectancy && typeof expectancy.unleadedOnHand === 'number') setFuelExpectancy(expectancy)
+      else setFuelExpectancy(null)
     } catch (error) {
       console.error('Error loading dashboard:', error)
     } finally {
@@ -633,6 +652,81 @@ export default function DashboardPage() {
   }
 
   const insightCardClass = 'bg-white rounded-xl border border-gray-200 p-4 sm:p-5 h-full min-w-0 flex flex-col'
+
+  const renderFuelExpectancyCard = () => {
+    const gradeLine = (
+      label: string,
+      onHand: number,
+      usable: number,
+      enough: boolean,
+      shortBy: number,
+      cover: number
+    ) => (
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+        <div className="mt-1 font-mono text-lg font-semibold text-gray-900">{formatLitres(onHand)} L</div>
+        <div className="text-xs text-gray-600">Usable {formatLitres(usable)} L</div>
+        <div className={`mt-1 text-sm font-medium ${enough ? 'text-emerald-800' : 'text-red-700'}`}>
+          {enough
+            ? `Enough for a typical ${fuelExpectancy?.weekdayName ?? 'today'}`
+            : `Short ${formatLitres(shortBy)} L vs typical ${fuelExpectancy?.weekdayName ?? 'today'}`}
+        </div>
+        <div className="text-xs text-gray-500">
+          {cover <= 0 ? 'No cover at typical sales' : `~${cover >= 10 ? cover.toFixed(0) : cover.toFixed(1)} days cover`}
+        </div>
+      </div>
+    )
+
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700">Fuel expectancy</h3>
+            <p className="text-xs text-gray-400">True litres on screen; forecasts use usable stock</p>
+          </div>
+          <Link href="/insights/fuel-expectancy" className="text-xs font-medium text-emerald-800 hover:text-emerald-950">
+            Details →
+          </Link>
+        </div>
+        {!fuelExpectancy?.hasOpening ? (
+          <p className="text-sm text-amber-800">
+            No opening tank reading yet.
+            {isFullAccess ? (
+              <>
+                {' '}
+                Set one on{' '}
+                <Link href="/fuel-payments/invoices" className="font-semibold underline">
+                  Fuel invoices
+                </Link>
+                .
+              </>
+            ) : (
+              ' Ask a manager to set an opening reading.'
+            )}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {gradeLine(
+              'Unleaded',
+              fuelExpectancy.unleadedOnHand,
+              fuelExpectancy.unleadedUsable,
+              fuelExpectancy.todayEnoughTypical.unleaded,
+              fuelExpectancy.todayShortByTypical.unleaded,
+              fuelExpectancy.daysOfCoverTypical.unleaded
+            )}
+            {gradeLine(
+              'Diesel',
+              fuelExpectancy.dieselOnHand,
+              fuelExpectancy.dieselUsable,
+              fuelExpectancy.todayEnoughTypical.diesel,
+              fuelExpectancy.todayShortByTypical.diesel,
+              fuelExpectancy.daysOfCoverTypical.diesel
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const lastUpdatedLabel = summary?.status.lastShift?.createdAt
     ? `Updated ${formatDateTime(summary.status.lastShift.createdAt)}`
@@ -1828,6 +1922,7 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+            {id === 'fuel-expectancy' && renderFuelExpectancyCard()}
             {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
           const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
           const maxVal = Math.max(...allVals, 1)

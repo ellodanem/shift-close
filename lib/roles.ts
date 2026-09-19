@@ -103,6 +103,11 @@ export function canManagePublicHolidaySettings(role: string): boolean {
   return isFullAccessRole(role) || isOperationsManagerRole(role)
 }
 
+/** Record pump / cost fuel prices (settings UI + POST). */
+export function canManageFuelPrices(role: string): boolean {
+  return isFullAccessRole(role) || isOperationsManagerRole(role)
+}
+
 /** Extracted / filed attendance punches — only these roles may load them in the log API (includeExtracted). */
 export function canViewArchivedAttendanceLogs(role: string): boolean {
   const r = normalizeAppRole(role)
@@ -145,6 +150,7 @@ export function canManageExistingAppUser(actorRole: string, targetUserRole: stri
 export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
   'fuel-mtd-deposit-block',
+  'fuel-expectancy',
   'average-deposit',
   'phase1-status'
 ]
@@ -153,6 +159,7 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'month-summary',
   'fuel-mtd-deposit-block',
+  'fuel-expectancy',
   'average-deposit',
   'fuel-volume',
   'recent-fuel-payment'

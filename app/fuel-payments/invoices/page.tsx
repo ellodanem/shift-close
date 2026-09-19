@@ -8,6 +8,8 @@ import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import { FuelMakePaymentModal } from '../components/FuelMakePaymentModal'
 import { FuelRevertPaymentModal } from '../components/FuelRevertPaymentModal'
+import { FuelTankInventoryCard } from '../components/FuelTankInventoryCard'
+import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
 
 interface Invoice {
   id: string
@@ -18,6 +20,8 @@ interface Invoice {
   dueDate: string
   status: 'pending' | 'simulated' | 'paid'
   notes: string | null
+  unleadedLitres?: number | null
+  dieselLitres?: number | null
   paidInvoice?: {
     batch: {
       paymentDate: string
@@ -50,6 +54,19 @@ const getInvoiceTypeIcon = (type: string): string => {
   }
 }
 
+function formatInvoiceFuelLitres(invoice: {
+  unleadedLitres?: number | null
+  dieselLitres?: number | null
+}): string {
+  const u = invoice.unleadedLitres
+  const d = invoice.dieselLitres
+  if (u == null && d == null) return 'No litres'
+  const bits: string[] = []
+  if (u != null) bits.push(`${Math.round(u).toLocaleString('en-US')} U`)
+  if (d != null) bits.push(`${Math.round(d).toLocaleString('en-US')} D`)
+  return bits.join(' / ')
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -80,7 +97,9 @@ export default function InvoicesPage() {
     amount: '',
     type: 'Fuel',
     invoiceDate: '',
-    notes: ''
+    notes: '',
+    unleadedLitres: '',
+    dieselLitres: ''
   })
 
   const openAddInvoiceModal = () => {
@@ -89,7 +108,9 @@ export default function InvoicesPage() {
       amount: '',
       type: 'Fuel',
       invoiceDate: businessTodayYmd(),
-      notes: ''
+      notes: '',
+      unleadedLitres: '',
+      dieselLitres: ''
     })
     setShowAddInvoiceModal(true)
   }
@@ -102,10 +123,50 @@ export default function InvoicesPage() {
   const [showPayModal, setShowPayModal] = useState(false)
   const [payModalSelectedCsv, setPayModalSelectedCsv] = useState('')
   const [showRevertModal, setShowRevertModal] = useState(false)
+  const [litresEdit, setLitresEdit] = useState<Invoice | null>(null)
+  const [litresForm, setLitresForm] = useState({ unleadedLitres: '', dieselLitres: '' })
+  const [litresSaving, setLitresSaving] = useState(false)
 
   const openMakePaymentModal = (selectedCsv: string) => {
     setPayModalSelectedCsv(selectedCsv)
     setShowPayModal(true)
+  }
+
+  useEffect(() => {
+    if (!litresEdit) return
+    setLitresForm({
+      unleadedLitres: litresInputValue(litresEdit.unleadedLitres),
+      dieselLitres: litresInputValue(litresEdit.dieselLitres)
+    })
+  }, [litresEdit])
+
+  const handleSaveLitres = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!litresEdit) return
+    setLitresSaving(true)
+    try {
+      const res = await fetch(`/api/fuel-payments/invoices/${litresEdit.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...litresPayload(litresForm.unleadedLitres, litresForm.dieselLitres),
+          reason: 'Fuel litres updated',
+          changedBy: 'admin'
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to save litres')
+        return
+      }
+      setLitresEdit(null)
+      void fetchInvoices()
+    } catch (error) {
+      console.error('Error saving litres:', error)
+      alert('Failed to save litres')
+    } finally {
+      setLitresSaving(false)
+    }
   }
 
   const handleAddInvoiceSubmit = async (e: React.FormEvent) => {
@@ -125,7 +186,8 @@ export default function InvoicesPage() {
           amount: amt,
           type: addInvoiceForm.type,
           invoiceDate: addInvoiceForm.invoiceDate,
-          notes: addInvoiceForm.notes.trim()
+          notes: addInvoiceForm.notes.trim(),
+          ...litresPayload(addInvoiceForm.unleadedLitres, addInvoiceForm.dieselLitres)
         })
       })
 
@@ -438,6 +500,8 @@ export default function InvoicesPage() {
           </div>
         </div>
 
+        <FuelTankInventoryCard />
+
         {/* Alert for stuck simulated invoices */}
         {showFixAlert && simulatedCount > 0 && (
           <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
@@ -680,6 +744,12 @@ export default function InvoicesPage() {
                           {formatInvoiceDate(invoice.invoiceDate)}
                           {' · '}
                           {getInvoiceTypeIcon(invoice.type)} {invoice.type}
+                          {invoice.type === 'Fuel' ? (
+                            <>
+                              {' · '}
+                              {formatInvoiceFuelLitres(invoice)}
+                            </>
+                          ) : null}
                         </div>
                         {activeTab === 'pending' && (
                           <div className="mt-2">
@@ -705,6 +775,14 @@ export default function InvoicesPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
+                      {invoice.type === 'Fuel' && (
+                        <button
+                          onClick={() => setLitresEdit(invoice)}
+                          className="min-h-[44px] text-sm font-medium text-emerald-700 hover:text-emerald-900"
+                        >
+                          Litres
+                        </button>
+                      )}
                       {activeTab === 'pending' && invoice.status === 'pending' && (
                         <>
                           <button
@@ -770,6 +848,9 @@ export default function InvoicesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Litres
+                  </th>
                   {activeTab === 'paid' && (
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Payment Info
@@ -822,6 +903,9 @@ export default function InvoicesPage() {
                           <span>{invoice.type}</span>
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {invoice.type === 'Fuel' ? formatInvoiceFuelLitres(invoice) : '—'}
+                      </td>
                       {activeTab === 'paid' && invoice.paidInvoice && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           <div>
@@ -834,6 +918,15 @@ export default function InvoicesPage() {
                       )}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
+                          {invoice.type === 'Fuel' && (
+                            <button
+                              onClick={() => setLitresEdit(invoice)}
+                              className="text-emerald-700 hover:text-emerald-900 p-1 rounded text-xs font-semibold transition-colors"
+                              title="Edit litres"
+                            >
+                              Litres
+                            </button>
+                          )}
                           {activeTab === 'pending' && invoice.status === 'pending' && (
                             <>
                               <button
@@ -1059,6 +1152,15 @@ export default function InvoicesPage() {
                   </p>
                 </div>
 
+                <FuelVolumeFields
+                  type={addInvoiceForm.type}
+                  unleadedLitres={addInvoiceForm.unleadedLitres}
+                  dieselLitres={addInvoiceForm.dieselLitres}
+                  onChange={({ unleadedLitres, dieselLitres }) =>
+                    setAddInvoiceForm({ ...addInvoiceForm, unleadedLitres, dieselLitres })
+                  }
+                />
+
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
                     Notes
@@ -1177,6 +1279,45 @@ export default function InvoicesPage() {
             <div className="bg-gray-900 text-white text-sm px-4 py-2 rounded shadow-lg">
               {copyNotification}
             </div>
+          </div>
+        )}
+
+        {litresEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <form
+              onSubmit={(e) => void handleSaveLitres(e)}
+              className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl"
+            >
+              <h2 className="text-lg font-bold text-gray-900">Invoice litres</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                {litresEdit.invoiceNumber} — counts on the invoice date, even if already paid.
+              </p>
+              <div className="mt-4">
+                <FuelVolumeFields
+                  type="Fuel"
+                  unleadedLitres={litresForm.unleadedLitres}
+                  dieselLitres={litresForm.dieselLitres}
+                  onChange={setLitresForm}
+                />
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={litresSaving}
+                  onClick={() => setLitresEdit(null)}
+                  className="rounded bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={litresSaving}
+                  className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {litresSaving ? 'Saving…' : 'Save litres'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>

@@ -116,6 +116,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/vendor-payments/invoices': 'vendor-payments',
   '/vendor-payments/batches': 'vendor-batches',
   '/vendor-payments/uncashed-checks': 'uncashed-checks',
+  '/insights/fuel-expectancy': 'fuel-expectancy',
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
@@ -315,6 +316,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/settings/vendor-vat') return pathname.startsWith('/settings/vendor-vat')
   if (href === '/settings/harvest-agent') return pathname.startsWith('/settings/harvest-agent')
   if (href === '/settings') return pathname === '/settings'
+  if (href === '/insights/fuel-expectancy') return pathname.startsWith('/insights/fuel-expectancy')
   if (href === '/insights/expected-revenue') return pathname.startsWith('/insights/expected-revenue')
   if (href === '/insights/deposit-debit-scans') return pathname.startsWith('/insights/deposit-debit-scans')
   if (href === '/promotions') return pathname === '/promotions' || pathname.startsWith('/promotions/')
@@ -352,27 +354,29 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
     }
   }).filter((g) => g.items.length > 0)
 
-  if (nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)) {
-    const insightsItems = filterNavItems(
-      [
-        { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
-        { label: 'Deposit & debit scans', href: '/insights/deposit-debit-scans', permission: 'insights' },
-        {
-          label: 'Deposit comparisons',
-          href: '/financial/deposit-comparisons',
-          permission: 'financial.depositComparisons'
-        }
-      ],
-      role
-    )
-    if (insightsItems.length > 0) {
-      const opsIdx = groups.findIndex((g) => g.label === 'Operations')
-      const insertAt = opsIdx >= 0 ? opsIdx + 1 : 1
-      groups.splice(insertAt, 0, {
-        label: 'Insights',
-        items: insightsItems
-      })
-    }
+  const insightsCore = [
+    { label: 'Fuel expectancy', href: '/insights/fuel-expectancy', permission: 'insights' }
+  ]
+  const insightsExtra =
+    nr === 'stakeholder' || nr === 'admin' || nr === 'manager' || isOperationsManagerRole(role)
+      ? [
+          { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
+          { label: 'Deposit & debit scans', href: '/insights/deposit-debit-scans', permission: 'insights' },
+          {
+            label: 'Deposit comparisons',
+            href: '/financial/deposit-comparisons',
+            permission: 'financial.depositComparisons'
+          }
+        ]
+      : []
+  const insightsItems = filterNavItems([...insightsCore, ...insightsExtra], role)
+  if (insightsItems.length > 0) {
+    const opsIdx = groups.findIndex((g) => g.label === 'Operations')
+    const insertAt = opsIdx >= 0 ? opsIdx + 1 : 1
+    groups.splice(insertAt, 0, {
+      label: 'Insights',
+      items: insightsItems
+    })
   }
 
   return groups

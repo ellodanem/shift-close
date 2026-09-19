@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
+import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
 
 export interface FuelQuickEditInvoice {
   id: string
@@ -11,6 +12,8 @@ export interface FuelQuickEditInvoice {
   invoiceDate: string
   dueDate: string
   notes?: string | null
+  unleadedLitres?: number | null
+  dieselLitres?: number | null
 }
 
 const FUEL_TYPES = [
@@ -40,7 +43,9 @@ export function FuelQuickEditInvoiceModal({
     amount: '',
     type: 'Fuel',
     invoiceDate: '',
-    notes: ''
+    notes: '',
+    unleadedLitres: '',
+    dieselLitres: ''
   })
 
   useEffect(() => {
@@ -51,7 +56,9 @@ export function FuelQuickEditInvoiceModal({
       amount: String(invoice.amount),
       type: invoice.type,
       invoiceDate: invoiceDateToInputValue(invoice.invoiceDate),
-      notes: invoice.notes || ''
+      notes: invoice.notes || '',
+      unleadedLitres: litresInputValue(invoice.unleadedLitres),
+      dieselLitres: litresInputValue(invoice.dieselLitres)
     })
   }, [open, invoice])
 
@@ -84,6 +91,7 @@ export function FuelQuickEditInvoiceModal({
           type: formData.type,
           invoiceDate: formData.invoiceDate,
           notes: formData.notes,
+          ...litresPayload(formData.unleadedLitres, formData.dieselLitres),
           reason: 'Quick edit during payment',
           changedBy: 'admin'
         })
@@ -102,9 +110,11 @@ export function FuelQuickEditInvoiceModal({
         amount: updated.amount,
         type: updated.type,
         invoiceDate: updated.invoiceDate,
-        dueDate: updated.dueDate,
-        notes: updated.notes
-      })
+            dueDate: updated.dueDate,
+            notes: updated.notes,
+            unleadedLitres: updated.unleadedLitres,
+            dieselLitres: updated.dieselLitres
+          })
     } catch (error) {
       console.error('Error updating invoice:', error)
       alert('Failed to update invoice')
@@ -196,6 +206,15 @@ export function FuelQuickEditInvoiceModal({
             />
             <p className="mt-1 text-xs text-gray-500">Due date recalculates to 5 days after this date.</p>
           </div>
+
+          <FuelVolumeFields
+            type={formData.type}
+            unleadedLitres={formData.unleadedLitres}
+            dieselLitres={formData.dieselLitres}
+            onChange={({ unleadedLitres, dieselLitres }) =>
+              setFormData({ ...formData, unleadedLitres, dieselLitres })
+            }
+          />
 
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>

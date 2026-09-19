@@ -14,6 +14,7 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'attendance-viewer': '#3730a3',
   'manager-hub': '#334155',
   'expected-revenue': '#1e40af',
+  'fuel-expectancy': '#065f46',
   'deposit-scans': '#1d4ed8',
   'deposit-comparisons': '#0f766e',
   'financial-report': '#065f46',

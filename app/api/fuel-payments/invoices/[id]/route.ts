@@ -2,6 +2,75 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { tryParseOptionalLitres } from '@/lib/fuel-inventory'
+
+type InvoiceCorrectionRow = {
+  invoiceId: string
+  field: string
+  oldValue: string
+  newValue: string
+  reason: string
+  changedBy: string
+}
+
+function applyVolumeUpdate(
+  existing: { type: string; unleadedLitres: number | null; dieselLitres: number | null },
+  nextType: string,
+  body: { unleadedLitres?: unknown; dieselLitres?: unknown },
+  updateData: Record<string, unknown>,
+  corrections: InvoiceCorrectionRow[],
+  invoiceId: string,
+  reason: string,
+  changedBy: string
+): { ok: true } | { ok: false; error: string } {
+  if (nextType !== 'Fuel') {
+    if (existing.unleadedLitres != null || existing.dieselLitres != null) {
+      updateData.unleadedLitres = null
+      updateData.dieselLitres = null
+      corrections.push({
+        invoiceId,
+        field: 'fuelLitres',
+        oldValue: `${existing.unleadedLitres ?? ''}/${existing.dieselLitres ?? ''}`,
+        newValue: '',
+        reason,
+        changedBy
+      })
+    }
+    return { ok: true }
+  }
+
+  if (body.unleadedLitres !== undefined) {
+    const parsed = tryParseOptionalLitres(body.unleadedLitres)
+    if (!parsed.ok) return { ok: false, error: 'unleadedLitres must be 0 or more (or blank)' }
+    if (parsed.value !== existing.unleadedLitres) {
+      updateData.unleadedLitres = parsed.value
+      corrections.push({
+        invoiceId,
+        field: 'unleadedLitres',
+        oldValue: existing.unleadedLitres == null ? '' : String(existing.unleadedLitres),
+        newValue: parsed.value == null ? '' : String(parsed.value),
+        reason,
+        changedBy
+      })
+    }
+  }
+  if (body.dieselLitres !== undefined) {
+    const parsed = tryParseOptionalLitres(body.dieselLitres)
+    if (!parsed.ok) return { ok: false, error: 'dieselLitres must be 0 or more (or blank)' }
+    if (parsed.value !== existing.dieselLitres) {
+      updateData.dieselLitres = parsed.value
+      corrections.push({
+        invoiceId,
+        field: 'dieselLitres',
+        oldValue: existing.dieselLitres == null ? '' : String(existing.dieselLitres),
+        newValue: parsed.value == null ? '' : String(parsed.value),
+        reason,
+        changedBy
+      })
+    }
+  }
+  return { ok: true }
+}
 
 // GET single invoice
 export async function GET(
@@ -53,7 +122,9 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { invoiceNumber, amount, type, invoiceDate, notes, reason, changedBy } = body
+    const { invoiceNumber, amount, type, invoiceDate, notes, reason, changedBy, unleadedLitres, dieselLitres } = body
+    const reasonText = reason || 'Invoice updated'
+    const changedByText = changedBy || 'admin'
 
     // Verify invoice exists and is pending
     const existing = await prisma.invoice.findUnique({
@@ -68,10 +139,35 @@ export async function PATCH(
     }
 
     if (existing.status !== 'pending') {
-      return NextResponse.json(
-        { error: 'Only pending invoices can be edited' },
-        { status: 400 }
+      if (unleadedLitres === undefined && dieselLitres === undefined) {
+        return NextResponse.json(
+          { error: 'Only pending invoices can be edited' },
+          { status: 400 }
+        )
+      }
+      const updateData: Record<string, unknown> = {}
+      const corrections: InvoiceCorrectionRow[] = []
+      const volumes = applyVolumeUpdate(
+        existing,
+        existing.type,
+        { unleadedLitres, dieselLitres },
+        updateData,
+        corrections,
+        id,
+        reasonText,
+        changedByText
       )
+      if (!volumes.ok) {
+        return NextResponse.json({ error: volumes.error }, { status: 400 })
+      }
+      const updated = await prisma.invoice.update({
+        where: { id },
+        data: updateData
+      })
+      if (corrections.length > 0) {
+        await prisma.invoiceCorrection.createMany({ data: corrections })
+      }
+      return NextResponse.json(updated)
     }
 
     // Build update data
@@ -151,6 +247,21 @@ export async function PATCH(
 
     if (notes !== undefined) {
       updateData.notes = notes.trim()
+    }
+
+    const nextType = (updateData.type as string | undefined) ?? existing.type
+    const volumes = applyVolumeUpdate(
+      existing,
+      nextType,
+      { unleadedLitres, dieselLitres },
+      updateData,
+      corrections,
+      id,
+      reason || 'Invoice updated',
+      changedBy || 'admin'
+    )
+    if (!volumes.ok) {
+      return NextResponse.json({ error: volumes.error }, { status: 400 })
     }
 
     // Update invoice

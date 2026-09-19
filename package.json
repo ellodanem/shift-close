@@ -25,7 +25,8 @@
     "test:roster-hours": "tsx --test scripts/test-roster-pay-period-hours.ts",
     "test:pay-period-rows": "tsx --test scripts/test-pay-period-rows.ts",
     "test:email": "tsx --test scripts/test-email-defaults.ts",
-    "test:shift-sales": "tsx --test scripts/test-shift-sales.ts"
+    "test:shift-sales": "tsx --test scripts/test-shift-sales.ts",
+    "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

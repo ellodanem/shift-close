@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
+import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
 
 interface Invoice {
   id: string
@@ -13,6 +14,8 @@ interface Invoice {
   dueDate: string
   status: string
   notes: string | null
+  unleadedLitres?: number | null
+  dieselLitres?: number | null
 }
 
 export default function EditInvoicePage() {
@@ -28,7 +31,9 @@ export default function EditInvoicePage() {
     amount: '',
     type: 'Fuel',
     invoiceDate: '',
-    notes: ''
+    notes: '',
+    unleadedLitres: '',
+    dieselLitres: ''
   })
 
   useEffect(() => {
@@ -54,7 +59,9 @@ export default function EditInvoicePage() {
           amount: data.amount.toString(),
           type: data.type,
           invoiceDate: invoiceDateToInputValue(data.invoiceDate),
-          notes: data.notes || ''
+          notes: data.notes || '',
+          unleadedLitres: litresInputValue(data.unleadedLitres),
+          dieselLitres: litresInputValue(data.dieselLitres)
         })
       } else {
         alert('Failed to load invoice')
@@ -83,6 +90,7 @@ export default function EditInvoicePage() {
           type: formData.type,
           invoiceDate: formData.invoiceDate,
           notes: formData.notes,
+          ...litresPayload(formData.unleadedLitres, formData.dieselLitres),
           reason: 'Invoice edited',
           changedBy: 'admin'
         })
@@ -195,6 +203,15 @@ export default function EditInvoicePage() {
                 Due date will be recalculated to 5 days after this date.
               </p>
             </div>
+
+            <FuelVolumeFields
+              type={formData.type}
+              unleadedLitres={formData.unleadedLitres}
+              dieselLitres={formData.dieselLitres}
+              onChange={({ unleadedLitres, dieselLitres }) =>
+                setFormData({ ...formData, unleadedLitres, dieselLitres })
+              }
+            />
 
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>

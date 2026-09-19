@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { tryParseOptionalLitres } from '@/lib/fuel-inventory'
+
+function fuelVolumesFromBody(type: string, body: { unleadedLitres?: unknown; dieselLitres?: unknown }) {
+  if (type !== 'Fuel') {
+    return { ok: true as const, unleadedLitres: null as number | null, dieselLitres: null as number | null }
+  }
+  const unleaded = tryParseOptionalLitres(body.unleadedLitres)
+  const diesel = tryParseOptionalLitres(body.dieselLitres)
+  if (!unleaded.ok || !diesel.ok) {
+    return { ok: false as const }
+  }
+  return { ok: true as const, unleadedLitres: unleaded.value, dieselLitres: diesel.value }
+}
 
 // GET all invoices (with status filter)
 export async function GET(request: NextRequest) {
@@ -78,6 +91,14 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date(invoiceDateObj)
     dueDate.setUTCDate(dueDate.getUTCDate() + 5)
 
+    const volumes = fuelVolumesFromBody(type, body)
+    if (!volumes.ok) {
+      return NextResponse.json(
+        { error: 'unleadedLitres and dieselLitres must be 0 or more (or blank)' },
+        { status: 400 }
+      )
+    }
+
     // Check for duplicate invoice number (pending only)
     const existing = await prisma.invoice.findFirst({
       where: {
@@ -102,7 +123,9 @@ export async function POST(request: NextRequest) {
         invoiceDate: invoiceDateObj,
         dueDate,
         notes: notes?.trim() || '',
-        status: 'pending'
+        status: 'pending',
+        unleadedLitres: volumes.unleadedLitres,
+        dieselLitres: volumes.dieselLitres
       }
     })
 

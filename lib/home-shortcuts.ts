@@ -62,6 +62,7 @@ export type HomeShortcutId =
   | 'report-deposit'
   | 'report-exception'
   | 'promotions'
+  | 'fuel-expectancy'
 
 export type HomeShortcut = {
   id: HomeShortcutId
@@ -149,6 +150,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     href: MANAGER_HUB_PATH,
     tileClass: 'bg-slate-700',
     matchPrefixes: [MANAGER_HUB_PATH]
+  },
+  {
+    id: 'fuel-expectancy',
+    label: 'Fuel expectancy',
+    href: '/insights/fuel-expectancy',
+    tileClass: 'bg-emerald-800',
+    matchPrefixes: ['/insights/fuel-expectancy']
   },
   {
     id: 'expected-revenue',
