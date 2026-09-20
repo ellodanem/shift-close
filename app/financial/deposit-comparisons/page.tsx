@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { endOfDayPath, parseFocusDate } from '@/lib/daily-close-path'
-import CustomDatePicker from '../../days/CustomDatePicker'
+import CustomDatePicker, {
+  customDateRangeFromValue,
+  formatCustomDateLabel
+} from '../../days/CustomDatePicker'
 import {
   BankStatusGlyph,
   IconDebitCard,
@@ -876,10 +879,11 @@ function depositComparisonsQueryForFilter(
 ): { key: string; url: string } | null {
   const todayYmd = businessTodayYmd()
   if (filter === 'custom') {
-    if (!customDate) return null
+    const range = customDateRangeFromValue(customDate)
+    if (!range) return null
     return {
       key: `custom:${customDate}`,
-      url: `/api/financial/deposit-comparisons?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`
+      url: `/api/financial/deposit-comparisons?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
     }
   }
   if (filter === 'all') {
@@ -1103,7 +1107,9 @@ function DepositComparisonsPage() {
       return rows.filter((r) => inRange(r.date, monthStart, monthEnd))
     }
     if (activeFilter === 'custom' && customDate) {
-      return rows.filter((r) => r.date === customDate)
+      const range = customDateRangeFromValue(customDate)
+      if (!range) return rows
+      return rows.filter((r) => r.date >= range.from && r.date <= range.to)
     }
     return rows
   }, [rows, activeFilter, customDate])
@@ -1317,7 +1323,7 @@ function DepositComparisonsPage() {
                 }}
                 className={`${filterButtonClass(activeFilter === 'custom')} w-full sm:w-auto`}
               >
-                Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
+                Custom {activeFilter === 'custom' && customDate ? `(${formatCustomDateLabel(customDate)})` : '▼'}
               </button>
               {showCustomPicker ? (
                 <div className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-slate-200 bg-white p-4 shadow-xl sm:left-0 sm:right-auto">

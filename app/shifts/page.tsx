@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import CustomDatePicker from '../days/CustomDatePicker'
+import CustomDatePicker, {
+  customDateRangeFromValue,
+  formatCustomDateLabel
+} from '../days/CustomDatePicker'
 import { businessTodayYmd, toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import {
   getListDisplayOverShort,
@@ -158,10 +161,11 @@ function shiftsQueryForFilter(
 ): { key: string; url: string } | null {
   const todayYmd = businessTodayYmd()
   if (filter === 'custom') {
-    if (!customDate) return null
+    const range = customDateRangeFromValue(customDate)
+    if (!range) return null
     return {
       key: `custom:${customDate}`,
-      url: `/api/shifts?from=${encodeURIComponent(customDate)}&to=${encodeURIComponent(customDate)}`
+      url: `/api/shifts?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
     }
   }
   if (filter === 'all') {
@@ -338,7 +342,9 @@ export default function ShiftsPage() {
     }
 
     if (activeFilter === 'custom' && customDate) {
-      return shifts.filter(s => s.date === customDate)
+      const range = customDateRangeFromValue(customDate)
+      if (!range) return shifts
+      return shifts.filter(s => s.date >= range.from && s.date <= range.to)
     }
 
     return shifts
@@ -489,7 +495,7 @@ export default function ShiftsPage() {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Custom {activeFilter === 'custom' && customDate ? `(${customDate})` : '▼'}
+              Custom {activeFilter === 'custom' && customDate ? `(${formatCustomDateLabel(customDate)})` : '▼'}
             </button>
             {showCustomPicker && (
               <div className="absolute top-full right-0 z-50 mt-2 min-w-[280px] rounded-lg border border-gray-300 bg-white p-4 shadow-xl sm:left-0 sm:right-auto">

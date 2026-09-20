@@ -11,30 +11,113 @@ interface CustomDatePickerProps {
 
 type ViewMode = 'day' | 'month' | 'year'
 
-export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }: CustomDatePickerProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('day')
-  const [currentDate, setCurrentDate] = useState<Date>(() => {
-    if (selectedDate) {
-      return new Date(selectedDate + 'T00:00:00')
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function lastDayOfMonthYmd(year: number, month1to12: number): string {
+  const last = new Date(Date.UTC(year, month1to12, 0)).getUTCDate()
+  return `${year}-${pad2(month1to12)}-${pad2(last)}`
+}
+
+/** YYYY-MM-DD (day), YYYY-MM (month), or YYYY (year) → inclusive from/to dates. */
+export function customDateRangeFromValue(value: string): { from: string; to: string } | null {
+  const v = String(value || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return { from: v, to: v }
+  const month = /^(\d{4})-(\d{2})$/.exec(v)
+  if (month) {
+    const year = Number(month[1])
+    const m = Number(month[2])
+    if (m < 1 || m > 12) return null
+    return { from: `${year}-${pad2(m)}-01`, to: lastDayOfMonthYmd(year, m) }
+  }
+  if (/^\d{4}$/.test(v)) {
+    return { from: `${v}-01-01`, to: `${v}-12-31` }
+  }
+  return null
+}
+
+export function formatCustomDateLabel(value: string): string {
+  const v = String(value || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+  const month = /^(\d{4})-(\d{2})$/.exec(v)
+  if (month) {
+    const year = Number(month[1])
+    const m = Number(month[2])
+    if (m >= 1 && m <= 12) {
+      return new Date(Date.UTC(year, m - 1, 1)).toLocaleString('en-US', {
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC'
+      })
     }
-    return new Date()
-  })
-  const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth())
-  const [selectedDay, setSelectedDay] = useState<number>(currentDate.getDate())
+  }
+  if (/^\d{4}$/.test(v)) return v
+  return v
+}
+
+function parseSelectedDate(value: string): {
+  year: number
+  month: number
+  day: number
+  granularity: ViewMode
+} {
+  const v = String(value || '').trim()
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
+  if (day) {
+    return {
+      year: Number(day[1]),
+      month: Number(day[2]) - 1,
+      day: Number(day[3]),
+      granularity: 'day'
+    }
+  }
+  const month = /^(\d{4})-(\d{2})$/.exec(v)
+  if (month) {
+    return {
+      year: Number(month[1]),
+      month: Number(month[2]) - 1,
+      day: 1,
+      granularity: 'month'
+    }
+  }
+  if (/^\d{4}$/.test(v)) {
+    return { year: Number(v), month: 0, day: 1, granularity: 'year' }
+  }
+  const now = new Date()
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth(),
+    day: now.getDate(),
+    granularity: 'month'
+  }
+}
+
+export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }: CustomDatePickerProps) {
+  const initial = parseSelectedDate(selectedDate)
+  const [viewMode, setViewMode] = useState<ViewMode>(initial.granularity)
+  const [selectionMode, setSelectionMode] = useState<ViewMode>(initial.granularity)
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date(initial.year, initial.month, initial.day))
+  const [selectedYear, setSelectedYear] = useState<number>(initial.year)
+  const [selectedMonth, setSelectedMonth] = useState<number>(initial.month)
+  const [selectedDay, setSelectedDay] = useState<number>(initial.day)
 
   useEffect(() => {
-    if (selectedDate) {
-      const date = new Date(selectedDate + 'T00:00:00')
-      setCurrentDate(date)
-      setSelectedYear(date.getFullYear())
-      setSelectedMonth(date.getMonth())
-      setSelectedDay(date.getDate())
-    }
+    if (!selectedDate) return
+    const parsed = parseSelectedDate(selectedDate)
+    setCurrentDate(new Date(parsed.year, parsed.month, parsed.day))
+    setSelectedYear(parsed.year)
+    setSelectedMonth(parsed.month)
+    setSelectedDay(parsed.day)
   }, [selectedDate])
 
   const formatDate = (date: Date): string => {
     return toYmdInBusinessTz(date)
+  }
+
+  const openTab = (mode: ViewMode) => {
+    setSelectionMode(mode)
+    setViewMode(mode)
   }
 
   const handleDateSelect = (year: number, month: number, day: number) => {
@@ -43,13 +126,22 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
   }
 
   const handleYearSelect = (year: number) => {
+    if (selectionMode === 'year') {
+      onDateSelect(String(year))
+      return
+    }
     setSelectedYear(year)
     setViewMode('month')
   }
 
   const handleMonthSelect = (month: number) => {
+    if (selectionMode === 'day') {
+      setSelectedMonth(month)
+      setViewMode('day')
+      return
+    }
     setSelectedMonth(month)
-    setViewMode('day')
+    onDateSelect(`${selectedYear}-${pad2(month + 1)}`)
   }
 
   const handleDaySelect = (day: number) => {
@@ -57,13 +149,29 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
     handleDateSelect(selectedYear, selectedMonth, day)
   }
 
+  const tabClass = (mode: ViewMode) =>
+    `px-3 py-1 rounded text-sm font-semibold transition-colors ${
+      selectionMode === mode
+        ? 'bg-blue-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`
+
+  const closeButton = (
+    <button
+      onClick={onClose}
+      className="flex-1 px-3 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700 text-sm"
+    >
+      Close
+    </button>
+  )
+
   // Year view
   const renderYearView = () => {
     const currentYear = new Date().getFullYear()
     const years: number[] = []
     const startYear = currentYear - 10
     const endYear = currentYear + 10
-    
+
     for (let y = startYear; y <= endYear; y++) {
       years.push(y)
     }
@@ -72,11 +180,9 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
       <div>
         <div className="flex justify-between items-center mb-4">
           <button
-            onClick={() => {
-              const newStart = years[0] - 21
-              // Could implement pagination here if needed
-            }}
+            type="button"
             className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded"
+            aria-hidden
           >
             «
           </button>
@@ -84,15 +190,18 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
             {years[0]} - {years[years.length - 1]}
           </h3>
           <button
-            onClick={() => {
-              const newEnd = years[years.length - 1] + 21
-              // Could implement pagination here if needed
-            }}
+            type="button"
             className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded"
+            aria-hidden
           >
             »
           </button>
         </div>
+        {selectionMode === 'year' ? (
+          <p className="mb-3 text-xs text-gray-500">Tap a year to include the whole year.</p>
+        ) : (
+          <p className="mb-3 text-xs text-gray-500">Pick a year, then a month.</p>
+        )}
         <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
           {years.map((year) => (
             <button
@@ -110,6 +219,7 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
             </button>
           ))}
         </div>
+        <div className="mt-4 flex gap-2">{closeButton}</div>
       </div>
     )
   }
@@ -125,14 +235,29 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
       <div>
         <div className="flex justify-between items-center mb-4">
           <button
-            onClick={() => setViewMode('year')}
-            className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded font-semibold"
+            onClick={() => setSelectedYear(selectedYear - 1)}
+            className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded"
           >
-            ← {selectedYear}
+            «
           </button>
-          <h3 className="font-semibold text-gray-900">Select Month</h3>
-          <div className="w-20"></div>
+          <button
+            onClick={() => setViewMode('year')}
+            className="px-3 py-1 text-gray-900 hover:bg-gray-100 rounded font-semibold"
+          >
+            {selectedYear}
+          </button>
+          <button
+            onClick={() => setSelectedYear(selectedYear + 1)}
+            className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded"
+          >
+            »
+          </button>
         </div>
+        {selectionMode === 'day' ? (
+          <p className="mb-3 text-xs text-gray-500">Pick a month, then a day.</p>
+        ) : (
+          <p className="mb-3 text-xs text-gray-500">Tap a month to include the whole month.</p>
+        )}
         <div className="grid grid-cols-3 gap-2">
           {months.map((month, index) => (
             <button
@@ -148,6 +273,7 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
             </button>
           ))}
         </div>
+        <div className="mt-4 flex gap-2">{closeButton}</div>
       </div>
     )
   }
@@ -237,8 +363,8 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
               className={`px-2 py-2 rounded text-sm transition-colors ${
                 day === null
                   ? ''
-                  : day === selectedDay && 
-                    selectedYear === currentDate.getFullYear() && 
+                  : day === selectedDay &&
+                    selectedYear === currentDate.getFullYear() &&
                     selectedMonth === currentDate.getMonth()
                   ? 'bg-blue-600 text-white font-semibold'
                   : day === new Date().getDate() &&
@@ -262,12 +388,7 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
           >
             Today
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 px-3 py-2 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700 text-sm"
-          >
-            Close
-          </button>
+          {closeButton}
         </div>
       </div>
     )
@@ -276,34 +397,13 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
   return (
     <div>
       <div className="mb-3 flex gap-2 border-b border-gray-200 pb-2">
-        <button
-          onClick={() => setViewMode('day')}
-          className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-            viewMode === 'day'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
+        <button onClick={() => openTab('day')} className={tabClass('day')}>
           Day
         </button>
-        <button
-          onClick={() => setViewMode('month')}
-          className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-            viewMode === 'month'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
+        <button onClick={() => openTab('month')} className={tabClass('month')}>
           Month
         </button>
-        <button
-          onClick={() => setViewMode('year')}
-          className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-            viewMode === 'year'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
+        <button onClick={() => openTab('year')} className={tabClass('year')}>
           Year
         </button>
       </div>
@@ -313,4 +413,3 @@ export default function CustomDatePicker({ selectedDate, onDateSelect, onClose }
     </div>
   )
 }
-
