@@ -9,6 +9,7 @@ export type InboxTopic =
   | 'Banking'
   | 'Vendors'
   | 'App mail'
+  | 'Unsorted'
 
 export type InboxParticipant = {
   name: string
@@ -22,7 +23,7 @@ export type InboxMessage = {
   cc: InboxParticipant[]
   sentAt: string
   body: string
-  attachments?: Array<{ name: string; sizeLabel: string }>
+  attachments?: Array<{ name: string; sizeLabel: string; id?: string; url?: string }>
 }
 
 export type InboxThread = {

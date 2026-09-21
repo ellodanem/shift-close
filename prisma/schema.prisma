@@ -1282,3 +1282,96 @@ model HarvestTaskRun {
   @@map("harvest_task_runs")
 }
 
+// Internal Inbox — shared station mailboxes (IMAP sync)
+model InboxMailbox {
+  id            String    @id @default(cuid())
+  key           String    @unique // station | management | os | custom
+  label         String
+  emailAddress  String    @map("email_address")
+  imapHost      String    @map("imap_host")
+  imapPort      Int       @default(993) @map("imap_port")
+  imapSecure    Boolean   @default(true) @map("imap_secure")
+  imapUser      String    @map("imap_user")
+  imapPass      String    @map("imap_pass") // app password / IMAP password
+  enabled       Boolean   @default(true)
+  sortOrder     Int       @default(0) @map("sort_order")
+  lastSyncAt    DateTime? @map("last_sync_at")
+  lastSyncError String?   @map("last_sync_error")
+  lastSyncCount Int       @default(0) @map("last_sync_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  threads  InboxThread[]
+  messages InboxMessage[]
+
+  @@map("inbox_mailboxes")
+}
+
+model InboxThread {
+  id            String   @id @default(cuid())
+  mailboxId     String   @map("mailbox_id")
+  /// Stable conversation key (root Message-ID or synthetic)
+  conversationKey String @map("conversation_key")
+  subject       String
+  topic         String   @default("Unsorted")
+  status        String   @default("new") // new | assigned | waiting | done
+  assignee      String?
+  snippet       String   @default("")
+  unread        Boolean  @default(true)
+  fromName      String   @default("") @map("from_name")
+  fromEmail     String   @default("") @map("from_email")
+  lastMessageAt DateTime @map("last_message_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  mailbox  InboxMailbox   @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  messages InboxMessage[]
+
+  @@unique([mailboxId, conversationKey])
+  @@index([mailboxId, lastMessageAt])
+  @@index([status, lastMessageAt])
+  @@map("inbox_threads")
+}
+
+model InboxMessage {
+  id              String   @id @default(cuid())
+  threadId        String   @map("thread_id")
+  mailboxId       String   @map("mailbox_id")
+  imapUid         Int      @map("imap_uid")
+  messageIdHeader String?  @map("message_id_header")
+  inReplyTo       String?  @map("in_reply_to")
+  fromName        String   @default("") @map("from_name")
+  fromEmail       String   @default("") @map("from_email")
+  toJson          String   @default("[]") @map("to_json")
+  ccJson          String   @default("[]") @map("cc_json")
+  subject         String   @default("")
+  bodyText        String   @default("") @map("body_text")
+  bodyHtml        String?  @map("body_html")
+  sentAt          DateTime @map("sent_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  thread      InboxThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  mailbox     InboxMailbox      @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  attachments InboxAttachment[]
+
+  @@unique([mailboxId, imapUid])
+  @@index([threadId, sentAt])
+  @@map("inbox_messages")
+}
+
+model InboxAttachment {
+  id          String  @id @default(cuid())
+  messageId   String  @map("message_id")
+  filename    String
+  contentType String  @default("application/octet-stream") @map("content_type")
+  size        Int     @default(0)
+  /// Vercel Blob URL when uploaded; otherwise fetch from IMAP via partPath
+  blobUrl     String? @map("blob_url")
+  partPath    String? @map("part_path")
+
+  message InboxMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("inbox_attachments")
+}
+

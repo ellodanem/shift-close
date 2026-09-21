@@ -46,6 +46,7 @@ export type HomeShortcutId =
   | 'settings-fuel-data'
   | 'settings-fuel-prices'
   | 'settings-smtp'
+  | 'settings-inbox-mailboxes'
   | 'settings-email-recipients'
   | 'settings-end-of-day-email'
   | 'settings-missing-deposit-slip'

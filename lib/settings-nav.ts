@@ -34,6 +34,12 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItemConfig[] = [
     permission: 'settings'
   },
   {
+    label: 'Inbox mailboxes',
+    href: '/settings/inbox-mailboxes',
+    shortcutId: 'settings-inbox-mailboxes',
+    permission: 'settings'
+  },
+  {
     label: 'Email recipients',
     href: '/settings/email-recipients',
     shortcutId: 'settings-email-recipients',

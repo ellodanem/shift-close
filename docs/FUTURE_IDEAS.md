@@ -84,13 +84,14 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 **Goal:** One work inbox for Westline covering Station (`westline.slu`), Management (`totalarubis`), and O/S (Outlook) — triage, assign, reply, and jump into the matching Shift Close record.
 
-**Shipped (UI shell):** `/inbox` — queues, mailbox filters, sample threads, **Compose / Reply / Reply all / Forward** with **To, Cc, Bcc**, and send via existing SMTP (`/api/send-email` now accepts cc/bcc). Mockups in `docs/ux-mockups/internal-inbox-*.png` (desktop, thread, phone, compose).
+**Shipped (UI + IMAP sync):** `/inbox` with Compose / Reply / Reply all / Forward (To/Cc/Bcc). **Settings → Inbox mailboxes** configures Station / Management / O/S via IMAP app passwords; **Sync** pulls recent INBOX mail into the DB; attachments view/download via Blob or on-demand IMAP fetch. Mockups in `docs/ux-mockups/internal-inbox-*.png`.
 
-**Still required for production mail:**
-- Inbound sync (Gmail API or IMAP) per mailbox
-- Send-as the mailbox that received the thread
-- Persist threads, assignees, Done ↔ Gmail archive sync
+**Still required:**
+- Per-mailbox SMTP send-as (today send uses station SMTP)
+- Done ↔ Gmail archive sync
+- Cron auto-sync
 - Role rules (who sees all vs assigned-only)
+- Outlook OAuth if app passwords are blocked
 
 **Out of scope:** Personal mail, calendar, spam fighting, helpdesk SLAs.
 

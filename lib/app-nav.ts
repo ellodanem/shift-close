@@ -130,6 +130,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/settings/fuel-data': 'settings-fuel-data',
   '/settings/fuel-prices': 'settings-fuel-prices',
   '/settings/smtp': 'settings-smtp',
+  '/settings/inbox-mailboxes': 'settings-inbox-mailboxes',
   '/settings/email-recipients': 'settings-email-recipients',
   '/settings/end-of-day-email': 'settings-end-of-day-email',
   '/settings/missing-deposit-slip-alerts': 'settings-missing-deposit-slip',
@@ -312,6 +313,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/settings/fuel-data') return pathname.startsWith('/settings/fuel-data')
   if (href === '/settings/fuel-prices') return pathname.startsWith('/settings/fuel-prices')
   if (href === '/settings/smtp') return pathname.startsWith('/settings/smtp')
+  if (href === '/settings/inbox-mailboxes') return pathname.startsWith('/settings/inbox-mailboxes')
   if (href === '/settings/email-recipients') return pathname.startsWith('/settings/email-recipients')
   if (href === '/settings/end-of-day-email') return pathname.startsWith('/settings/end-of-day-email')
   if (href === '/settings/missing-deposit-slip-alerts') {
