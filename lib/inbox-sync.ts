@@ -3,6 +3,10 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser, type AddressObject, type ParsedMail } from 'mailparser'
 import { put } from '@vercel/blob'
 import { prisma } from '@/lib/prisma'
+import {
+  isOutlookLikeEmail,
+  refreshMicrosoftAccessToken
+} from '@/lib/microsoft-oauth'
 
 export type MailboxPreset = {
   key: string
@@ -12,9 +16,10 @@ export type MailboxPreset = {
   imapPort: number
   imapSecure: boolean
   sortOrder: number
+  authMethod?: 'password' | 'oauth'
 }
 
-/** Default Westline mailboxes — passwords filled in Settings. */
+/** Default Westline mailboxes — passwords / OAuth filled in Settings. */
 export const INBOX_MAILBOX_PRESETS: MailboxPreset[] = [
   {
     key: 'station',
@@ -23,7 +28,8 @@ export const INBOX_MAILBOX_PRESETS: MailboxPreset[] = [
     imapHost: 'imap.gmail.com',
     imapPort: 993,
     imapSecure: true,
-    sortOrder: 0
+    sortOrder: 0,
+    authMethod: 'password'
   },
   {
     key: 'management',
@@ -32,16 +38,19 @@ export const INBOX_MAILBOX_PRESETS: MailboxPreset[] = [
     imapHost: 'imap.gmail.com',
     imapPort: 993,
     imapSecure: true,
-    sortOrder: 1
+    sortOrder: 1,
+    authMethod: 'password'
   },
   {
     key: 'os',
     label: 'O/S',
     emailAddress: 'totalauto_os@outlook.com',
+    // Per Microsoft Support: outlook.office365.com:993 SSL/TLS + OAuth2
     imapHost: 'outlook.office365.com',
     imapPort: 993,
     imapSecure: true,
-    sortOrder: 2
+    sortOrder: 2,
+    authMethod: 'oauth'
   }
 ]
 
@@ -97,12 +106,55 @@ export function formatAttachmentSize(n: number): string {
   return formatSize(n)
 }
 
+async function resolveAccessToken(mailbox: InboxMailbox): Promise<string | null> {
+  if (mailbox.authMethod !== 'oauth') return null
+  if (!mailbox.oauthRefreshToken && !mailbox.oauthAccessToken) {
+    throw new Error('Outlook mailbox is not signed in with Microsoft. Use Sign in with Microsoft.')
+  }
+  const skewMs = 90_000
+  if (
+    mailbox.oauthAccessToken &&
+    mailbox.oauthExpiresAt &&
+    mailbox.oauthExpiresAt.getTime() > Date.now() + skewMs
+  ) {
+    return mailbox.oauthAccessToken
+  }
+  if (!mailbox.oauthRefreshToken) {
+    throw new Error('Microsoft sign-in expired. Sign in with Microsoft again.')
+  }
+  const tokens = await refreshMicrosoftAccessToken(mailbox.oauthRefreshToken)
+  await prisma.inboxMailbox.update({
+    where: { id: mailbox.id },
+    data: {
+      oauthAccessToken: tokens.accessToken,
+      oauthRefreshToken: tokens.refreshToken,
+      oauthExpiresAt: tokens.expiresAt
+    }
+  })
+  return tokens.accessToken
+}
+
 async function createClient(mailbox: InboxMailbox): Promise<ImapFlow> {
+  const accessToken = await resolveAccessToken(mailbox)
+  const auth = accessToken
+    ? { user: mailbox.imapUser || mailbox.emailAddress, accessToken }
+    : { user: mailbox.imapUser, pass: mailbox.imapPass }
+
+  if (!accessToken && !mailbox.imapPass?.trim()) {
+    throw new Error('IMAP password not set')
+  }
+
+  if (!accessToken && isOutlookLikeEmail(mailbox.emailAddress)) {
+    throw new Error(
+      'Outlook.com requires Modern Auth (OAuth2), not a password. Use Sign in with Microsoft. See Microsoft Support: POP/IMAP settings for Outlook.com.'
+    )
+  }
+
   const client = new ImapFlow({
     host: mailbox.imapHost,
     port: mailbox.imapPort,
     secure: mailbox.imapSecure,
-    auth: { user: mailbox.imapUser, pass: mailbox.imapPass },
+    auth,
     logger: false,
     connectionTimeout: 20_000,
     greetingTimeout: 20_000,
@@ -112,17 +164,22 @@ async function createClient(mailbox: InboxMailbox): Promise<ImapFlow> {
   return client
 }
 
-export async function testMailboxConnection(mailbox: Pick<
-  InboxMailbox,
-  'imapHost' | 'imapPort' | 'imapSecure' | 'imapUser' | 'imapPass'
->): Promise<{ ok: true; folders: number } | { ok: false; error: string }> {
+export async function testMailboxConnection(
+  mailbox: InboxMailbox
+): Promise<{ ok: true; folders: number } | { ok: false; error: string }> {
   let client: ImapFlow | null = null
   try {
-    client = await createClient(mailbox as InboxMailbox)
+    client = await createClient(mailbox)
     const boxes = await client.list()
     return { ok: true, folders: boxes.length }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Connection failed' }
+    const raw = e instanceof Error ? e.message : 'Connection failed'
+    const hint =
+      /login is disabled|basic.?auth|authentication failed|invalid credentials/i.test(raw) &&
+      isOutlookLikeEmail(mailbox.emailAddress)
+        ? ' Outlook.com no longer allows password IMAP — use Sign in with Microsoft (OAuth2).'
+        : ''
+    return { ok: false, error: `${raw}${hint}` }
   } finally {
     if (client) {
       try {
@@ -181,8 +238,21 @@ export async function syncMailbox(
   if (!mailbox.enabled) {
     return { mailboxId, key: mailbox.key, imported: 0, skipped: 0, error: 'Mailbox disabled' }
   }
-  if (!mailbox.imapPass.trim()) {
-    return { mailboxId, key: mailbox.key, imported: 0, skipped: 0, error: 'IMAP password not set' }
+  const hasAuth =
+    mailbox.authMethod === 'oauth'
+      ? Boolean(mailbox.oauthRefreshToken || mailbox.oauthAccessToken)
+      : Boolean(mailbox.imapPass.trim())
+  if (!hasAuth) {
+    return {
+      mailboxId,
+      key: mailbox.key,
+      imported: 0,
+      skipped: 0,
+      error:
+        mailbox.authMethod === 'oauth'
+          ? 'Not signed in with Microsoft'
+          : 'IMAP password not set'
+    }
   }
 
   let client: ImapFlow | null = null
@@ -429,7 +499,21 @@ export async function ensureDefaultMailboxes(): Promise<number> {
   let created = 0
   for (const preset of INBOX_MAILBOX_PRESETS) {
     const existing = await prisma.inboxMailbox.findUnique({ where: { key: preset.key } })
-    if (existing) continue
+    if (existing) {
+      // Keep Outlook.com on the official host + oauth auth method
+      if (preset.authMethod === 'oauth') {
+        await prisma.inboxMailbox.update({
+          where: { id: existing.id },
+          data: {
+            imapHost: preset.imapHost,
+            imapPort: preset.imapPort,
+            imapSecure: preset.imapSecure,
+            authMethod: 'oauth'
+          }
+        })
+      }
+      continue
+    }
     await prisma.inboxMailbox.create({
       data: {
         key: preset.key,
@@ -440,6 +524,7 @@ export async function ensureDefaultMailboxes(): Promise<number> {
         imapSecure: preset.imapSecure,
         imapUser: preset.emailAddress,
         imapPass: '',
+        authMethod: preset.authMethod || 'password',
         enabled: false,
         sortOrder: preset.sortOrder
       }
@@ -459,7 +544,11 @@ export function mailboxPublic(m: InboxMailbox) {
     imapPort: m.imapPort,
     imapSecure: m.imapSecure,
     imapUser: m.imapUser,
+    authMethod: m.authMethod,
     hasPassword: Boolean(m.imapPass?.trim()),
+    hasOAuth: Boolean(m.oauthRefreshToken || m.oauthAccessToken),
+    oauthExpiresAt: m.oauthExpiresAt?.toISOString() ?? null,
+    requiresMicrosoftSignIn: m.authMethod === 'oauth' || isOutlookLikeEmail(m.emailAddress),
     enabled: m.enabled,
     sortOrder: m.sortOrder,
     lastSyncAt: m.lastSyncAt?.toISOString() ?? null,

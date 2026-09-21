@@ -1292,7 +1292,12 @@ model InboxMailbox {
   imapPort      Int       @default(993) @map("imap_port")
   imapSecure    Boolean   @default(true) @map("imap_secure")
   imapUser      String    @map("imap_user")
-  imapPass      String    @map("imap_pass") // app password / IMAP password
+  imapPass      String    @default("") @map("imap_pass") // app password (Gmail); unused for Outlook OAuth
+  /// password = Gmail app password; oauth = Microsoft Modern Auth (required for Outlook.com)
+  authMethod    String    @default("password") @map("auth_method")
+  oauthAccessToken  String?   @map("oauth_access_token")
+  oauthRefreshToken String?   @map("oauth_refresh_token")
+  oauthExpiresAt    DateTime? @map("oauth_expires_at")
   enabled       Boolean   @default(true)
   sortOrder     Int       @default(0) @map("sort_order")
   lastSyncAt    DateTime? @map("last_sync_at")

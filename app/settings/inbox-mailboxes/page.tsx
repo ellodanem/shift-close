@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 type Mailbox = {
@@ -12,12 +12,24 @@ type Mailbox = {
   imapPort: number
   imapSecure: boolean
   imapUser: string
+  authMethod: string
   hasPassword: boolean
+  hasOAuth: boolean
+  requiresMicrosoftSignIn: boolean
   enabled: boolean
   sortOrder: number
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncCount: number
+}
+
+type MsDevice = {
+  mailboxId: string
+  deviceCode: string
+  userCode: string
+  verificationUri: string
+  message: string
+  interval: number
 }
 
 const emptyForm = {
@@ -36,6 +48,7 @@ const emptyForm = {
 
 export default function InboxMailboxesSettingsPage() {
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([])
+  const [microsoftConfigured, setMicrosoftConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -43,6 +56,8 @@ export default function InboxMailboxesSettingsPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [editing, setEditing] = useState(false)
+  const [msDevice, setMsDevice] = useState<MsDevice | null>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -51,6 +66,7 @@ export default function InboxMailboxesSettingsPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load')
       setMailboxes(data.mailboxes || [])
+      setMicrosoftConfigured(Boolean(data.microsoftConfigured))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -60,6 +76,9 @@ export default function InboxMailboxesSettingsPage() {
 
   useEffect(() => {
     void load()
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current)
+    }
   }, [load])
 
   const startEdit = (m: Mailbox) => {
@@ -69,7 +88,7 @@ export default function InboxMailboxesSettingsPage() {
       key: m.key,
       label: m.label,
       emailAddress: m.emailAddress,
-      imapHost: m.imapHost,
+      imapHost: m.requiresMicrosoftSignIn ? 'outlook.office365.com' : m.imapHost,
       imapPort: m.imapPort,
       imapSecure: m.imapSecure,
       imapUser: m.imapUser,
@@ -79,7 +98,11 @@ export default function InboxMailboxesSettingsPage() {
     })
     setSuccess(null)
     setError(null)
+    setMsDevice(null)
   }
+
+  const editingMailbox = mailboxes.find((m) => m.id === form.id)
+  const editingNeedsMs = Boolean(editingMailbox?.requiresMicrosoftSignIn)
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -160,6 +183,73 @@ export default function InboxMailboxesSettingsPage() {
     }
   }
 
+  const pollMicrosoft = useCallback(
+    async (device: MsDevice) => {
+      try {
+        const res = await fetch('/api/inbox/mailboxes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'microsoftPoll',
+            id: device.mailboxId,
+            deviceCode: device.deviceCode
+          })
+        })
+        const data = await res.json()
+        if (data.status === 'pending' || data.status === 'slow_down') {
+          const wait = (data.status === 'slow_down' ? device.interval + 5 : device.interval) * 1000
+          pollRef.current = setTimeout(() => void pollMicrosoft(device), wait)
+          return
+        }
+        if (!res.ok || data.status === 'error') {
+          setMsDevice(null)
+          setError(data.error || 'Microsoft sign-in failed')
+          return
+        }
+        setMsDevice(null)
+        setSuccess(
+          data.test?.ok
+            ? 'Microsoft sign-in complete — IMAP connected.'
+            : `Microsoft sign-in saved.${data.test?.error ? ` Test: ${data.test.error}` : ''}`
+        )
+        await load()
+      } catch (err) {
+        setMsDevice(null)
+        setError(err instanceof Error ? err.message : 'Microsoft sign-in failed')
+      }
+    },
+    [load]
+  )
+
+  const startMicrosoftSignIn = async (mailboxId: string) => {
+    setError(null)
+    setSuccess(null)
+    setSaving(true)
+    try {
+      const res = await fetch('/api/inbox/mailboxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'microsoftStart', id: mailboxId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not start Microsoft sign-in')
+      const device: MsDevice = {
+        mailboxId,
+        deviceCode: data.deviceCode,
+        userCode: data.userCode,
+        verificationUri: data.verificationUri,
+        message: data.message,
+        interval: Number(data.interval || 5)
+      }
+      setMsDevice(device)
+      pollRef.current = setTimeout(() => void pollMicrosoft(device), device.interval * 1000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start Microsoft sign-in')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const syncAll = async () => {
     setSyncing(true)
     setError(null)
@@ -172,7 +262,8 @@ export default function InboxMailboxesSettingsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Sync failed')
-      const errLine = Array.isArray(data.errors) && data.errors.length ? ` Issues: ${data.errors.join('; ')}` : ''
+      const errLine =
+        Array.isArray(data.errors) && data.errors.length ? ` Issues: ${data.errors.join('; ')}` : ''
       setSuccess(`Synced — imported ${data.imported} new message(s).${errLine}`)
       await load()
     } catch (err) {
@@ -183,17 +274,26 @@ export default function InboxMailboxesSettingsPage() {
   }
 
   const toggleEnabled = async (m: Mailbox) => {
-    if (!m.hasPassword && !m.enabled) {
-      setError('Set an IMAP app password before enabling this mailbox.')
-      startEdit(m)
-      return
+    if (!m.enabled) {
+      if (m.requiresMicrosoftSignIn && !m.hasOAuth) {
+        setError('Sign in with Microsoft before enabling the O/S mailbox.')
+        startEdit(m)
+        return
+      }
+      if (!m.requiresMicrosoftSignIn && !m.hasPassword) {
+        setError('Set an IMAP app password before enabling this mailbox.')
+        startEdit(m)
+        return
+      }
     }
     setError(null)
-    await fetch('/api/inbox/mailboxes', {
+    const res = await fetch('/api/inbox/mailboxes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: m.id, enabled: !m.enabled })
     })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) setError(data.error || 'Could not update')
     await load()
   }
 
@@ -212,8 +312,7 @@ export default function InboxMailboxesSettingsPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Inbox mailboxes</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Connect Station, Management, and O/S inboxes via IMAP. Use a Gmail{' '}
-              <span className="font-medium">App Password</span> (not your normal login).
+              Gmail uses an App Password. Outlook.com uses Microsoft Modern Auth (OAuth2) — passwords are disabled.
             </p>
           </div>
           <div className="flex gap-2">
@@ -243,6 +342,30 @@ export default function InboxMailboxesSettingsPage() {
           </div>
         ) : null}
 
+        {msDevice ? (
+          <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950">
+            <p className="font-semibold">Complete Microsoft sign-in</p>
+            <p className="mt-1">{msDevice.message}</p>
+            <p className="mt-3 text-lg font-bold tracking-wider">{msDevice.userCode}</p>
+            <a
+              href={msDevice.verificationUri}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block font-medium text-violet-800 underline"
+            >
+              {msDevice.verificationUri}
+            </a>
+            <p className="mt-2 text-xs text-violet-800">Waiting for you to approve… this page will update automatically.</p>
+          </div>
+        ) : null}
+
+        {!microsoftConfigured ? (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Set <code className="rounded bg-white px-1">MICROSOFT_IMAP_CLIENT_ID</code> in Vercel env to enable
+            Outlook OAuth (Azure App Registration → personal Microsoft accounts → Allow public client flows = Yes).
+          </div>
+        ) : null}
+
         <div className="mb-6 space-y-3">
           {mailboxes.map((m) => (
             <div
@@ -259,7 +382,17 @@ export default function InboxMailboxesSettingsPage() {
                   >
                     {m.enabled ? 'Enabled' : 'Disabled'}
                   </span>
-                  {!m.hasPassword ? (
+                  {m.requiresMicrosoftSignIn ? (
+                    m.hasOAuth ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        Microsoft signed in
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        Needs Microsoft sign-in
+                      </span>
+                    )
+                  ) : !m.hasPassword ? (
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                       Needs password
                     </span>
@@ -268,15 +401,24 @@ export default function InboxMailboxesSettingsPage() {
                 <p className="mt-0.5 text-sm text-gray-600">{m.emailAddress}</p>
                 <p className="mt-1 text-xs text-gray-400">
                   {m.imapHost}:{m.imapPort}
+                  {m.requiresMicrosoftSignIn ? ' · OAuth2' : ' · App password'}
                   {m.lastSyncAt
                     ? ` · Last sync ${new Date(m.lastSyncAt).toLocaleString()} (${m.lastSyncCount} new)`
                     : ' · Never synced'}
                 </p>
-                {m.lastSyncError ? (
-                  <p className="mt-1 text-xs text-red-600">{m.lastSyncError}</p>
-                ) : null}
+                {m.lastSyncError ? <p className="mt-1 text-xs text-red-600">{m.lastSyncError}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
+                {m.requiresMicrosoftSignIn ? (
+                  <button
+                    type="button"
+                    onClick={() => void startMicrosoftSignIn(m.id)}
+                    disabled={saving || !microsoftConfigured}
+                    className="rounded-md bg-sky-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-50"
+                  >
+                    Sign in with Microsoft
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void toggleEnabled(m)}
@@ -302,11 +444,17 @@ export default function InboxMailboxesSettingsPage() {
           </h2>
           {!editing ? (
             <p className="text-sm text-gray-500">
-              Click <span className="font-medium">Edit</span> on Station, Management, or O/S above, paste the
-              IMAP app password, enable, then Sync.
+              Gmail: Edit → paste App Password → Enable → Sync. Outlook (O/S): Sign in with Microsoft (no password).
             </p>
           ) : (
             <form onSubmit={save} className="space-y-3">
+              {editingNeedsMs ? (
+                <div className="rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                  Outlook.com IMAP:{' '}
+                  <span className="font-medium">outlook.office365.com:993 SSL/TLS + OAuth2</span> (Microsoft
+                  Support). Password login is disabled — use Sign in with Microsoft on the card above.
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm">
                   <span className="text-gray-600">Label</span>
@@ -340,6 +488,7 @@ export default function InboxMailboxesSettingsPage() {
                     value={form.imapHost}
                     onChange={(e) => setForm((f) => ({ ...f, imapHost: e.target.value }))}
                     required
+                    readOnly={editingNeedsMs}
                   />
                 </label>
                 <label className="block text-sm">
@@ -351,17 +500,19 @@ export default function InboxMailboxesSettingsPage() {
                     required
                   />
                 </label>
-                <label className="block text-sm sm:col-span-2">
-                  <span className="text-gray-600">IMAP app password</span>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5"
-                    value={form.imapPass}
-                    onChange={(e) => setForm((f) => ({ ...f, imapPass: e.target.value }))}
-                    placeholder={form.id ? 'Leave ******** to keep current' : 'Required'}
-                  />
-                </label>
+                {!editingNeedsMs ? (
+                  <label className="block text-sm sm:col-span-2">
+                    <span className="text-gray-600">IMAP app password</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5"
+                      value={form.imapPass}
+                      onChange={(e) => setForm((f) => ({ ...f, imapPass: e.target.value }))}
+                      placeholder={form.id ? 'Leave ******** to keep current' : 'Required'}
+                    />
+                  </label>
+                ) : null}
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
@@ -372,14 +523,25 @@ export default function InboxMailboxesSettingsPage() {
                 Enabled for sync
               </label>
               <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => void testConnection()}
-                  disabled={saving}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Test connection
-                </button>
+                {editingNeedsMs && form.id ? (
+                  <button
+                    type="button"
+                    onClick={() => void startMicrosoftSignIn(form.id)}
+                    disabled={saving || !microsoftConfigured}
+                    className="rounded-md bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-50"
+                  >
+                    Sign in with Microsoft
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void testConnection()}
+                    disabled={saving}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Test connection
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={saving}
@@ -392,6 +554,7 @@ export default function InboxMailboxesSettingsPage() {
                   onClick={() => {
                     setEditing(false)
                     setForm(emptyForm)
+                    setMsDevice(null)
                   }}
                   className="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800"
                 >
@@ -402,29 +565,45 @@ export default function InboxMailboxesSettingsPage() {
           )}
         </div>
 
-        <div className="mt-6 rounded-lg border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-950">
-          <p className="font-semibold">Gmail setup</p>
-          <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Turn on 2-Step Verification for the Google account.</li>
-            <li>
-              Create an App Password at{' '}
-              <a
-                className="underline"
-                href="https://myaccount.google.com/apppasswords"
-                target="_blank"
-                rel="noreferrer"
-              >
-                myaccount.google.com/apppasswords
-              </a>
-              .
-            </li>
-            <li>Paste it here for Station / Management, enable, then Sync.</li>
-          </ol>
-          <p className="mt-3 font-semibold">Outlook (O/S)</p>
-          <p className="mt-1">
-            Host <code className="rounded bg-white px-1">outlook.office365.com</code>, port 993. You may need an
-            app password or IMAP enabled on the Microsoft account.
-          </p>
+        <div className="mt-6 space-y-4 rounded-lg border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-950">
+          <div>
+            <p className="font-semibold">Gmail (Station / Management)</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>Turn on 2-Step Verification.</li>
+              <li>
+                Create an App Password at{' '}
+                <a className="underline" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+                  myaccount.google.com/apppasswords
+                </a>
+                .
+              </li>
+              <li>Paste it here, enable, Sync.</li>
+            </ol>
+          </div>
+          <div>
+            <p className="font-semibold">Outlook.com (O/S) — Microsoft Support settings</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>IMAP: <code className="rounded bg-white px-1">outlook.office365.com</code> port <code className="rounded bg-white px-1">993</code> SSL/TLS</li>
+              <li>Auth: <strong>OAuth2 / Modern Auth</strong> (password login returns “Login is disabled”)</li>
+              <li>
+                Enable IMAP in Outlook.com: Settings → Mail → Forwarding and IMAP → turn IMAP on (
+                <a
+                  className="underline"
+                  href="https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Microsoft docs
+                </a>
+                )
+              </li>
+              <li>
+                Azure: App registration → supported account types include personal Microsoft accounts → Authentication →
+                Allow public client flows = Yes → copy Client ID into Vercel{' '}
+                <code className="rounded bg-white px-1">MICROSOFT_IMAP_CLIENT_ID</code>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
