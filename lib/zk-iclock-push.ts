@@ -39,11 +39,10 @@ import { iclockPollDelaySeconds, parseBoundedIntEnv } from '@/lib/zk-iclock-dela
  * - Override: `ZK_ICLOCK_REALTIME=1` for immediate upload; `ZK_ICLOCK_TRANS_INTERVAL`
  *   (minutes, default 3) when realtime is off.
  *
- * Command-poll cadence (`Delay`, seconds): default 300 by day. From 11:00pm–5:30am
- * (America/St_Lucia) Delay is the remaining seconds until 5:30am so the clock
- * stops heartbeating while Neon can scale to zero. Punch upload is still
- * TransInterval, not Delay. Override daytime Delay with `ZK_ICLOCK_DELAY_SECONDS`
- * (30–600). Quiet hours: set `QUIET_HOURS_DISABLED=1` to turn off.
+ * Command-poll cadence (`Delay`, seconds): default 300 on handshake. Punch
+ * upload is still TransInterval, not Delay. Override with `ZK_ICLOCK_DELAY_SECONDS`
+ * (30–600). Overnight Neon idle is handled by pausing the Windows agent staff
+ * poll, not by sending a new iClock command on every getrequest.
  */
 function buildIclockCdataHandshakeBody(serial: string): string {
   const sn = serial.trim() || 'unknown'

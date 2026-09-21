@@ -3,8 +3,9 @@ import { buildGetrequestBody } from '@/lib/zk-iclock-delay'
 
 /**
  * GET /iclock/getrequest — device command poll.
- * Prisma-free. By day the body is OK. From 11:00pm–5:30am the body tells the
- * clock to Delay until 5:30am so it stops heartbeating; punch upload is unchanged.
+ * Prisma-free. Always `OK` (no pending command). Poll cadence comes from the
+ * cdata handshake `Delay` (default 300s). Do not emit a new command on every
+ * poll — that makes the clock request again immediately.
  */
 export async function zkPushGET(request: NextRequest) {
   const info = request.nextUrl.searchParams.get('INFO')

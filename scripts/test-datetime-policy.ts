@@ -65,14 +65,14 @@ describe('datetime policy', () => {
   })
 })
 
-describe('iclock quiet-hours delay', () => {
-  it('asks the clock to Delay until 5:30am during quiet hours', async () => {
+describe('iclock getrequest body', () => {
+  it('returns OK at night so the clock is not given a new command each poll', async () => {
     const { buildGetrequestBody, iclockPollDelaySeconds } = await import('../lib/zk-iclock-delay')
     const now = new Date('2026-09-02T03:00:00.000Z')
-    assert.equal(iclockPollDelaySeconds(now), 6.5 * 60 * 60)
+    assert.equal(iclockPollDelaySeconds(now), 300)
     const { body, delay } = buildGetrequestBody(now)
-    assert.equal(delay, 6.5 * 60 * 60)
-    assert.match(body, /DATA UPDATE OPTIONS Delay=23400/)
+    assert.equal(body, 'OK')
+    assert.equal(delay, null)
   })
 
   it('returns OK during the day', async () => {
