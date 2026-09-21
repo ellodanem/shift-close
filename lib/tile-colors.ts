@@ -31,6 +31,7 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   staff: '#64748b',
   'time-off': '#0f766e',
   applications: '#a21caf',
+  inbox: '#5b21b6',
   'reports-center': '#ca8a04',
   settings: '#64748b',
   'settings-users': '#475569',
