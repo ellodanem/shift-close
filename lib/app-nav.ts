@@ -46,7 +46,8 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
     label: 'Operations',
     items: [
       { label: 'Shifts', href: '/shifts', permission: 'shifts' },
-      { label: 'End of Day', href: '/days', permission: 'days' }
+      { label: 'End of Day', href: '/days', permission: 'days' },
+      { label: 'Inbox', href: '/inbox', permission: 'operations.inbox' }
     ]
   },
   {
@@ -110,6 +111,7 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
 
 const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/days': 'end-of-day',
+  '/inbox': 'inbox',
   '/fuel-payments/invoices': 'fuel-payments',
   '/fuel-payments/batches': 'fuel-batches',
   '/fuel-payments/monthly-report': 'fuel-monthly',
@@ -253,6 +255,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/dashboard') return pathname === '/dashboard'
   if (href === '/shifts') return pathname === '/shifts' || pathname.startsWith('/shifts/')
   if (href === '/days') return pathname === '/days'
+  if (href === '/inbox') return pathname === '/inbox' || pathname.startsWith('/inbox/')
   if (href === '/financial/cashbook') return pathname.startsWith('/financial/cashbook')
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
   if (href === '/reports/financial') return pathname.startsWith('/reports/financial')

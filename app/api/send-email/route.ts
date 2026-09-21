@@ -10,8 +10,10 @@ type AttachmentInput = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { to, subject, html, text, attachments } = body as {
+    const { to, cc, bcc, subject, html, text, attachments } = body as {
       to?: string
+      cc?: string
+      bcc?: string
       subject?: string
       html?: string
       text?: string
@@ -50,6 +52,8 @@ export async function POST(request: NextRequest) {
 
     await sendMail({
       to: to.trim(),
+      cc: typeof cc === 'string' && cc.trim() ? cc.trim() : undefined,
+      bcc: typeof bcc === 'string' && bcc.trim() ? bcc.trim() : undefined,
       subject: subject.trim(),
       html: html || undefined,
       text: text || undefined,

@@ -80,6 +80,22 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ---
 
-## 5. Adding more ideas
+## 5. Internal Inbox (shared station mail)
+
+**Goal:** One work inbox for Westline covering Station (`westline.slu`), Management (`totalarubis`), and O/S (Outlook) — triage, assign, reply, and jump into the matching Shift Close record.
+
+**Shipped (UI shell):** `/inbox` — queues, mailbox filters, sample threads, **Compose / Reply / Reply all / Forward** with **To, Cc, Bcc**, and send via existing SMTP (`/api/send-email` now accepts cc/bcc). Mockups in `docs/ux-mockups/internal-inbox-*.png` (desktop, thread, phone, compose).
+
+**Still required for production mail:**
+- Inbound sync (Gmail API or IMAP) per mailbox
+- Send-as the mailbox that received the thread
+- Persist threads, assignees, Done ↔ Gmail archive sync
+- Role rules (who sees all vs assigned-only)
+
+**Out of scope:** Personal mail, calendar, spam fighting, helpdesk SLAs.
+
+---
+
+## 6. Adding more ideas
 
 Use short subsections with **Goal**, **Rough behavior**, and **Open decisions**. Link to PRDs or issues when they exist.

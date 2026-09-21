@@ -32,6 +32,7 @@ export type HomeShortcutId =
   | 'shifts'
   | 'reports-center'
   | 'applications'
+  | 'inbox'
   | 'shift-presets'
   | 'late-absent'
   | 'financial-report'
@@ -277,6 +278,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     href: '/applications',
     tileClass: 'bg-fuchsia-700',
     matchPrefixes: ['/applications']
+  },
+  {
+    id: 'inbox',
+    label: 'Inbox',
+    href: '/inbox',
+    tileClass: 'bg-violet-800',
+    matchPrefixes: ['/inbox']
   },
   {
     id: 'promotions',

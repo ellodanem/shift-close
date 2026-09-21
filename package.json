@@ -28,7 +28,8 @@
     "test:shift-sales": "tsx --test scripts/test-shift-sales.ts",
     "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts",
     "test:fuel-prices": "tsx --test scripts/test-fuel-prices.ts",
-    "test:fuel-comparison": "tsx --test scripts/test-fuel-comparison.ts"
+    "test:fuel-comparison": "tsx --test scripts/test-fuel-comparison.ts",
+    "test:inbox-compose": "tsx --test scripts/test-inbox-compose.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
