@@ -11,6 +11,8 @@ function formatMoney(n: number): string {
 interface DayRow {
   date: string
   grandTotal: number
+  depositsTotal: number
+  cardTotal: number
   depositsAndCardTotal: number
   shiftCount: number
 }
@@ -237,9 +239,9 @@ export default function ExpectedRevenuePage() {
               <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h2 className="text-sm font-semibold text-gray-900">By day</h2>
                 <p className="text-xs text-gray-500 mb-3">
-                  Per calendar day within the range.
+                  Per calendar day within the range. Card is debit + credit.
                   {depositsAndCardOnly && (
-                    <span className="text-gray-600"> Day totals match deposits + card (fleet &amp; vouchers excluded).</span>
+                    <span className="text-gray-600"> Total is deposits + card (fleet &amp; vouchers excluded).</span>
                   )}
                 </p>
                 <div className="overflow-x-auto">
@@ -248,8 +250,10 @@ export default function ExpectedRevenuePage() {
                       <tr className="border-b border-gray-200 text-left text-gray-600">
                         <th className="py-2 pr-4 font-medium">Date</th>
                         <th className="py-2 pr-4 font-medium">Shifts</th>
+                        <th className="py-2 pr-4 font-medium text-right">Deposits</th>
+                        <th className="py-2 pr-4 font-medium text-right">Card</th>
                         <th className="py-2 font-medium text-right">
-                          {depositsAndCardOnly ? 'Day total (dep. + card)' : 'Day total'}
+                          {depositsAndCardOnly ? 'Total' : 'Day total'}
                         </th>
                       </tr>
                     </thead>
@@ -258,6 +262,12 @@ export default function ExpectedRevenuePage() {
                         <tr key={row.date} className="border-b border-gray-100">
                           <td className="py-2 pr-4 font-mono text-gray-900">{row.date}</td>
                           <td className="py-2 pr-4 text-gray-700">{row.shiftCount}</td>
+                          <td className="py-2 pr-4 text-right tabular-nums text-gray-900">
+                            ${formatMoney(row.depositsTotal ?? 0)}
+                          </td>
+                          <td className="py-2 pr-4 text-right tabular-nums text-gray-900">
+                            ${formatMoney(row.cardTotal ?? 0)}
+                          </td>
                           <td className="py-2 text-right font-medium tabular-nums text-gray-900">
                             $
                             {formatMoney(depositsAndCardOnly ? row.depositsAndCardTotal : row.grandTotal)}

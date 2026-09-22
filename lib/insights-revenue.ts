@@ -50,6 +50,9 @@ export function aggregateRangeRevenue(shifts: ShiftCloseRevenueInput[]): {
   byDay: Array<{
     date: string
     grandTotal: number
+    depositsTotal: number
+    /** System debit + other credit for the day. */
+    cardTotal: number
     /** Deposits + system debit + other credit (excludes fleet & vouchers). */
     depositsAndCardTotal: number
     shiftCount: number
@@ -60,7 +63,7 @@ export function aggregateRangeRevenue(shifts: ShiftCloseRevenueInput[]): {
   let totalCredit = 0
   let totalFleet = 0
   let totalVouchers = 0
-  const dayMap = new Map<string, { grand: number; depositsAndCard: number; count: number }>()
+  const dayMap = new Map<string, { grand: number; deposits: number; card: number; count: number }>()
 
   for (const shift of shifts) {
     const dep = sumDepositsFromShift(shift)
@@ -76,11 +79,12 @@ export function aggregateRangeRevenue(shifts: ShiftCloseRevenueInput[]): {
     totalVouchers += vo
 
     const g = dep + db + cr + fl + vo
-    const depositsAndCard = dep + db + cr
-    const prev = dayMap.get(shift.date) ?? { grand: 0, depositsAndCard: 0, count: 0 }
+    const card = db + cr
+    const prev = dayMap.get(shift.date) ?? { grand: 0, deposits: 0, card: 0, count: 0 }
     dayMap.set(shift.date, {
       grand: prev.grand + g,
-      depositsAndCard: prev.depositsAndCard + depositsAndCard,
+      deposits: prev.deposits + dep,
+      card: prev.card + card,
       count: prev.count + 1
     })
   }
@@ -89,10 +93,12 @@ export function aggregateRangeRevenue(shifts: ShiftCloseRevenueInput[]): {
   const grandTotal = totalDeposits + totalDebitAndCredit + totalFleet + totalVouchers
 
   const byDay = [...dayMap.entries()]
-    .map(([date, { grand, depositsAndCard, count }]) => ({
+    .map(([date, { grand, deposits, card, count }]) => ({
       date,
       grandTotal: grand,
-      depositsAndCardTotal: depositsAndCard,
+      depositsTotal: deposits,
+      cardTotal: card,
+      depositsAndCardTotal: deposits + card,
       shiftCount: count
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
