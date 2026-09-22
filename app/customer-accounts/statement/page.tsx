@@ -10,19 +10,31 @@ import {
   type AccountStatement,
   type StatementMode
 } from '@/lib/customer-statement'
+import { monthParamForFilter } from '@/lib/monthFilter'
 import ShareStatementModal from './ShareStatementModal'
 
-function defaultStartDate(): string {
-  const y = new Date().getFullYear()
-  return `${y}-01-01`
+type RangePreset = 'current' | 'previous' | 'custom'
+
+function monthKeyRange(monthKey: string): { startDate: string; endDate: string } {
+  const [y, m] = monthKey.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return {
+    startDate: `${monthKey}-01`,
+    endDate: `${monthKey}-${String(lastDay).padStart(2, '0')}`
+  }
 }
 
-function defaultEndDate(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+function presetRange(preset: Exclude<RangePreset, 'custom'>): { startDate: string; endDate: string } {
+  const monthKey = monthParamForFilter(preset === 'current' ? 'thisMonth' : 'lastMonth', '')
+  return monthKeyRange(monthKey!)
+}
+
+function detectRangePreset(start: string, end: string): RangePreset {
+  const current = presetRange('current')
+  const previous = presetRange('previous')
+  if (start === current.startDate && end === current.endDate) return 'current'
+  if (start === previous.startDate && end === previous.endDate) return 'previous'
+  return 'custom'
 }
 
 function StatementParamSync({
@@ -51,8 +63,9 @@ export default function AccountStatementPage() {
   const router = useRouter()
   const [accounts, setAccounts] = useState<string[]>([])
   const [account, setAccount] = useState('')
-  const [startDate, setStartDate] = useState(defaultStartDate)
-  const [endDate, setEndDate] = useState(defaultEndDate)
+  const [rangePreset, setRangePreset] = useState<RangePreset>('current')
+  const [startDate, setStartDate] = useState(() => presetRange('current').startDate)
+  const [endDate, setEndDate] = useState(() => presetRange('current').endDate)
   const [mode, setMode] = useState<StatementMode>('summary')
   const [statement, setStatement] = useState<AccountStatement | null>(null)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
@@ -81,12 +94,29 @@ export default function AccountStatementPage() {
   const applyUrlParams = useCallback(
     (p: { account?: string; startDate?: string; endDate?: string; mode?: StatementMode }) => {
       if (p.account) setAccount(p.account)
-      if (p.startDate && /^\d{4}-\d{2}-\d{2}$/.test(p.startDate)) setStartDate(p.startDate)
-      if (p.endDate && /^\d{4}-\d{2}-\d{2}$/.test(p.endDate)) setEndDate(p.endDate)
+      const nextStart =
+        p.startDate && /^\d{4}-\d{2}-\d{2}$/.test(p.startDate) ? p.startDate : undefined
+      const nextEnd = p.endDate && /^\d{4}-\d{2}-\d{2}$/.test(p.endDate) ? p.endDate : undefined
+      if (nextStart) setStartDate(nextStart)
+      if (nextEnd) setEndDate(nextEnd)
+      if (nextStart && nextEnd) {
+        setRangePreset(detectRangePreset(nextStart, nextEnd))
+      } else if (nextStart || nextEnd) {
+        setRangePreset('custom')
+      }
       if (p.mode) setMode(p.mode)
     },
     []
   )
+
+  const applyRangePreset = (next: RangePreset) => {
+    setRangePreset(next)
+    setGenerated(false)
+    if (next === 'custom') return
+    const range = presetRange(next)
+    setStartDate(range.startDate)
+    setEndDate(range.endDate)
+  }
 
   const generateStatement = async () => {
     if (!account.trim()) {
@@ -237,29 +267,60 @@ export default function AccountStatementPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value)
-                  setGenerated(false)
-                }}
-                className="px-3 py-2 border border-gray-300 rounded text-sm"
-              />
+              <label className="block text-xs font-medium text-gray-700 mb-1">Period</label>
+              <div className="flex rounded border border-gray-300 overflow-hidden text-sm">
+                {(
+                  [
+                    { id: 'current' as const, label: 'Current Month' },
+                    { id: 'previous' as const, label: 'Previous Month' },
+                    { id: 'custom' as const, label: 'Custom' }
+                  ] as const
+                ).map((p, i) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyRangePreset(p.id)}
+                    className={`px-3 py-2 ${i > 0 ? 'border-l border-gray-300' : ''} ${
+                      rangePreset === p.id
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value)
-                  setGenerated(false)
-                }}
-                className="px-3 py-2 border border-gray-300 rounded text-sm"
-              />
-            </div>
+            {rangePreset === 'custom' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setRangePreset('custom')
+                      setStartDate(e.target.value)
+                      setGenerated(false)
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setRangePreset('custom')
+                      setEndDate(e.target.value)
+                      setGenerated(false)
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded text-sm"
+                  />
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">View</label>
               <div className="flex rounded border border-gray-300 overflow-hidden text-sm">
@@ -298,7 +359,7 @@ export default function AccountStatementPage() {
 
         {!generated && !generating && (
           <p className="text-sm text-gray-500 no-print">
-            Choose a customer and date range, then click Generate Statement.
+            Choose a customer and period, then click Generate Statement.
           </p>
         )}
 
