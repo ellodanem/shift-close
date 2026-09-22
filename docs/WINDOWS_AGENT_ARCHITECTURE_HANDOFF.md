@@ -138,7 +138,7 @@ There is **no** device pairing, OAuth, or per-machine registration. Setup = ente
 | Agent → cloud | GET | `/api/attendance/device/pending-staff` | `x-agent-secret` | `{ staff: [{ id, name, firstName, lastName, deviceUserId }], total }` — active staff with device IDs |
 | Agent → cloud | POST | `/api/attendance/ingest` | `x-agent-secret` | `{ logs: [{ deviceUserId, recordTime, state? }] }` → `{ synced, total, bulk }` via `ingestAttendanceBatch(..., source: 'agent')` |
 
-**Polling:** staff sync every **`staffSyncIntervalMs`** (default 5 min) + initial run ~3s after start. **No** automatic punch polling to cloud. Tray polls local `/api/status` every 15s.
+**Polling:** staff sync every **`staffSyncIntervalMs`** (default **30 min**, minimum 30 min — older 5 min configs are raised on load) + initial run ~3s after start. **No** automatic punch polling to cloud. Tray polls local `/api/status` every 15s.
 
 **Not used:** WebSockets, named pipes, long-lived agent↔server sessions, cloud→agent command queue.
 
@@ -216,7 +216,7 @@ Implemented in `lib/zk-iclock-push.ts`. Prefer `/iclock/cdata` for new setups.
 | `deviceIp` / `devicePort` | `''` / `4370` | LAN terminal |
 | `vercelUrl` | `''` | Cloud base URL (trailing slash stripped in use) |
 | `agentSecret` | `''` | Must match `AGENT_SECRET` |
-| `staffSyncIntervalMs` | 5 min | Staff poll |
+| `staffSyncIntervalMs` | 30 min (min 30 min) | Staff poll; values below 30 min are clamped |
 | `devicePingIntervalMs` | 5 min (min 60s enforced) | Reachability |
 | `attendanceSyncIntervalMs` | 15 min | **Legacy/unused** for auto punch push |
 | `dashboardPort` | 3001 | Local Express |

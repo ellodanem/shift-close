@@ -20,6 +20,21 @@ function fuelVolumesFromBody(type: string, body: { unleadedLitres?: unknown; die
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
+    // Lightweight tab badges: one groupBy instead of downloading three full lists.
+    if (searchParams.get('counts') === '1') {
+      const grouped = await prisma.invoice.groupBy({
+        by: ['status'],
+        _count: { _all: true }
+      })
+      const counts = { pending: 0, paid: 0, simulated: 0 }
+      for (const row of grouped) {
+        if (row.status === 'pending' || row.status === 'paid' || row.status === 'simulated') {
+          counts[row.status] = row._count._all
+        }
+      }
+      return NextResponse.json(counts)
+    }
+
     const status = searchParams.get('status') // 'pending' | 'simulated' | 'paid' | null (all)
 
     const where: any = {}

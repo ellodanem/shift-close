@@ -32,6 +32,23 @@ interface Invoice {
 
 type TabType = 'pending' | 'paid'
 
+type InvoiceCounts = { pending: number; paid: number; simulated: number }
+
+async function loadInvoiceCounts(): Promise<InvoiceCounts | null> {
+  try {
+    const res = await fetch('/api/fuel-payments/invoices?counts=1')
+    if (!res.ok) return null
+    const data = (await res.json()) as Partial<InvoiceCounts>
+    return {
+      pending: Number(data.pending) || 0,
+      paid: Number(data.paid) || 0,
+      simulated: Number(data.simulated) || 0
+    }
+  } catch {
+    return null
+  }
+}
+
 // Helper function to get icon for invoice type
 const getInvoiceTypeIcon = (type: string): string => {
   switch (type) {
@@ -194,18 +211,7 @@ export default function InvoicesPage() {
       if (res.ok) {
         closeAddInvoiceModal()
         void fetchInvoices()
-        const [pendingRes, paidRes] = await Promise.all([
-          fetch('/api/fuel-payments/invoices?status=pending'),
-          fetch('/api/fuel-payments/invoices?status=paid')
-        ])
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json()
-          setPendingCount(pendingData.length)
-        }
-        if (paidRes.ok) {
-          const paidData = await paidRes.json()
-          setPaidCount(paidData.length)
-        }
+        void refreshCounts()
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to create invoice')
@@ -216,6 +222,21 @@ export default function InvoicesPage() {
     } finally {
       setAddInvoiceSaving(false)
     }
+  }
+
+  const [pendingCount, setPendingCount] = useState(0)
+  const [paidCount, setPaidCount] = useState(0)
+  const [simulatedCount, setSimulatedCount] = useState(0)
+  const [showFixAlert, setShowFixAlert] = useState(false)
+  const [copyNotification, setCopyNotification] = useState<string | null>(null)
+
+  const refreshCounts = async () => {
+    const counts = await loadInvoiceCounts()
+    if (!counts) return
+    setPendingCount(counts.pending)
+    setPaidCount(counts.paid)
+    setSimulatedCount(counts.simulated)
+    if (counts.simulated > 0) setShowFixAlert(true)
   }
 
   useEffect(() => {
@@ -240,42 +261,9 @@ export default function InvoicesPage() {
     }
   }
 
-  // Fetch counts for both tabs
-  const [pendingCount, setPendingCount] = useState(0)
-  const [paidCount, setPaidCount] = useState(0)
-  const [simulatedCount, setSimulatedCount] = useState(0)
-  const [showFixAlert, setShowFixAlert] = useState(false)
-  const [copyNotification, setCopyNotification] = useState<string | null>(null)
-
   useEffect(() => {
-    const fetchCounts = async () => {
-      try {
-        const [pendingRes, paidRes, simulatedRes] = await Promise.all([
-          fetch('/api/fuel-payments/invoices?status=pending'),
-          fetch('/api/fuel-payments/invoices?status=paid'),
-          fetch('/api/fuel-payments/invoices?status=simulated')
-        ])
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json()
-          setPendingCount(pendingData.length)
-        }
-        if (paidRes.ok) {
-          const paidData = await paidRes.json()
-          setPaidCount(paidData.length)
-        }
-        if (simulatedRes.ok) {
-          const simulatedData = await simulatedRes.json()
-          setSimulatedCount(simulatedData.length)
-          if (simulatedData.length > 0) {
-            setShowFixAlert(true)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching counts:', error)
-      }
-    }
-    fetchCounts()
-    fetchBalance()
+    void refreshCounts()
+    void fetchBalance()
   }, [])
 
   // Auto-hide "Reference copied" notification
@@ -393,20 +381,8 @@ export default function InvoicesPage() {
         alert(`Successfully restored ${data.fixed} invoice(s) to pending status!`)
         setShowFixAlert(false)
         setSimulatedCount(0)
-        // Refresh the page
-        fetchInvoices()
-        const [pendingRes, paidRes] = await Promise.all([
-          fetch('/api/fuel-payments/invoices?status=pending'),
-          fetch('/api/fuel-payments/invoices?status=paid')
-        ])
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json()
-          setPendingCount(pendingData.length)
-        }
-        if (paidRes.ok) {
-          const paidData = await paidRes.json()
-          setPaidCount(paidData.length)
-        }
+        void fetchInvoices()
+        void refreshCounts()
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to fix simulated invoices')
@@ -429,20 +405,8 @@ export default function InvoicesPage() {
       })
 
       if (res.ok) {
-        fetchInvoices()
-        // Refresh counts
-        const [pendingRes, paidRes] = await Promise.all([
-          fetch('/api/fuel-payments/invoices?status=pending'),
-          fetch('/api/fuel-payments/invoices?status=paid')
-        ])
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json()
-          setPendingCount(pendingData.length)
-        }
-        if (paidRes.ok) {
-          const paidData = await paidRes.json()
-          setPaidCount(paidData.length)
-        }
+        void fetchInvoices()
+        void refreshCounts()
       } else {
         const err = await res.json().catch(() => ({}))
         alert(err.error || 'Failed to delete invoice')
@@ -1017,14 +981,7 @@ export default function InvoicesPage() {
           onSuccess={(batchId) => {
             void fetchBalance()
             void fetchInvoices()
-            void Promise.all([
-              fetch('/api/fuel-payments/invoices?status=pending').then(async (res) => {
-                if (res.ok) setPendingCount((await res.json()).length)
-              }),
-              fetch('/api/fuel-payments/invoices?status=paid').then(async (res) => {
-                if (res.ok) setPaidCount((await res.json()).length)
-              })
-            ])
+            void refreshCounts()
             setSelectedInvoiceIds(new Set())
             router.push(`/fuel-payments/make-payment/share/${batchId}`)
           }}
@@ -1035,14 +992,7 @@ export default function InvoicesPage() {
           onClose={() => setShowRevertModal(false)}
           onSuccess={() => {
             void fetchInvoices()
-            void Promise.all([
-              fetch('/api/fuel-payments/invoices?status=pending').then(async (res) => {
-                if (res.ok) setPendingCount((await res.json()).length)
-              }),
-              fetch('/api/fuel-payments/invoices?status=paid').then(async (res) => {
-                if (res.ok) setPaidCount((await res.json()).length)
-              })
-            ])
+            void refreshCounts()
           }}
         />
 

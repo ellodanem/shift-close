@@ -6,7 +6,7 @@ Local Windows agent that bridges your ZKTeco F22 attendance device with the Shif
 
 | Task | How |
 |---|---|
-| Pushes staff to device | Polls Vercel every 5 min (and on demand), calls `setUser()` on the ZKTeco |
+| Pushes staff to device | Polls Vercel every 30 min (and on demand), calls `setUser()` on the ZKTeco |
 | Upload punches to cloud | **Manual only** — load punches in the dashboard, select rows (or all), then upload to `/api/attendance/ingest` |
 | Provides a local dashboard | Web UI at http://127.0.0.1:3001 |
 | Runs silently in system tray | Tray icon shows connection status |

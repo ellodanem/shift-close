@@ -59,6 +59,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Skip the device command poll — it is public, returns OK, and is the majority of production traffic.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|iclock/getrequest).*)']
+  // Skip high-frequency public polls: iClock getrequest and the Windows agent staff fingerprint.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|iclock/getrequest|api/attendance/device/pending-staff).*)'
+  ]
 }

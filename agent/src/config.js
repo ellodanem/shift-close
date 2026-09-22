@@ -11,17 +11,28 @@ const path = require('path')
 const CONFIG_DIR = process.env.AGENT_CONFIG_DIR || process.cwd()
 const CONFIG_FILE = path.join(CONFIG_DIR, 'agent.config.json')
 
+/** Floor for Vercel pending-staff polls. Older configs saved 5 min and that dominates Edge Requests. */
+const MIN_STAFF_SYNC_INTERVAL_MS = 30 * 60 * 1000
+
 const DEFAULTS = {
   deviceIp: '',
   devicePort: 4370,
   vercelUrl: '',
   agentSecret: '',
   /** Poll app for staff to push to device. Skipped 11:00pm–5:30am (quiet hours). */
-  staffSyncIntervalMs: 30 * 60 * 1000, // 30 minutes
+  staffSyncIntervalMs: MIN_STAFF_SYNC_INTERVAL_MS,
   /** TCP/SDK reachability check for dashboard status (min 60s if overridden in config). */
   devicePingIntervalMs: 5 * 60 * 1000,
   attendanceSyncIntervalMs: 15 * 60 * 1000, // 15 minutes
   dashboardPort: 3001
+}
+
+function clampStaffSyncIntervalMs(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < MIN_STAFF_SYNC_INTERVAL_MS) {
+    return MIN_STAFF_SYNC_INTERVAL_MS
+  }
+  return Math.round(n)
 }
 
 function loadConfig() {
@@ -34,9 +45,31 @@ function loadConfig() {
     }
   }
 
+  const staffSyncIntervalMs = clampStaffSyncIntervalMs(
+    fileConfig.staffSyncIntervalMs != null
+      ? fileConfig.staffSyncIntervalMs
+      : DEFAULTS.staffSyncIntervalMs
+  )
+  const rawInterval = Number(fileConfig.staffSyncIntervalMs)
+  if (
+    fs.existsSync(CONFIG_FILE) &&
+    Number.isFinite(rawInterval) &&
+    rawInterval < MIN_STAFF_SYNC_INTERVAL_MS
+  ) {
+    try {
+      saveConfig({ staffSyncIntervalMs })
+      console.log(
+        `[Config] Raised staffSyncIntervalMs from ${rawInterval} to ${staffSyncIntervalMs} (min 30 min)`
+      )
+    } catch {
+      // keep running with the clamped in-memory value
+    }
+  }
+
   return {
     ...DEFAULTS,
     ...fileConfig,
+    staffSyncIntervalMs,
     // Environment variables override file config
     deviceIp: process.env.ZK_DEVICE_IP || fileConfig.deviceIp || DEFAULTS.deviceIp,
     devicePort: parseInt(process.env.ZK_DEVICE_PORT || fileConfig.devicePort || DEFAULTS.devicePort, 10),
@@ -60,4 +93,9 @@ function saveConfig(updates) {
   return merged
 }
 
-module.exports = { loadConfig, saveConfig }
+module.exports = {
+  loadConfig,
+  saveConfig,
+  MIN_STAFF_SYNC_INTERVAL_MS,
+  clampStaffSyncIntervalMs
+}
