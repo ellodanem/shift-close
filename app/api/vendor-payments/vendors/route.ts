@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, notificationEmail, notes, isVatRegistered, cstoreName } = body
+    const { name, notificationEmail, notes, isVatRegistered, cstoreName, contactPerson, contactNumber } = body
 
     if (!name || !String(name).trim()) {
       return NextResponse.json({ error: 'Vendor name is required' }, { status: 400 })
@@ -37,7 +37,15 @@ export async function POST(request: NextRequest) {
         notes: (notes && String(notes).trim()) || '',
         isVatRegistered: Boolean(isVatRegistered),
         cstoreName:
-          typeof cstoreName === 'string' && cstoreName.trim() ? cstoreName.trim() : null
+          typeof cstoreName === 'string' && cstoreName.trim() ? cstoreName.trim() : null,
+        contactPerson:
+          typeof contactPerson === 'string' && contactPerson.trim()
+            ? contactPerson.trim()
+            : null,
+        contactNumber:
+          typeof contactNumber === 'string' && contactNumber.trim()
+            ? contactNumber.trim()
+            : null
       }
     })
 

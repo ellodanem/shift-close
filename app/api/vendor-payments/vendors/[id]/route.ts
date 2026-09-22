@@ -41,7 +41,7 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, notificationEmail, notes, isVatRegistered, cstoreName } = body
+    const { name, notificationEmail, notes, isVatRegistered, cstoreName, contactPerson, contactNumber } = body
 
     const vendor = await prisma.vendor.findUnique({ where: { id } })
     if (!vendor) {
@@ -56,6 +56,18 @@ export async function PATCH(
     if (cstoreName !== undefined) {
       data.cstoreName =
         typeof cstoreName === 'string' && cstoreName.trim() ? cstoreName.trim() : null
+    }
+    if (contactPerson !== undefined) {
+      data.contactPerson =
+        typeof contactPerson === 'string' && contactPerson.trim()
+          ? contactPerson.trim()
+          : null
+    }
+    if (contactNumber !== undefined) {
+      data.contactNumber =
+        typeof contactNumber === 'string' && contactNumber.trim()
+          ? contactNumber.trim()
+          : null
     }
 
     const updated = await prisma.vendor.update({

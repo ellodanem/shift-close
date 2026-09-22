@@ -534,6 +534,8 @@ model Vendor {
   id                String   @id @default(cuid())
   name              String
   notificationEmail String   @map("notification_email")
+  contactPerson     String?  @map("contact_person")
+  contactNumber     String?  @map("contact_number")
   isVatRegistered   Boolean  @default(false) @map("is_vat_registered")
   cstoreName        String?  @map("cstore_name")
   notes             String   @default("")

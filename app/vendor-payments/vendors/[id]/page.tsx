@@ -49,6 +49,8 @@ interface Vendor {
   id: string
   name: string
   notificationEmail: string
+  contactPerson?: string | null
+  contactNumber?: string | null
   isVatRegistered: boolean
   cstoreName?: string | null
   notes: string
@@ -432,6 +434,22 @@ function VendorDetailPageInner() {
                 {vendor.notificationEmail}
               </dd>
             </div>
+            {vendor.contactPerson && (
+              <div>
+                <dt className="text-sm text-gray-500">Contact person</dt>
+                <dd className="text-sm font-medium text-gray-900">{vendor.contactPerson}</dd>
+              </div>
+            )}
+            {vendor.contactNumber && (
+              <div>
+                <dt className="text-sm text-gray-500">Contact number</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  <a href={`tel:${vendor.contactNumber}`} className="hover:underline">
+                    {vendor.contactNumber}
+                  </a>
+                </dd>
+              </div>
+            )}
             {vendor.cstoreName && (
               <div>
                 <dt className="text-sm text-gray-500">Cstore name</dt>

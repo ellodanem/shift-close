@@ -11,6 +11,8 @@ export default function EditVendorPage() {
   const [formData, setFormData] = useState({
     name: '',
     notificationEmail: '',
+    contactPerson: '',
+    contactNumber: '',
     notes: '',
     isVatRegistered: false,
     cstoreName: ''
@@ -32,6 +34,8 @@ export default function EditVendorPage() {
       setFormData({
         name: data.name,
         notificationEmail: data.notificationEmail,
+        contactPerson: data.contactPerson || '',
+        contactNumber: data.contactNumber || '',
         notes: data.notes || '',
         isVatRegistered: Boolean(data.isVatRegistered),
         cstoreName: data.cstoreName || ''
@@ -141,6 +145,30 @@ export default function EditVendorPage() {
                 onChange={(e) => setFormData({ ...formData, notificationEmail: e.target.value })}
                 className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                 placeholder="vendor@example.com"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Contact person
+              </label>
+              <input
+                type="text"
+                value={formData.contactPerson}
+                onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+                placeholder="Name of the person to contact"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Contact number
+              </label>
+              <input
+                type="tel"
+                value={formData.contactNumber}
+                onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
+                className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+                placeholder="Phone number"
               />
             </div>
             <div>
