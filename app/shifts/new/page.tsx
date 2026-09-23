@@ -55,7 +55,7 @@ export default function NewShiftPage() {
   const [hasDraft, setHasDraft] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [submitMode, setSubmitMode] = useState<ShiftStatus>('closed')
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [existingShifts, setExistingShifts] = useState<Map<string, Set<string>>>(new Map())
   // Map structure: date -> Set of shift types that exist for that date
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; role: string }>>([])
@@ -181,16 +181,15 @@ export default function NewShiftPage() {
     overShortTotal: calculated.overShortTotal
   })
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitShift = async (status: ShiftStatus) => {
     try {
       setSaveError(null)
       // Helper to convert NaN to 0 for submission
       const safeNum = (val: number): number => (Number.isNaN(val) ? 0 : val)
       
       // Only send valid fields to prevent any extra data from being sent
-      // If trying to close (not draft), validate first
-      if (submitMode === 'closed' && !validation.canClose) {
+      // Closing requires a complete form; saving a draft does not
+      if (status === 'closed' && !validation.canClose) {
         setSaveError(`Cannot close shift: ${validation.missingFields.join(', ')}${validation.requiresNotes ? '. Notes required when Over/Short is not zero.' : ''}`)
         return
       }
@@ -199,7 +198,7 @@ export default function NewShiftPage() {
         date: formData.date,
         shift: formData.shift,
         supervisor: formData.supervisor,
-        status: submitMode,
+        status,
         systemCash: safeNum(formData.systemCash),
         systemChecks: safeNum(formData.systemChecks),
         systemCredit: safeNum(formData.systemCredit),
@@ -232,7 +231,10 @@ export default function NewShiftPage() {
       const res = await fetch('/api/shifts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validData)
+        body: JSON.stringify({
+          ...validData,
+          supervisorId: supervisorId || null
+        })
       })
       if (res.ok) {
         // Clear draft on successful save
@@ -250,6 +252,25 @@ export default function NewShiftPage() {
       const message = `Failed to save shift: ${error instanceof Error ? error.message : 'Unknown error'}`
       setSaveError(message)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await submitShift('draft')
+  }
+
+  const handleSaveDraft = () => {
+    void submitShift('draft')
+  }
+
+  const handleCloseShift = () => {
+    if (!validation.canClose) return
+    setShowCloseConfirm(true)
+  }
+
+  const confirmCloseShift = () => {
+    setShowCloseConfirm(false)
+    void submitShift('closed')
   }
   
   const clearDraft = () => {
@@ -330,6 +351,33 @@ export default function NewShiftPage() {
   
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Close Shift?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to close this shift? Once closed, the shift will be marked as complete.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmCloseShift}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Close Shift
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-4xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">END OF SHIFT</h1>
@@ -703,7 +751,7 @@ export default function NewShiftPage() {
           </div>
           
           {/* Validation Errors */}
-          {submitMode === 'closed' && !validation.canClose && (
+          {!validation.canClose && (
             <div className="bg-red-50 border border-red-200 rounded p-4 mb-4">
               <p className="text-sm font-semibold text-red-800 mb-2">⚠️ Cannot close shift - missing required fields:</p>
               <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
@@ -718,33 +766,33 @@ export default function NewShiftPage() {
           )}
           
           {/* Submit */}
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <button
-              type="submit"
-              onClick={() => setSubmitMode('draft')}
+              type="button"
+              onClick={handleSaveDraft}
               className="px-6 py-2 bg-yellow-500 text-white rounded font-semibold hover:bg-yellow-600"
             >
-              Save as Draft
+              Save Draft
             </button>
             <button
-              type="submit"
-              onClick={() => setSubmitMode('closed')}
+              type="button"
+              onClick={handleCloseShift}
               disabled={!validation.canClose}
               className={`px-6 py-2 rounded font-semibold ${
                 validation.canClose
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-gray-400 text-gray-200 cursor-not-allowed'
               }`}
               title={!validation.canClose ? 'Complete all fields to close shift' : 'Save and close shift'}
             >
-              Save Shift
+              Close Shift
             </button>
             <button
               type="button"
               onClick={() => router.push('/shifts')}
               className="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
             >
-              Cancel
+              Back to List
             </button>
           </div>
         </form>
