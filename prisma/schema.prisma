@@ -38,6 +38,10 @@ model Staff {
   hourlyRate  Float?   @map("hourly_rate")
   /// Basic amount for one cycle when salaried.
   salariedAmount Float? @map("salaried_amount")
+  /// Recurring staff loan deducted on each pay run.
+  staffLoan     Float?  @map("staff_loan")
+  /// Recurring medical deduction on each pay run.
+  medicalAmount Float?  @map("medical_amount")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -1101,8 +1105,16 @@ model PayRunLine {
   otPay          Float   @default(0) @map("ot_pay")
   extraPay       Float   @default(0) @map("extra_pay")
   extraLines     String  @default("[]") @map("extra_lines")
+  extraDeductions String @default("[]") @map("extra_deductions")
+  extraDeductionPay Float @default(0) @map("extra_deduction_pay")
   grossPay       Float   @default(0) @map("gross_pay")
   shortageReady  Float   @default(0) @map("shortage_ready")
+  nisEmployee    Float   @default(0) @map("nis_employee")
+  nisEmployer    Float   @default(0) @map("nis_employer")
+  staffLoan      Float   @default(0) @map("staff_loan")
+  medical        Float   @default(0)
+  totalDeductions Float  @default(0) @map("total_deductions")
+  netPay         Float   @default(0) @map("net_pay")
   sortOrder      Int     @default(0) @map("sort_order")
 
   payRun PayRun @relation(fields: [payRunId], references: [id], onDelete: Cascade)
