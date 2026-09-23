@@ -1,3 +1,4 @@
+import { computePayRunDeductions } from './pay-run-deductions'
 import { isReportOnlyPayPeriodRow } from './pay-period-rows'
 import {
   DEFAULT_PAY_CYCLE,
@@ -40,6 +41,8 @@ export type PayRunStaffProfile = {
   payType: string
   hourlyRate: number | null
   salariedAmount: number | null
+  staffLoan: number | null
+  medicalAmount: number | null
 }
 
 export type BuiltPayRunLine = {
@@ -57,8 +60,16 @@ export type BuiltPayRunLine = {
   otPay: number
   extraPay: number
   extraLines: PayRunExtraLine[]
+  extraDeductions: PayRunExtraLine[]
+  extraDeductionPay: number
   grossPay: number
   shortageReady: number
+  nisEmployee: number
+  nisEmployer: number
+  staffLoan: number
+  medical: number
+  totalDeductions: number
+  netPay: number
 }
 
 function round2(n: number): number {
@@ -197,6 +208,58 @@ export function inferPayRunCycle(
   return inferPayCycleFromRange(startDate, endDate)
 }
 
+export type DeductionOverride = {
+  staffLoan?: number
+  medical?: number
+  shortageReady?: number
+  extraDeductions?: PayRunExtraLine[]
+}
+
+export type NisTaken = {
+  employee: number
+  employer: number
+}
+
+function withDeductions(
+  line: Omit<
+    BuiltPayRunLine,
+    | 'extraDeductions'
+    | 'extraDeductionPay'
+    | 'nisEmployee'
+    | 'nisEmployer'
+    | 'staffLoan'
+    | 'medical'
+    | 'totalDeductions'
+    | 'netPay'
+    | 'shortageReady'
+  > & { shortageReady: number },
+  profile: PayRunStaffProfile | undefined,
+  deductionOverride?: DeductionOverride,
+  nisTaken?: NisTaken
+): BuiltPayRunLine {
+  const deducted = computePayRunDeductions({
+    grossPay: line.grossPay,
+    staffLoan: deductionOverride?.staffLoan ?? parseMoney(profile?.staffLoan),
+    medical: deductionOverride?.medical ?? parseMoney(profile?.medicalAmount),
+    shortage: deductionOverride?.shortageReady ?? line.shortageReady,
+    extraDeductions: deductionOverride?.extraDeductions ?? [],
+    nisEmployeeTaken: nisTaken?.employee,
+    nisEmployerTaken: nisTaken?.employer
+  })
+  return {
+    ...line,
+    extraDeductions: deducted.extraDeductions,
+    extraDeductionPay: deducted.extraDeductionPay,
+    shortageReady: deducted.shortage,
+    nisEmployee: deducted.nisEmployee,
+    nisEmployer: deducted.nisEmployer,
+    staffLoan: deducted.staffLoan,
+    medical: deducted.medical,
+    totalDeductions: deducted.totalDeductions,
+    netPay: deducted.netPay
+  }
+}
+
 export function payPeriodSourceHash(rows: Array<{ staffId: string; transTtl: number }>): string {
   return [...rows]
     .map((r) => `${r.staffId}:${Number(r.transTtl || 0).toFixed(2)}`)
@@ -208,7 +271,9 @@ function lineFromHoursRow(
   row: PayRunHoursRow,
   profile: PayRunStaffProfile | undefined,
   extras: PayRunExtraLine[],
-  rateOverride?: { hourlyRate?: number; salariedAmount?: number }
+  rateOverride?: { hourlyRate?: number; salariedAmount?: number },
+  deductionOverride?: DeductionOverride,
+  nisTaken?: NisTaken
 ): BuiltPayRunLine {
   const payCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
   const payType = parsePayType(profile?.payType)
@@ -227,7 +292,7 @@ function lineFromHoursRow(
     salariedAmount,
     extraLines: extras
   })
-  return {
+  const base = {
     staffId: isReportOnlyPayPeriodRow(row) ? null : row.staffId,
     staffName: row.staffName.trim(),
     staffNo: (row.staffNo ?? profile?.nicNumber ?? '').trim() || null,
@@ -245,12 +310,15 @@ function lineFromHoursRow(
     grossPay: pay.grossPay,
     shortageReady: parseMoney(row.shortage)
   }
+  return withDeductions(base, profile, deductionOverride, nisTaken)
 }
 
 function salariedLine(
   profile: PayRunStaffProfile,
   extras: PayRunExtraLine[],
-  rateOverride?: { salariedAmount?: number }
+  rateOverride?: { salariedAmount?: number },
+  deductionOverride?: DeductionOverride,
+  nisTaken?: NisTaken
 ): BuiltPayRunLine {
   const payCycle = parsePayCycle(profile.payCycle)
   const salariedAmount = rateOverride?.salariedAmount ?? parseMoney(profile.salariedAmount)
@@ -259,24 +327,29 @@ function salariedLine(
     salariedAmount,
     extraLines: extras
   })
-  return {
-    staffId: profile.id,
-    staffName: profile.name.trim(),
-    staffNo: profile.nicNumber?.trim() || null,
-    payType: 'salaried',
-    payCycle,
-    transTtl: 0,
-    basicHours: 0,
-    otHours: 0,
-    hourlyRate: 0,
-    salariedAmount,
-    basicPay: pay.basicPay,
-    otPay: 0,
-    extraPay: pay.extraPay,
-    extraLines: extras,
-    grossPay: pay.grossPay,
-    shortageReady: 0
-  }
+  return withDeductions(
+    {
+      staffId: profile.id,
+      staffName: profile.name.trim(),
+      staffNo: profile.nicNumber?.trim() || null,
+      payType: 'salaried',
+      payCycle,
+      transTtl: 0,
+      basicHours: 0,
+      otHours: 0,
+      hourlyRate: 0,
+      salariedAmount,
+      basicPay: pay.basicPay,
+      otPay: 0,
+      extraPay: pay.extraPay,
+      extraLines: extras,
+      grossPay: pay.grossPay,
+      shortageReady: 0
+    },
+    profile,
+    deductionOverride,
+    nisTaken
+  )
 }
 
 /** Build the station gross lines due on this run cycle. */
@@ -286,6 +359,8 @@ export function buildPayRunLines(input: {
   staff: PayRunStaffProfile[]
   extrasByStaffId?: Record<string, PayRunExtraLine[]>
   rateOverrides?: Record<string, { hourlyRate?: number; salariedAmount?: number }>
+  deductionOverrides?: Record<string, DeductionOverride>
+  nisTakenByStaffId?: Record<string, NisTaken>
 }): BuiltPayRunLine[] {
   const cycle = parsePayCycle(input.cycle)
   const staffById = new Map(input.staff.map((s) => [s.id, s]))
@@ -304,7 +379,9 @@ export function buildPayRunLines(input: {
         row,
         profile,
         input.extrasByStaffId?.[key] ?? [],
-        input.rateOverrides?.[key]
+        input.rateOverrides?.[key],
+        input.deductionOverrides?.[key],
+        input.nisTakenByStaffId?.[row.staffId]
       )
     )
   }
@@ -319,7 +396,9 @@ export function buildPayRunLines(input: {
       salariedLine(
         profile,
         input.extrasByStaffId?.[profile.id] ?? [],
-        input.rateOverrides?.[profile.id]
+        input.rateOverrides?.[profile.id],
+        input.deductionOverrides?.[profile.id],
+        input.nisTakenByStaffId?.[profile.id]
       )
     )
   }
