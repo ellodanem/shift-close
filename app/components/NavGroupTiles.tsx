@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import HomeShortcutIcon from './HomeShortcutIcon'
 import { tileBackgroundColor } from '@/lib/tile-colors'
-import type { NavTile } from '@/lib/app-nav'
+import { navTileSections, type NavTile } from '@/lib/app-nav'
 import type { HomeShortcutId } from '@/lib/home-shortcuts'
 
 function TileIcon({ tile }: { tile: NavTile }) {
@@ -79,6 +79,43 @@ export default function NavGroupTiles({
           </Link>
         )
       })}
+    </div>
+  )
+}
+
+export function NavGroupSections({
+  tiles,
+  onNavigate,
+  compact = false
+}: {
+  tiles: NavTile[]
+  onNavigate?: () => void
+  compact?: boolean
+}) {
+  const sections = navTileSections(tiles)
+  const showHeadings = sections.some((section) => section.label)
+  if (!showHeadings) {
+    return <NavGroupTiles tiles={tiles} onNavigate={onNavigate} compact={compact} />
+  }
+
+  return (
+    <div className={compact ? 'space-y-5' : 'space-y-8'}>
+      {sections.map((section) => (
+        <section key={section.label ?? 'ungrouped'}>
+          {section.label ? (
+            <h2
+              className={
+                compact
+                  ? 'mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400'
+                  : 'mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500'
+              }
+            >
+              {section.label}
+            </h2>
+          ) : null}
+          <NavGroupTiles tiles={section.tiles} onNavigate={onNavigate} compact={compact} />
+        </section>
+      ))}
     </div>
   )
 }

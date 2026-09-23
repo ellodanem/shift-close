@@ -67,7 +67,7 @@ export const REPORTS_NAV_ITEMS: ReportsNavItemConfig[] = [
     permission: 'reports.center'
   },
   {
-    label: 'All invoices',
+    label: 'Vendor monthly',
     href: '/vendor-payments/monthly-report',
     shortcutId: 'report-vendor-invoices',
     permission: 'reports.center'

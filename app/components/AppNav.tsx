@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import FutureFeatures from './FutureFeatures'
 import { useAuth } from './AuthContext'
 import { useNav } from './NavContext'
-import NavGroupTiles from './NavGroupTiles'
+import { NavGroupSections } from './NavGroupTiles'
 import {
   NAV_GROUP_ICON,
   buildFilteredNavGroups,
@@ -232,7 +232,7 @@ export default function AppNav({
               Menu
             </button>
             <h2 className="mb-3 px-1 text-sm font-semibold text-white">{mobileDrill.label}</h2>
-            <NavGroupTiles tiles={navTilesForGroup(mobileDrill)} onNavigate={closeMobile} compact />
+            <NavGroupSections tiles={navTilesForGroup(mobileDrill)} onNavigate={closeMobile} compact />
           </div>
         ) : (
           <div className="space-y-1 px-3">

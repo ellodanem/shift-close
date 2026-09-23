@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from './AuthContext'
-import NavGroupTiles from './NavGroupTiles'
+import { NavGroupSections } from './NavGroupTiles'
 import {
   buildFilteredNavGroups,
   navGroupByLabel,
@@ -40,7 +40,7 @@ export default function NavPickerPanel({
           Menu
         </button>
         <h1 className="mb-5 text-2xl font-bold text-blue-950">{group.label}</h1>
-        <NavGroupTiles tiles={tiles} onNavigate={onClose} />
+        <NavGroupSections tiles={tiles} onNavigate={onClose} />
       </div>
     </div>
   )

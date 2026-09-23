@@ -21,6 +21,8 @@ export type NavItemConfig = {
   href: string
   permission: string
   comingSoon?: boolean
+  /** Groups tiles under a heading inside a menu. Omit for a flat list. */
+  section?: string
   children?: NavItemConfig[]
 }
 
@@ -35,6 +37,12 @@ export type NavTile = {
   shortcutId: HomeShortcutId
   tileClass: string
   comingSoon?: boolean
+  section?: string
+}
+
+export type NavTileSection = {
+  label: string | null
+  tiles: NavTile[]
 }
 
 const BASE_NAV_CONFIG: NavGroupConfig[] = [
@@ -56,22 +64,50 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
   {
     label: 'Financial',
     items: [
-      { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook' },
+      { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook', section: 'Cash' },
       {
         label: 'Deposit comparisons',
         href: '/financial/deposit-comparisons',
-        permission: 'financial.depositComparisons'
+        permission: 'financial.depositComparisons',
+        section: 'Cash'
       },
-      { label: 'Customer Accounts', href: '/customer-accounts', permission: 'financial.accounts' },
-      { label: 'Fuel Invoices', href: '/fuel-payments/invoices', permission: 'financial.fuel' },
-      { label: 'Fuel Batches', href: '/fuel-payments/batches', permission: 'financial.fuel' },
-      { label: 'Fuel Monthly', href: '/fuel-payments/monthly-report', permission: 'financial.fuel' },
-      { label: 'Vendor Payments', href: '/vendor-payments/invoices', permission: 'financial.vendor' },
-      { label: 'Vendor Batches', href: '/vendor-payments/batches', permission: 'financial.vendor' },
+      {
+        label: 'Customer Accounts',
+        href: '/customer-accounts',
+        permission: 'financial.accounts',
+        section: 'Customers'
+      },
+      { label: 'Fuel Invoices', href: '/fuel-payments/invoices', permission: 'financial.fuel', section: 'Fuel' },
+      { label: 'Fuel Batches', href: '/fuel-payments/batches', permission: 'financial.fuel', section: 'Fuel' },
+      {
+        label: 'Fuel Monthly',
+        href: '/fuel-payments/monthly-report',
+        permission: 'financial.fuel',
+        section: 'Fuel'
+      },
+      {
+        label: 'Vendor Payments',
+        href: '/vendor-payments/invoices',
+        permission: 'financial.vendor',
+        section: 'Vendors'
+      },
+      {
+        label: 'Vendor Batches',
+        href: '/vendor-payments/batches',
+        permission: 'financial.vendor',
+        section: 'Vendors'
+      },
       {
         label: 'Check Management',
         href: '/vendor-payments/uncashed-checks',
-        permission: 'financial.vendor'
+        permission: 'financial.vendor',
+        section: 'Vendors'
+      },
+      {
+        label: 'Vendor Monthly',
+        href: '/vendor-payments/monthly-report',
+        permission: 'financial.vendor',
+        section: 'Vendors'
       }
     ]
   },
@@ -177,8 +213,21 @@ export function navItemToTile(item: NavItemConfig): NavTile {
     href: item.href,
     shortcutId,
     tileClass: shortcut?.tileClass ?? FALLBACK_TILE_CLASS,
-    comingSoon: item.comingSoon
+    comingSoon: item.comingSoon,
+    section: item.section
   }
+}
+
+/** Consecutive tiles that share a section, in menu order. Unsectioned tiles stay in one block. */
+export function navTileSections(tiles: NavTile[]): NavTileSection[] {
+  const sections: NavTileSection[] = []
+  for (const tile of tiles) {
+    const label = tile.section?.trim() || null
+    const last = sections[sections.length - 1]
+    if (last && last.label === label) last.tiles.push(tile)
+    else sections.push({ label, tiles: [tile] })
+  }
+  return sections
 }
 
 export function flattenNavItems(items: NavItemConfig[]): NavItemConfig[] {
