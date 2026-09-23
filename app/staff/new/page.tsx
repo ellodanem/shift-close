@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BankSelect from '../BankSelect'
 import PayCycleSelect from '../PayCycleSelect'
+import PayTypeSelect from '../PayTypeSelect'
+import { parsePayType } from '@/lib/pay-run'
 import { useAuth } from '@/app/components/AuthContext'
 import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
@@ -41,7 +43,10 @@ export default function NewStaffPage() {
     notes: '',
     punchExempt: false,
     reliabilityGrade: 'C',
-    payCycle: 'semimonthly'
+    payCycle: 'semimonthly',
+    payType: 'hourly',
+    hourlyRate: '',
+    salariedAmount: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -371,6 +376,43 @@ export default function NewStaffPage() {
                     Hours over the cycle cap become overtime (semi-monthly = 86.67).
                   </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pay type</label>
+                  <PayTypeSelect
+                    value={formData.payType}
+                    onChange={(payType) => setFormData({ ...formData, payType })}
+                    className={inputClass}
+                  />
+                </div>
+                {parsePayType(formData.payType) === 'hourly' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hourly rate</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.hourlyRate}
+                      onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 6.75"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Salaried amount
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.salariedAmount}
+                      onChange={(e) => setFormData({ ...formData, salariedAmount: e.target.value })}
+                      className={inputClass}
+                      placeholder="Basic for one cycle"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                   <BankSelect

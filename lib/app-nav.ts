@@ -119,6 +119,7 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
     label: 'People',
     items: [
       { label: 'Staff', href: '/staff', permission: 'people.staff' },
+      { label: 'Pay run', href: '/pay-run', permission: 'people.staff' },
       { label: 'Roster', href: '/roster', permission: 'people.roster' },
       { label: 'Attendance', href: '/attendance', permission: 'people.attendance' },
       { label: 'Time Off', href: '/time-off', permission: 'people.attendance' },
@@ -162,6 +163,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
   '/promotions': 'promotions',
+  '/pay-run': 'pay-run',
   '/settings/users': 'settings-users',
   '/settings/fuel-data': 'settings-fuel-data',
   '/settings/fuel-prices': 'settings-fuel-prices',
@@ -336,6 +338,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/reports') return pathname === '/reports'
   if (href === '/reports/monthly') return pathname.startsWith('/reports/monthly')
   if (href === '/reports/daily-financial-summary') return pathname.startsWith('/reports/daily-financial-summary')
+  if (href === '/pay-run') return pathname === '/pay-run' || pathname.startsWith('/pay-run/')
   if (href === '/staff') return pathname === '/staff' || pathname.startsWith('/staff/')
   if (href === '/roster/staff-report') return pathname.startsWith('/roster/staff-report')
   if (href === '/roster') {

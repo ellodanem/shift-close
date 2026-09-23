@@ -7,6 +7,7 @@ import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/de
 import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
 import { parsePayCycle } from '@/lib/pay-cycle'
+import { parseOptionalMoney, parsePayType } from '@/lib/pay-run'
 import { parseReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(
@@ -64,7 +65,10 @@ export async function PATCH(
       vacationEnd,
       punchExempt,
       reliabilityGrade,
-      payCycle
+      payCycle,
+      payType,
+      hourlyRate,
+      salariedAmount
     } = body
 
     const data: Record<string, unknown> = {
@@ -82,7 +86,12 @@ export async function PATCH(
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
       ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null }),
       ...(punchExempt !== undefined && { punchExempt: punchExempt === true }),
-      ...(payCycle !== undefined && { payCycle: parsePayCycle(payCycle) })
+      ...(payCycle !== undefined && { payCycle: parsePayCycle(payCycle) }),
+      ...(canViewStaffSensitiveFields(appRole) && payType !== undefined && { payType: parsePayType(payType) }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) })
     }
 
     if (reliabilityGrade !== undefined) {

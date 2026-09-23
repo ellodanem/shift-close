@@ -10,6 +10,7 @@ import {
 } from '@/lib/device-user-id'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
 import { parsePayCycle } from '@/lib/pay-cycle'
+import { parseOptionalMoney, parsePayType } from '@/lib/pay-run'
 import { parseReliabilityGrade, randomPlaceholderReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(request: NextRequest) {
@@ -71,7 +72,10 @@ export async function POST(request: NextRequest) {
       punchExempt,
       deviceUserId: deviceUserIdBody,
       reliabilityGrade: reliabilityGradeBody,
-      payCycle: payCycleBody
+      payCycle: payCycleBody,
+      payType: payTypeBody,
+      hourlyRate: hourlyRateBody,
+      salariedAmount: salariedAmountBody
     } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
@@ -169,7 +173,10 @@ export async function POST(request: NextRequest) {
                 notes: notes || '',
                 punchExempt: punchExempt === true,
                 reliabilityGrade,
-                payCycle: parsePayCycle(payCycleBody)
+                payCycle: parsePayCycle(payCycleBody),
+                payType: parsePayType(payTypeBody),
+                hourlyRate: parseOptionalMoney(hourlyRateBody),
+                salariedAmount: parseOptionalMoney(salariedAmountBody)
               }
             })
           },

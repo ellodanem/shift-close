@@ -7,7 +7,9 @@ import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from '../DocumentGenerationModal'
 import BankSelect from '../BankSelect'
 import PayCycleSelect from '../PayCycleSelect'
+import PayTypeSelect from '../PayTypeSelect'
 import { payCycleLabel } from '@/lib/pay-cycle'
+import { formatMoney, parsePayType, payTypeLabel } from '@/lib/pay-run'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { useAuth } from '@/app/components/AuthContext'
 import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
@@ -166,7 +168,10 @@ function EditStaffPageInner() {
     vacationEnd: '' as string,
     punchExempt: false,
     reliabilityGrade: '' as string,
-    payCycle: 'semimonthly'
+    payCycle: 'semimonthly',
+    payType: 'hourly',
+    hourlyRate: '' as string,
+    salariedAmount: '' as string
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -432,7 +437,16 @@ function EditStaffPageInner() {
         vacationEnd: (data as any).vacationEnd || '',
         punchExempt: (data as any).punchExempt === true,
         reliabilityGrade: data.reliabilityGrade || '',
-        payCycle: (data as any).payCycle || 'semimonthly'
+        payCycle: (data as any).payCycle || 'semimonthly',
+        payType: (data as any).payType || 'hourly',
+        hourlyRate:
+          (data as any).hourlyRate != null && (data as any).hourlyRate !== ''
+            ? String((data as any).hourlyRate)
+            : '',
+        salariedAmount:
+          (data as any).salariedAmount != null && (data as any).salariedAmount !== ''
+            ? String((data as any).salariedAmount)
+            : ''
       }
       setFormData(next)
       setShiftCount(data._count?.shifts || 0)
@@ -1533,6 +1547,43 @@ function EditStaffPageInner() {
                     </p>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pay type</label>
+                    <PayTypeSelect
+                      value={formData.payType}
+                      onChange={(payType) => setFormData({ ...formData, payType })}
+                      className={inputClass}
+                    />
+                  </div>
+                  {parsePayType(formData.payType) === 'hourly' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Hourly rate</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.hourlyRate}
+                        onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                        className={inputClass}
+                        placeholder="e.g. 6.75"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Salaried amount
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.salariedAmount}
+                        onChange={(e) => setFormData({ ...formData, salariedAmount: e.target.value })}
+                        className={inputClass}
+                        placeholder="Basic for one cycle"
+                      />
+                    </div>
+                  )}
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                     <BankSelect
                       value={formData.bankName}
@@ -1558,6 +1609,18 @@ function EditStaffPageInner() {
             ) : (
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
                 <FieldDisplay label="Pay cycle" value={payCycleLabel(formData.payCycle)} />
+                <FieldDisplay label="Pay type" value={payTypeLabel(formData.payType)} />
+                {parsePayType(formData.payType) === 'hourly' ? (
+                  <FieldDisplay
+                    label="Hourly rate"
+                    value={formData.hourlyRate ? formatMoney(Number(formData.hourlyRate)) : null}
+                  />
+                ) : (
+                  <FieldDisplay
+                    label="Salaried amount"
+                    value={formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
+                  />
+                )}
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
               </dl>

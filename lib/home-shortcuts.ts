@@ -21,6 +21,7 @@ export type HomeShortcutId =
   | 'roster'
   | 'attendance'
   | 'pay-period'
+  | 'pay-run'
   | 'cashbook'
   | 'staff'
   | 'time-off'
@@ -83,6 +84,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     href: '/attendance/pay-period',
     tileClass: 'bg-violet-600',
     matchPrefixes: ['/attendance/pay-period']
+  },
+  {
+    id: 'pay-run',
+    label: 'Pay run',
+    href: '/pay-run',
+    tileClass: 'bg-teal-700',
+    matchPrefixes: ['/pay-run']
   },
   {
     id: 'late-absent',

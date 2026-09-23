@@ -33,6 +33,11 @@ model Staff {
   reliabilityGrade String? @map("reliability_grade")
   /// weekly | biweekly | semimonthly | monthly. Default matches Pay+ semi-monthly (86.67).
   payCycle    String   @default("semimonthly") @map("pay_cycle")
+  /// hourly | salaried
+  payType     String   @default("hourly") @map("pay_type")
+  hourlyRate  Float?   @map("hourly_rate")
+  /// Basic amount for one cycle when salaried.
+  salariedAmount Float? @map("salaried_amount")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -48,6 +53,7 @@ model Staff {
   promotionWinners  PromotionWinner[]
   promotionEntries  PromotionEntry[]
   promotionReceipts PromotionReceipt[]
+  payRunLines       PayRunLine[]
 
   @@map("staff")
 }
@@ -1047,10 +1053,63 @@ model PayPeriod {
   emailSentAt DateTime? @map("email_sent_at")
 
   extractedPunches AttendanceLog[]
+  payRuns          PayRun[]
 
   @@index([startDate, endDate])
   @@index([emailSentAt])
   @@map("pay_periods")
+}
+
+/// Station gross pay run built from a saved pay period. Statutory calc stays in Pay+.
+model PayRun {
+  id             String    @id @default(cuid())
+  payPeriodId    String    @map("pay_period_id")
+  cycle          String    @default("semimonthly")
+  status         String    @default("draft") // draft | processed
+  payDate        String    @map("pay_date")
+  startDate      String    @map("start_date")
+  endDate        String    @map("end_date")
+  entityName     String    @default("Total Auto Service Station") @map("entity_name")
+  notes          String    @default("")
+  sourceHash     String    @default("") @map("source_hash")
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  payPeriod PayPeriod    @relation(fields: [payPeriodId], references: [id], onDelete: Cascade)
+  lines     PayRunLine[]
+
+  @@unique([payPeriodId, cycle], name: "pay_run_period_cycle")
+  @@index([status])
+  @@map("pay_runs")
+}
+
+model PayRunLine {
+  id             String  @id @default(cuid())
+  payRunId       String  @map("pay_run_id")
+  staffId        String? @map("staff_id")
+  staffName      String  @map("staff_name")
+  staffNo        String? @map("staff_no")
+  payType        String  @default("hourly") @map("pay_type")
+  payCycle       String  @default("semimonthly") @map("pay_cycle")
+  transTtl       Float   @default(0) @map("trans_ttl")
+  basicHours     Float   @default(0) @map("basic_hours")
+  otHours        Float   @default(0) @map("ot_hours")
+  hourlyRate     Float   @default(0) @map("hourly_rate")
+  salariedAmount Float   @default(0) @map("salaried_amount")
+  basicPay       Float   @default(0) @map("basic_pay")
+  otPay          Float   @default(0) @map("ot_pay")
+  extraPay       Float   @default(0) @map("extra_pay")
+  extraLines     String  @default("[]") @map("extra_lines")
+  grossPay       Float   @default(0) @map("gross_pay")
+  shortageReady  Float   @default(0) @map("shortage_ready")
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  payRun PayRun @relation(fields: [payRunId], references: [id], onDelete: Cascade)
+  staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([payRunId])
+  @@map("pay_run_lines")
 }
 
 // Job application forms (configurable, multiple per position)
