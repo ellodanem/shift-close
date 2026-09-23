@@ -18,12 +18,14 @@ import {
 } from '@/lib/pay-period-email'
 import {
   downloadPayPeriodExcel,
+  downloadPayPeriodTimeList,
   formatDateDisplay,
   formatDateRange,
   payPeriodExcelFilename,
   type PayPeriodExcelData,
   type PayPeriodExcelRow
 } from '@/lib/pay-period-excel'
+import { payCycleLabel, splitPayPeriodHours } from '@/lib/pay-cycle'
 import { printPayPeriodReport } from '@/lib/pay-period-print'
 import { parsePayPeriodPreviousRows, withPayPeriodStaffFullNames } from '@/lib/pay-period-rows'
 import MobilePayPeriodEdit, { type MobileEditDraft } from './MobilePayPeriodEdit'
@@ -341,6 +343,13 @@ export default function MobilePayPeriodPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => downloadPayPeriodTimeList(withFullStaffNames(data))}
+                        className={`${pprActionBtn} bg-teal-900/40 text-teal-200 hover:bg-teal-900/60`}
+                      >
+                        Time list
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => openEmailModal(data)}
                         className={`${pprActionBtn} bg-indigo-900/50 text-indigo-200 hover:bg-indigo-900`}
                       >
@@ -372,6 +381,8 @@ export default function MobilePayPeriodPage() {
                             <tr className="border-b border-slate-600 text-slate-400">
                               <th className="text-left py-1 pr-2 font-medium">Staff</th>
                               <th className="text-right py-1 px-2 font-medium">Trans</th>
+                              <th className="text-right py-1 px-2 font-medium">Basic</th>
+                              <th className="text-right py-1 px-2 font-medium">OT</th>
                               <th className="text-center py-1 px-2 font-medium">Vac</th>
                               <th className="text-center py-1 px-3 font-medium min-w-[3rem]">Sick</th>
                               <th className="text-left py-1 pl-3 pr-1 font-medium min-w-[5rem]">Leave</th>
@@ -379,10 +390,21 @@ export default function MobilePayPeriodPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {data.rows.map((r, i) => (
+                            {data.rows.map((r, i) => {
+                              const split = splitPayPeriodHours(r.transTtl, r.payCycle)
+                              return (
                               <tr key={i} className="border-b border-slate-700/80">
-                                <td className="py-1.5 pr-2 text-slate-200">{r.staffName}</td>
+                                <td className="py-1.5 pr-2 text-slate-200">
+                                  {r.staffName}
+                                  {split.cycle !== 'semimonthly' ? (
+                                    <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-500">
+                                      {payCycleLabel(split.cycle)}
+                                    </span>
+                                  ) : null}
+                                </td>
                                 <td className="py-1.5 text-right tabular-nums">{r.transTtl.toFixed(2)}</td>
+                                <td className="py-1.5 text-right tabular-nums">{split.basicHours.toFixed(2)}</td>
+                                <td className="py-1.5 text-right tabular-nums">{split.otHours.toFixed(2)}</td>
                                 <td className="py-1.5 text-center">{r.vacation || '—'}</td>
                                 <td className="py-1.5 text-center tabular-nums px-3">{r.sickLeaveDays ?? 0}</td>
                                 <td className="py-1.5 pl-3 pr-1 text-slate-400 max-w-[6rem] truncate">
@@ -392,10 +414,21 @@ export default function MobilePayPeriodPage() {
                                   {formatShortage(r.shortage) || '—'}
                                 </td>
                               </tr>
-                            ))}
+                              )
+                            })}
                             <tr className="font-semibold text-slate-100">
                               <td className="py-2 pr-2">Total</td>
                               <td className="py-2 text-right tabular-nums">{totalTrans.toFixed(1)}</td>
+                              <td className="py-2 text-right tabular-nums">
+                                {data.rows
+                                  .reduce((s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).basicHours, 0)
+                                  .toFixed(2)}
+                              </td>
+                              <td className="py-2 text-right tabular-nums">
+                                {data.rows
+                                  .reduce((s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).otHours, 0)
+                                  .toFixed(2)}
+                              </td>
                               <td className="py-2" />
                               <td className="py-2 text-center tabular-nums px-3">
                                 {data.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { formatSavedPayPeriodDateRange } from '@/lib/pay-period-email'
 import { formatDateDisplay } from '@/lib/pay-period-excel'
+import { payCycleLabel, splitPayPeriodHours } from '@/lib/pay-cycle'
 import type { PayPeriodExcelData, PayPeriodExcelRow } from '@/lib/pay-period-excel'
 import {
   blankReportOnlyStaffSaveError,
@@ -215,6 +216,15 @@ export default function MobilePayPeriodEdit({
                     }
                     text={prevRow!.transTtl.toFixed(2)}
                   />
+                  {(() => {
+                    const split = splitPayPeriodHours(row.transTtl, row.payCycle)
+                    return (
+                      <p className="text-xs text-slate-400 mt-2 tabular-nums">
+                        Basic {split.basicHours.toFixed(2)} · OT {split.otHours.toFixed(2)}
+                        {split.cycle !== 'semimonthly' ? ` · ${payCycleLabel(split.cycle)}` : ''}
+                      </p>
+                    )
+                  })()}
                 </div>
 
                 <div>

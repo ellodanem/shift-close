@@ -53,6 +53,8 @@ export type PayPeriodStaffRow = {
   vacationStart: string | null
   vacationEnd: string | null
   sortOrder: number
+  payCycle: string
+  nicNumber: string | null
 }
 
 const payPeriodStaffSelect = {
@@ -62,7 +64,9 @@ const payPeriodStaffSelect = {
   deviceUserId: true,
   vacationStart: true,
   vacationEnd: true,
-  sortOrder: true
+  sortOrder: true,
+  payCycle: true,
+  nicNumber: true
 } as const
 
 /** Merge active baseline + inactive staff with period signals; sort alphabetically by full name. */

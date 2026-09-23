@@ -1,12 +1,16 @@
 import { formatDateDisplay, formatDateRange, type PayPeriodExcelData } from '@/lib/pay-period-excel'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
+import { splitPayPeriodHours } from './pay-cycle'
 
 /** Opens a print dialog for a saved pay period report (desktop and mobile). */
 export function printPayPeriodReport(data: PayPeriodExcelData) {
   const printWin = window.open('', '_blank')
   if (!printWin) return
   const rows = data.rows
+  const splits = rows.map((r) => splitPayPeriodHours(r.transTtl, r.payCycle))
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
+  const totalBasic = splits.reduce((s, split) => s + split.basicHours, 0)
+  const totalOt = splits.reduce((s, split) => s + split.otHours, 0)
   const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
   const html = `
       <!DOCTYPE html>
@@ -25,6 +29,8 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
               <tr style="border-bottom: 2px solid #000;">
                 <th style="text-align: left; padding: 8px 12px 8px 8px;">Staff</th>
                 <th style="text-align: right; padding: 8px 12px;">Trans Ttl</th>
+                <th style="text-align: right; padding: 8px 12px;">Basic</th>
+                <th style="text-align: right; padding: 8px 12px;">OT</th>
                 <th style="text-align: center; padding: 8px 12px;">Vacation</th>
                 <th style="text-align: center; padding: 8px 16px; min-width: 5.5rem;">Sick Days</th>
                 <th style="text-align: left; padding: 8px 8px 8px 16px; min-width: 9rem;">Sick Leave</th>
@@ -34,10 +40,12 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
             <tbody>
               ${rows
                 .map(
-                  (r) => `
+                  (r, i) => `
                 <tr style="border-bottom: 1px solid #ddd;">
                   <td style="padding: 8px 12px 8px 8px;">${r.staffName}</td>
                   <td style="text-align: right; padding: 8px 12px;">${r.transTtl.toFixed(2)}</td>
+                  <td style="text-align: right; padding: 8px 12px;">${splits[i]!.basicHours.toFixed(2)}</td>
+                  <td style="text-align: right; padding: 8px 12px;">${splits[i]!.otHours.toFixed(2)}</td>
                   <td style="text-align: center; padding: 8px 12px;">${r.vacation || ''}</td>
                   <td style="text-align: center; padding: 8px 16px;">${r.sickLeaveDays ?? 0}</td>
                   <td style="text-align: left; padding: 8px 8px 8px 16px;">${r.sickLeaveRanges ?? ''}</td>
@@ -49,6 +57,8 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
               <tr style="border-top: 2px solid #000; font-weight: bold;">
                 <td style="padding: 8px 12px 8px 8px;">Total</td>
                 <td style="text-align: right; padding: 8px 12px;">${totalTrans.toFixed(1)}</td>
+                <td style="text-align: right; padding: 8px 12px;">${totalBasic.toFixed(2)}</td>
+                <td style="text-align: right; padding: 8px 12px;">${totalOt.toFixed(2)}</td>
                 <td style="padding: 8px 12px;"></td>
                 <td style="text-align: center; padding: 8px 16px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                 <td style="padding: 8px 8px 8px 16px;"></td>

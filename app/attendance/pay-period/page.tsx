@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   downloadPayPeriodExcel,
+  downloadPayPeriodTimeList,
   formatDateDisplay,
   formatDateRange,
   payPeriodExcelFilename
 } from '@/lib/pay-period-excel'
+import { payCycleLabel, splitPayPeriodHours } from '@/lib/pay-cycle'
 import {
   formatPayPeriodStaffNotesBlock,
   type StaffPayrollSnapshot
@@ -37,6 +39,8 @@ interface PayPeriodRow {
   shortage: number
   sickLeaveDays?: number
   sickLeaveRanges?: string
+  payCycle?: string
+  staffNo?: string | null
 }
 
 interface PayPeriodData {
@@ -392,7 +396,17 @@ export default function PayPeriodPage() {
   }
 
   const withFullStaffNames = (data: PayPeriodData) =>
-    withPayPeriodStaffFullNames(data, staffNameById)
+    withPayPeriodStaffFullNames(
+      {
+        ...data,
+        rows: data.rows.map((r) => ({
+          ...r,
+          payCycle: r.payCycle ?? staffPayrollById[r.staffId]?.payCycle ?? undefined,
+          staffNo: r.staffNo ?? staffPayrollById[r.staffId]?.nicNumber ?? r.staffNo ?? null
+        }))
+      },
+      staffNameById
+    )
 
   const handlePrint = (data: PayPeriodData) => {
     printPayPeriodReport(withFullStaffNames(data))
@@ -400,6 +414,10 @@ export default function PayPeriodPage() {
 
   const handleDownloadExcel = (data: PayPeriodData) => {
     downloadPayPeriodExcel(withFullStaffNames(data))
+  }
+
+  const handleDownloadTimeList = (data: PayPeriodData) => {
+    downloadPayPeriodTimeList(withFullStaffNames(data))
   }
 
   const closePayPeriodEmailModal = () => {
@@ -476,11 +494,14 @@ export default function PayPeriodPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Attendance – Pay Period</h1>
-            <p className="text-sm text-gray-600 mt-1">Generate and manage pay period summary reports.</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Generate and manage pay period summary reports. Basic / OT uses each staff member&apos;s pay
+              cycle (default semi-monthly 86.67).
+            </p>
           </div>
           <button
             onClick={() => router.push('/attendance')}
@@ -572,6 +593,14 @@ export default function PayPeriodPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => handleDownloadTimeList(data)}
+                        className="px-3 py-1 text-sm bg-teal-100 text-teal-800 rounded hover:bg-teal-200"
+                        title="BSC / OTH hours for Pay+"
+                      >
+                        Time list
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => openPayPeriodEmailModal(data)}
                         className="px-3 py-1 text-sm bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200"
                       >
@@ -595,6 +624,14 @@ export default function PayPeriodPage() {
             const viewData = withFullStaffNames(displayData)
             const prevRows = parsePreviousRows(viewingPeriod.rowsBeforeLastEdit)
             const totalTrans = viewData.rows.reduce((s, r) => s + r.transTtl, 0)
+            const totalBasic = viewData.rows.reduce(
+              (s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).basicHours,
+              0
+            )
+            const totalOt = viewData.rows.reduce(
+              (s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).otHours,
+              0
+            )
             const totalSick = viewData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)
             const totalShort = viewData.rows.reduce((s, r) => s + r.shortage, 0)
             const prevTotalTrans = prevRows ? prevRows.reduce((s, r) => s + r.transTtl, 0) : null
@@ -627,6 +664,8 @@ export default function PayPeriodPage() {
                   <tr className="border-b-2 border-gray-300">
                     <th className="text-left py-2 pr-3">Staff</th>
                     <th className="text-right py-2 px-3">Trans Ttl</th>
+                    <th className="text-right py-2 px-3">Basic</th>
+                    <th className="text-right py-2 px-3">OT</th>
                     <th className="text-center py-2 px-3">Vacation</th>
                     <th className="text-center py-2 px-4 min-w-[5.5rem]">Sick Days</th>
                     <th className="text-left py-2 pl-4 pr-3 min-w-[9rem]">Sick Leave</th>
@@ -643,11 +682,18 @@ export default function PayPeriodPage() {
                     const prevSickDays = prev ? String(prev.sickLeaveDays ?? 0) : null
                     const curRanges = (r.sickLeaveRanges ?? '').trim()
                     const prevRanges = prev ? (prev.sickLeaveRanges ?? '').trim() : null
+                    const split = splitPayPeriodHours(r.transTtl, r.payCycle)
+                    const cycle = split.cycle
                     return (
                     <tr key={r.staffId} className="border-b border-gray-200">
                       <td className="py-1">
                         <span className="inline-flex flex-wrap items-center gap-2">
                           {resolvePayPeriodStaffDisplayName(r, staffNameById)}
+                          {cycle !== 'semimonthly' ? (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              {payCycleLabel(cycle)}
+                            </span>
+                          ) : null}
                           {!reportOnly ? (
                             <Link
                               href={`/attendance/staff-report?staffId=${encodeURIComponent(r.staffId)}&startDate=${encodeURIComponent(viewData.startDate)}&endDate=${encodeURIComponent(viewData.endDate)}`}
@@ -665,6 +711,8 @@ export default function PayPeriodPage() {
                           justify="end"
                         />
                       </td>
+                      <td className="text-right align-top tabular-nums">{split.basicHours.toFixed(2)}</td>
+                      <td className="text-right align-top tabular-nums">{split.otHours.toFixed(2)}</td>
                       <td className="text-center align-top">
                         <HoverPreviousValue
                           currentDisplay={curVac}
@@ -704,6 +752,8 @@ export default function PayPeriodPage() {
                         justify="end"
                       />
                     </td>
+                    <td className="text-right align-top tabular-nums">{totalBasic.toFixed(2)}</td>
+                    <td className="text-right align-top tabular-nums">{totalOt.toFixed(2)}</td>
                     <td></td>
                     <td className="text-center align-top px-4">
                       <HoverPreviousValue
@@ -732,7 +782,7 @@ export default function PayPeriodPage() {
       {/* Editable modal */}
       {showModal && reportData && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-center mb-2">Summary Report</h2>
               {editingSavedId && (
@@ -749,6 +799,8 @@ export default function PayPeriodPage() {
                   <tr className="border-b-2 border-gray-300">
                     <th className="text-left py-2 pr-3">Staff</th>
                     <th className="text-right py-2 px-3 w-24">Trans Ttl</th>
+                    <th className="text-right py-2 px-3 w-20">Basic</th>
+                    <th className="text-right py-2 px-3 w-20">OT</th>
                     <th className="text-center py-2 px-3 w-24">Vacation</th>
                     <th className="text-center py-2 px-4 w-24">Sick Days</th>
                     <th className="text-left py-2 pl-4 pr-3 min-w-[140px]">Sick Leave</th>
@@ -763,6 +815,10 @@ export default function PayPeriodPage() {
                       prevRow && prevRow.transTtl.toFixed(2) !== r.transTtl.toFixed(2)
                         ? `Previously: ${prevRow.transTtl.toFixed(2)}`
                         : undefined
+                    const split = splitPayPeriodHours(
+                      r.transTtl,
+                      r.payCycle ?? staffPayrollById[r.staffId]?.payCycle
+                    )
                     return (
                     <tr key={r.staffId} className="border-b border-gray-200">
                       <td className="py-1">
@@ -787,6 +843,11 @@ export default function PayPeriodPage() {
                         ) : (
                           <span className="inline-flex flex-wrap items-center gap-1">
                             {resolvePayPeriodStaffDisplayName(r, staffNameById)}
+                            {split.cycle !== 'semimonthly' ? (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                {payCycleLabel(split.cycle)}
+                              </span>
+                            ) : null}
                             <CopyStaffPayrollButton
                               staffId={r.staffId}
                               staffPayrollById={staffPayrollById}
@@ -812,6 +873,8 @@ export default function PayPeriodPage() {
                           className={`w-full text-right border border-gray-300 rounded px-2 py-1${transPrevTitle ? ' decoration-dotted underline decoration-gray-500' : ''}`}
                         />
                       </td>
+                      <td className="text-right tabular-nums text-gray-700">{split.basicHours.toFixed(2)}</td>
+                      <td className="text-right tabular-nums text-gray-700">{split.otHours.toFixed(2)}</td>
                       <td className="text-center">
                         <input
                           type="text"
@@ -868,6 +931,28 @@ export default function PayPeriodPage() {
                       </span>
                     </td>
                     <td className="text-right">{reportData.rows.reduce((s, r) => s + r.transTtl, 0).toFixed(1)}</td>
+                    <td className="text-right tabular-nums">
+                      {reportData.rows
+                        .reduce(
+                          (s, r) =>
+                            s +
+                            splitPayPeriodHours(r.transTtl, r.payCycle ?? staffPayrollById[r.staffId]?.payCycle)
+                              .basicHours,
+                          0
+                        )
+                        .toFixed(2)}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {reportData.rows
+                        .reduce(
+                          (s, r) =>
+                            s +
+                            splitPayPeriodHours(r.transTtl, r.payCycle ?? staffPayrollById[r.staffId]?.payCycle)
+                              .otHours,
+                          0
+                        )
+                        .toFixed(2)}
+                    </td>
                     <td></td>
                     <td className="text-center px-4">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                     <td></td>

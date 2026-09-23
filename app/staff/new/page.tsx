@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BankSelect from '../BankSelect'
+import PayCycleSelect from '../PayCycleSelect'
 import { useAuth } from '@/app/components/AuthContext'
 import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
@@ -39,7 +40,8 @@ export default function NewStaffPage() {
     mobileNumber: '',
     notes: '',
     punchExempt: false,
-    reliabilityGrade: 'C'
+    reliabilityGrade: 'C',
+    payCycle: 'semimonthly'
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -358,6 +360,17 @@ export default function NewStaffPage() {
             <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-5">Payroll</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pay cycle</label>
+                  <PayCycleSelect
+                    value={formData.payCycle}
+                    onChange={(payCycle) => setFormData({ ...formData, payCycle })}
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Hours over the cycle cap become overtime (semi-monthly = 86.67).
+                  </p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                   <BankSelect

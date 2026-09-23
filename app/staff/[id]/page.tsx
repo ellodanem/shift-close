@@ -6,6 +6,8 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import StaffDocumentUpload from './StaffDocumentUpload'
 import DocumentGenerationModal from '../DocumentGenerationModal'
 import BankSelect from '../BankSelect'
+import PayCycleSelect from '../PayCycleSelect'
+import { payCycleLabel } from '@/lib/pay-cycle'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { useAuth } from '@/app/components/AuthContext'
 import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
@@ -163,7 +165,8 @@ function EditStaffPageInner() {
     vacationStart: '' as string,
     vacationEnd: '' as string,
     punchExempt: false,
-    reliabilityGrade: '' as string
+    reliabilityGrade: '' as string,
+    payCycle: 'semimonthly'
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -428,7 +431,8 @@ function EditStaffPageInner() {
         vacationStart: (data as any).vacationStart || '',
         vacationEnd: (data as any).vacationEnd || '',
         punchExempt: (data as any).punchExempt === true,
-        reliabilityGrade: data.reliabilityGrade || ''
+        reliabilityGrade: data.reliabilityGrade || '',
+        payCycle: (data as any).payCycle || 'semimonthly'
       }
       setFormData(next)
       setShiftCount(data._count?.shifts || 0)
@@ -1518,6 +1522,17 @@ function EditStaffPageInner() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pay cycle</label>
+                    <PayCycleSelect
+                      value={formData.payCycle}
+                      onChange={(payCycle) => setFormData({ ...formData, payCycle })}
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Hours over the cycle cap become overtime (semi-monthly = 86.67).
+                    </p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                     <BankSelect
                       value={formData.bankName}
@@ -1542,6 +1557,7 @@ function EditStaffPageInner() {
               </>
             ) : (
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
+                <FieldDisplay label="Pay cycle" value={payCycleLabel(formData.payCycle)} />
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
               </dl>

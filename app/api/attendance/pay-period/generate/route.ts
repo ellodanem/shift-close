@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { businessTodayYmd, zonedEndExclusiveUtc, zonedStartOfDayUtc } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { getListDisplayOverShort } from '@/lib/calculations'
+import { parsePayCycle } from '@/lib/pay-cycle'
 import {
   inactiveStaffIdsWithVacationOverlap,
   mergePayPeriodStaffLists,
@@ -157,7 +158,17 @@ export async function POST(request: NextRequest) {
     const staff = mergePayPeriodStaffLists(activeBaseline, inactiveSupplemental)
 
     // Build rows
-    const rows: Array<{ staffId: string; staffName: string; transTtl: number; vacation: string; shortage: number; sickLeaveDays: number; sickLeaveRanges: string }> = []
+    const rows: Array<{
+      staffId: string
+      staffName: string
+      transTtl: number
+      vacation: string
+      shortage: number
+      sickLeaveDays: number
+      sickLeaveRanges: string
+      payCycle: string
+      staffNo: string | null
+    }> = []
 
     for (const s of staff) {
       const transTtl = transTtlByStaff.get(s.id) ?? (s.deviceUserId ? transTtlByStaff.get(s.deviceUserId) ?? 0 : 0)
@@ -179,7 +190,9 @@ export async function POST(request: NextRequest) {
         vacation,
         shortage,
         sickLeaveDays: sickLeave?.days ?? 0,
-        sickLeaveRanges: sickLeave?.ranges ?? ''
+        sickLeaveRanges: sickLeave?.ranges ?? '',
+        payCycle: parsePayCycle(s.payCycle),
+        staffNo: s.nicNumber?.trim() || null
       })
     }
 

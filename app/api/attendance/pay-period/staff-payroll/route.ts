@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
         startDate: true,
         nicNumber: true,
         bankName: true,
-        accountNumber: true
+        accountNumber: true,
+        payCycle: true
       }
     })
 
@@ -48,7 +49,8 @@ export async function POST(request: NextRequest) {
         nicNumber: sensitive ? s.nicNumber : null,
         startDate: s.startDate,
         bankName: sensitive ? s.bankName : null,
-        accountNumber: sensitive ? s.accountNumber : null
+        accountNumber: sensitive ? s.accountNumber : null,
+        payCycle: s.payCycle
       }
     }
 

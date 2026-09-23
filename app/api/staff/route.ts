@@ -9,6 +9,7 @@ import {
   parseExplicitDeviceUserIdInput
 } from '@/lib/device-user-id'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
+import { parsePayCycle } from '@/lib/pay-cycle'
 import { parseReliabilityGrade, randomPlaceholderReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(request: NextRequest) {
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
       notes,
       punchExempt,
       deviceUserId: deviceUserIdBody,
-      reliabilityGrade: reliabilityGradeBody
+      reliabilityGrade: reliabilityGradeBody,
+      payCycle: payCycleBody
     } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
@@ -166,7 +168,8 @@ export async function POST(request: NextRequest) {
                 mobileNumber: mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null,
                 notes: notes || '',
                 punchExempt: punchExempt === true,
-                reliabilityGrade
+                reliabilityGrade,
+                payCycle: parsePayCycle(payCycleBody)
               }
             })
           },

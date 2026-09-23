@@ -1,3 +1,4 @@
+import { DEFAULT_PAY_CYCLE } from './pay-cycle'
 import type { PayPeriodExcelRow } from '@/lib/pay-period-excel'
 
 export type PayPeriodRow = PayPeriodExcelRow
@@ -50,7 +51,9 @@ export function createReportOnlyPayPeriodRow(): PayPeriodRow {
     vacation: '',
     shortage: 0,
     sickLeaveDays: 0,
-    sickLeaveRanges: ''
+    sickLeaveRanges: '',
+    payCycle: DEFAULT_PAY_CYCLE,
+    staffNo: null
   }
 }
 

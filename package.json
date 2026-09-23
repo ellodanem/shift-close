@@ -24,6 +24,7 @@
     "test:checklist": "tsx --test scripts/test-operations-checklist-due-dates.ts",
     "test:roster-hours": "tsx --test scripts/test-roster-pay-period-hours.ts",
     "test:pay-period-rows": "tsx --test scripts/test-pay-period-rows.ts",
+    "test:pay-cycle": "tsx --test scripts/test-pay-cycle.ts",
     "test:email": "tsx --test scripts/test-email-defaults.ts",
     "test:shift-sales": "tsx --test scripts/test-shift-sales.ts",
     "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts",

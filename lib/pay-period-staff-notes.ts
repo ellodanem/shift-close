@@ -7,6 +7,7 @@ export type StaffPayrollSnapshot = {
   startDate: string | null
   bankName: string | null
   accountNumber: string | null
+  payCycle?: string | null
 }
 
 /** Pad labels so values line up (notes + Excel paste). */

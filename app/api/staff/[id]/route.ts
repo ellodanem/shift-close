@@ -6,6 +6,7 @@ import { canViewStaffSensitiveFields } from '@/lib/roles'
 import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
 import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
+import { parsePayCycle } from '@/lib/pay-cycle'
 import { parseReliabilityGrade } from '@/lib/staff-reliability'
 
 export async function GET(
@@ -62,7 +63,8 @@ export async function PATCH(
       vacationStart,
       vacationEnd,
       punchExempt,
-      reliabilityGrade
+      reliabilityGrade,
+      payCycle
     } = body
 
     const data: Record<string, unknown> = {
@@ -79,7 +81,8 @@ export async function PATCH(
       ...(notes !== undefined && { notes: notes || '' }),
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
       ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null }),
-      ...(punchExempt !== undefined && { punchExempt: punchExempt === true })
+      ...(punchExempt !== undefined && { punchExempt: punchExempt === true }),
+      ...(payCycle !== undefined && { payCycle: parsePayCycle(payCycle) })
     }
 
     if (reliabilityGrade !== undefined) {

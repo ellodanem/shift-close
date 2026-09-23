@@ -8,6 +8,7 @@ import {
   type PayPeriodExcelRow
 } from '@/lib/pay-period-excel'
 import { prisma } from '@/lib/prisma'
+import { isReportOnlyPayPeriodRow } from '@/lib/pay-period-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!Array.isArray(rows)) throw new Error('not array')
     } catch {
       return NextResponse.json({ error: 'Invalid stored pay period rows' }, { status: 500 })
+    }
+
+    const staffIds = [...new Set(rows.map((r) => r.staffId).filter((id) => id && !isReportOnlyPayPeriodRow({ staffId: id })))]
+    if (staffIds.length > 0) {
+      const staff = await prisma.staff.findMany({
+        where: { id: { in: staffIds } },
+        select: { id: true, payCycle: true, nicNumber: true }
+      })
+      const byId = Object.fromEntries(staff.map((s) => [s.id, s]))
+      rows = rows.map((r) => {
+        const s = byId[r.staffId]
+        return {
+          ...r,
+          payCycle: r.payCycle ?? s?.payCycle,
+          staffNo: r.staffNo ?? s?.nicNumber ?? r.staffNo ?? null
+        }
+      })
     }
 
     const excelInput: PayPeriodExcelData = {

@@ -31,6 +31,8 @@ model Staff {
   sortOrder     Int      @default(0) @map("sort_order")
   /// Placeholder letter grade A–F. Will become a calculated reliability score.
   reliabilityGrade String? @map("reliability_grade")
+  /// weekly | biweekly | semimonthly | monthly. Default matches Pay+ semi-monthly (86.67).
+  payCycle    String   @default("semimonthly") @map("pay_cycle")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
