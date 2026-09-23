@@ -38,14 +38,7 @@ type ExpectancyPayload = {
 export function FuelTankInventoryCard() {
   const [data, setData] = useState<ExpectancyPayload | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<'opening' | 'dip' | null>(null)
-  const [date, setDate] = useState(businessTodayYmd())
-  const [unleaded, setUnleaded] = useState('')
-  const [diesel, setDiesel] = useState('')
-  const [notes, setNotes] = useState('')
-  const [baselineConflict, setBaselineConflict] = useState<BaselineConflict | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -65,6 +58,76 @@ export function FuelTankInventoryCard() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const rest = data?.horizons.find((h) => h.id === 'restOfToday')
+  const todayLabel = data ? `${data.weekdayName} ${data.asOfDate}` : ''
+
+  return (
+    <div className="mb-6 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            On hand while you pay. Update readings on Fuel expectancy. Forecasts use usable litres
+            (unleaded − {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel −{' '}
+            {formatLitres(DIESEL_UNUSABLE_LITRES)} L).
+          </p>
+        </div>
+        <Link
+          href="/insights/fuel-expectancy"
+          className="text-sm font-medium text-emerald-800 hover:text-emerald-950"
+        >
+          Update tanks →
+        </Link>
+      </div>
+
+      {loading ? (
+        <p className="mt-4 text-sm text-gray-500">Loading tank levels…</p>
+      ) : error ? (
+        <p className="mt-4 text-sm text-red-700">{error}</p>
+      ) : !data?.book ? (
+        <p className="mt-4 text-sm text-amber-800">
+          No opening reading yet. Set one on Fuel expectancy.
+        </p>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <GradeCard
+            label="Unleaded"
+            onHand={data.book.onHand.unleaded}
+            usable={data.book.usable.unleaded}
+            enough={rest?.typical.unleaded.enough ?? false}
+            shortBy={rest?.typical.unleaded.shortBy ?? 0}
+            todayLabel={todayLabel}
+          />
+          <GradeCard
+            label="Diesel"
+            onHand={data.book.onHand.diesel}
+            usable={data.book.usable.diesel}
+            enough={rest?.typical.diesel.enough ?? false}
+            shortBy={rest?.typical.diesel.shortBy ?? 0}
+            todayLabel={todayLabel}
+          />
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+export function TankReadingControls({
+  hasOpening,
+  onSaved
+}: {
+  hasOpening: boolean
+  onSaved: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<'opening' | 'dip' | null>(null)
+  const [date, setDate] = useState(businessTodayYmd())
+  const [unleaded, setUnleaded] = useState('')
+  const [diesel, setDiesel] = useState('')
+  const [notes, setNotes] = useState('')
+  const [baselineConflict, setBaselineConflict] = useState<BaselineConflict | null>(null)
 
   const openForm = (next: 'opening' | 'dip') => {
     setMode(next)
@@ -102,7 +165,7 @@ export function FuelTankInventoryCard() {
       }
       setBaselineConflict(null)
       setMode(null)
-      await load()
+      onSaved()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save reading')
     } finally {
@@ -123,81 +186,27 @@ export function FuelTankInventoryCard() {
     await saveReading({ kind: mode, date, unleadedLitres, dieselLitres, notes })
   }
 
-  const rest = data?.horizons.find((h) => h.id === 'restOfToday')
-  const todayLabel = data ? `${data.weekdayName} ${data.asOfDate}` : ''
-
   return (
-    <div className="mb-6 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Opening is the start of that date. Shift sales and fuel invoices from earlier dates stay
-            behind it. Same-day invoices add and same-day shift sales subtract, so a stick taken after
-            those sales (last night’s close) belongs on the next morning. Forecasts use usable litres
-            (unleaded − {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel −{' '}
-            {formatLitres(DIESEL_UNUSABLE_LITRES)} L).
-          </p>
-        </div>
-        <Link
-          href="/insights/fuel-expectancy"
-          className="text-sm font-medium text-emerald-800 hover:text-emerald-950"
+    <div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => openForm('opening')}
+          className="min-h-[44px] rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 sm:min-h-0"
         >
-          Full expectancy →
-        </Link>
+          Set opening reading
+        </button>
+        <button
+          type="button"
+          onClick={() => openForm('dip')}
+          disabled={!hasOpening}
+          className="min-h-[44px] rounded border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50 sm:min-h-0"
+        >
+          Match tanks to dip
+        </button>
       </div>
 
-      {loading ? (
-        <p className="mt-4 text-sm text-gray-500">Loading tank levels…</p>
-      ) : error ? (
-        <p className="mt-4 text-sm text-red-700">{error}</p>
-      ) : !data?.book ? (
-        <p className="mt-4 text-sm text-amber-800">
-          No opening reading yet. Set one from this morning’s dip (or last night’s close) to start the
-          book.
-        </p>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <GradeCard
-            label="Unleaded"
-            onHand={data.book.onHand.unleaded}
-            usable={data.book.usable.unleaded}
-            enough={rest?.typical.unleaded.enough ?? false}
-            shortBy={rest?.typical.unleaded.shortBy ?? 0}
-            todayLabel={todayLabel}
-          />
-          <GradeCard
-            label="Diesel"
-            onHand={data.book.onHand.diesel}
-            usable={data.book.usable.diesel}
-            enough={rest?.typical.diesel.enough ?? false}
-            shortBy={rest?.typical.diesel.shortBy ?? 0}
-            todayLabel={todayLabel}
-          />
-        </div>
-      )}
-
-      {data?.canManage ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => openForm('opening')}
-            className="min-h-[44px] rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 sm:min-h-0"
-          >
-            Set opening reading
-          </button>
-          <button
-            type="button"
-            onClick={() => openForm('dip')}
-            disabled={!data.book}
-            className="min-h-[44px] rounded border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50 sm:min-h-0"
-          >
-            Match tanks to dip
-          </button>
-        </div>
-      ) : null}
-
-      {mode && data?.canManage ? (
+      {mode ? (
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p className="text-sm font-medium text-gray-800">
             {mode === 'opening'

@@ -695,8 +695,8 @@ export default function DashboardPage() {
               <>
                 {' '}
                 Set one on{' '}
-                <Link href="/fuel-payments/invoices" className="font-semibold underline">
-                  Fuel invoices
+                <Link href="/insights/fuel-expectancy" className="font-semibold underline">
+                  Fuel expectancy
                 </Link>
                 .
               </>

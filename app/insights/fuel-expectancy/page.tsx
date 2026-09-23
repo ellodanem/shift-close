@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/app/components/AuthContext'
-import { businessTodayYmd } from '@/lib/datetime-policy'
+import { TankReadingControls } from '@/app/fuel-payments/components/FuelTankInventoryCard'
+import { businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
 import {
   DIESEL_UNUSABLE_LITRES,
   UNLEADED_UNUSABLE_LITRES,
@@ -109,21 +110,28 @@ export default function FuelExpectancyPage() {
           </div>
         ) : null}
 
-        {data && !data.book ? (
+        {data?.canManage ? (
+          <section className="mt-6 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              This is where openings and dip corrections are saved. An opening is the start of that
+              date: earlier shift sales and fuel invoices stay behind it, and same-day invoices add
+              while same-day shift sales subtract. A stick taken after those sales (last night’s close)
+              belongs on the next morning. Fuel invoices show these levels for reference while you pay.
+            </p>
+            {!data.book ? (
+              <p className="mt-3 text-sm text-amber-800">
+                No opening reading yet. Set one from this morning’s dip (or last night’s close).
+              </p>
+            ) : null}
+            <TankReadingControls hasOpening={data.book != null} onSaved={() => void load()} />
+            {data.recentReadings.length > 0 ? <RecentReadings rows={data.recentReadings} /> : null}
+          </section>
+        ) : null}
+
+        {data && !data.book && !data.canManage ? (
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-            No opening tank reading yet.
-            {isFullAccess ? (
-              <>
-                {' '}
-                Set one on{' '}
-                <Link href="/fuel-payments/invoices" className="font-semibold underline">
-                  Fuel invoices
-                </Link>
-                , then enter unleaded and diesel litres on new Fuel invoices.
-              </>
-            ) : (
-              ' Ask a manager to set an opening reading and enter invoice litres.'
-            )}
+            No opening tank reading yet. Ask a manager to set an opening reading and enter invoice litres.
           </div>
         ) : null}
 
@@ -171,6 +179,46 @@ export default function FuelExpectancyPage() {
           <p className="mt-6 text-sm text-gray-500">No data.</p>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function RecentReadings({ rows }: { rows: Payload['recentReadings'] }) {
+  return (
+    <div className="mt-5 overflow-x-auto">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent readings</h3>
+      <table className="mt-2 min-w-full text-sm">
+        <thead className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <tr>
+            <th className="py-2 pr-3">Date</th>
+            <th className="py-2 pr-3">Kind</th>
+            <th className="py-2 pr-3">Unleaded</th>
+            <th className="py-2 pr-3">Diesel</th>
+            <th className="py-2 pr-3">Notes</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td className="py-2 pr-3 text-gray-800">{formatDateOnlyForDisplay(row.date)}</td>
+              <td className="py-2 pr-3 capitalize text-gray-800">{row.kind}</td>
+              <td className="py-2 pr-3 font-mono text-gray-900">
+                {formatLitres(row.unleadedLitres)}
+                {row.kind === 'dip' ? (
+                  <span className="ml-1 text-xs text-gray-500">({formatLitres(row.unleadedDelta)})</span>
+                ) : null}
+              </td>
+              <td className="py-2 pr-3 font-mono text-gray-900">
+                {formatLitres(row.dieselLitres)}
+                {row.kind === 'dip' ? (
+                  <span className="ml-1 text-xs text-gray-500">({formatLitres(row.dieselDelta)})</span>
+                ) : null}
+              </td>
+              <td className="py-2 pr-3 text-gray-600">{row.notes || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
