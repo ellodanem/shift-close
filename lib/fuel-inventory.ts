@@ -184,6 +184,46 @@ export function parseRequiredLitres(value: unknown): number {
   return parsed.value
 }
 
+/** A dip corrects the opening it was taken against. A newer opening on that date replaces it. */
+function dipAppliesToOpening(row: FuelDipRow, opening: FuelOpeningRow, asOfYmd: string): boolean {
+  if (row.date < opening.date || row.date > asOfYmd) return false
+  if (row.date > opening.date) return true
+  return row.createdAt > opening.createdAt
+}
+
+/**
+ * Opening is the start of `date`. Sales or deliveries already stored on that date would be
+ * applied on top of the stick. Returns the next morning when that would double-count a
+ * reading taken after those movements (last night's close entered on the sales date).
+ */
+export function openingBaselineConflict(
+  date: string,
+  activity: { sold: FuelPair; delivered: FuelPair }
+): {
+  date: string
+  nextDate: string
+  sold: FuelPair
+  delivered: FuelPair
+} | null {
+  const sold = {
+    unleaded: roundLitres(activity.sold.unleaded),
+    diesel: roundLitres(activity.sold.diesel)
+  }
+  const delivered = {
+    unleaded: roundLitres(activity.delivered.unleaded),
+    diesel: roundLitres(activity.delivered.diesel)
+  }
+  const hasMovement =
+    sold.unleaded > 0 || sold.diesel > 0 || delivered.unleaded > 0 || delivered.diesel > 0
+  if (!hasMovement) return null
+  return {
+    date,
+    nextDate: addCalendarDaysYmd(date, 1),
+    sold,
+    delivered
+  }
+}
+
 function latestOpeningOnOrBefore(openings: FuelOpeningRow[], asOfYmd: string): FuelOpeningRow | null {
   const eligible = openings.filter((row) => row.date <= asOfYmd)
   if (eligible.length === 0) return null
@@ -243,7 +283,7 @@ export function computeBook(inputs: FuelInventoryInputs, asOfYmd: string): FuelB
 
   let dipAdjust: FuelPair = { unleaded: 0, diesel: 0 }
   for (const row of inputs.dips) {
-    if (row.date < opening.date || row.date > asOfYmd) continue
+    if (!dipAppliesToOpening(row, opening, asOfYmd)) continue
     dipAdjust.unleaded += row.unleadedDelta || 0
     dipAdjust.diesel += row.dieselDelta || 0
   }

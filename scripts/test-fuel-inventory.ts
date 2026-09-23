@@ -8,6 +8,7 @@ import {
   dipDeltasFromBook,
   harvestFuelVolumePatch,
   lastWeekdaySamples,
+  openingBaselineConflict,
   usableLitres,
   weekendEndYmd,
   weekdayIndexFromYmd,
@@ -124,6 +125,123 @@ describe('fuel inventory book', () => {
     const delta = dipDeltasFromBook(book, { unleaded: 11800, diesel: 7900 })
     assert.equal(delta.unleaded, -200)
     assert.equal(delta.diesel, -100)
+  })
+
+  it('keeps the previous day behind an opening dated the next morning', () => {
+    const book = computeBook(
+      inputs({
+        openings: [
+          {
+            ...opening,
+            date: '2026-09-23',
+            createdAt: '2026-09-23T08:50:00.000Z',
+            unleadedLitres: 17046,
+            dieselLitres: 9898
+          }
+        ],
+        sales: [
+          { date: '2026-09-22', shift: '6-1', unleaded: 3154, diesel: 1943 },
+          { date: '2026-09-22', shift: '1-9', unleaded: 3990, diesel: 1902 },
+          { date: '2026-09-23', shift: '6-1', unleaded: 2644, diesel: 2061 }
+        ],
+        deliveries: [{ date: '2026-09-22', unleadedLitres: 5000, dieselLitres: 1000 }]
+      }),
+      '2026-09-23'
+    )
+    assert.ok(book)
+    assert.equal(book.sold.unleaded, 2644)
+    assert.equal(book.sold.diesel, 2061)
+    assert.equal(book.delivered.unleaded, 0)
+    assert.equal(book.onHand.unleaded, 14402)
+    assert.equal(book.onHand.diesel, 7837)
+  })
+
+  it('drops a same-day dip that was taken before a newer opening', () => {
+    const book = computeBook(
+      inputs({
+        openings: [
+          {
+            ...opening,
+            date: '2026-09-23',
+            createdAt: '2026-09-23T22:30:00.000Z',
+            unleadedLitres: 11893,
+            dieselLitres: 6905
+          }
+        ],
+        dips: [
+          {
+            id: 'd-old',
+            date: '2026-09-23',
+            createdAt: '2026-09-23T22:01:00.000Z',
+            unleadedLitres: 11893,
+            dieselLitres: 6905,
+            unleadedDelta: 4634.9,
+            dieselDelta: 2912.8,
+            notes: '',
+            createdBy: 'admin'
+          }
+        ],
+        sales: [{ date: '2026-09-22', shift: '6-1', unleaded: 7000, diesel: 3000 }]
+      }),
+      '2026-09-23'
+    )
+    assert.ok(book)
+    assert.equal(book.dipAdjust.unleaded, 0)
+    assert.equal(book.dipAdjust.diesel, 0)
+    assert.equal(book.onHand.unleaded, 11893)
+    assert.equal(book.onHand.diesel, 6905)
+  })
+
+  it('keeps a dip taken later the same day as the opening', () => {
+    const book = computeBook(
+      inputs({
+        openings: [
+          {
+            ...opening,
+            date: '2026-09-23',
+            createdAt: '2026-09-23T08:50:00.000Z',
+            unleadedLitres: 17046,
+            dieselLitres: 9898
+          }
+        ],
+        dips: [
+          {
+            id: 'd-later',
+            date: '2026-09-23',
+            createdAt: '2026-09-23T22:01:00.000Z',
+            unleadedLitres: 14000,
+            dieselLitres: 7800,
+            unleadedDelta: -400,
+            dieselDelta: -100,
+            notes: '',
+            createdBy: 'admin'
+          }
+        ],
+        sales: [{ date: '2026-09-23', shift: '6-1', unleaded: 2644, diesel: 2061 }]
+      }),
+      '2026-09-23'
+    )
+    assert.ok(book)
+    assert.equal(book.dipAdjust.unleaded, -400)
+    assert.equal(book.onHand.unleaded, 14002)
+    assert.equal(book.onHand.diesel, 7737)
+  })
+
+  it('asks for the next morning when the opening date already has movements', () => {
+    const conflict = openingBaselineConflict('2026-09-22', {
+      sold: { unleaded: 7143.74, diesel: 3845.2 },
+      delivered: { unleaded: 0, diesel: 0 }
+    })
+    assert.ok(conflict)
+    assert.equal(conflict.nextDate, '2026-09-23')
+    assert.equal(conflict.sold.unleaded, 7143.7)
+    assert.equal(
+      openingBaselineConflict('2026-09-24', {
+        sold: { unleaded: 0, diesel: 0 },
+        delivered: { unleaded: 0, diesel: 0 }
+      }),
+      null
+    )
   })
 })
 

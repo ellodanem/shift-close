@@ -6,10 +6,13 @@ import { businessTodayYmd, isYmd } from '@/lib/datetime-policy'
 import {
   computeBook,
   dipDeltasFromBook,
+  openingBaselineConflict,
   parseRequiredLitres,
+  roundLitres,
   type FuelDeliveryRow,
   type FuelDipRow,
   type FuelOpeningRow,
+  type FuelPair,
   type FuelSaleRow
 } from '@/lib/fuel-inventory'
 import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
@@ -83,6 +86,45 @@ async function inventoryInputsForBook() {
   return { openings, dips, deliveries, sales: saleRows }
 }
 
+/** Litres already booked on this calendar day. An opening is the start of the day, so these move the stick. */
+async function activityOnOpeningDate(date: string): Promise<{ sold: FuelPair; delivered: FuelPair }> {
+  const [year, month, day] = date.split('-').map(Number)
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+  const end = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0))
+  const [shifts, invoices] = await Promise.all([
+    prisma.shiftClose.findMany({
+      where: { date },
+      select: { unleaded: true, diesel: true }
+    }),
+    prisma.invoice.findMany({
+      where: {
+        type: 'Fuel',
+        invoiceDate: { gte: start, lt: end },
+        OR: [{ unleadedLitres: { not: null } }, { dieselLitres: { not: null } }]
+      },
+      select: { unleadedLitres: true, dieselLitres: true }
+    })
+  ])
+
+  const sold = { unleaded: 0, diesel: 0 }
+  for (const row of shifts) {
+    sold.unleaded += row.unleaded || 0
+    sold.diesel += row.diesel || 0
+  }
+  const delivered = { unleaded: 0, diesel: 0 }
+  for (const row of invoices) {
+    if (row.unleadedLitres != null) delivered.unleaded += row.unleadedLitres
+    if (row.dieselLitres != null) delivered.diesel += row.dieselLitres
+  }
+  return {
+    sold: { unleaded: roundLitres(sold.unleaded), diesel: roundLitres(sold.diesel) },
+    delivered: {
+      unleaded: roundLitres(delivered.unleaded),
+      diesel: roundLitres(delivered.diesel)
+    }
+  }
+}
+
 /** POST { kind: 'opening' | 'dip', date, unleadedLitres, dieselLitres, notes? } — admin/manager only. */
 export async function POST(request: NextRequest) {
   const auth = await requireManager(request)
@@ -114,6 +156,21 @@ export async function POST(request: NextRequest) {
 
     const notes = typeof body.notes === 'string' ? body.notes.trim() : ''
     const createdBy = auth.session.userId
+
+    if (kind === 'opening' && body.confirmSameDay !== true) {
+      const conflict = openingBaselineConflict(date, await activityOnOpeningDate(date))
+      if (conflict) {
+        return NextResponse.json(
+          {
+            error:
+              'This date already has shift sales or fuel deliveries. An opening is the start of the day, so those litres would change this reading. Save it as the next morning if the stick was taken after them.',
+            code: 'same_day_activity',
+            ...conflict
+          },
+          { status: 409 }
+        )
+      }
+    }
 
     let unleadedDelta = 0
     let dieselDelta = 0

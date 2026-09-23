@@ -95,7 +95,8 @@ export default function FuelExpectancyPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Fuel expectancy</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600">
           On-hand litres come from the opening reading, plus Fuel invoice volumes, minus shift-close
-          sales. The true tank figure is shown; “will we last?” uses usable litres (unleaded −{' '}
+          sales, from that date forward. Earlier dates stay behind the baseline. The true tank figure
+          is shown; “will we last?” uses usable litres (unleaded −{' '}
           {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel − {formatLitres(DIESEL_UNUSABLE_LITRES)} L).
           Typical is the last 12 of that weekday; busy is a high day in that same window. Forecasts
           assume no more trucks.

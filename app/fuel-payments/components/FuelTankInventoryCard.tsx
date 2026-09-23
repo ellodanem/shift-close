@@ -2,12 +2,19 @@
 
 import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { businessTodayYmd } from '@/lib/datetime-policy'
+import { businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
 import { DIESEL_UNUSABLE_LITRES, UNLEADED_UNUSABLE_LITRES, formatLitres } from '@/lib/fuel-inventory'
 
 type GradeState = {
   enough: boolean
   shortBy: number
+}
+
+type BaselineConflict = {
+  date: string
+  nextDate: string
+  sold: { unleaded: number; diesel: number }
+  delivered: { unleaded: number; diesel: number }
 }
 
 type ExpectancyPayload = {
@@ -38,6 +45,7 @@ export function FuelTankInventoryCard() {
   const [unleaded, setUnleaded] = useState('')
   const [diesel, setDiesel] = useState('')
   const [notes, setNotes] = useState('')
+  const [baselineConflict, setBaselineConflict] = useState<BaselineConflict | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +72,42 @@ export function FuelTankInventoryCard() {
     setUnleaded('')
     setDiesel('')
     setNotes('')
+    setBaselineConflict(null)
+  }
+
+  const saveReading = async (input: {
+    kind: 'opening' | 'dip'
+    date: string
+    unleadedLitres: number
+    dieselLitres: number
+    notes: string
+    confirmSameDay?: boolean
+  }) => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/fuel-inventory/readings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 409 && (body as { code?: string }).code === 'same_day_activity') {
+        const conflict = body as BaselineConflict
+        setBaselineConflict(conflict)
+        setDate(conflict.date)
+        return
+      }
+      if (!res.ok) {
+        throw new Error((body as { error?: string }).error || 'Failed to save reading')
+      }
+      setBaselineConflict(null)
+      setMode(null)
+      await load()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save reading')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -75,30 +119,8 @@ export function FuelTankInventoryCard() {
       alert('Enter unleaded and diesel litres (0 or more).')
       return
     }
-    setSaving(true)
-    try {
-      const res = await fetch('/api/fuel-inventory/readings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: mode,
-          date,
-          unleadedLitres,
-          dieselLitres,
-          notes
-        })
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error((err as { error?: string }).error || 'Failed to save reading')
-      }
-      setMode(null)
-      await load()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save reading')
-    } finally {
-      setSaving(false)
-    }
+    setBaselineConflict(null)
+    await saveReading({ kind: mode, date, unleadedLitres, dieselLitres, notes })
   }
 
   const rest = data?.horizons.find((h) => h.id === 'restOfToday')
@@ -110,8 +132,10 @@ export function FuelTankInventoryCard() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Opening is start of that date (same-day invoices add, shift sales subtract). Forecasts use
-            usable litres (unleaded − {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel −{' '}
+            Opening is the start of that date. Shift sales and fuel invoices from earlier dates stay
+            behind it. Same-day invoices add and same-day shift sales subtract, so a stick taken after
+            those sales (last night’s close) belongs on the next morning. Forecasts use usable litres
+            (unleaded − {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel −{' '}
             {formatLitres(DIESEL_UNUSABLE_LITRES)} L).
           </p>
         </div>
@@ -187,7 +211,10 @@ export function FuelTankInventoryCard() {
                 type="date"
                 required
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setBaselineConflict(null)
+                }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -230,14 +257,41 @@ export function FuelTankInventoryCard() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
+          {baselineConflict && mode === 'opening' ? (
+            <BaselineConflictNotice
+              conflict={baselineConflict}
+              saving={saving}
+              onUseNextMorning={() =>
+                void saveReading({
+                  kind: 'opening',
+                  date: baselineConflict.nextDate,
+                  unleadedLitres: Number(unleaded),
+                  dieselLitres: Number(diesel),
+                  notes
+                })
+              }
+              onApplySameDay={() =>
+                void saveReading({
+                  kind: 'opening',
+                  date: baselineConflict.date,
+                  unleadedLitres: Number(unleaded),
+                  dieselLitres: Number(diesel),
+                  notes,
+                  confirmSameDay: true
+                })
+              }
+            />
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+            {baselineConflict && mode === 'opening' ? null : (
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            )}
             <button
               type="button"
               disabled={saving}
@@ -249,6 +303,63 @@ export function FuelTankInventoryCard() {
           </div>
         </form>
       ) : null}
+    </div>
+  )
+}
+
+function movementPhrase(conflict: BaselineConflict): string {
+  const parts: string[] = []
+  if (conflict.sold.unleaded > 0 || conflict.sold.diesel > 0) {
+    parts.push(
+      `${formatLitres(conflict.sold.unleaded)} L unleaded and ${formatLitres(conflict.sold.diesel)} L diesel in shift sales`
+    )
+  }
+  if (conflict.delivered.unleaded > 0 || conflict.delivered.diesel > 0) {
+    parts.push(
+      `${formatLitres(conflict.delivered.unleaded)} L unleaded and ${formatLitres(conflict.delivered.diesel)} L diesel on fuel invoices`
+    )
+  }
+  return parts.join(', and ')
+}
+
+function BaselineConflictNotice({
+  conflict,
+  saving,
+  onUseNextMorning,
+  onApplySameDay
+}: {
+  conflict: BaselineConflict
+  saving: boolean
+  onUseNextMorning: () => void
+  onApplySameDay: () => void
+}) {
+  const thisDate = formatDateOnlyForDisplay(conflict.date)
+  const nextDate = formatDateOnlyForDisplay(conflict.nextDate)
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+      <p>
+        {thisDate} already has {movementPhrase(conflict)}. An opening is the start of that date, so
+        those litres would come off this stick. Dates before the opening never change it. If this
+        reading was taken after those sales or deliveries, save it as the start of {nextDate}.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onUseNextMorning}
+          className="rounded bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+        >
+          Save as start of {nextDate}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onApplySameDay}
+          className="rounded border border-amber-400 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+        >
+          Apply this date on top of the stick
+        </button>
+      </div>
     </div>
   )
 }
