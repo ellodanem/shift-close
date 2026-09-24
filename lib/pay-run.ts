@@ -43,6 +43,8 @@ export type PayRunStaffProfile = {
   salariedAmount: number | null
   staffLoan: number | null
   medicalAmount: number | null
+  bankName?: string | null
+  accountNumber?: string | null
 }
 
 export type BuiltPayRunLine = {
@@ -70,6 +72,8 @@ export type BuiltPayRunLine = {
   medical: number
   totalDeductions: number
   netPay: number
+  bankCode?: string
+  accountNo?: string | null
 }
 
 function round2(n: number): number {
@@ -413,6 +417,8 @@ export function serializePayRunLine(line: BuiltPayRunLine, sortOrder: number) {
     staffId: line.staffId,
     staffName: line.staffName,
     staffNo: line.staffNo,
+    bankCode: line.bankCode ?? '',
+    accountNo: line.accountNo ?? null,
     payType: line.payType,
     payCycle: line.payCycle,
     transTtl: line.transTtl,

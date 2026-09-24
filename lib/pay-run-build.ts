@@ -1,9 +1,11 @@
 import { isReportOnlyPayPeriodRow } from '@/lib/pay-period-rows'
+import { payrollBankCode } from '@/lib/pay-run-banking'
 import { payMonthKey } from '@/lib/pay-run-deductions'
 import {
   buildPayRunLines,
   parseExtraLines,
   payPeriodSourceHash,
+  type BuiltPayRunLine,
   type DeductionOverride,
   type NisTaken,
   type PayRunHoursRow,
@@ -54,7 +56,9 @@ export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
       hourlyRate: true,
       salariedAmount: true,
       staffLoan: true,
-      medicalAmount: true
+      medicalAmount: true,
+      bankName: true,
+      accountNumber: true
     }
   })
   return staff
@@ -134,7 +138,7 @@ export async function rebuildPayRunLines(
     }
   }
 
-  const lines = buildPayRunLines({
+  const built = buildPayRunLines({
     cycle: parsePayCycle(options.cycle),
     hoursRows: options.hoursRows,
     staff,
@@ -143,9 +147,27 @@ export async function rebuildPayRunLines(
     deductionOverrides: options.keepOverrides ? deductionOverrides : undefined,
     nisTakenByStaffId
   })
+  const staffById = new Map(staff.map((s) => [s.id, s]))
+  const lines = attachBankingToLines(built, staffById)
 
   return {
     lines,
     sourceHash: payPeriodSourceHash(options.hoursRows)
   }
+}
+
+export function attachBankingToLines<
+  T extends { staffId?: string | null; bankCode?: string; accountNo?: string | null }
+>(
+  lines: T[],
+  staffById: Map<string, Pick<PayRunStaffProfile, 'bankName' | 'accountNumber'>>
+): T[] {
+  return lines.map((line) => {
+    const profile = line.staffId ? staffById.get(line.staffId) : undefined
+    return {
+      ...line,
+      bankCode: line.bankCode || payrollBankCode(profile?.bankName, profile?.accountNumber),
+      accountNo: line.accountNo || profile?.accountNumber || null
+    }
+  })
 }

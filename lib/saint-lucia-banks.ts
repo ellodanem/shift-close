@@ -12,7 +12,9 @@ export const SAINT_LUCIA_BANK_GROUPS: BankGroup[] = [
       '1st National Bank Saint Lucia Limited',
       'Bank of Saint Lucia Ltd.',
       'CIBC Caribbean Bank Limited (formerly CIBC FirstCaribbean)',
-      'Republic Bank (EC) Ltd.'
+      'Financial Investment and Consultancy Services Ltd',
+      'Republic Bank (EC) Ltd.',
+      'Cheque'
     ]
   },
   {

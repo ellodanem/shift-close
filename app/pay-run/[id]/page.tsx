@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payCycleLabel } from '@/lib/pay-cycle'
-import { formatDateRange } from '@/lib/pay-period-excel'
+import { formatDateDisplay, formatDateRange } from '@/lib/pay-period-excel'
 import {
   formatMoney,
   parseExtraLines,
@@ -12,6 +12,15 @@ import {
   payTypeLabel,
   type PayRunExtraLine
 } from '@/lib/pay-run'
+import { buildBankingPack } from '@/lib/pay-run-banking'
+import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
+import { printBankingPack } from '@/lib/pay-run-banking-print'
+import {
+  creditUnionLetters,
+  cuLetterEmailBody,
+  cuLetterSubject,
+  downloadCreditUnionLetter
+} from '@/lib/pay-run-cu-letter'
 
 type PayRunLine = {
   id: string
@@ -39,6 +48,8 @@ type PayRunLine = {
   medical: number
   totalDeductions: number
   netPay: number
+  bankCode?: string
+  accountNo?: string | null
 }
 
 type PayRun = {
@@ -49,6 +60,7 @@ type PayRun = {
   endDate: string
   payDate: string
   notes: string
+  extraDisbursements?: PayRunExtraLine[]
   hoursOutOfDate?: boolean
   lines: PayRunLine[]
 }
@@ -123,6 +135,12 @@ export default function PayRunDetailPage() {
   const [editShortage, setEditShortage] = useState('')
   const [editExtras, setEditExtras] = useState<PayRunExtraLine[]>([])
   const [editDeductions, setEditDeductions] = useState<PayRunExtraLine[]>([])
+  const [extras, setExtras] = useState<PayRunExtraLine[]>([])
+  const [cuEmailOpen, setCuEmailOpen] = useState(false)
+  const [cuEmailTo, setCuEmailTo] = useState('')
+  const [cuEmailSubject, setCuEmailSubject] = useState('')
+  const [cuEmailBody, setCuEmailBody] = useState('')
+  const [cuEmailCode, setCuEmailCode] = useState('NFGWCCU')
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`)
@@ -130,6 +148,7 @@ export default function PayRunDetailPage() {
     if (!res.ok) throw new Error(data.error || 'Failed to load pay run')
     setRun(data)
     setNotes(typeof data.notes === 'string' ? data.notes : '')
+    setExtras(parseExtraLines(data.extraDisbursements))
     return data as PayRun
   }, [id])
 
@@ -153,6 +172,22 @@ export default function PayRunDetailPage() {
     }
   }, [run])
 
+  const banking = useMemo(
+    () =>
+      buildBankingPack(
+        (run?.lines ?? []).map((line) => ({
+          staffName: line.staffName,
+          staffNo: line.staffNo,
+          bankCode: line.bankCode,
+          accountNo: line.accountNo,
+          netPay: line.netPay
+        })),
+        extras
+      ),
+    [run, extras]
+  )
+  const cuLetters = useMemo(() => creditUnionLetters(banking), [banking])
+
   const locked = run?.status === 'processed'
 
   const runAction = async (action: 'recalc' | 'process') => {
@@ -168,6 +203,7 @@ export default function PayRunDetailPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to update pay run')
       setRun(data)
       setNotes(typeof data.notes === 'string' ? data.notes : '')
+      setExtras(parseExtraLines(data.extraDisbursements))
       setEditingId(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update pay run')
@@ -188,6 +224,7 @@ export default function PayRunDetailPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to unlock pay run')
       setRun(data)
+      setExtras(parseExtraLines(data.extraDisbursements))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to unlock pay run')
     } finally {
@@ -207,6 +244,7 @@ export default function PayRunDetailPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save notes')
       setRun(data)
+      setExtras(parseExtraLines(data.extraDisbursements))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save notes')
     } finally {
@@ -224,6 +262,64 @@ export default function PayRunDetailPage() {
     setEditShortage(String(line.shortageReady ?? 0))
     setEditExtras(parseExtraLines(line.extraLines))
     setEditDeductions(parseExtraLines(line.extraDeductions))
+  }
+
+  const saveExtras = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extraDisbursements: parseExtraLines(extras) })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to save extra cash out')
+      setRun(data)
+      setExtras(parseExtraLines(data.extraDisbursements))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save extra cash out')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const openCuEmail = (code: string) => {
+    const letter = cuLetters.find((item) => item.code === code)
+    if (!letter || !run) return
+    setCuEmailCode(letter.code)
+    setCuEmailTo('')
+    setCuEmailSubject(cuLetterSubject(letter, run.payDate))
+    setCuEmailBody(cuLetterEmailBody(letter))
+    setCuEmailOpen(true)
+  }
+
+  const sendCuEmail = async () => {
+    if (!cuEmailTo.trim()) {
+      setError('Enter the credit union email address.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${id}/cu-letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: cuEmailTo.trim(),
+          code: cuEmailCode,
+          subject: cuEmailSubject,
+          html: `<p>${cuEmailBody.replace(/\n/g, '<br/>')}</p>`
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to email CU letter')
+      setCuEmailOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to email CU letter')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const saveLine = async (line: PayRunLine) => {
@@ -252,6 +348,7 @@ export default function PayRunDetailPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to update line')
       setRun(data)
+      setExtras(parseExtraLines(data.extraDisbursements))
       setEditingId(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update line')
@@ -531,6 +628,152 @@ export default function PayRunDetailPage() {
               (memo only — not taken from net). PAYE is still calculated in Pay+.
             </p>
 
+            <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Banking pack</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Pay date {formatDateDisplay(run.payDate)}. Listing must equal bank totals. Listing plus extra
+                    cash out (Rep / CARED) is the banking total.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadBankingPackExcel(banking, run.payDate)}
+                    className="px-3 py-1.5 text-sm bg-slate-100 text-slate-800 rounded hover:bg-slate-200"
+                  >
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printBankingPack(banking, run.payDate)}
+                    className="px-3 py-1.5 text-sm bg-slate-100 text-slate-800 rounded hover:bg-slate-200"
+                  >
+                    Print
+                  </button>
+                  {cuLetters.map((letter) => (
+                    <span key={letter.code} className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadCreditUnionLetter(letter, run.payDate)}
+                        className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded hover:bg-teal-800"
+                      >
+                        {letter.code} PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openCuEmail(letter.code)}
+                        className="px-3 py-1.5 text-sm bg-teal-50 text-teal-900 rounded hover:bg-teal-100"
+                      >
+                        Email {letter.code}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Staff</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">No.</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {banking.listing.map((row, index) => (
+                      <tr key={`${row.bankCode}-${row.staffNo || row.staffName}-${index}`}>
+                        <td className="px-3 py-2 font-medium text-gray-800">{row.bankCode}</td>
+                        <td className="px-3 py-2 text-gray-900">{row.staffName}</td>
+                        <td className="px-3 py-2 text-gray-600">{row.staffNo}</td>
+                        <td className="px-3 py-2 text-gray-600">{row.accountNo}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.netPay)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-medium">
+                    <tr>
+                      <td className="px-3 py-2" colSpan={4}>
+                        Staff total
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(banking.staffTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-800 mb-2">Bank totals</h3>
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-gray-100">
+                      {banking.bankTotals.map((row) => (
+                        <tr key={row.label}>
+                          <td className="py-1.5 text-gray-700">{row.label}</td>
+                          <td className="py-1.5 text-right tabular-nums">{formatMoney(row.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr className="font-medium">
+                        <td className="pt-2">Staff total</td>
+                        <td className="pt-2 text-right tabular-nums">{formatMoney(banking.staffTotal)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className={`mt-2 text-xs ${banking.listingTies ? 'text-green-800' : 'text-red-700'}`}>
+                    {banking.listingTies
+                      ? 'Listing ties to bank totals.'
+                      : 'Listing does not tie to bank totals.'}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-800 mb-2">Extra cash out</h3>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Third-party lines such as Republic Bank or CARED. Not taken from staff net.
+                  </p>
+                  {locked ? (
+                    extras.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {extras.map((extra, index) => (
+                            <tr key={`${extra.label}-${index}`}>
+                              <td className="py-1.5 text-gray-700">{extra.label}</td>
+                              <td className="py-1.5 text-right tabular-nums">{formatMoney(extra.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-sm text-gray-500">None on this run.</p>
+                    )
+                  ) : (
+                    <>
+                      <ExtraLineEditor rows={extras} onChange={setExtras} addLabel="+ Extra cash out" />
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={saveExtras}
+                        className="mt-3 px-3 py-1.5 text-sm bg-slate-100 text-slate-800 rounded hover:bg-slate-200 disabled:opacity-60"
+                      >
+                        Save extra cash out
+                      </button>
+                    </>
+                  )}
+                  <p className="mt-3 text-sm font-medium text-gray-900">
+                    Banking total {formatMoney(banking.bankingTotal)}
+                    {banking.extraTotal > 0 ? (
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        ({formatMoney(banking.staffTotal)} + {formatMoney(banking.extraTotal)})
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea
@@ -556,6 +799,62 @@ export default function PayRunDetailPage() {
           </>
         )}
       </div>
+
+      {cuEmailOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="text-lg font-semibold text-gray-900">Email {cuEmailCode} letter</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              To is empty on purpose — fill the credit union address. The allocation PDF is attached.
+            </p>
+            <label className="mt-4 block text-sm font-medium text-gray-700">
+              To
+              <input
+                type="email"
+                value={cuEmailTo}
+                onChange={(e) => setCuEmailTo(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                placeholder="credit-union@example.com"
+              />
+            </label>
+            <label className="mt-3 block text-sm font-medium text-gray-700">
+              Subject
+              <input
+                type="text"
+                value={cuEmailSubject}
+                onChange={(e) => setCuEmailSubject(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="mt-3 block text-sm font-medium text-gray-700">
+              Message
+              <textarea
+                value={cuEmailBody}
+                onChange={(e) => setCuEmailBody(e.target.value)}
+                rows={4}
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCuEmailOpen(false)}
+                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-800 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={sendCuEmail}
+                className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded disabled:opacity-60"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

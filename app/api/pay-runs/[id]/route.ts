@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { loadNisTakenByStaffId, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
+import { attachBankingToLines, loadNisTakenByStaffId, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   computeGrossPay,
@@ -15,9 +15,22 @@ import { parsePayCycle } from '@/lib/pay-cycle'
 
 export const dynamic = 'force-dynamic'
 
-function presentRun<T extends { lines?: Array<{ extraLines: string }> }>(run: T) {
-  if (!run.lines) return run
-  return { ...run, lines: run.lines.map((line) => presentPayRunLine(line)) }
+async function presentRun<T extends { extraDisbursements?: string; lines?: Array<{ extraLines: string; extraDeductions?: string; staffId?: string | null; bankCode?: string; accountNo?: string | null }> }>(run: T) {
+  const lines = run.lines ?? []
+  const staffIds = lines.map((line) => line.staffId).filter((id): id is string => Boolean(id))
+  const staff =
+    staffIds.length > 0
+      ? await prisma.staff.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, bankName: true, accountNumber: true }
+        })
+      : []
+  const staffById = new Map(staff.map((s) => [s.id, s]))
+  return {
+    ...run,
+    extraDisbursements: parseExtraLines(run.extraDisbursements ?? '[]'),
+    lines: attachBankingToLines(lines.map((line) => presentPayRunLine(line)), staffById)
+  }
 }
 
 async function loadRun(id: string) {
@@ -36,7 +49,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
     const currentHash = payPeriodSourceHash(hoursRows)
     return NextResponse.json({
-      ...presentRun(run),
+      ...(await presentRun(run)),
       hoursOutOfDate: run.status === 'draft' && run.sourceHash !== currentHash
     })
   } catch (error) {
@@ -59,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         data: { status: 'draft', processedAt: null },
         include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
       })
-      return NextResponse.json(presentRun(unlocked))
+      return NextResponse.json(await presentRun(unlocked))
     }
 
     if (run.status !== 'draft') {
@@ -68,6 +81,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (typeof body.notes === 'string') {
       await prisma.payRun.update({ where: { id }, data: { notes: body.notes } })
+    }
+
+    if (body.extraDisbursements !== undefined) {
+      await prisma.payRun.update({
+        where: { id },
+        data: { extraDisbursements: JSON.stringify(parseExtraLines(body.extraDisbursements)) }
+      })
     }
 
     if (body.line && typeof body.line === 'object') {
@@ -137,7 +157,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const updated = await loadRun(id)
-    return NextResponse.json(presentRun(updated!))
+    return NextResponse.json(await presentRun(updated!))
   } catch (error) {
     console.error('Pay run patch error:', error)
     return NextResponse.json({ error: 'Failed to update pay run' }, { status: 500 })
@@ -181,12 +201,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
         })
       })
-      return NextResponse.json({ ...presentRun(updated!), hoursOutOfDate: false })
+      return NextResponse.json({ ...(await presentRun(updated!)), hoursOutOfDate: false })
     }
 
     if (action === 'process') {
       if (run.status === 'processed') {
-        return NextResponse.json(presentRun(run))
+        return NextResponse.json(await presentRun(run))
       }
       const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
       const built = await rebuildPayRunLines(id, {
@@ -211,7 +231,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
         })
       })
-      return NextResponse.json(presentRun(processed))
+      return NextResponse.json(await presentRun(processed))
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

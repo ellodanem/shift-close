@@ -1075,6 +1075,8 @@ model PayRun {
   endDate        String    @map("end_date")
   entityName     String    @default("Total Auto Service Station") @map("entity_name")
   notes          String    @default("")
+  /// Third-party cash out (Republic / CARED) that is not anyone's net.
+  extraDisbursements String @default("[]") @map("extra_disbursements")
   sourceHash     String    @default("") @map("source_hash")
   processedAt    DateTime? @map("processed_at")
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -1094,6 +1096,8 @@ model PayRunLine {
   staffId        String? @map("staff_id")
   staffName      String  @map("staff_name")
   staffNo        String? @map("staff_no")
+  bankCode       String  @default("") @map("bank_code")
+  accountNo      String? @map("account_no")
   payType        String  @default("hourly") @map("pay_type")
   payCycle       String  @default("semimonthly") @map("pay_cycle")
   transTtl       Float   @default(0) @map("trans_ttl")
