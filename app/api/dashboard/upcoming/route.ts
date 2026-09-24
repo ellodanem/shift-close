@@ -169,7 +169,9 @@ export async function GET(request: NextRequest) {
       return priorityOrder[a.priority] - priorityOrder[b.priority]
     })
 
-    return NextResponse.json(upcoming)
+    return NextResponse.json(upcoming, {
+      headers: { 'Cache-Control': 'private, max-age=60' }
+    })
   } catch (error) {
     console.error('Error fetching upcoming events:', error)
     return NextResponse.json({ error: 'Failed to fetch upcoming events' }, { status: 500 })

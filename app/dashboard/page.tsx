@@ -409,9 +409,12 @@ export default function DashboardPage() {
     return null
   }
 
-  const refreshUpcoming = useCallback(async () => {
+  const refreshUpcoming = useCallback(async (fresh = false) => {
     try {
-      const res = await fetch('/api/dashboard/upcoming', { cache: 'no-store', credentials: 'same-origin' })
+      const res = await fetch('/api/dashboard/upcoming', {
+        cache: fresh ? 'reload' : 'default',
+        credentials: 'same-origin'
+      })
       if (res.ok) {
         const data = await res.json()
         setUpcoming(Array.isArray(data) ? data : [])
@@ -421,9 +424,12 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const refreshTodayRoster = useCallback(async () => {
+  const refreshTodayRoster = useCallback(async (fresh = false) => {
     try {
-      const res = await fetch('/api/dashboard/today', { cache: 'no-store', credentials: 'same-origin' })
+      const res = await fetch('/api/dashboard/today', {
+        cache: fresh ? 'reload' : 'default',
+        credentials: 'same-origin'
+      })
       if (res.ok) {
         const data = await res.json()
         setTodayRoster(data)
@@ -444,7 +450,7 @@ export default function DashboardPage() {
         params.set('month', String(range.month))
       }
       const res = await fetch(`/api/dashboard/bootstrap?${params}`, {
-        cache: 'no-store',
+        cache: 'default',
         credentials: 'same-origin'
       })
       if (!res.ok) throw new Error('Failed to load dashboard')
@@ -511,7 +517,7 @@ export default function DashboardPage() {
         shouldRefetchOnVisibility(tabHiddenAtRef.current)
       ) {
         tabHiddenAtRef.current = null
-        void refreshTodayRoster()
+        void refreshTodayRoster(true)
       }
     }
     document.addEventListener('visibilitychange', onVisibility)
@@ -1166,7 +1172,7 @@ export default function DashboardPage() {
                           const res = await fetch(`/api/reminders/${event.reminderId}`, {
                             method: 'DELETE'
                           })
-                          if (res.ok) void refreshUpcoming()
+                          if (res.ok) void refreshUpcoming(true)
                         } catch (err) {
                           console.error('Failed to delete reminder:', err)
                         }
@@ -1186,7 +1192,7 @@ export default function DashboardPage() {
                           const res = await fetch(`/api/pay-days/${event.payDayId}`, {
                             method: 'DELETE'
                           })
-                          if (res.ok) void refreshUpcoming()
+                          if (res.ok) void refreshUpcoming(true)
                         } catch (err) {
                           console.error('Failed to delete pay day:', err)
                         }
@@ -2159,7 +2165,7 @@ export default function DashboardPage() {
                     if (res.ok) {
                       setPayDayModalOpen(false)
                       setPayDayForm({ date: '', notes: '' })
-                      void refreshUpcoming()
+                      void refreshUpcoming(true)
                     } else {
                       const err = await res.json().catch(() => ({}))
                       alert(err.error || 'Failed to add pay day')
@@ -2269,7 +2275,7 @@ export default function DashboardPage() {
                       throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save')
                     }
                     setPresenceModal(null)
-                    await refreshTodayRoster()
+                    await refreshTodayRoster(true)
                   } catch (err) {
                     console.error(err)
                     alert(err instanceof Error ? err.message : 'Failed to save')
@@ -2425,7 +2431,7 @@ export default function DashboardPage() {
                       throw new Error((data as { error?: string }).error || `Failed to create (${res.status})`)
                     }
                     setReminderModalOpen(false)
-                    void refreshUpcoming()
+                    void refreshUpcoming(true)
                   } catch (err) {
                     alert(err instanceof Error ? err.message : 'Failed to create reminder')
                   }

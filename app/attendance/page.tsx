@@ -118,7 +118,7 @@ interface DeviceSettings {
 type Tab = 'logs' | 'week' | 'device' | 'agent' | 'instructions' | 'settings'
 
 /** Poll interval for lightweight “anything new?” checks (full load only when hint changes). */
-const ATTENDANCE_LOGS_POLL_MS = 120_000
+const ATTENDANCE_LOGS_POLL_MS = 5 * 60 * 1000
 
 async function fetchAttendanceSyncFingerprint(): Promise<string | null> {
   const r = await fetch('/api/attendance/logs/sync-hint', { cache: 'no-store' })

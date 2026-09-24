@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
     }
 
     const payload = await buildDashboardBootstrap(session.role, year, month)
-    return NextResponse.json(payload)
+    return NextResponse.json(payload, {
+      headers: { 'Cache-Control': 'private, max-age=60' }
+    })
   } catch (error) {
     console.error('dashboard bootstrap error:', error)
     return NextResponse.json({ error: 'Failed to load dashboard' }, { status: 500 })

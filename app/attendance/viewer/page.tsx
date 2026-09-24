@@ -202,7 +202,7 @@ export default function AttendanceViewerPage() {
       }
     }
 
-    const id = window.setInterval(() => void poll(), 120_000)
+    const id = window.setInterval(() => void poll(), 5 * 60 * 1000)
     void poll()
     document.addEventListener('visibilitychange', onVisible)
     return () => {

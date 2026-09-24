@@ -18,22 +18,25 @@ export async function GET() {
 
     if (!settings.enabled) {
       const roster = await loadRosterForCalendarYmd(todayYmd, tz)
-      return NextResponse.json({
-        date: todayYmd,
-        weekStart: roster.weekStart,
-        stationTimeZone: tz,
-        scheduled: roster.scheduled.map((s) => ({
-          staffId: s.staffId,
-          staffName: s.staffName,
-          staffFirstName: s.staffFirstName,
-          shiftName: s.shiftName,
-          shiftColor: s.shiftColor,
-          shiftStartTime: s.shiftStartTime
-        })),
-        onVacation: roster.onVacation,
-        off: roster.off,
-        presentAbsenceEnabled: false
-      })
+      return NextResponse.json(
+        {
+          date: todayYmd,
+          weekStart: roster.weekStart,
+          stationTimeZone: tz,
+          scheduled: roster.scheduled.map((s) => ({
+            staffId: s.staffId,
+            staffName: s.staffName,
+            staffFirstName: s.staffFirstName,
+            shiftName: s.shiftName,
+            shiftColor: s.shiftColor,
+            shiftStartTime: s.shiftStartTime
+          })),
+          onVacation: roster.onVacation,
+          off: roster.off,
+          presentAbsenceEnabled: false
+        },
+        { headers: { 'Cache-Control': 'private, max-age=60' } }
+      )
     }
 
     const built = await buildPresenceForDate({
@@ -67,18 +70,21 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({
-      date: todayYmd,
-      weekStart: built.weekStart,
-      stationTimeZone: tz,
-      scheduled,
-      onVacation: built.onVacation,
-      off: built.off,
-      presentAbsenceEnabled: true,
-      presentAbsenceGraceMinutes: settings.lateMinutes,
-      presentAbsenceLateMinutes: settings.lateMinutes,
-      presentAbsenceAbsentMinutes: settings.absentMinutes
-    })
+    return NextResponse.json(
+      {
+        date: todayYmd,
+        weekStart: built.weekStart,
+        stationTimeZone: tz,
+        scheduled,
+        onVacation: built.onVacation,
+        off: built.off,
+        presentAbsenceEnabled: true,
+        presentAbsenceGraceMinutes: settings.lateMinutes,
+        presentAbsenceLateMinutes: settings.lateMinutes,
+        presentAbsenceAbsentMinutes: settings.absentMinutes
+      },
+      { headers: { 'Cache-Control': 'private, max-age=60' } }
+    )
   } catch (error) {
     console.error('Error fetching dashboard today:', error)
     return NextResponse.json({ error: "Failed to fetch today's roster" }, { status: 500 })

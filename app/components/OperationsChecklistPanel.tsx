@@ -12,8 +12,8 @@ import type {
 import { filterEnabledChecklistItems } from '@/lib/operations-checklist-types'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 
-/** Full checklist reload while tab is visible (longer interval reduces Neon wake-ups). */
-const POLL_MS = 12 * 60 * 1000
+/** Full checklist reload while the tab is visible. */
+const POLL_MS = 30 * 60 * 1000
 const GROUPED_ITEM_IDS = new Set(['shift-close', 'customer-accounts'])
 
 const STATUS_STYLES: Record<string, string> = {
