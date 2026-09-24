@@ -68,7 +68,9 @@ export async function PATCH(
       payCycle,
       payType,
       hourlyRate,
-      salariedAmount
+      salariedAmount,
+      staffLoan,
+      medicalAmount
     } = body
 
     const data: Record<string, unknown> = {
@@ -91,7 +93,11 @@ export async function PATCH(
       ...(canViewStaffSensitiveFields(appRole) &&
         hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
       ...(canViewStaffSensitiveFields(appRole) &&
-        salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) })
+        salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        staffLoan !== undefined && { staffLoan: parseOptionalMoney(staffLoan) }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        medicalAmount !== undefined && { medicalAmount: parseOptionalMoney(medicalAmount) })
     }
 
     if (reliabilityGrade !== undefined) {

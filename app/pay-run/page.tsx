@@ -17,7 +17,7 @@ type PayRunListItem = {
   processedAt: string | null
   payPeriod?: { id: string; startDate: string; endDate: string }
   _count?: { lines: number }
-  lines?: Array<{ extraLines: unknown; extraPay?: number; grossPay?: number }>
+  lines?: Array<{ extraLines: unknown; extraPay?: number; extraDeductions?: unknown; grossPay?: number; netPay?: number }>
 }
 
 type SavedPayPeriod = {
@@ -27,7 +27,7 @@ type SavedPayPeriod = {
 }
 
 function moneyTotal(run: PayRunListItem): number {
-  return (run.lines ?? []).reduce((sum, line) => sum + (Number(line.grossPay) || 0), 0)
+  return (run.lines ?? []).reduce((sum, line) => sum + (Number(line.netPay ?? line.grossPay) || 0), 0)
 }
 
 export default function PayRunListPage() {
@@ -85,8 +85,7 @@ export default function PayRunListPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pay run</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Station gross pay from a saved pay period. Hourly is basic × rate plus OT at time-and-a-half.
-              Shortage is shown, not deducted.
+              Station net after NIS, loan, medical, and shortage. PAYE stays in Pay+.
             </p>
           </div>
           <button

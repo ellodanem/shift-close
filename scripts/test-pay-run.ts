@@ -82,7 +82,9 @@ describe('pay run gross', () => {
           payCycle: 'semimonthly',
           payType: 'hourly',
           hourlyRate: 6.75,
-          salariedAmount: null
+          salariedAmount: null,
+          staffLoan: 40,
+          medicalAmount: 10
         },
         {
           id: 'm1',
@@ -93,7 +95,9 @@ describe('pay run gross', () => {
           payCycle: 'monthly',
           payType: 'salaried',
           hourlyRate: null,
-          salariedAmount: 1021.36
+          salariedAmount: 1021.36,
+          staffLoan: null,
+          medicalAmount: null
         },
         {
           id: 'j1',
@@ -104,7 +108,9 @@ describe('pay run gross', () => {
           payCycle: 'semimonthly',
           payType: 'salaried',
           hourlyRate: null,
-          salariedAmount: 1000
+          salariedAmount: 1000,
+          staffLoan: null,
+          medicalAmount: null
         }
       ]
     })
@@ -112,8 +118,14 @@ describe('pay run gross', () => {
     assert.equal(lines[0]?.staffName, 'Althea Frank')
     assert.equal(lines[0]?.otHours, 3.33)
     assert.equal(lines[0]?.shortageReady, 12)
+    assert.equal(lines[0]?.nisEmployee, 30.94)
+    assert.equal(lines[0]?.staffLoan, 40)
+    assert.equal(lines[0]?.medical, 10)
+    assert.equal(lines[0]?.netPay, 525.8)
     assert.equal(lines[1]?.staffName, 'Jovita Henry')
     assert.equal(lines[1]?.grossPay, 1000)
+    assert.equal(lines[1]?.nisEmployee, 50)
+    assert.equal(lines[1]?.netPay, 950)
     assert.equal(
       payPeriodSourceHash([
         { staffId: 'a', transTtl: 1 },
@@ -124,5 +136,31 @@ describe('pay run gross', () => {
         { staffId: 'a', transTtl: 1 }
       ])
     )
+  })
+
+  it('caps NIS using amounts already taken this month', () => {
+    const lines = buildPayRunLines({
+      cycle: 'semimonthly',
+      hoursRows: [{ staffId: 'h1', staffName: 'Althea Frank', transTtl: 90, payCycle: 'semimonthly' }],
+      staff: [
+        {
+          id: 'h1',
+          name: 'Althea Frank',
+          status: 'active',
+          role: 'cashier',
+          nicNumber: '289864',
+          payCycle: 'semimonthly',
+          payType: 'hourly',
+          hourlyRate: 6.75,
+          salariedAmount: null,
+          staffLoan: 0,
+          medicalAmount: 0
+        }
+      ],
+      nisTakenByStaffId: { h1: { employee: 240, employer: 240 } }
+    })
+    assert.equal(lines[0]?.nisEmployee, 10)
+    assert.equal(lines[0]?.nisEmployer, 10)
+    assert.equal(lines[0]?.netPay, 608.74)
   })
 })

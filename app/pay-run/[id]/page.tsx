@@ -29,8 +29,16 @@ type PayRunLine = {
   otPay: number
   extraPay: number
   extraLines: PayRunExtraLine[]
+  extraDeductions: PayRunExtraLine[]
+  extraDeductionPay: number
   grossPay: number
   shortageReady: number
+  nisEmployee: number
+  nisEmployer: number
+  staffLoan: number
+  medical: number
+  totalDeductions: number
+  netPay: number
 }
 
 type PayRun = {
@@ -45,6 +53,61 @@ type PayRun = {
   lines: PayRunLine[]
 }
 
+function ExtraLineEditor({
+  rows,
+  onChange,
+  addLabel
+}: {
+  rows: PayRunExtraLine[]
+  onChange: (rows: PayRunExtraLine[]) => void
+  addLabel: string
+}) {
+  return (
+    <div className="space-y-2">
+      {rows.map((extra, index) => (
+        <div key={`${extra.label}-${index}`} className="flex gap-2">
+          <input
+            type="text"
+            value={extra.label}
+            onChange={(e) =>
+              onChange(rows.map((row, i) => (i === index ? { ...row, label: e.target.value } : row)))
+            }
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Label"
+          />
+          <input
+            type="number"
+            step="0.01"
+            value={extra.amount}
+            onChange={(e) =>
+              onChange(
+                rows.map((row, i) =>
+                  i === index ? { ...row, amount: parseMoney(e.target.value) } : row
+                )
+              )
+            }
+            className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(rows.filter((_, i) => i !== index))}
+            className="text-xs text-red-700"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...rows, { label: '', amount: 0 }])}
+        className="text-xs text-teal-800"
+      >
+        {addLabel}
+      </button>
+    </div>
+  )
+}
+
 export default function PayRunDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -55,7 +118,11 @@ export default function PayRunDetailPage() {
   const [notes, setNotes] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editRate, setEditRate] = useState('')
+  const [editLoan, setEditLoan] = useState('')
+  const [editMedical, setEditMedical] = useState('')
+  const [editShortage, setEditShortage] = useState('')
   const [editExtras, setEditExtras] = useState<PayRunExtraLine[]>([])
+  const [editDeductions, setEditDeductions] = useState<PayRunExtraLine[]>([])
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`)
@@ -76,11 +143,13 @@ export default function PayRunDetailPage() {
   const totals = useMemo(() => {
     const lines = run?.lines ?? []
     return {
-      basic: lines.reduce((s, l) => s + l.basicPay, 0),
-      ot: lines.reduce((s, l) => s + l.otPay, 0),
-      extra: lines.reduce((s, l) => s + l.extraPay, 0),
       gross: lines.reduce((s, l) => s + l.grossPay, 0),
-      shortage: lines.reduce((s, l) => s + l.shortageReady, 0)
+      nis: lines.reduce((s, l) => s + l.nisEmployee, 0),
+      employerNis: lines.reduce((s, l) => s + l.nisEmployer, 0),
+      loan: lines.reduce((s, l) => s + l.staffLoan, 0),
+      medical: lines.reduce((s, l) => s + l.medical, 0),
+      shortage: lines.reduce((s, l) => s + l.shortageReady, 0),
+      net: lines.reduce((s, l) => s + l.netPay, 0)
     }
   }, [run])
 
@@ -150,7 +219,11 @@ export default function PayRunDetailPage() {
     setEditRate(
       parsePayType(line.payType) === 'salaried' ? String(line.salariedAmount) : String(line.hourlyRate)
     )
+    setEditLoan(String(line.staffLoan ?? 0))
+    setEditMedical(String(line.medical ?? 0))
+    setEditShortage(String(line.shortageReady ?? 0))
     setEditExtras(parseExtraLines(line.extraLines))
+    setEditDeductions(parseExtraLines(line.extraDeductions))
   }
 
   const saveLine = async (line: PayRunLine) => {
@@ -158,6 +231,7 @@ export default function PayRunDetailPage() {
     setError(null)
     try {
       const extras = parseExtraLines(editExtras)
+      const deductions = parseExtraLines(editDeductions)
       const res = await fetch(`/api/pay-runs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -165,6 +239,10 @@ export default function PayRunDetailPage() {
           line: {
             id: line.id,
             extraLines: extras,
+            extraDeductions: deductions,
+            staffLoan: parseMoney(editLoan),
+            medical: parseMoney(editMedical),
+            shortageReady: parseMoney(editShortage),
             ...(parsePayType(line.payType) === 'salaried'
               ? { salariedAmount: parseMoney(editRate) }
               : { hourlyRate: parseMoney(editRate) })
@@ -184,7 +262,7 @@ export default function PayRunDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pay run</h1>
@@ -259,8 +337,8 @@ export default function PayRunDetailPage() {
                 </div>
               </div>
               <p className="text-sm text-gray-600">
-                Extra earnings stay if you recalc. Shortage is ready for a later deduction pass and is not
-                taken off this gross.
+                Net is gross minus employee NIS (5%, $250 monthly cap), staff loan, medical, shortage,
+                and extra deductions. Employer NIS is a memo only. PAYE stays in Pay+.
               </p>
             </div>
 
@@ -273,11 +351,12 @@ export default function PayRunDetailPage() {
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Hours</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">OT</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Basic</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">OT pay</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Extra</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Gross</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Shortage</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">NIS</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Loan</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Med</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Short</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net</th>
                     {!locked ? (
                       <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                         <span className="sr-only">Edit</span>
@@ -289,6 +368,7 @@ export default function PayRunDetailPage() {
                   {run.lines.map((line) => {
                     const salaried = parsePayType(line.payType) === 'salaried'
                     const extras = parseExtraLines(line.extraLines)
+                    const deductions = parseExtraLines(line.extraDeductions)
                     return (
                       <tr key={line.id} className="align-top">
                         <td className="px-3 py-2">
@@ -299,6 +379,13 @@ export default function PayRunDetailPage() {
                           {extras.length > 0 ? (
                             <div className="text-xs text-gray-500 mt-1">
                               {extras.map((extra) => `${extra.label} ${formatMoney(extra.amount)}`).join(' · ')}
+                            </div>
+                          ) : null}
+                          {deductions.length > 0 ? (
+                            <div className="text-xs text-amber-800 mt-1">
+                              {deductions
+                                .map((extra) => `${extra.label} −${formatMoney(extra.amount)}`)
+                                .join(' · ')}
                             </div>
                           ) : null}
                           {editingId === line.id ? (
@@ -314,58 +401,49 @@ export default function PayRunDetailPage() {
                                   className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
                                 />
                               </label>
-                              <div className="space-y-2">
-                                {editExtras.map((extra, index) => (
-                                  <div key={`${extra.label}-${index}`} className="flex gap-2">
-                                    <input
-                                      type="text"
-                                      value={extra.label}
-                                      onChange={(e) =>
-                                        setEditExtras((rows) =>
-                                          rows.map((row, i) =>
-                                            i === index ? { ...row, label: e.target.value } : row
-                                          )
-                                        )
-                                      }
-                                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-                                      placeholder="Extra label"
-                                    />
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={extra.amount}
-                                      onChange={(e) =>
-                                        setEditExtras((rows) =>
-                                          rows.map((row, i) =>
-                                            i === index
-                                              ? { ...row, amount: parseMoney(e.target.value) }
-                                              : row
-                                          )
-                                        )
-                                      }
-                                      className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditExtras((rows) => rows.filter((_, i) => i !== index))
-                                      }
-                                      className="text-xs text-red-700"
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                ))}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditExtras((rows) => [...rows, { label: '', amount: 0 }])
-                                  }
-                                  className="text-xs text-teal-800"
-                                >
-                                  + Extra line
-                                </button>
+                              <div className="grid grid-cols-3 gap-2">
+                                <label className="block text-xs font-medium text-gray-700">
+                                  Loan
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editLoan}
+                                    onChange={(e) => setEditLoan(e.target.value)}
+                                    className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                  />
+                                </label>
+                                <label className="block text-xs font-medium text-gray-700">
+                                  Medical
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editMedical}
+                                    onChange={(e) => setEditMedical(e.target.value)}
+                                    className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                  />
+                                </label>
+                                <label className="block text-xs font-medium text-gray-700">
+                                  Shortage
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editShortage}
+                                    onChange={(e) => setEditShortage(e.target.value)}
+                                    className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                  />
+                                </label>
                               </div>
+                              <p className="text-xs font-medium text-gray-700">Extra earnings</p>
+                              <ExtraLineEditor rows={editExtras} onChange={setEditExtras} addLabel="+ Extra line" />
+                              <p className="text-xs font-medium text-gray-700">Extra deductions</p>
+                              <ExtraLineEditor
+                                rows={editDeductions}
+                                onChange={setEditDeductions}
+                                addLabel="+ Deduction"
+                              />
                               <div className="flex gap-2">
                                 <button
                                   type="button"
@@ -396,14 +474,19 @@ export default function PayRunDetailPage() {
                         <td className="px-3 py-2 text-right tabular-nums">
                           {salaried ? formatMoney(line.salariedAmount) : formatMoney(line.hourlyRate)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.basicPay)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.otPay)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.extraPay)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-medium">
-                          {formatMoney(line.grossPay)}
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {line.staffLoan > 0 ? formatMoney(line.staffLoan) : ''}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {line.medical > 0 ? formatMoney(line.medical) : ''}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-amber-800">
                           {line.shortageReady > 0 ? formatMoney(line.shortageReady) : ''}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums font-medium">
+                          {formatMoney(line.netPay)}
                         </td>
                         {!locked ? (
                           <td className="px-3 py-2 text-right">
@@ -425,18 +508,28 @@ export default function PayRunDetailPage() {
                     <td className="px-3 py-2" colSpan={5}>
                       Totals
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.basic)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.ot)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.extra)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.gross)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.nis)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {totals.loan > 0 ? formatMoney(totals.loan) : ''}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {totals.medical > 0 ? formatMoney(totals.medical) : ''}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-amber-800">
                       {totals.shortage > 0 ? formatMoney(totals.shortage) : ''}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.net)}</td>
                     {!locked ? <td /> : null}
                   </tr>
                 </tfoot>
               </table>
             </div>
+
+            <p className="text-sm text-gray-600 mb-6">
+              Employer NIS this run: <span className="font-medium">{formatMoney(totals.employerNis)}</span>{' '}
+              (memo only — not taken from net). PAYE is still calculated in Pay+.
+            </p>
 
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

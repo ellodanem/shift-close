@@ -25,7 +25,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       include: {
         payPeriod: { select: { id: true, startDate: true, endDate: true } },
-        lines: { select: { extraLines: true, extraPay: true, grossPay: true } },
+        lines: { select: { extraLines: true, extraPay: true, extraDeductions: true, extraDeductionPay: true, grossPay: true, nisEmployee: true, nisEmployer: true, netPay: true } },
         _count: { select: { lines: true } }
       }
     })
@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     const built = await rebuildPayRunLines('new', {
       hoursRows,
       cycle,
+      payDate: period.endDate,
       keepOverrides: false
     })
 

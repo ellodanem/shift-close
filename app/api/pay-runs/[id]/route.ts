@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
+import { loadNisTakenByStaffId, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
+import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   computeGrossPay,
   parseExtraLines,
@@ -76,12 +77,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Pay run line not found' }, { status: 404 })
       }
       const extraLines = body.line.extraLines !== undefined ? parseExtraLines(body.line.extraLines) : parseExtraLines(existing.extraLines)
+      const extraDeductions =
+        body.line.extraDeductions !== undefined
+          ? parseExtraLines(body.line.extraDeductions)
+          : parseExtraLines(existing.extraDeductions)
       const hourlyRate =
         body.line.hourlyRate !== undefined ? parseMoney(body.line.hourlyRate) : existing.hourlyRate
       const salariedAmount =
         body.line.salariedAmount !== undefined
           ? parseMoney(body.line.salariedAmount)
           : existing.salariedAmount
+      const staffLoan = body.line.staffLoan !== undefined ? parseMoney(body.line.staffLoan) : existing.staffLoan
+      const medical = body.line.medical !== undefined ? parseMoney(body.line.medical) : existing.medical
+      const shortageReady =
+        body.line.shortageReady !== undefined ? parseMoney(body.line.shortageReady) : existing.shortageReady
       const payType = parsePayType(body.line.payType ?? existing.payType)
       const pay = computeGrossPay({
         payType,
@@ -91,6 +100,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         salariedAmount,
         extraLines
       })
+      const nisTaken = existing.staffId
+        ? (await loadNisTakenByStaffId(run.payDate, id))[existing.staffId]
+        : undefined
+      const deducted = computePayRunDeductions({
+        grossPay: pay.grossPay,
+        staffLoan,
+        medical,
+        shortage: shortageReady,
+        extraDeductions,
+        nisEmployeeTaken: nisTaken?.employee,
+        nisEmployerTaken: nisTaken?.employer
+      })
       await prisma.payRunLine.update({
         where: { id: lineId },
         data: {
@@ -99,9 +120,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           salariedAmount,
           extraLines: JSON.stringify(extraLines),
           extraPay: pay.extraPay,
+          extraDeductions: JSON.stringify(deducted.extraDeductions),
+          extraDeductionPay: deducted.extraDeductionPay,
           basicPay: pay.basicPay,
           otPay: pay.otPay,
-          grossPay: pay.grossPay
+          grossPay: pay.grossPay,
+          shortageReady: deducted.shortage,
+          nisEmployee: deducted.nisEmployee,
+          nisEmployer: deducted.nisEmployer,
+          staffLoan: deducted.staffLoan,
+          medical: deducted.medical,
+          totalDeductions: deducted.totalDeductions,
+          netPay: deducted.netPay
         }
       })
     }
@@ -131,6 +161,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const built = await rebuildPayRunLines(id, {
         hoursRows,
         cycle: parsePayCycle(run.cycle),
+        payDate: run.payDate,
         keepOverrides: true
       })
       const updated = await prisma.$transaction(async (tx) => {
@@ -157,10 +188,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (run.status === 'processed') {
         return NextResponse.json(presentRun(run))
       }
-      const processed = await prisma.payRun.update({
-        where: { id },
-        data: { status: 'processed', processedAt: new Date() },
-        include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+      const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
+      const built = await rebuildPayRunLines(id, {
+        hoursRows,
+        cycle: parsePayCycle(run.cycle),
+        payDate: run.payDate,
+        keepOverrides: true
+      })
+      const processed = await prisma.$transaction(async (tx) => {
+        await tx.payRunLine.deleteMany({ where: { payRunId: id } })
+        return tx.payRun.update({
+          where: { id },
+          data: {
+            status: 'processed',
+            processedAt: new Date(),
+            sourceHash: built.sourceHash,
+            startDate: run.payPeriod.startDate,
+            endDate: run.payPeriod.endDate,
+            entityName: run.payPeriod.entityName,
+            lines: { create: built.lines.map((line, i) => serializePayRunLine(line, i)) }
+          },
+          include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+        })
       })
       return NextResponse.json(presentRun(processed))
     }

@@ -424,15 +424,24 @@ export function serializePayRunLine(line: BuiltPayRunLine, sortOrder: number) {
     otPay: line.otPay,
     extraPay: line.extraPay,
     extraLines: JSON.stringify(line.extraLines),
+    extraDeductions: JSON.stringify(line.extraDeductions),
+    extraDeductionPay: line.extraDeductionPay,
     grossPay: line.grossPay,
     shortageReady: line.shortageReady,
+    nisEmployee: line.nisEmployee,
+    nisEmployer: line.nisEmployer,
+    staffLoan: line.staffLoan,
+    medical: line.medical,
+    totalDeductions: line.totalDeductions,
+    netPay: line.netPay,
     sortOrder
   }
 }
 
-export function presentPayRunLine<T extends { extraLines: string }>(row: T) {
+export function presentPayRunLine<T extends { extraLines: string; extraDeductions?: string }>(row: T) {
   return {
     ...row,
-    extraLines: parseExtraLines(row.extraLines)
+    extraLines: parseExtraLines(row.extraLines),
+    extraDeductions: parseExtraLines(row.extraDeductions ?? '[]')
   }
 }

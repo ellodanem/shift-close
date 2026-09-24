@@ -7,6 +7,8 @@ export function redactStaffRecord<
     accountNumber?: unknown
     hourlyRate?: unknown
     salariedAmount?: unknown
+    staffLoan?: unknown
+    medicalAmount?: unknown
   }
 >(staff: T, role: string): T {
   if (canViewStaffSensitiveFields(role)) return staff
@@ -16,6 +18,8 @@ export function redactStaffRecord<
     bankName: null,
     accountNumber: null,
     hourlyRate: null,
-    salariedAmount: null
+    salariedAmount: null,
+    staffLoan: null,
+    medicalAmount: null
   }
 }

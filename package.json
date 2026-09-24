@@ -26,6 +26,7 @@
     "test:pay-period-rows": "tsx --test scripts/test-pay-period-rows.ts",
     "test:pay-cycle": "tsx --test scripts/test-pay-cycle.ts",
     "test:pay-run": "tsx --test scripts/test-pay-run.ts",
+    "test:pay-run-deductions": "tsx --test scripts/test-pay-run-deductions.ts",
     "test:email": "tsx --test scripts/test-email-defaults.ts",
     "test:shift-sales": "tsx --test scripts/test-shift-sales.ts",
     "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts",

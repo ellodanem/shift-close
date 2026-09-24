@@ -171,7 +171,9 @@ function EditStaffPageInner() {
     payCycle: 'semimonthly',
     payType: 'hourly',
     hourlyRate: '' as string,
-    salariedAmount: '' as string
+    salariedAmount: '' as string,
+    staffLoan: '' as string,
+    medicalAmount: '' as string
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -446,6 +448,14 @@ function EditStaffPageInner() {
         salariedAmount:
           (data as any).salariedAmount != null && (data as any).salariedAmount !== ''
             ? String((data as any).salariedAmount)
+            : '',
+        staffLoan:
+          (data as any).staffLoan != null && (data as any).staffLoan !== ''
+            ? String((data as any).staffLoan)
+            : '',
+        medicalAmount:
+          (data as any).medicalAmount != null && (data as any).medicalAmount !== ''
+            ? String((data as any).medicalAmount)
             : ''
       }
       setFormData(next)
@@ -1603,6 +1613,30 @@ function EditStaffPageInner() {
                       placeholder="Bank account number"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.staffLoan}
+                      onChange={(e) => setFormData({ ...formData, staffLoan: e.target.value })}
+                      className={inputClass}
+                      placeholder="Per pay run"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.medicalAmount}
+                      onChange={(e) => setFormData({ ...formData, medicalAmount: e.target.value })}
+                      className={inputClass}
+                      placeholder="Per pay run"
+                    />
+                  </div>
                 </div>
                 {editFooter}
               </>
@@ -1623,6 +1657,14 @@ function EditStaffPageInner() {
                 )}
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
+                <FieldDisplay
+                  label="Staff loan"
+                  value={formData.staffLoan ? formatMoney(Number(formData.staffLoan)) : null}
+                />
+                <FieldDisplay
+                  label="Medical"
+                  value={formData.medicalAmount ? formatMoney(Number(formData.medicalAmount)) : null}
+                />
               </dl>
             )}
           </form>

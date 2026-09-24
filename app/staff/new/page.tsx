@@ -46,7 +46,9 @@ export default function NewStaffPage() {
     payCycle: 'semimonthly',
     payType: 'hourly',
     hourlyRate: '',
-    salariedAmount: ''
+    salariedAmount: '',
+    staffLoan: '',
+    medicalAmount: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -423,15 +425,39 @@ export default function NewStaffPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Account number</label>
-                  <input
-                    type="text"
-                    value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder="Bank account number"
-                  />
+                    <input
+                      type="text"
+                      value={formData.accountNumber}
+                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                      className={inputClass}
+                      placeholder="Bank account number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.staffLoan}
+                      onChange={(e) => setFormData({ ...formData, staffLoan: e.target.value })}
+                      className={inputClass}
+                      placeholder="Per pay run"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.medicalAmount}
+                      onChange={(e) => setFormData({ ...formData, medicalAmount: e.target.value })}
+                      className={inputClass}
+                      placeholder="Per pay run"
+                    />
+                  </div>
                 </div>
-              </div>
             </section>
           )}
 

@@ -75,7 +75,9 @@ export async function POST(request: NextRequest) {
       payCycle: payCycleBody,
       payType: payTypeBody,
       hourlyRate: hourlyRateBody,
-      salariedAmount: salariedAmountBody
+      salariedAmount: salariedAmountBody,
+      staffLoan: staffLoanBody,
+      medicalAmount: medicalAmountBody
     } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
@@ -176,7 +178,9 @@ export async function POST(request: NextRequest) {
                 payCycle: parsePayCycle(payCycleBody),
                 payType: parsePayType(payTypeBody),
                 hourlyRate: parseOptionalMoney(hourlyRateBody),
-                salariedAmount: parseOptionalMoney(salariedAmountBody)
+                salariedAmount: parseOptionalMoney(salariedAmountBody),
+                staffLoan: parseOptionalMoney(staffLoanBody),
+                medicalAmount: parseOptionalMoney(medicalAmountBody)
               }
             })
           },
