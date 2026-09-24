@@ -31,14 +31,11 @@ interface Row {
   supervisor: string
   recordKind: RecordKind
   lineIndex: number
-  /** For debit rows: day-sheet Other Items — Credit + Debit lines; amount = sum of both. */
+  /** For debit rows: this shift’s Other Items — Credit + Debit; amount = sum of both. */
   amount: number
   systemDebit?: number
   /** Other Items “Credit” line (not POS Credits row). */
   otherCredit?: number
-  /** True when this row aggregates all shifts that calendar day (one credit/debit reconciliation per date). */
-  debitDayAggregate?: boolean
-  contributingShifts?: Array<{ shiftId: string; shift: string }>
   /** Shift-level night deposit bag number(s); on deposit rows only. */
   bagNumbers?: string[]
   scanUrls: string[]
@@ -327,7 +324,7 @@ function buildDefaultDiscrepancyEmailBody(_date: string, deposits: Row[], debits
     if (r.recordKind === 'deposit') {
       body += `Deposit: ${formatCurrency(r.amount)}`
     } else {
-      body += `Debits/Credits : ${formatCurrency(r.amount)}`
+      body += `Debits/Credits (${r.shift}): ${formatCurrency(r.amount)}`
     }
     const note = (r.notes || '').trim()
     if (note) {
@@ -1131,7 +1128,9 @@ function DepositComparisonsPage() {
     return dates.map((date) => ({
       date,
       deposits: (m.get(date) ?? []).filter((x) => x.recordKind === 'deposit'),
-      debits: (m.get(date) ?? []).filter((x) => x.recordKind === 'debit')
+      debits: (m.get(date) ?? [])
+        .filter((x) => x.recordKind === 'debit')
+        .sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
     }))
   }, [displayRows])
 
@@ -1557,7 +1556,7 @@ function ItemRowDetail({ r }: { r: Row }) {
   return (
     <span
       className="inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-900"
-      title="Other Items on the end-of-day sheet: Credit line + Debit line. Total = both; day row sums each shift that closed that date."
+      title="Other Items on the end-of-day sheet for this shift: Credit line + Debit line. Total = both."
     >
       O.I.
     </span>
@@ -1565,22 +1564,6 @@ function ItemRowDetail({ r }: { r: Row }) {
 }
 
 function ItemRowRecordLinks({ r }: { r: Row }) {
-  if (r.recordKind === 'debit' && r.debitDayAggregate && r.contributingShifts && r.contributingShifts.length > 1) {
-    return (
-      <div className="flex flex-wrap gap-x-2 gap-y-1 md:max-w-[14rem]">
-        {r.contributingShifts.map((cs) => (
-          <Link
-            key={cs.shiftId}
-            href={`/shifts/${cs.shiftId}`}
-            className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline"
-            title="Open shift record"
-          >
-            {cs.shift}
-          </Link>
-        ))}
-      </div>
-    )
-  }
   return (
     <div className="flex flex-wrap gap-x-2 gap-y-1">
       <Link href={`/shifts/${r.shiftId}`} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
@@ -1589,6 +1572,27 @@ function ItemRowRecordLinks({ r }: { r: Row }) {
       <Link href={endOfDayPath(r.date)} className="whitespace-nowrap text-xs font-medium text-blue-600 hover:underline">
         EOD
       </Link>
+    </div>
+  )
+}
+
+function DebitDayTotal({ rows }: { rows: Row[] }) {
+  if (rows.length < 2 || rows.some((r) => r.recordKind !== 'debit')) return null
+  const amount = rows.reduce((a, r) => a + r.amount, 0)
+  const debit = rows.reduce((a, r) => a + (r.systemDebit ?? 0), 0)
+  const credit = rows.reduce((a, r) => a + (r.otherCredit ?? 0), 0)
+  return (
+    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-slate-200 pt-3 text-sm">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Day total</span>
+      <div className="text-right">
+        <div className="font-semibold tabular-nums text-slate-900">{formatCurrency(amount)}</div>
+        <div className="mt-0.5 text-[11px] leading-tight tabular-nums text-slate-600">
+          <span>Debit </span>
+          <span className="font-bold text-[#4169E1]">{formatCurrency(debit)}</span>
+          <span> · Credit </span>
+          <span className="font-bold text-[#4169E1]">{formatCurrency(credit)}</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1662,6 +1666,7 @@ function ItemTable({
             </div>
           )
         })}
+        <DebitDayTotal rows={rows} />
       </div>
 
       <div className="-mx-1 hidden overflow-x-auto md:block">
@@ -1733,6 +1738,7 @@ function ItemTable({
           })}
         </tbody>
       </table>
+      <DebitDayTotal rows={rows} />
       </div>
     </>
   )

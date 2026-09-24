@@ -174,7 +174,7 @@ comparisonDueDate(D):
 
 **Completion** (once `today >= comparisonDueDate(D)` and not `na`):
 
-- All deposit and day-sheet debit lines for D: `bankStatus === 'cleared'`.
+- All deposit lines and each shift’s day-sheet credit/debit row for D: `bankStatus === 'cleared'`.
 - Any `discrepancy` → status **`discrepancy`** (counts toward badge until resolved).
 
 **Before due date:** `not_due`.

@@ -6,8 +6,6 @@ import {
   BANK_STATUSES,
   buildComparisonRowsFromShifts,
   parseDeposits,
-  parseUrlList,
-  recordKey,
   type BankStatus,
   type RecordKind
 } from '@/lib/deposit-comparison-rows'
@@ -26,7 +24,7 @@ const MAX_SHIFT_TAKE = 3000
  * GET ?status= &: optional from,to or recentDays; hideCleared=true; shiftLimit= (legacy cap when no date range)
  * from/to or recentDays = all matching closed/reviewed shifts in range (no take cap).
  * shiftLimit only applies when no date range is specified (legacy clients).
- * hideCleared: omit entire calendar days where every deposit line and the day debit row are cleared
+ * hideCleared: omit entire calendar days where every deposit line and credit/debit row are cleared
  * (pending or discrepancy on any line keeps the day visible). Applied before status filter.
  */
 export async function GET(request: NextRequest) {
@@ -172,39 +170,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
     }
 
-    let upsertShiftId = shiftId
-
     if (recordKind === 'deposit') {
       const amounts = parseDeposits(shift.deposits)
       if (lineIndex >= amounts.length) {
         return NextResponse.json({ error: 'Invalid line index for this shift' }, { status: 400 })
       }
     } else {
-      /** One debit reconciliation per calendar day; stored on canonical shift (first by shift label, numeric-aware). */
-      const sameDay = await prisma.shiftClose.findMany({
-        where: { date: shift.date, status: { in: ['closed', 'reviewed'] } }
-      })
-      sameDay.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
-      const canonical = sameDay[0]
-      if (!canonical) {
-        return NextResponse.json({ error: 'No shifts for this date' }, { status: 400 })
-      }
-      let sumDebit = 0
-      let sumOtherCredit = 0
-      let anyDebitScan = false
-      for (const s of sameDay) {
-        sumDebit += Number(s.systemDebit) || 0
-        sumOtherCredit += Number(s.otherCredit) || 0
-        if (parseUrlList(s.debitScanUrls).length > 0) anyDebitScan = true
-      }
-      const combined = sumDebit + sumOtherCredit
-      if (combined === 0 && !anyDebitScan) {
+      const daySheetDebit = Number(shift.systemDebit) || 0
+      const daySheetCredit = Number(shift.otherCredit) || 0
+      if (daySheetDebit === 0 && daySheetCredit === 0) {
         return NextResponse.json(
-          { error: 'No day-sheet credit/debit totals or debit scans for this calendar day' },
+          { error: 'No day-sheet credit/debit totals for this shift' },
           { status: 400 }
         )
       }
-      upsertShiftId = canonical.id
     }
 
     const data: {
@@ -234,10 +213,10 @@ export async function PATCH(request: NextRequest) {
 
     const updated = await prisma.depositRecord.upsert({
       where: {
-        shiftId_recordKind_lineIndex: { shiftId: upsertShiftId, recordKind, lineIndex }
+        shiftId_recordKind_lineIndex: { shiftId, recordKind, lineIndex }
       },
       create: {
-        shiftId: upsertShiftId,
+        shiftId,
         recordKind,
         lineIndex,
         bankStatus: data.bankStatus ?? 'pending',

@@ -6,7 +6,7 @@ import {
 
 /**
  * URLs to attach for discrepancy email: deposit discrepancies → all deposit scans for the day +
- * security slips on deposit lines; Other Items discrepancies → debit scans + security on the day row.
+ * security slips on deposit lines; Other Items discrepancies → debit scans + security on debit rows.
  * When both apply, union and dedupe by URL (order: deposit scans, deposit security, debit scans, debit security).
  */
 export function collectDiscrepancyAttachmentUrls(

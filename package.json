@@ -33,7 +33,8 @@
     "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts",
     "test:fuel-prices": "tsx --test scripts/test-fuel-prices.ts",
     "test:fuel-comparison": "tsx --test scripts/test-fuel-comparison.ts",
-    "test:inbox-compose": "tsx --test scripts/test-inbox-compose.ts"
+    "test:inbox-compose": "tsx --test scripts/test-inbox-compose.ts",
+    "test:deposit-comparisons": "tsx --test scripts/test-deposit-comparison-rows.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

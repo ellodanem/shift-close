@@ -16,8 +16,6 @@ export type ComparisonRow = {
   amount: number
   systemDebit?: number
   otherCredit?: number
-  debitDayAggregate?: boolean
-  contributingShifts?: Array<{ shiftId: string; shift: string }>
   /** Shift-level night deposit bag number(s); repeated on each deposit line for that shift. */
   bagNumbers: string[]
   scanUrls: string[]
@@ -81,7 +79,7 @@ export function recordKey(shiftId: string, recordKind: string, lineIndex: number
   return `${shiftId}:${recordKind}:${lineIndex}`
 }
 
-/** Build deposit + day-aggregated debit rows from loaded shifts (same rules as deposit-comparisons GET). */
+/** Build deposit lines and one credit/debit row per shift (same rules as deposit-comparisons GET). */
 export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[]): ComparisonRow[] {
   const recordByKey = new Map<string, DepositRecord>()
   for (const s of shifts) {
@@ -92,15 +90,6 @@ export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[])
   }
 
   const rows: ComparisonRow[] = []
-
-  type DayDebitBucket = {
-    date: string
-    shifts: ShiftWithDepositRecords[]
-    sumDebit: number
-    sumOtherCredit: number
-    scanUrls: string[]
-  }
-  const debitByDate = new Map<string, DayDebitBucket>()
 
   for (const s of shifts) {
     const amounts = parseDeposits(s.deposits)
@@ -133,70 +122,30 @@ export function buildComparisonRowsFromShifts(shifts: ShiftWithDepositRecords[])
       })
     }
 
-    const showDebitForShift = debitCreditCombined !== 0 || debitScanUrls.length > 0
-    if (showDebitForShift) {
-      let bucket = debitByDate.get(s.date)
-      if (!bucket) {
-        bucket = { date: s.date, shifts: [], sumDebit: 0, sumOtherCredit: 0, scanUrls: [] }
-        debitByDate.set(s.date, bucket)
-      }
-      bucket.shifts.push(s)
-      bucket.sumDebit += daySheetDebit
-      bucket.sumOtherCredit += daySheetCredit
-      for (const u of debitScanUrls) {
-        if (!bucket.scanUrls.includes(u)) bucket.scanUrls.push(u)
-      }
+    // Debit scans are copied onto every shift that date; only amount-bearing shifts get a row.
+    if (debitCreditCombined !== 0) {
+      const rec = recordByKey.get(recordKey(s.id, 'debit', 0))
+      const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
+      const notes = rec?.notes ?? ''
+      const securitySlipUrl = rec?.securitySlipUrl ?? null
+
+      rows.push({
+        shiftId: s.id,
+        date: s.date,
+        shift: s.shift,
+        supervisor: s.supervisor || '—',
+        recordKind: 'debit',
+        lineIndex: 0,
+        amount: debitCreditCombined,
+        systemDebit: daySheetDebit,
+        otherCredit: daySheetCredit,
+        bagNumbers: [],
+        scanUrls: debitScanUrls,
+        securitySlipUrl,
+        bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
+        notes
+      })
     }
-  }
-
-  for (const bucket of debitByDate.values()) {
-    bucket.shifts.sort((a, b) => a.shift.localeCompare(b.shift, undefined, { numeric: true }))
-    const canonical = bucket.shifts[0]
-    const combined = bucket.sumDebit + bucket.sumOtherCredit
-    if (combined === 0 && bucket.scanUrls.length === 0) continue
-
-    let rec = recordByKey.get(recordKey(canonical.id, 'debit', 0))
-    if (!rec) {
-      for (const s of bucket.shifts) {
-        const r = recordByKey.get(recordKey(s.id, 'debit', 0))
-        if (r) {
-          rec = r
-          break
-        }
-      }
-    }
-
-    const bankStatus = (rec?.bankStatus as BankStatus) || 'pending'
-    const notes = rec?.notes ?? ''
-    let securitySlipUrl: string | null = rec?.securitySlipUrl ?? null
-    if (!securitySlipUrl) {
-      for (const s of bucket.shifts) {
-        const r = recordByKey.get(recordKey(s.id, 'debit', 0))
-        if (r?.securitySlipUrl) {
-          securitySlipUrl = r.securitySlipUrl
-          break
-        }
-      }
-    }
-
-    rows.push({
-      shiftId: canonical.id,
-      date: bucket.date,
-      shift: 'Day total',
-      supervisor: bucket.shifts.map((x) => x.supervisor).filter(Boolean).join(' · ') || '—',
-      recordKind: 'debit',
-      lineIndex: 0,
-      amount: combined,
-      systemDebit: bucket.sumDebit,
-      otherCredit: bucket.sumOtherCredit,
-      debitDayAggregate: true,
-      contributingShifts: bucket.shifts.map((x) => ({ shiftId: x.id, shift: x.shift })),
-      bagNumbers: [],
-      scanUrls: bucket.scanUrls,
-      securitySlipUrl,
-      bankStatus: BANK_STATUSES.includes(bankStatus as BankStatus) ? bankStatus : 'pending',
-      notes
-    })
   }
 
   return rows
