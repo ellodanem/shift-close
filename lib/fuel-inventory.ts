@@ -2,7 +2,7 @@ import { addCalendarDaysYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 
 /** Tanks read empty at these remaining litres. Shown on screen; subtracted for all forecasts. */
 export const UNLEADED_UNUSABLE_LITRES = 2000
-export const DIESEL_UNUSABLE_LITRES = 1000
+export const DIESEL_UNUSABLE_LITRES = 1500
 
 export const WEEKDAY_SAMPLE_SIZE = 12
 export const BUSY_PERCENTILE = 0.75

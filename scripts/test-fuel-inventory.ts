@@ -38,10 +38,10 @@ describe('fuel inventory book', () => {
   it('subtracts unusable reserves only for forecasts', () => {
     assert.equal(usableLitres(12000, 'unleaded'), 10000)
     assert.equal(usableLitres(1500, 'unleaded'), 0)
-    assert.equal(usableLitres(8000, 'diesel'), 7000)
-    assert.equal(usableLitres(900, 'diesel'), 0)
+    assert.equal(usableLitres(8000, 'diesel'), 6500)
+    assert.equal(usableLitres(1400, 'diesel'), 0)
     assert.equal(UNLEADED_UNUSABLE_LITRES, 2000)
-    assert.equal(DIESEL_UNUSABLE_LITRES, 1000)
+    assert.equal(DIESEL_UNUSABLE_LITRES, 1500)
   })
 
   it('replays opening + same-day deliveries - sales', () => {
@@ -62,7 +62,7 @@ describe('fuel inventory book', () => {
     assert.equal(book.onHand.unleaded, 14500)
     assert.equal(book.onHand.diesel, 9600)
     assert.equal(book.usable.unleaded, 12500)
-    assert.equal(book.usable.diesel, 8600)
+    assert.equal(book.usable.diesel, 8100)
   })
 
   it('ignores null invoice litres and counts zero', () => {
