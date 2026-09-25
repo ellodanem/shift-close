@@ -97,6 +97,24 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ---
 
-## 6. Adding more ideas
+## 6. Payroll is its own tile and process
+
+**Status:** Decision only (2026-09-25). Do not implement yet.
+
+**Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
+
+**Rough behavior:**
+
+- Own home tile and nav entry, separate from Attendance.
+- Enter the payroll flow from that tile. It is not a button or continuation on the Attendance page.
+- Today that continuation is **Extract Pay Period** on Attendance → `/attendance/pay-period`, then **Pay run** from a saved period (`/pay-run`). That chain should not be the way payroll is started.
+- Attendance stays punches, roster match, late/absent, and the staff attendance report.
+- The link is data (attendance feeds payroll). It is not a wizard step.
+
+**Open decisions:** Tile label (Payroll vs Pay period vs Pay run), and whether the pay-period report and pay run sit under one payroll process or stay two screens inside it.
+
+---
+
+## 7. Adding more ideas
 
 Use short subsections with **Goal**, **Rough behavior**, and **Open decisions**. Link to PRDs or issues when they exist.
