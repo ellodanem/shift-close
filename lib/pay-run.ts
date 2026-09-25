@@ -23,6 +23,8 @@ export const SKIP_SALARY_LABEL = '__skipSalary'
 export type PayRunExtraLine = {
   label: string
   amount: number
+  /** Set when this line is an added hour category. Amount is the pay for those hours. */
+  hours?: number
 }
 
 export type PayRunHoursRow = {
@@ -138,11 +140,12 @@ export function parseExtraLines(raw: unknown): PayRunExtraLine[] {
   return raw
     .map((line) => {
       if (!line || typeof line !== 'object') return null
-      const o = line as { label?: unknown; amount?: unknown }
+      const o = line as { label?: unknown; amount?: unknown; hours?: unknown }
       const label = typeof o.label === 'string' ? o.label.trim() : ''
       const amount = parseMoney(o.amount)
-      if (!label && amount === 0) return null
-      return { label: label || 'Extra', amount }
+      const hours = typeof o.hours === 'number' && Number.isFinite(o.hours) ? parseMoney(o.hours) : undefined
+      if (!label && amount === 0 && !hours) return null
+      return { label: label || 'Extra', amount, ...(hours ? { hours } : {}) }
     })
     .filter((line): line is PayRunExtraLine => line !== null)
 }

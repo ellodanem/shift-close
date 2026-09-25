@@ -9,14 +9,24 @@ import { printBankingPack } from '@/lib/pay-run-banking-print'
 import { creditUnionLetters, downloadCreditUnionLetter } from '@/lib/pay-run-cu-letter'
 import { printNisReport, printPayrollPreview } from '@/lib/payroll-print'
 import {
+  amountForLabel,
+  buildDeductionLines,
+  buildExtraLines,
+  categoryLabelTaken,
+  defaultPayrollCategories,
+  hoursForLabel,
+  loadPayrollCategories,
+  newPayrollCategory,
+  savePayrollCategories,
+  type CategoryKind,
+  type PayrollCategory
+} from '@/lib/payroll-categories'
+import {
   computeGrossPay,
-  extraPayTotal,
   formatMoney,
   parseMoney,
   parsePayType,
   salarySkipped,
-  setSalarySkipped,
-  setSingleExtraAmount,
   type PayRunExtraLine
 } from '@/lib/pay-run'
 
@@ -86,9 +96,8 @@ type Draft = {
   loan: string
   medical: string
   otherDeduction: string
+  custom: Record<string, string>
 }
-
-const SHOW_ALL_KEY = 'payroll-show-all-money'
 
 function mdy(ymd: string): string {
   const [y, m, d] = ymd.split('-')
@@ -100,25 +109,44 @@ function moneyInput(value: number): string {
   return value ? String(value) : ''
 }
 
-function draftFromLine(line: PayRunLine): Draft {
+function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
+  const custom: Record<string, string> = {}
+  for (const category of categories) {
+    if (category.builtin) continue
+    if (category.kind === 'hours') {
+      const hours = hoursForLabel(line.extraLines, category.label)
+      custom[category.id] = hours ? String(hours) : ''
+    } else if (category.kind === 'deduction') {
+      custom[category.id] = moneyInput(amountForLabel(line.extraDeductions, category.label))
+    } else {
+      custom[category.id] = moneyInput(amountForLabel(line.extraLines, category.label))
+    }
+  }
   return {
     rate: String(line.hourlyRate || ''),
     salary: String(line.salariedAmount || ''),
     basicHours: line.basicHours ? String(line.basicHours) : '',
     otHours: line.otHours ? String(line.otHours) : '',
-    extra: moneyInput(extraPayTotal(line.extraLines)),
+    extra: moneyInput(amountForLabel(line.extraLines, 'Extra')),
     paySalary: !salarySkipped(line.extraLines),
     shortage: moneyInput(line.shortageReady),
     loan: moneyInput(line.staffLoan),
     medical: moneyInput(line.medical),
-    otherDeduction: moneyInput(extraPayTotal(line.extraDeductions))
+    otherDeduction: moneyInput(amountForLabel(line.extraDeductions, 'Other')),
+    custom
   }
 }
 
-function extraLinesFor(line: PayRunLine, draft: Draft): PayRunExtraLine[] {
-  const withExtra = setSingleExtraAmount(line.extraLines, parseMoney(draft.extra))
+function extraLinesFor(line: PayRunLine, draft: Draft, categories: PayrollCategory[]): PayRunExtraLine[] {
   const salaried = parsePayType(line.payType) === 'salaried'
-  return setSalarySkipped(withExtra, salaried && !draft.paySalary)
+  return buildExtraLines({
+    existing: line.extraLines,
+    extraAmount: parseMoney(draft.extra),
+    hourlyRate: parseMoney(draft.rate),
+    categories,
+    values: draft.custom,
+    salarySkipped: salaried && !draft.paySalary
+  })
 }
 
 function shownYtd(savedYtd: number, savedCurrent: number, draftValue: string | undefined): number {
@@ -126,9 +154,31 @@ function shownYtd(savedYtd: number, savedCurrent: number, draftValue: string | u
   return savedYtd - savedCurrent + parseMoney(draftValue)
 }
 
-function deductionLines(amount: string): PayRunExtraLine[] {
-  const n = parseMoney(amount)
-  return n > 0 ? [{ label: 'Other', amount: n }] : []
+type DeductionKey = 'loan' | 'medical' | 'shortage' | 'otherDeduction'
+
+const DETAIL_DEDUCTIONS: { key: DeductionKey; label: string; aria: string }[] = [
+  { key: 'loan', label: 'Loan', aria: 'Loan' },
+  { key: 'medical', label: 'Medical', aria: 'Medical' },
+  { key: 'shortage', label: 'Shortage', aria: 'Shortage' },
+  { key: 'otherDeduction', label: 'Other', aria: 'Other deduction' }
+]
+
+function deductionYtd(line: PayRunLine, key: DeductionKey, value: string | undefined): number {
+  if (key === 'loan') return shownYtd(line.ytd?.staffLoan ?? line.staffLoan, line.staffLoan, value)
+  if (key === 'medical') return shownYtd(line.ytd?.medical ?? line.medical, line.medical, value)
+  if (key === 'shortage') {
+    return shownYtd(line.ytd?.shortageReady ?? line.shortageReady, line.shortageReady, value)
+  }
+  return shownYtd(line.ytd?.extraDeductionPay ?? line.extraDeductionPay ?? 0, line.extraDeductionPay ?? 0, value)
+}
+
+function deductionLines(line: PayRunLine, draft: Draft, categories: PayrollCategory[]): PayRunExtraLine[] {
+  return buildDeductionLines({
+    existing: line.extraDeductions,
+    otherAmount: parseMoney(draft.otherDeduction),
+    categories,
+    values: draft.custom
+  })
 }
 
 function HoursField({
@@ -164,7 +214,10 @@ export default function PayrollRunPage() {
   const [endDate, setEndDate] = useState('')
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [details, setDetails] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const [categories, setCategories] = useState<PayrollCategory[]>(defaultPayrollCategories)
+  const [typesOpen, setTypesOpen] = useState(false)
+  const [newTypeName, setNewTypeName] = useState('')
+  const [newTypeKind, setNewTypeKind] = useState<CategoryKind>('money')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -186,7 +239,8 @@ export default function PayrollRunPage() {
     setStartDate(next.startDate)
     setEndDate(next.endDate)
     const seeded: Record<string, Draft> = {}
-    for (const line of next.lines) seeded[line.id] = draftFromLine(line)
+    const savedCategories = loadPayrollCategories()
+    for (const line of next.lines) seeded[line.id] = draftFromLine(line, savedCategories)
     setDrafts(seeded)
     if (next.status === 'processed' || next.status === 'void') setStep(4)
     return next
@@ -200,11 +254,7 @@ export default function PayrollRunPage() {
   }, [load])
 
   useEffect(() => {
-    try {
-      setShowAll(window.localStorage.getItem(SHOW_ALL_KEY) === '1')
-    } catch {
-      setShowAll(false)
-    }
+    setCategories(loadPayrollCategories())
   }, [])
 
   const locked = run?.status === 'processed' || run?.status === 'void'
@@ -222,10 +272,10 @@ export default function PayrollRunPage() {
         otHours: parseMoney(draft.otHours),
         hourlyRate: parseMoney(draft.rate),
         salariedAmount: parseMoney(draft.salary),
-        extraLines: extraLinesFor(line, draft)
+        extraLines: extraLinesFor(line, draft, categories)
       }).grossPay
     },
-    [drafts]
+    [drafts, categories]
   )
 
   const patchDraft = (lineId: string, patch: Partial<Draft>) => {
@@ -242,15 +292,15 @@ export default function PayrollRunPage() {
         startDate,
         endDate,
         lines: run.lines.map((line) => {
-          const draft = drafts[line.id] ?? draftFromLine(line)
+          const draft = drafts[line.id] ?? draftFromLine(line, categories)
           return {
             id: line.id,
             basicHours: parseMoney(draft.basicHours),
             otHours: parseMoney(draft.otHours),
             hourlyRate: parseMoney(draft.rate),
             salariedAmount: parseMoney(draft.salary),
-            extraLines: extraLinesFor(line, draft),
-            extraDeductions: deductionLines(draft.otherDeduction),
+            extraLines: extraLinesFor(line, draft, categories),
+            extraDeductions: deductionLines(line, draft, categories),
             shortageReady: parseMoney(draft.shortage),
             staffLoan: parseMoney(draft.loan),
             medical: parseMoney(draft.medical)
@@ -265,7 +315,7 @@ export default function PayrollRunPage() {
     if (typeof data.startDate === 'string') setStartDate(data.startDate)
     if (typeof data.endDate === 'string') setEndDate(data.endDate)
     const seeded: Record<string, Draft> = {}
-    for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line)
+    for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line, categories)
     setDrafts(seeded)
     return data as PayRun
   }
@@ -394,7 +444,7 @@ export default function PayrollRunPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to reload hours')
       setRun(data)
       const seeded: Record<string, Draft> = {}
-      for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line)
+      for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line, categories)
       setDrafts(seeded)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reload hours')
@@ -409,12 +459,12 @@ export default function PayrollRunPage() {
       for (const line of hourly) {
         const draft = next[line.id]
         if (!draft) continue
-        next[line.id] = { ...draft, basicHours: '', otHours: '', extra: '', shortage: '' }
+        next[line.id] = { ...draft, basicHours: '', otHours: '', extra: '', shortage: '', custom: {} }
       }
       for (const line of salaried) {
         const draft = next[line.id]
         if (!draft) continue
-        next[line.id] = { ...draft, extra: '' }
+        next[line.id] = { ...draft, extra: '', custom: {} }
       }
       return next
     })
@@ -546,6 +596,88 @@ export default function PayrollRunPage() {
   const sumMedical = (lines: PayRunLine[]) =>
     lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.medical ?? ''), 0)
   const sumGross = (lines: PayRunLine[]) => lines.reduce((sum, line) => sum + grossFor(line), 0)
+  const hourlyColumns = categories.filter((category) => category.enabled)
+  const salariedColumns = hourlyColumns.filter((category) => category.kind !== 'hours')
+
+  const updateCategories = (next: PayrollCategory[]) => {
+    setCategories(next)
+    savePayrollCategories(next)
+  }
+
+  const toggleCategory = (id: string) => {
+    if (id === 'basic') return
+    updateCategories(
+      categories.map((category) => (category.id === id ? { ...category, enabled: !category.enabled } : category))
+    )
+  }
+
+  const addCategory = () => {
+    const label = newTypeName.trim()
+    if (!label) return
+    if (categoryLabelTaken(categories, label)) {
+      setError('That hours or money type is already on the list.')
+      return
+    }
+    updateCategories([...categories, newPayrollCategory(label, newTypeKind)])
+    setNewTypeName('')
+    setError(null)
+  }
+
+  const removeCategory = (id: string) => {
+    const category = categories.find((item) => item.id === id)
+    if (!category || category.builtin) return
+    updateCategories(categories.filter((item) => item.id !== id))
+    setRun((current) =>
+      current
+        ? {
+            ...current,
+            lines: current.lines.map((line) => ({
+              ...line,
+              extraLines:
+                category.kind === 'deduction'
+                  ? line.extraLines
+                  : line.extraLines.filter((item) => item.label !== category.label),
+              extraDeductions:
+                category.kind === 'deduction'
+                  ? line.extraDeductions.filter((item) => item.label !== category.label)
+                  : line.extraDeductions
+            }))
+          }
+        : current
+    )
+  }
+
+  const categoryValue = (draft: Draft, category: PayrollCategory) => {
+    if (category.id === 'basic') return draft.basicHours
+    if (category.id === 'ot') return draft.otHours
+    if (category.id === 'extra') return draft.extra
+    if (category.id === 'medical') return draft.medical
+    if (category.id === 'shortage') return draft.shortage
+    return draft.custom?.[category.id] ?? ''
+  }
+
+  const setCategoryValue = (lineId: string, draft: Draft, category: PayrollCategory, value: string) => {
+    if (category.id === 'basic') patchDraft(lineId, { basicHours: value })
+    else if (category.id === 'ot') patchDraft(lineId, { otHours: value })
+    else if (category.id === 'extra') patchDraft(lineId, { extra: value })
+    else if (category.id === 'medical') patchDraft(lineId, { medical: value })
+    else if (category.id === 'shortage') patchDraft(lineId, { shortage: value })
+    else patchDraft(lineId, { custom: { ...(draft.custom ?? {}), [category.id]: value } })
+  }
+
+  const categoryTotal = (lines: PayRunLine[], category: PayrollCategory) => {
+    if (category.id === 'basic') return sumHours(lines, 'basicHours').toFixed(2)
+    if (category.id === 'ot') return sumHours(lines, 'otHours').toFixed(2)
+    if (category.kind === 'hours') {
+      return lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.custom?.[category.id]), 0).toFixed(2)
+    }
+    if (category.id === 'extra') return formatMoney(sumExtra(lines))
+    if (category.id === 'medical') return formatMoney(sumMedical(lines))
+    if (category.id === 'shortage') {
+      return formatMoney(lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.shortage), 0))
+    }
+    return formatMoney(lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.custom?.[category.id]), 0))
+  }
 
   const openPreview = async () => {
     if (!run) return
@@ -723,26 +855,19 @@ export default function PayrollRunPage() {
 
         {step === 2 ? (
           <>
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
-              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={showAll}
-                  onChange={(e) => {
-                    setShowAll(e.target.checked)
-                    try {
-                      window.localStorage.setItem(SHOW_ALL_KEY, e.target.checked ? '1' : '0')
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                />
-                Show all hours and money types
-              </label>
+              <button
+                type="button"
+                onClick={() => setTypesOpen(true)}
+                className="rounded-md border border-violet-200 bg-violet-50 px-3 py-1 text-sm font-medium text-violet-800 hover:bg-violet-100"
+              >
+                Hours & money types
+              </button>
             </div>
             <p className="mb-4 text-sm text-slate-500">
-              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code, and medical for this payroll or for future payrolls. The Medical column updates this payroll.
+              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code, and
+              medical. Use Hours & money types to add or remove columns.
             </p>
 
             <div className="overflow-x-auto">
@@ -751,18 +876,18 @@ export default function PayrollRunPage() {
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="py-2 pr-3 font-semibold">Hourly employees</th>
                     <th className="py-2 pr-3 font-semibold">Hourly rate</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Basic</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Overtime</th>
-                    {showAll ? <th className="py-2 pr-3 text-right font-semibold">Shortage</th> : null}
-                    <th className="py-2 pr-3 text-right font-semibold">Extra</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Medical</th>
+                    {hourlyColumns.map((category) => (
+                      <th key={category.id} className="py-2 pr-3 text-right font-semibold">
+                        {category.label}
+                      </th>
+                    ))}
                     <th className="py-2 text-right font-semibold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {hourly.length === 0 ? (
                     <tr>
-                      <td colSpan={showAll ? 8 : 7} className="py-4 text-slate-500">
+                      <td colSpan={hourlyColumns.length + 3} className="py-4 text-slate-500">
                         No hourly staff on this cycle.
                       </td>
                     </tr>
@@ -786,48 +911,16 @@ export default function PayrollRunPage() {
                             ) : null}
                           </td>
                           <td className="py-3 pr-3 tabular-nums text-slate-700">{formatMoney(parseMoney(draft.rate))}</td>
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Basic hours for ${line.staffName}`}
-                              value={draft.basicHours}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { basicHours: value })}
-                            />
-                          </td>
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Overtime hours for ${line.staffName}`}
-                              value={draft.otHours}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { otHours: value })}
-                            />
-                          </td>
-                          {showAll ? (
-                            <td className="py-3 pr-3 text-right">
+                          {hourlyColumns.map((category) => (
+                            <td key={category.id} className="py-3 pr-3 text-right">
                               <HoursField
-                                label={`Shortage for ${line.staffName}`}
-                                value={draft.shortage}
+                                label={`${category.label} for ${line.staffName}`}
+                                value={categoryValue(draft, category)}
                                 disabled={Boolean(locked)}
-                                onChange={(value) => patchDraft(line.id, { shortage: value })}
+                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
                               />
                             </td>
-                          ) : null}
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Extra pay for ${line.staffName}`}
-                              value={draft.extra}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { extra: value })}
-                            />
-                          </td>
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Medical for ${line.staffName}`}
-                              value={draft.medical}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { medical: value })}
-                            />
-                          </td>
+                          ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
                         </tr>
                       )
@@ -837,11 +930,11 @@ export default function PayrollRunPage() {
                     <td className="py-3 font-semibold" colSpan={2}>
                       Hourly employee totals
                     </td>
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{sumHours(hourly, 'basicHours').toFixed(2)}</td>
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{sumHours(hourly, 'otHours').toFixed(2)}</td>
-                    {showAll ? <td /> : null}
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumExtra(hourly))}</td>
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumMedical(hourly))}</td>
+                    {hourlyColumns.map((category) => (
+                      <td key={category.id} className="py-3 pr-3 text-right font-semibold tabular-nums">
+                        {categoryTotal(hourly, category)}
+                      </td>
+                    ))}
                     <td className="py-3 text-right font-semibold tabular-nums">{formatMoney(sumGross(hourly))}</td>
                   </tr>
                 </tbody>
@@ -853,15 +946,18 @@ export default function PayrollRunPage() {
                     <th className="py-2 pr-3 font-semibold">Salaried employees</th>
                     <th className="py-2 pr-3 font-semibold">Pay salary</th>
                     <th className="py-2 pr-3 font-semibold">Salary</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Extra</th>
-                    <th className="py-2 pr-3 text-right font-semibold">Medical</th>
+                    {salariedColumns.map((category) => (
+                      <th key={category.id} className="py-2 pr-3 text-right font-semibold">
+                        {category.label}
+                      </th>
+                    ))}
                     <th className="py-2 text-right font-semibold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {salaried.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-4 text-slate-500">
+                      <td colSpan={salariedColumns.length + 4} className="py-4 text-slate-500">
                         No salaried staff on this cycle.
                       </td>
                     </tr>
@@ -898,22 +994,16 @@ export default function PayrollRunPage() {
                           <td className="py-3 pr-3 tabular-nums text-slate-700">
                             {formatMoney(parseMoney(draft.salary))}
                           </td>
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Extra pay for ${line.staffName}`}
-                              value={draft.extra}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { extra: value })}
-                            />
-                          </td>
-                          <td className="py-3 pr-3 text-right">
-                            <HoursField
-                              label={`Medical for ${line.staffName}`}
-                              value={draft.medical}
-                              disabled={Boolean(locked)}
-                              onChange={(value) => patchDraft(line.id, { medical: value })}
-                            />
-                          </td>
+                          {salariedColumns.map((category) => (
+                            <td key={category.id} className="py-3 pr-3 text-right">
+                              <HoursField
+                                label={`${category.label} for ${line.staffName}`}
+                                value={categoryValue(draft, category)}
+                                disabled={Boolean(locked)}
+                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                              />
+                            </td>
+                          ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
                         </tr>
                       )
@@ -923,8 +1013,11 @@ export default function PayrollRunPage() {
                     <td className="py-3 font-semibold" colSpan={3}>
                       Salaried employee totals
                     </td>
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumExtra(salaried))}</td>
-                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumMedical(salaried))}</td>
+                    {salariedColumns.map((category) => (
+                      <td key={category.id} className="py-3 pr-3 text-right font-semibold tabular-nums">
+                        {categoryTotal(salaried, category)}
+                      </td>
+                    ))}
                     <td className="py-3 text-right font-semibold tabular-nums">{formatMoney(sumGross(salaried))}</td>
                   </tr>
                 </tbody>
@@ -1077,6 +1170,83 @@ export default function PayrollRunPage() {
         </div>
       ) : null}
 
+      {typesOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Hours and money types</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Choose which columns are on this payroll. Basic stays. Added hour columns are paid at the hourly rate.
+              Removing a type drops it from this payroll when you save.
+            </p>
+            <ul className="mt-4 divide-y divide-slate-100">
+              {categories.map((category) => (
+                <li key={category.id} className="flex items-center justify-between gap-3 py-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={category.enabled}
+                      disabled={category.id === 'basic'}
+                      onChange={() => toggleCategory(category.id)}
+                    />
+                    <span>{category.label}</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-400">{category.kind}</span>
+                  </label>
+                  {category.builtin ? null : (
+                    <button
+                      type="button"
+                      onClick={() => removeCategory(category.id)}
+                      className="text-sm font-medium text-red-700 hover:text-red-900"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">New type</span>
+                <input
+                  value={newTypeName}
+                  onChange={(e) => setNewTypeName(e.target.value)}
+                  className="mt-1 w-48 rounded-md border border-slate-300 px-3 py-2"
+                  placeholder="Commission"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Category</span>
+                <select
+                  value={newTypeKind}
+                  onChange={(e) => setNewTypeKind(e.target.value as CategoryKind)}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2"
+                >
+                  <option value="hours">Hours</option>
+                  <option value="money">Money</option>
+                  <option value="deduction">Deduction</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={addCategory}
+                disabled={!newTypeName.trim()}
+                className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setTypesOpen(false)}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {voidOpen ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
@@ -1206,6 +1376,7 @@ function ReviewStep({
   onEditName: (lineId: string) => void
   locked: boolean
 }) {
+  const [openDeductions, setOpenDeductions] = useState<Record<string, true>>({})
   const hourly = run.lines.filter((line) => parsePayType(line.payType) !== 'salaried')
   const salaried = run.lines.filter((line) => parsePayType(line.payType) === 'salaried')
   const hours = run.lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
@@ -1230,6 +1401,13 @@ function ReviewStep({
         <div className="space-y-10">
           {run.lines.map((line) => {
             const draft = drafts[line.id]
+            const hiddenDeductions = locked
+              ? []
+              : DETAIL_DEDUCTIONS.filter((field) => {
+                  const value = draft?.[field.key] ?? ''
+                  const openKey = `${line.id}:${field.key}`
+                  return !openDeductions[openKey] && parseMoney(value) === 0 && deductionYtd(line, field.key, value) === 0
+                })
             return (
               <article key={line.id} className="border-b border-slate-200 pb-8">
                 <header className="flex items-baseline justify-between gap-3">
@@ -1307,68 +1485,39 @@ function ReviewStep({
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.nisEmployee ?? line.nisEmployee)}</td>
                         </tr>
-                        <tr>
-                          <td className="py-1">Loan</td>
-                          <td className="py-1 text-right">
-                            <input
-                              aria-label={`Loan for ${line.staffName}`}
-                              value={draft?.loan ?? ''}
-                              disabled={locked}
-                              onChange={(e) => onDraft(line.id, { loan: e.target.value })}
-                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                            />
-                          </td>
-                          <td className="py-1 text-right tabular-nums">
-                            {formatMoney(shownYtd(line.ytd?.staffLoan ?? line.staffLoan, line.staffLoan, draft?.loan))}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">Medical</td>
-                          <td className="py-1 text-right">
-                            <input
-                              aria-label={`Medical for ${line.staffName}`}
-                              value={draft?.medical ?? ''}
-                              disabled={locked}
-                              onChange={(e) => onDraft(line.id, { medical: e.target.value })}
-                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                            />
-                          </td>
-                          <td className="py-1 text-right tabular-nums">
-                            {formatMoney(shownYtd(line.ytd?.medical ?? line.medical, line.medical, draft?.medical))}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">Shortage</td>
-                          <td className="py-1 text-right">
-                            <input
-                              aria-label={`Shortage for ${line.staffName}`}
-                              value={draft?.shortage ?? ''}
-                              disabled={locked}
-                              onChange={(e) => onDraft(line.id, { shortage: e.target.value })}
-                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                            />
-                          </td>
-                          <td className="py-1 text-right tabular-nums">
-                            {formatMoney(shownYtd(line.ytd?.shortageReady ?? line.shortageReady, line.shortageReady, draft?.shortage))}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">Other</td>
-                          <td className="py-1 text-right">
-                            <input
-                              aria-label={`Other deduction for ${line.staffName}`}
-                              value={draft?.otherDeduction ?? ''}
-                              disabled={locked}
-                              onChange={(e) => onDraft(line.id, { otherDeduction: e.target.value })}
-                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                            />
-                          </td>
-                          <td className="py-1 text-right tabular-nums">
-                            {formatMoney(
-                              shownYtd(line.ytd?.extraDeductionPay ?? line.extraDeductionPay ?? 0, line.extraDeductionPay ?? 0, draft?.otherDeduction)
-                            )}
-                          </td>
-                        </tr>
+                        {DETAIL_DEDUCTIONS.map((field) => {
+                          const value = draft?.[field.key] ?? ''
+                          const ytd = deductionYtd(line, field.key, value)
+                          const openKey = `${line.id}:${field.key}`
+                          const shown = Boolean(openDeductions[openKey]) || parseMoney(value) !== 0 || ytd !== 0
+                          if (!shown) return null
+                          return (
+                            <tr key={field.key}>
+                              <td className="py-1">{field.label}</td>
+                              <td className="py-1 text-right">
+                                <input
+                                  aria-label={`${field.aria} for ${line.staffName}`}
+                                  value={value}
+                                  disabled={locked}
+                                  onFocus={() => setOpenDeductions((current) => ({ ...current, [openKey]: true }))}
+                                  onBlur={(e) => {
+                                    const nextValue = e.currentTarget.value
+                                    if (parseMoney(nextValue) !== 0 || deductionYtd(line, field.key, nextValue) !== 0) return
+                                    setOpenDeductions((current) => {
+                                      if (!current[openKey]) return current
+                                      const next = { ...current }
+                                      delete next[openKey]
+                                      return next
+                                    })
+                                  }}
+                                  onChange={(e) => onDraft(line.id, { [field.key]: e.target.value })}
+                                  className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                                />
+                              </td>
+                              <td className="py-1 text-right tabular-nums">{formatMoney(ytd)}</td>
+                            </tr>
+                          )
+                        })}
                         <tr className="font-semibold">
                           <td className="py-1">Total deductions</td>
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.totalDeductions)}</td>
@@ -1383,6 +1532,20 @@ function ReviewStep({
                         </tr>
                       </tbody>
                     </table>
+                    {hiddenDeductions.length > 0 ? (
+                      <p className="mt-2 flex flex-wrap gap-x-3 text-xs">
+                        {hiddenDeductions.map((field) => (
+                          <button
+                            key={field.key}
+                            type="button"
+                            onClick={() => setOpenDeductions((current) => ({ ...current, [`${line.id}:${field.key}`]: true }))}
+                            className="font-medium text-violet-700 hover:underline"
+                          >
+                            Add {field.label.toLowerCase()}
+                          </button>
+                        ))}
+                      </p>
+                    ) : null}
                     <p className="mt-3 text-xs text-slate-500">
                       Employer NIS {formatMoney(line.nisEmployer)} is not taken from net.
                       {line.bankCode ? ` Bank ${line.bankCode}` : ''}

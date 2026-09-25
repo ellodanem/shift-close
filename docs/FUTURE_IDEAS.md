@@ -99,7 +99,7 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ## 6. Payroll is its own tile and process
 
-**Status:** First payroll screen is on `/payroll` (2026-09-25). The run is four steps: pay period, enter payroll, approve, print. Drafts can be deleted. An approved run can be voided with a reason, who voided it, and when. Voided amounts stay on record and no longer count toward N.I.S. Column preferences beyond the show-all toggle are still open.
+**Status:** First payroll screen is on `/payroll` (2026-09-25). The run is four steps: pay period, enter payroll, approve, print. Drafts can be deleted. An approved run can be voided with a reason, who voided it, and when. Voided amounts stay on record and no longer count toward N.I.S. Hours and money type columns can be shown, hidden, added, or removed from the hours step.
 
 **Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
 
@@ -125,7 +125,7 @@ Header from step 1 stays on the run: pay schedule, pay period, pay date.
 - Hours prefill from extracted attendance for that period. The user can still edit them.
 - Click the name to change the hourly rate, tax code, and medical for this run only, or for this run and future runs. Medical is also a column on the hours grid for this payroll.
 - Salaried row: **Pay salary** checked by default. Uncheck to skip that person this run. Salary and tax code can be changed the same way as a rate (this run, or this run and future).
-- Default visible columns are the ones we use (basic, OT, extra pay). A **show all hours and money types** toggle reveals the rest. Which columns count as frequently used is a payroll setting.
+- **Hours & money types**, next to the hours heading, shows or hides Basic, Overtime, Extra, Medical, and Shortage, and can add or remove extra hour, money, or deduction columns. The choice is remembered on this browser. Added hour columns are paid at the hourly rate.
 - Vacation and sick stay notes from attendance. They are not paid hour columns unless that is decided later.
 - Save entries, clear entries, then **Continue**.
 
