@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { attachBankingToLines, loadNisTakenByStaffId, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
+import {
+  attachBankingToLines,
+  loadNisTakenByStaffId,
+  parsePayPeriodHoursRows,
+  rebuildPayRunLines,
+  syncDraftPayTypes
+} from '@/lib/pay-run-build'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   computeGrossPay,
@@ -44,7 +50,10 @@ async function loadRun(id: string) {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const run = await loadRun(id)
+    const loaded = await loadRun(id)
+    if (!loaded) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
+    if (loaded.status === 'draft') await syncDraftPayTypes(id)
+    const run = loaded.status === 'draft' ? await loadRun(id) : loaded
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
     const currentHash = payPeriodSourceHash(hoursRows)

@@ -1,9 +1,13 @@
 import { isReportOnlyPayPeriodRow } from '@/lib/pay-period-rows'
 import { payrollBankCode } from '@/lib/pay-run-banking'
 import { payMonthKey } from '@/lib/pay-run-deductions'
+import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   buildPayRunLines,
+  computeGrossPay,
   parseExtraLines,
+  parseMoney,
+  parsePayType,
   payPeriodSourceHash,
   type BuiltPayRunLine,
   type DeductionOverride,
@@ -12,7 +16,7 @@ import {
   type PayRunStaffProfile
 } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
-import { parsePayCycle, type PayCycle } from '@/lib/pay-cycle'
+import { parsePayCycle, splitPayPeriodHours, type PayCycle } from '@/lib/pay-cycle'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -122,7 +126,8 @@ export async function rebuildPayRunLines(
       rateOverrides[key] = {
         hourlyRate: line.hourlyRate,
         salariedAmount: line.salariedAmount,
-        taxCode: line.taxCode
+        taxCode: line.taxCode,
+        payType: line.payType
       }
       if (line.staffId) rateOverrides[line.staffId] = rateOverrides[key]
       deductionOverrides[key] = {
@@ -158,6 +163,78 @@ export async function rebuildPayRunLines(
   return {
     lines,
     sourceHash: payPeriodSourceHash(options.hoursRows)
+  }
+}
+
+/** Draft lines keep the pay type from when the run was opened. Follow the staff record instead. */
+export async function syncDraftPayTypes(payRunId: string): Promise<void> {
+  const run = await prisma.payRun.findUnique({
+    where: { id: payRunId },
+    include: { lines: true, payPeriod: true }
+  })
+  if (!run || run.status !== 'draft') return
+  const staff = await loadPayRunStaffProfiles()
+  const staffById = new Map(staff.map((person) => [person.id, person]))
+  const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
+  const nisTaken = await loadNisTakenByStaffId(run.payDate, payRunId)
+
+  for (const line of run.lines) {
+    if (!line.staffId) continue
+    const profile = staffById.get(line.staffId)
+    if (!profile) continue
+    const nextType = parsePayType(profile.payType)
+    if (nextType === parsePayType(line.payType)) continue
+    const hoursRow = hoursRows.find((row) => row.staffId === line.staffId)
+    const split = splitPayPeriodHours(hoursRow?.transTtl ?? line.transTtl, profile.payCycle)
+    const hourlyRate = nextType === 'hourly' ? parseMoney(profile.hourlyRate) : line.hourlyRate
+    const salariedAmount = nextType === 'salaried' ? parseMoney(profile.salariedAmount) : line.salariedAmount
+    const basicHours = nextType === 'salaried' ? 0 : split.basicHours
+    const otHours = nextType === 'salaried' ? 0 : split.otHours
+    const extraLines = parseExtraLines(line.extraLines)
+    const extraDeductions = parseExtraLines(line.extraDeductions)
+    const pay = computeGrossPay({
+      payType: nextType,
+      basicHours,
+      otHours,
+      hourlyRate,
+      salariedAmount,
+      extraLines
+    })
+    const taken = nisTaken[line.staffId]
+    const deducted = computePayRunDeductions({
+      grossPay: pay.grossPay,
+      staffLoan: line.staffLoan,
+      medical: line.medical,
+      shortage: line.shortageReady,
+      extraDeductions,
+      nisEmployeeTaken: taken?.employee,
+      nisEmployerTaken: taken?.employer
+    })
+    await prisma.payRunLine.update({
+      where: { id: line.id },
+      data: {
+        payType: nextType,
+        payCycle: parsePayCycle(profile.payCycle),
+        basicHours,
+        otHours,
+        transTtl: nextType === 'salaried' ? line.transTtl : round2(basicHours + otHours),
+        hourlyRate,
+        salariedAmount,
+        basicPay: pay.basicPay,
+        otPay: pay.otPay,
+        extraPay: pay.extraPay,
+        grossPay: pay.grossPay,
+        extraDeductions: JSON.stringify(deducted.extraDeductions),
+        extraDeductionPay: deducted.extraDeductionPay,
+        shortageReady: deducted.shortage,
+        nisEmployee: deducted.nisEmployee,
+        nisEmployer: deducted.nisEmployer,
+        staffLoan: deducted.staffLoan,
+        medical: deducted.medical,
+        totalDeductions: deducted.totalDeductions,
+        netPay: deducted.netPay
+      }
+    })
   }
 }
 

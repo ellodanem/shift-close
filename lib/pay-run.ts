@@ -55,6 +55,8 @@ export type PayRateOverride = {
   hourlyRate?: number
   salariedAmount?: number
   taxCode?: string
+  /** Pay type stored on the line. A mismatch means the staff record has since changed. */
+  payType?: string
 }
 
 export type BuiltPayRunLine = {
@@ -312,12 +314,16 @@ function lineFromHoursRow(
   const payCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
   const payType = parsePayType(profile?.payType)
   const split = splitPayPeriodHours(row.transTtl, payCycle)
+  const keepLineAmounts =
+    !!rateOverride && (!rateOverride.payType || parsePayType(rateOverride.payType) === payType)
   const hourlyRate =
-    rateOverride?.hourlyRate ??
-    parseMoney(profile?.hourlyRate)
+    keepLineAmounts && payType === 'hourly'
+      ? parseMoney(rateOverride?.hourlyRate)
+      : parseMoney(profile?.hourlyRate)
   const salariedAmount =
-    rateOverride?.salariedAmount ??
-    parseMoney(profile?.salariedAmount)
+    keepLineAmounts && payType === 'salaried'
+      ? parseMoney(rateOverride?.salariedAmount)
+      : parseMoney(profile?.salariedAmount)
   const pay = computeGrossPay({
     payType,
     basicHours: split.basicHours,
@@ -356,7 +362,11 @@ function salariedLine(
   nisTaken?: NisTaken
 ): BuiltPayRunLine {
   const payCycle = parsePayCycle(profile.payCycle)
-  const salariedAmount = rateOverride?.salariedAmount ?? parseMoney(profile.salariedAmount)
+  const keepLineAmounts =
+    !!rateOverride && (!rateOverride.payType || parsePayType(rateOverride.payType) === 'salaried')
+  const salariedAmount = keepLineAmounts
+    ? parseMoney(rateOverride?.salariedAmount)
+    : parseMoney(profile.salariedAmount)
   const pay = computeGrossPay({
     payType: 'salaried',
     salariedAmount,

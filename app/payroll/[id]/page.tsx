@@ -147,7 +147,7 @@ export default function PayrollRunPage() {
   const [rateScope, setRateScope] = useState<'run' | 'future'>('run')
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/pay-runs/${id}`)
+    const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to load payroll')
     const next = data as PayRun
