@@ -140,10 +140,19 @@ Summary grouped the same way: Hourly, then Salaried, then payroll totals. Column
 
 Completed banner with the period and pay date.
 
-- Print or download now, or later: payroll register, banking pack, and the credit union allocation letter. These replace Patriot’s print-checks and tax-bill actions.
+- Print or download now, or later: payroll register, banking pack, the credit union allocation letter, and the **N.I.S. report**. These replace Patriot’s print-checks and tax-bill actions.
 - The run can be left and reopened.
 
-Patriot’s reports catalog (screenshot 18) is not part of this run. Add reports only when a specific one is needed.
+**N.I.S. report** (reference: `NIS 08152026.pdf`, period 08/16/2026–08/31/2026). One page per period:
+
+- Header: **N.I.S.**, period start–end, cycle, and the month it is for (that sample is cycle 15, for August).
+- Columns: **Name** (`staff number - name`), **Charge**, **Staff**, **Employer**, **Govt ttl**.
+- On that sample, Charge, Staff, and Employer are the same amount per person. Govt ttl is Staff + Employer. People at the cap show 125.00 / 125.00 / 125.00 / 250.00.
+- A totals line under the columns, then printed date and page number.
+
+Staff and Employer come from the run (5%, $250 monthly cap each). Charge follows Staff, matching the sample. The report can be printed with the run or opened again later.
+
+Patriot’s other reports (screenshot 18) are not part of this run.
 
 **Still open:** tile label (Payroll). Whether voiding an approved run is in the first build. Whether vacation or sick ever become paid columns.
 
