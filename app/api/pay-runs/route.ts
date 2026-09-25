@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         inferPayRunCycle(period.startDate, period.endDate, hoursRows, staffProfiles)
     )
     const existing = await prisma.payRun.findFirst({
-      where: { payPeriodId, cycle },
+      where: { payPeriodId, cycle, status: { in: ['draft', 'processed'] } },
       include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
     })
     if (existing) {

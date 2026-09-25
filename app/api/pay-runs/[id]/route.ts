@@ -18,6 +18,7 @@ import {
 } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
 import { parsePayCycle } from '@/lib/pay-cycle'
+import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const body = await request.json().catch(() => ({}))
     if (body.unlock === true) {
+      if (run.status === 'void') {
+        return NextResponse.json(
+          { error: 'A voided payroll stays on record. Start a new payroll for this period.' },
+          { status: 409 }
+        )
+      }
       const unlocked = await prisma.payRun.update({
         where: { id },
         data: { status: 'draft', processedAt: null },
@@ -205,6 +212,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     const run = await loadRun(id)
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
+    if (run.status === 'void') {
+      return NextResponse.json({ error: 'This payroll is voided.' }, { status: 409 })
+    }
     const body = await request.json().catch(() => ({}))
     const action = typeof body.action === 'string' ? body.action : ''
 
@@ -237,6 +247,37 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
       })
       return NextResponse.json({ ...(await presentRun(updated!)), hoursOutOfDate: false })
+    }
+
+    if (action === 'void') {
+      if (run.status !== 'processed') {
+        return NextResponse.json({ error: 'Only an approved payroll can be voided.' }, { status: 409 })
+      }
+      const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+      if (reason.length < 3) {
+        return NextResponse.json({ error: 'A reason is required to void a payroll.' }, { status: 400 })
+      }
+      const session = await getSessionFromRequest(request)
+      const actor = session?.userId
+        ? await prisma.appUser.findUnique({
+            where: { id: session.userId },
+            select: { id: true, firstName: true, lastName: true, username: true }
+          })
+        : null
+      const voidedByName =
+        [actor?.firstName, actor?.lastName].filter(Boolean).join(' ').trim() || actor?.username || 'Unknown'
+      const voided = await prisma.payRun.update({
+        where: { id },
+        data: {
+          status: 'void',
+          voidedAt: new Date(),
+          voidReason: reason,
+          voidedById: actor?.id ?? null,
+          voidedByName
+        },
+        include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+      })
+      return NextResponse.json(await presentRun(voided))
     }
 
     if (action === 'approve') {
@@ -285,5 +326,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     console.error('Pay run action error:', error)
     return NextResponse.json({ error: 'Failed to update pay run' }, { status: 500 })
+  }
+}
+
+/** DELETE /api/pay-runs/:id — drafts only. Approved payrolls are voided instead. */
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const run = await loadRun(id)
+    if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
+    if (run.status !== 'draft') {
+      return NextResponse.json({ error: 'Only a draft can be deleted. Void an approved payroll instead.' }, { status: 409 })
+    }
+    await prisma.payRun.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Pay run delete error:', error)
+    return NextResponse.json({ error: 'Failed to delete pay run' }, { status: 500 })
   }
 }

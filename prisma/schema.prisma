@@ -1071,7 +1071,7 @@ model PayRun {
   id             String    @id @default(cuid())
   payPeriodId    String    @map("pay_period_id")
   cycle          String    @default("semimonthly")
-  status         String    @default("draft") // draft | processed
+  status         String    @default("draft") // draft | processed | void
   payDate        String    @map("pay_date")
   startDate      String    @map("start_date")
   endDate        String    @map("end_date")
@@ -1081,13 +1081,20 @@ model PayRun {
   extraDisbursements String @default("[]") @map("extra_disbursements")
   sourceHash     String    @default("") @map("source_hash")
   processedAt    DateTime? @map("processed_at")
+  voidedAt       DateTime? @map("voided_at")
+  voidReason     String    @default("") @map("void_reason")
+  voidedById     String?   @map("voided_by_id")
+  /// Name at the time of the void, kept if the account later changes.
+  voidedByName   String    @default("") @map("voided_by_name")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   payPeriod PayPeriod    @relation(fields: [payPeriodId], references: [id], onDelete: Cascade)
   lines     PayRunLine[]
+  voidedBy  AppUser?     @relation(fields: [voidedById], references: [id], onDelete: SetNull)
 
-  @@unique([payPeriodId, cycle], name: "pay_run_period_cycle")
+  /// One open run per period and cycle. Voided runs are excluded by pay_run_open_period_cycle.
+  @@index([payPeriodId, cycle])
   @@index([status])
   @@map("pay_runs")
 }
@@ -1201,6 +1208,7 @@ model AppUser {
 
   resetTokens      PasswordResetToken[]
   callOutsRecorded StaffCallOut[]
+  voidedPayRuns    PayRun[]
 
   @@map("app_users")
 }

@@ -52,6 +52,9 @@ type PayRun = {
   startDate: string
   endDate: string
   payDate: string
+  voidedAt?: string | null
+  voidReason?: string
+  voidedByName?: string
   lines: PayRunLine[]
 }
 
@@ -145,6 +148,8 @@ export default function PayrollRunPage() {
   const [rateValue, setRateValue] = useState('')
   const [taxCode, setTaxCode] = useState('')
   const [rateScope, setRateScope] = useState<'run' | 'future'>('run')
+  const [voidOpen, setVoidOpen] = useState(false)
+  const [voidReason, setVoidReason] = useState('')
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
@@ -156,7 +161,7 @@ export default function PayrollRunPage() {
     const seeded: Record<string, Draft> = {}
     for (const line of next.lines) seeded[line.id] = draftFromLine(line)
     setDrafts(seeded)
-    if (next.status === 'processed') setStep(3)
+    if (next.status === 'processed' || next.status === 'void') setStep(3)
     return next
   }, [id])
 
@@ -175,7 +180,8 @@ export default function PayrollRunPage() {
     }
   }, [])
 
-  const locked = run?.status === 'processed'
+  const locked = run?.status === 'processed' || run?.status === 'void'
+  const voided = run?.status === 'void'
   const hourly = (run?.lines ?? []).filter((line) => parsePayType(line.payType) === 'hourly')
   const salaried = (run?.lines ?? []).filter((line) => parsePayType(line.payType) === 'salaried')
 
@@ -274,6 +280,48 @@ export default function PayrollRunPage() {
       setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve payroll')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteDraft = async () => {
+    if (!window.confirm('Delete this draft? This cannot be undone.')) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to delete draft')
+      router.push('/payroll')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete draft')
+      setBusy(false)
+    }
+  }
+
+  const voidPayroll = async () => {
+    const reason = voidReason.trim()
+    if (reason.length < 3) {
+      setError('A reason is required to void a payroll.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'void', reason })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to void payroll')
+      setRun(data)
+      setVoidOpen(false)
+      setVoidReason('')
+      setStep(3)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to void payroll')
     } finally {
       setBusy(false)
     }
@@ -438,6 +486,8 @@ export default function PayrollRunPage() {
         startDate: saved.startDate,
         endDate: saved.endDate,
         payDate: saved.payDate,
+        status: saved.status,
+        voidReason: saved.voidReason,
         lines: saved.lines.map((line) => ({
           staffName: line.staffName,
           payType: line.payType,
@@ -459,6 +509,7 @@ export default function PayrollRunPage() {
       startDate: run.startDate,
       endDate: run.endDate,
       cycle: run.cycle,
+      voided: run.status === 'void',
       lines: run.lines.map((line) => ({
         staffName: line.staffName,
         staffNo: line.staffNo,
@@ -490,13 +541,38 @@ export default function PayrollRunPage() {
               {payCycleLabel(run.cycle)} · {mdy(run.startDate)} – {mdy(run.endDate)}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => router.push('/payroll')}
-            className="text-sm font-medium text-violet-700 hover:text-violet-900"
-          >
-            All payroll
-          </button>
+          <div className="flex items-center gap-4">
+            {run.status === 'draft' ? (
+              <button
+                type="button"
+                onClick={deleteDraft}
+                disabled={busy}
+                className="text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40"
+              >
+                Delete draft
+              </button>
+            ) : null}
+            {run.status === 'processed' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null)
+                  setVoidOpen(true)
+                }}
+                disabled={busy}
+                className="text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40"
+              >
+                Void payroll
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => router.push('/payroll')}
+              className="text-sm font-medium text-violet-700 hover:text-violet-900"
+            >
+              All payroll
+            </button>
+          </div>
         </div>
 
         <ol className="mb-8 grid grid-cols-3 border-b border-slate-200">
@@ -758,9 +834,23 @@ export default function PayrollRunPage() {
 
         {step === 3 ? (
           <div>
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              This payroll is approved. Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}.
-            </div>
+            {voided ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                <p className="font-semibold">This payroll is voided.</p>
+                <p className="mt-1">
+                  {run.voidedByName || 'Someone'}
+                  {run.voidedAt ? ` on ${new Date(run.voidedAt).toLocaleString()}` : ''}.
+                </p>
+                <p className="mt-1">Reason: {run.voidReason || '—'}</p>
+                <p className="mt-2 text-red-800">
+                  The amounts stay on record and no longer count toward N.I.S. You can start a new payroll for this period.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                This payroll is approved. Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}.
+              </div>
+            )}
             <h2 className="mt-8 text-lg font-semibold text-slate-900">What would you like to do next?</h2>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -852,6 +942,44 @@ export default function PayrollRunPage() {
                 {busy ? 'Approving…' : 'Approve payroll'}
               </button>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {voidOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Void this payroll</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              The paycheck amounts stay on file. They stop counting toward N.I.S., and you can run this period again. A
+              reason is required.
+            </p>
+            <label className="mt-4 block text-sm">
+              <span className="font-medium text-slate-800">Reason</span>
+              <textarea
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                rows={4}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setVoidOpen(false)}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={voidPayroll}
+                disabled={busy || voidReason.trim().length < 3}
+                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {busy ? 'Voiding…' : 'Void payroll'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

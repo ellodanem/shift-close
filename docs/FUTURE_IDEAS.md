@@ -99,7 +99,7 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ## 6. Payroll is its own tile and process
 
-**Status:** First payroll screen is on `/payroll` (2026-09-25). It follows the Patriot three-step run and uses existing pay-run data. Column preferences beyond the show-all toggle, and voiding an approved run, are still open.
+**Status:** First payroll screen is on `/payroll` (2026-09-25). It follows the Patriot three-step run and uses existing pay-run data. Drafts can be deleted. An approved run can be voided with a reason, who voided it, and when. Voided amounts stay on record and no longer count toward N.I.S. Column preferences beyond the show-all toggle are still open.
 
 **Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
 
@@ -154,7 +154,7 @@ Staff and Employer come from the run (5%, $250 monthly cap each). Charge follows
 
 Patriot’s other reports (screenshot 18) are not part of this run.
 
-**Still open:** tile label (Payroll). Whether voiding an approved run is in the first build. Whether vacation or sick ever become paid columns.
+**Still open:** tile label (Payroll). Whether vacation or sick ever become paid columns.
 
 ---
 

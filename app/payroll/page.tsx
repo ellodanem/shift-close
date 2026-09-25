@@ -88,6 +88,22 @@ export default function PayrollStartPage() {
     setPayDate(period.endDate)
   }
 
+  const deleteDraft = async (runId: string) => {
+    if (!window.confirm('Delete this draft? This cannot be undone.')) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${runId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to delete draft')
+      setRuns((current) => current.filter((run) => run.id !== runId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete draft')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const enterPayroll = async () => {
     if (!periodId) {
       setError('Choose an attendance period. Hours are filled from that extract.')
@@ -266,11 +282,11 @@ export default function PayrollStartPage() {
           ) : (
             <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">
               {runs.map((run) => (
-                <li key={run.id}>
+                <li key={run.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50">
                   <button
                     type="button"
                     onClick={() => router.push(`/payroll/${run.id}`)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
+                    className="flex min-w-0 flex-1 items-center justify-between text-left"
                   >
                     <span>
                       <span className="font-medium text-slate-900">
@@ -281,13 +297,27 @@ export default function PayrollStartPage() {
                       </span>
                     </span>
                     <span
-                      className={`text-xs font-semibold uppercase ${
-                        run.status === 'processed' ? 'text-emerald-700' : 'text-violet-700'
+                      className={`ml-3 shrink-0 text-xs font-semibold uppercase ${
+                        run.status === 'processed'
+                          ? 'text-emerald-700'
+                          : run.status === 'void'
+                            ? 'text-red-700'
+                            : 'text-violet-700'
                       }`}
                     >
-                      {run.status === 'processed' ? 'Approved' : 'Draft'}
+                      {run.status === 'processed' ? 'Approved' : run.status === 'void' ? 'Voided' : 'Draft'}
                     </span>
                   </button>
+                  {run.status === 'draft' ? (
+                    <button
+                      type="button"
+                      onClick={() => deleteDraft(run.id)}
+                      disabled={busy}
+                      className="shrink-0 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>

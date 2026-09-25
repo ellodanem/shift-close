@@ -39,6 +39,7 @@ export function printNisReport(input: {
   endDate: string
   cycle: string
   lines: NisPrintLine[]
+  voided?: boolean
 }) {
   const printWin = window.open('', '_blank')
   if (!printWin) return
@@ -78,6 +79,7 @@ export function printNisReport(input: {
   </head>
   <body>
     <h1>N.I.S.</h1>
+    ${input.voided ? '<p><strong>VOIDED.</strong> This report is a record only and is not filed.</p>' : ''}
     <div class="meta">
       <span>PERIOD: ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</span>
       <span>CYCLE: ${escapePayPeriodHtml(payCycleLabel(input.cycle))}</span>
@@ -116,6 +118,8 @@ export function printPayrollPreview(input: {
   startDate: string
   endDate: string
   payDate: string
+  status?: string
+  voidReason?: string
   lines: PayrollPreviewLine[]
 }) {
   const printWin = window.open('', '_blank')
@@ -144,6 +148,12 @@ export function printPayrollPreview(input: {
         <tfoot><tr><td>Subtotal</td><td class="num">${usd(hours)}</td><td class="num">${formatMoney(gross)}</td><td class="num">${formatMoney(net)}</td></tr></tfoot>
       </table>`
   }
+  const banner =
+    input.status === 'void'
+      ? `VOIDED${input.voidReason ? `: ${escapePayPeriodHtml(input.voidReason)}` : ''}. Record only.`
+      : input.status === 'processed'
+        ? 'Approved.'
+        : 'Not approved.'
   const hours = input.lines.reduce((s, line) => s + (line.payType === 'salaried' ? 0 : line.hours), 0)
   const gross = input.lines.reduce((s, line) => s + line.grossPay, 0)
   const net = input.lines.reduce((s, line) => s + line.netPay, 0)
@@ -162,7 +172,7 @@ export function printPayrollPreview(input: {
   </head>
   <body>
     <h1>Payroll preview</h1>
-    <p class="banner">Pay period ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))} · Pay date ${escapePayPeriodHtml(mdy(input.payDate))}. Not approved.</p>
+    <p class="banner">Pay period ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))} · Pay date ${escapePayPeriodHtml(mdy(input.payDate))}. ${banner}</p>
     ${section('Hourly employees', hourly)}
     ${section('Salaried employees', salaried)}
     <p><strong>Total hours</strong> ${usd(hours)} · <strong>Gross</strong> ${formatMoney(gross)} · <strong>Net</strong> ${formatMoney(net)}</p>
