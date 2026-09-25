@@ -11,6 +11,10 @@ const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = requ
 const { zonedParts } = require('./schedule')
 const { mergeDeliveryVolumes } = require('./fuelVolumes')
 
+/** Menu id from Cstore Gas → Delivery (PastGasDelivery). Guessed GasDelivery.aspx URLs bounce to login. */
+const GAS_DELIVERY_PATH =
+  '/EmagineNETCOSM/Content/Gas/PastGasDelivery.aspx?enetFoundationMenuID=1588'
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
@@ -63,6 +67,21 @@ const MONTH_SHORT = [
   'Dec'
 ]
 
+function deliveryListText(text) {
+  const body = String(text || '').toLowerCase()
+  if (body.includes("your store's delivery list")) return true
+  if (body.includes('past gas') && body.includes('delivery')) return true
+  if (body.includes('gas delivery') && body.includes('delivery date')) return true
+  if (body.includes('invoice total') && (body.includes('regular') || body.includes('diesel'))) return true
+  if (
+    body.includes('delivery date') &&
+    (body.includes('un-paid') || body.includes('unpaid') || body.includes('b.o.l') || body.includes('bol no'))
+  ) {
+    return true
+  }
+  return false
+}
+
 async function pageLooksLikeGasDelivery(frame) {
   const url = frame.url() || ''
   if (isCstoreLoginUrl(url)) return false
@@ -72,14 +91,18 @@ async function pageLooksLikeGasDelivery(frame) {
   } catch {
     // keep raw
   }
-  if (pathName.includes('gasdelivery') || pathName.includes('gas/delivery')) return true
-  const text = ((await frame.locator('body').innerText().catch(() => '')) || '').toLowerCase()
-  if (text.includes("your store's delivery list")) return true
-  if (text.includes('gas delivery') && text.includes('delivery date')) return true
-  if (text.includes('invoice total') && text.includes('regular') && text.includes('diesel')) {
-    return true
-  }
-  return false
+  const text = ((await frame.locator('body').innerText().catch(() => '')) || '')
+  if (deliveryListText(text)) return true
+  const body = text.toLowerCase()
+  return (
+    pathName.includes('pastgasdelivery') &&
+    body.includes('delivery') &&
+    (body.includes('invoice') ||
+      body.includes('regular') ||
+      body.includes('diesel') ||
+      body.includes('un-paid') ||
+      body.includes('unpaid'))
+  )
 }
 
 async function onGasDelivery(page) {
@@ -99,65 +122,60 @@ async function deliveryScope(page) {
   return page
 }
 
-async function openViaGasFlyout(page) {
-  const gasCandidates = [
-    page.locator('#EWF-Menu a').filter({ hasText: /^Gas$/i }),
-    page.locator('a[id^="EWF-Menu-Link"]').filter({ hasText: /^Gas$/i }),
-    page.getByRole('link', { name: /^Gas$/i }),
-    page.locator('nav a, .sidebar a, #EWF-Menu *').filter({ hasText: /^Gas$/i })
-  ]
-  let opened = false
-  for (const loc of gasCandidates) {
-    if ((await loc.count()) === 0) continue
-    try {
-      await loc.first().hover({ timeout: 3000 }).catch(() => {})
-      await loc.first().click({ force: true, timeout: 5000 })
-      opened = true
-      await sleep(600)
-      break
-    } catch {
-      // try next
-    }
-  }
-  if (!opened) return false
-
-  const delivery = await clickFirstVisible(page, [
-    page.locator('#EWF-Menu a').filter({ hasText: /^Delivery$/i }),
-    page.locator('a[id^="EWF-Menu-Link"]').filter({ hasText: /^Delivery$/i }),
-    page.getByRole('link', { name: /^Delivery$/i }),
-    page.getByText(/^Delivery$/i)
-  ])
-  if (!delivery) return false
-  await sleep(1500)
+async function waitForGasDelivery(page) {
+  await page
+    .getByText(/your store's delivery list|invoice total|past gas delivery|delivery date/i)
+    .first()
+    .waitFor({ timeout: 20_000 })
+    .catch(() => {})
   return onGasDelivery(page)
+}
+
+async function gotoGasDelivery(page) {
+  await page.goto(new URL(GAS_DELIVERY_PATH, page.url()).href, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  })
+  await sleep(1200)
+}
+
+async function openViaGasFlyout(page) {
+  const gas = page.locator('#EWF-Menu-Link-1623')
+  const delivery = page.locator('#EWF-Menu-Link-1588')
+  if ((await gas.count()) === 0 || (await delivery.count()) === 0) return false
+
+  await gas.hover({ timeout: 3000 }).catch(() => {})
+  await sleep(500)
+  await delivery.click({ force: true, timeout: 8000 })
+  await sleep(1500)
+  return waitForGasDelivery(page)
 }
 
 async function openGasDelivery(page, config, hooks = {}) {
   if (await onGasDelivery(page)) return
 
-  const candidates = [
-    '/EmagineNETCOSM/Content/Gas/GasDelivery.aspx',
-    '/EmagineNETCOSM/Content/Gas/GasDeliveries.aspx',
-    '/EmagineNETCOSM/Content/Gas/Delivery.aspx'
-  ]
-  for (const deliveryPath of candidates) {
-    await page.goto(new URL(deliveryPath, page.url()).href, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60_000
-    })
+  await gotoGasDelivery(page)
+  if (isCstoreLoginUrl(page.url())) {
+    const login = await waitForSession(page, config, hooks)
+    if (!login.ok) throw new Error(login.message)
+    if (!(await onGasDelivery(page))) await gotoGasDelivery(page)
+  }
+  if (await waitForGasDelivery(page)) return
+
+  const deliveryLink = page.locator('#EWF-Menu-Link-1588')
+  if ((await deliveryLink.count()) > 0) {
+    await deliveryLink.click({ force: true, timeout: 8000 })
     await sleep(1200)
-    if (isCstoreLoginUrl(page.url())) {
-      const login = await waitForSession(page, config, hooks)
-      if (!login.ok) throw new Error(login.message)
-    }
-    if (await onGasDelivery(page)) return
+    if (await waitForGasDelivery(page)) return
   }
 
   const debugDir = path.join(process.cwd(), 'downloads')
   if (await openViaGasFlyout(page)) return
 
   await saveDebug(page, debugDir, 'fuel-deliveries-nav-failed')
-  throw new Error('Could not open Gas → Delivery')
+  throw new Error(
+    `Could not open Gas → Delivery (landed on ${page.url() || 'an unknown page'})`
+  )
 }
 
 async function clickDateSubmit(scope) {
@@ -610,6 +628,9 @@ async function scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir) {
   const seenBols = new Set()
 
   for (let pageNo = 0; pageNo < 30; pageNo++) {
+    if (isCstoreLoginUrl(page.url())) {
+      throw new Error('Cstore returned to the login page before fuel deliveries could be read')
+    }
     let safety = 0
     while (safety < 40) {
       safety++
@@ -682,6 +703,13 @@ async function runFuelDeliveries(config, options = {}) {
     console.log(`[Cstore] Gas delivery ready at ${page.url()}`)
 
     const invoices = await scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir)
+    if (isCstoreLoginUrl(page.url()) || !(await onGasDelivery(page))) {
+      throw new Error(
+        isCstoreLoginUrl(page.url())
+          ? 'Cstore returned to the login page before fuel deliveries could be read'
+          : `Gas Delivery list was not open after the scrape (${page.url() || 'unknown page'})`
+      )
+    }
     const message =
       invoices.length === 0
         ? `Fuel: no unpaid gas deliveries for ${year}-${String(month).padStart(2, '0')}`
