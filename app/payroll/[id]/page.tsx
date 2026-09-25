@@ -160,7 +160,9 @@ export default function PayrollRunPage() {
   const [run, setRun] = useState<PayRun | null>(null)
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [payDate, setPayDate] = useState('')
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [details, setDetails] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -181,10 +183,12 @@ export default function PayrollRunPage() {
     const next = data as PayRun
     setRun(next)
     setPayDate(next.payDate)
+    setStartDate(next.startDate)
+    setEndDate(next.endDate)
     const seeded: Record<string, Draft> = {}
     for (const line of next.lines) seeded[line.id] = draftFromLine(line)
     setDrafts(seeded)
-    if (next.status === 'processed' || next.status === 'void') setStep(3)
+    if (next.status === 'processed' || next.status === 'void') setStep(4)
     return next
   }, [id])
 
@@ -235,6 +239,8 @@ export default function PayrollRunPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         payDate,
+        startDate,
+        endDate,
         lines: run.lines.map((line) => {
           const draft = drafts[line.id] ?? draftFromLine(line)
           return {
@@ -255,6 +261,9 @@ export default function PayrollRunPage() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to save payroll')
     setRun(data)
+    if (typeof data.payDate === 'string') setPayDate(data.payDate)
+    if (typeof data.startDate === 'string') setStartDate(data.startDate)
+    if (typeof data.endDate === 'string') setEndDate(data.endDate)
     const seeded: Record<string, Draft> = {}
     for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line)
     setDrafts(seeded)
@@ -273,13 +282,34 @@ export default function PayrollRunPage() {
     }
   }
 
+  const importTimeList = async () => {
+    if (locked) {
+      setStep(2)
+      return
+    }
+    if (!startDate || !endDate || startDate > endDate) {
+      setError('Choose a pay period. The end date has to be on or after the start date.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await persist()
+      setStep(2)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save the pay period')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const continueToReview = async () => {
     setBusy(true)
     setError(null)
     try {
       await persist()
       setDetails(false)
-      setStep(2)
+      setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save payroll')
     } finally {
@@ -300,7 +330,7 @@ export default function PayrollRunPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to approve payroll')
       setRun(data)
-      setStep(3)
+      setStep(4)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve payroll')
     } finally {
@@ -342,7 +372,7 @@ export default function PayrollRunPage() {
       setRun(data)
       setVoidOpen(false)
       setVoidReason('')
-      setStep(3)
+      setStep(4)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to void payroll')
     } finally {
@@ -577,7 +607,7 @@ export default function PayrollRunPage() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">
-              {step === 1 ? 'Run a new payroll' : 'Pay employees'}
+              {step === 1 ? 'Choose pay period' : 'Pay employees'}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
               {payCycleLabel(run.cycle)} · {mdy(run.startDate)} – {mdy(run.endDate)}
@@ -617,18 +647,17 @@ export default function PayrollRunPage() {
           </div>
         </div>
 
-        <ol className="mb-8 grid grid-cols-3 border-b border-slate-200">
-          {(['Enter payroll', 'Approve payroll', 'Print'] as const).map((label, index) => {
-            const n = (index + 1) as 1 | 2 | 3
+        <ol className="mb-8 grid grid-cols-2 border-b border-slate-200 sm:grid-cols-4">
+          {(['Pay period', 'Enter payroll', 'Approve payroll', 'Print'] as const).map((label, index) => {
+            const n = (index + 1) as 1 | 2 | 3 | 4
             const active = step === n
             return (
               <li key={label}>
                 <button
                   type="button"
                   onClick={() => {
-                    if (n === 3 && !locked) return
-                    if (n === 1 || locked) setStep(n)
-                    if (n === 2 && !locked) setStep(2)
+                    if (n === 4 && !locked) return
+                    setStep(n)
                   }}
                   className={`w-full pb-3 text-left text-sm ${
                     active ? 'border-b-2 border-violet-700 font-semibold text-slate-900' : 'text-slate-400'
@@ -646,18 +675,12 @@ export default function PayrollRunPage() {
         ) : null}
 
         {step === 1 ? (
-          <>
-            <div className="mb-8 grid gap-4 sm:grid-cols-3">
+          <div className="max-w-3xl">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm font-medium text-slate-800">Pay schedule</p>
                 <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                   {payCycleLabel(run.cycle)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-800">Pay period</p>
-                <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                  {mdy(run.startDate)} – {mdy(run.endDate)}
                 </p>
               </div>
               <label className="block text-sm">
@@ -670,8 +693,36 @@ export default function PayrollRunPage() {
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 />
               </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay period start</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  disabled={locked}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay period end</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  disabled={locked}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
             </div>
+            <p className="mt-4 text-sm text-slate-500">
+              Import time list fills hours from the attendance extract for this period. You can still edit them on the
+              next step.
+            </p>
+          </div>
+        ) : null}
 
+        {step === 2 ? (
+          <>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
               <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -882,7 +933,7 @@ export default function PayrollRunPage() {
           </>
         ) : null}
 
-        {step === 2 ? (
+        {step === 3 ? (
           <ReviewStep
             run={run}
             details={details}
@@ -894,7 +945,7 @@ export default function PayrollRunPage() {
           />
         ) : null}
 
-        {step === 3 ? (
+        {step === 4 ? (
           <div>
             {voided ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -959,8 +1010,26 @@ export default function PayrollRunPage() {
 
       {step === 1 ? (
         <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
+          <div className="mx-auto flex max-w-6xl justify-end">
+            <button
+              type="button"
+              onClick={importTimeList}
+              disabled={busy}
+              className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Import time list'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 2 ? (
+        <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div className="flex gap-4 text-sm">
+              <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
+                Back to pay period
+              </button>
               <button type="button" onClick={clearEntries} disabled={locked} className="font-medium text-violet-700 disabled:opacity-40">
                 Clear entries
               </button>
@@ -983,11 +1052,11 @@ export default function PayrollRunPage() {
         </div>
       ) : null}
 
-      {step === 2 ? (
+      {step === 3 ? (
         <div className="sticky bottom-0 border-t border-violet-100 bg-violet-50 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div className="flex gap-4 text-sm">
-              <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
+              <button type="button" onClick={() => setStep(2)} className="font-medium text-violet-700">
                 Back to employees
               </button>
               <button type="button" onClick={openPreview} className="font-medium text-violet-700">

@@ -99,17 +99,21 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ## 6. Payroll is its own tile and process
 
-**Status:** First payroll screen is on `/payroll` (2026-09-25). It follows the Patriot three-step run and uses existing pay-run data. Drafts can be deleted. An approved run can be voided with a reason, who voided it, and when. Voided amounts stay on record and no longer count toward N.I.S. Column preferences beyond the show-all toggle are still open.
+**Status:** First payroll screen is on `/payroll` (2026-09-25). The run is four steps: pay period, enter payroll, approve, print. Drafts can be deleted. An approved run can be voided with a reason, who voided it, and when. Voided amounts stay on record and no longer count toward N.I.S. Column preferences beyond the show-all toggle are still open.
 
 **Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
 
-**Entry:** Own home tile and nav entry. The run starts there. It is not **Extract Pay Period** on Attendance, and not a continuation into `/pay-run` from that page. Attendance stays punches, roster match, late/absent, and the staff attendance report. Extracted attendance fills hours on step 1.
+**Entry:** Own home tile and nav entry. The run starts there. It is not **Extract Pay Period** on Attendance, and not a continuation into `/pay-run` from that page. Attendance stays punches, roster match, late/absent, and the staff attendance report. Extracted attendance fills hours after the pay period is chosen.
 
 The Patriot layout is the model. US-only pieces are not copied: payroll tax, Social Security, Medicare, 401(k), W-2, 1099 contractors, direct-deposit funding, and departments. PAYE stays in Pay+.
 
-### Step 1 — Enter payroll
+### Step 1 — Pay period
 
-Header: pay schedule, pay period, pay date.
+Pay schedule, pay period start, pay period end, and pay date. **Import time list** saves that range and opens the hours.
+
+### Step 2 — Enter payroll
+
+Header from step 1 stays on the run: pay schedule, pay period, pay date.
 
 - Schedules already on staff: Weekly, Bi-weekly, Semi-monthly, Monthly.
 - Off-schedule: manual start date, end date, and pay date.
@@ -127,16 +131,16 @@ Header: pay schedule, pay period, pay date.
 
 Deductions are not typed on this grid. They show on the review, where they can be adjusted before approval: employee NIS (5%, $250 monthly cap), staff loan, medical, shortage, and extra deductions. Employer NIS is a memo and is not taken from net.
 
-### Step 2 — Review and approve
+### Step 3 — Review and approve
 
 Summary grouped the same way: Hourly, then Salaried, then payroll totals. Columns: total hours, gross, net.
 
 - **View details** opens each person: hours and earnings, deductions, gross, net, and bank / account for the banking pack. Employer NIS sits beside that as a memo. A line states that PAYE is still calculated in Pay+.
-- **Back** returns to step 1. Nothing is final until approve.
+- **Back** returns to the hours step. Nothing is final until approve.
 - **Download preview** before approve, so someone else can review it.
 - **Approve payroll** locks the run.
 
-### Step 3 — Done
+### Step 4 — Done
 
 Completed banner with the period and pay date.
 
