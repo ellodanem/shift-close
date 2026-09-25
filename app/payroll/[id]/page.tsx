@@ -7,7 +7,14 @@ import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
 import { printBankingPack } from '@/lib/pay-run-banking-print'
 import { creditUnionLetters, downloadCreditUnionLetter } from '@/lib/pay-run-cu-letter'
-import { printNisReport, printPayrollPreview } from '@/lib/payroll-print'
+import {
+  downloadPayrollPreview,
+  payrollPreviewStatus,
+  printNisReport,
+  printPayrollPreview,
+  type PayrollPreviewInput,
+  type PayrollPreviewLine
+} from '@/lib/payroll-print'
 import {
   amountForLabel,
   buildDeductionLines,
@@ -107,6 +114,23 @@ function mdy(ymd: string): string {
 
 function moneyInput(value: number): string {
   return value ? String(value) : ''
+}
+
+function previewFromRun(saved: PayRun): PayrollPreviewInput {
+  return {
+    startDate: saved.startDate,
+    endDate: saved.endDate,
+    payDate: saved.payDate,
+    status: saved.status,
+    voidReason: saved.voidReason,
+    lines: saved.lines.map((line) => ({
+      staffName: line.staffName,
+      payType: line.payType,
+      hours: parseMoney(line.basicHours) + parseMoney(line.otHours),
+      grossPay: line.grossPay,
+      netPay: line.netPay
+    }))
+  }
 }
 
 function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
@@ -228,6 +252,8 @@ export default function PayrollRunPage() {
   const [rateScope, setRateScope] = useState<'run' | 'future'>('run')
   const [voidOpen, setVoidOpen] = useState(false)
   const [voidReason, setVoidReason] = useState('')
+  const [preview, setPreview] = useState<PayrollPreviewInput | null>(null)
+  const [openingPreview, setOpeningPreview] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
@@ -682,28 +708,17 @@ export default function PayrollRunPage() {
   const openPreview = async () => {
     if (!run) return
     setBusy(true)
+    setOpeningPreview(true)
     setError(null)
     try {
       const saved = locked ? run : await persist()
       if (!saved) return
-      printPayrollPreview({
-        startDate: saved.startDate,
-        endDate: saved.endDate,
-        payDate: saved.payDate,
-        status: saved.status,
-        voidReason: saved.voidReason,
-        lines: saved.lines.map((line) => ({
-          staffName: line.staffName,
-          payType: line.payType,
-          hours: parseMoney(line.basicHours) + parseMoney(line.otHours),
-          grossPay: line.grossPay,
-          netPay: line.netPay
-        }))
-      })
+      setPreview(previewFromRun(saved))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to build the preview')
     } finally {
       setBusy(false)
+      setOpeningPreview(false)
     }
   }
 
@@ -855,8 +870,24 @@ export default function PayrollRunPage() {
 
         {step === 2 ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
+              <span className="group relative inline-flex">
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                  aria-label="About hours and money"
+                >
+                  ?
+                </button>
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code,
+                  and medical. Use Hours & money types to add or remove columns.
+                </span>
+              </span>
               <button
                 type="button"
                 onClick={() => setTypesOpen(true)}
@@ -865,10 +896,6 @@ export default function PayrollRunPage() {
                 Hours & money types
               </button>
             </div>
-            <p className="mb-4 text-sm text-slate-500">
-              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code, and
-              medical. Use Hours & money types to add or remove columns.
-            </p>
 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
@@ -1071,7 +1098,11 @@ export default function PayrollRunPage() {
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={openPreview}
+                onClick={() => {
+                  if (!printPayrollPreview(previewFromRun(run))) {
+                    setError('Allow pop-ups to print this payroll.')
+                  }
+                }}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
                 Print payroll
@@ -1129,17 +1160,36 @@ export default function PayrollRunPage() {
       {step === 2 ? (
         <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <div className="flex gap-4 text-sm">
-              <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100"
+              >
                 Back to pay period
               </button>
-              <button type="button" onClick={clearEntries} disabled={locked} className="font-medium text-violet-700 disabled:opacity-40">
+              <button
+                type="button"
+                onClick={clearEntries}
+                disabled={locked}
+                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+              >
                 Clear entries
               </button>
-              <button type="button" onClick={save} disabled={busy || locked} className="font-medium text-violet-700 disabled:opacity-40">
+              <button
+                type="button"
+                onClick={save}
+                disabled={busy || locked}
+                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+              >
                 Save entries
               </button>
-              <button type="button" onClick={reloadHours} disabled={busy || locked} className="font-medium text-slate-500 disabled:opacity-40">
+              <button
+                type="button"
+                onClick={reloadHours}
+                disabled={busy || locked}
+                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+              >
                 Reload hours from attendance
               </button>
             </div>
@@ -1162,8 +1212,13 @@ export default function PayrollRunPage() {
               <button type="button" onClick={() => setStep(2)} className="font-medium text-violet-700">
                 Back to employees
               </button>
-              <button type="button" onClick={openPreview} className="font-medium text-violet-700">
-                Download preview
+              <button
+                type="button"
+                onClick={openPreview}
+                disabled={busy}
+                className="font-medium text-violet-700 disabled:opacity-50"
+              >
+                {openingPreview ? 'Preparing…' : 'Download preview'}
               </button>
             </div>
             {locked ? null : (
@@ -1295,6 +1350,8 @@ export default function PayrollRunPage() {
         </div>
       ) : null}
 
+      {preview ? <PayrollPreviewModal preview={preview} onClose={() => setPreview(null)} /> : null}
+
       {rateLine && !locked ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
@@ -1366,6 +1423,132 @@ export default function PayrollRunPage() {
         </div>
       ) : null}
     </div>
+  )
+}
+
+function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInput; onClose: () => void }) {
+  const [printError, setPrintError] = useState<string | null>(null)
+  const hourly = preview.lines.filter((line) => line.payType !== 'salaried')
+  const salaried = preview.lines.filter((line) => line.payType === 'salaried')
+  const hours = preview.lines.reduce((sum, line) => sum + (line.payType === 'salaried' ? 0 : line.hours), 0)
+  const gross = preview.lines.reduce((sum, line) => sum + line.grossPay, 0)
+  const net = preview.lines.reduce((sum, line) => sum + line.netPay, 0)
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const print = () => {
+    setPrintError(null)
+    if (!printPayrollPreview(preview)) {
+      setPrintError('Allow pop-ups to print this preview.')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payroll-preview-title"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 id="payroll-preview-title" className="text-lg font-semibold text-slate-900">
+              Payroll preview
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Pay period {mdy(preview.startDate)} – {mdy(preview.endDate)} · Pay date {mdy(preview.payDate)}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm font-medium text-slate-600 hover:text-slate-900">
+            Close
+          </button>
+        </div>
+        <div className="overflow-auto bg-slate-100 px-6 py-5">
+          <div className="rounded-md border border-slate-200 bg-white px-6 py-5 shadow-sm">
+            <p className="rounded-md bg-violet-50 px-4 py-3 text-sm text-slate-800">{payrollPreviewStatus(preview)}</p>
+            <PreviewSection title="Hourly employees" lines={hourly} />
+            <PreviewSection title="Salaried employees" lines={salaried} />
+            <p className="mt-4 text-sm text-slate-800">
+              <span className="font-semibold">Total hours</span> {hours.toFixed(2)} ·{' '}
+              <span className="font-semibold">Gross</span> {formatMoney(gross)} ·{' '}
+              <span className="font-semibold">Net</span> {formatMoney(net)}
+            </p>
+            <p className="mt-2 text-sm text-slate-500">PAYE is still calculated in Pay+.</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          {printError ? <p className="mr-auto text-sm text-red-700">{printError}</p> : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={print}
+            className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadPayrollPreview(preview)}
+            className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PreviewSection({ title, lines }: { title: string; lines: PayrollPreviewLine[] }) {
+  if (lines.length === 0) return null
+  const hours = lines.reduce((sum, line) => sum + (line.payType === 'salaried' ? 0 : line.hours), 0)
+  const gross = lines.reduce((sum, line) => sum + line.grossPay, 0)
+  const net = lines.reduce((sum, line) => sum + line.netPay, 0)
+  return (
+    <section className="mt-5">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <table className="mt-2 w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <th className="py-2 font-semibold">Name</th>
+            <th className="py-2 text-right font-semibold">Total hours</th>
+            <th className="py-2 text-right font-semibold">Gross pay</th>
+            <th className="py-2 text-right font-semibold">Net pay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, index) => (
+            <tr key={`${line.staffName}-${index}`} className="border-b border-slate-100">
+              <td className="py-2">{line.staffName}</td>
+              <td className="py-2 text-right tabular-nums">
+                {line.payType === 'salaried' ? '—' : line.hours.toFixed(2)}
+              </td>
+              <td className="py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+              <td className="py-2 text-right tabular-nums">{formatMoney(line.netPay)}</td>
+            </tr>
+          ))}
+          <tr className="bg-violet-50 font-semibold">
+            <td className="py-2">Subtotal</td>
+            <td className="py-2 text-right tabular-nums">{hours.toFixed(2)}</td>
+            <td className="py-2 text-right tabular-nums">{formatMoney(gross)}</td>
+            <td className="py-2 text-right tabular-nums">{formatMoney(net)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
   )
 }
 
