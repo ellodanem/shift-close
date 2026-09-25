@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   attachBankingToLines,
   loadNisTakenByStaffId,
+  loadPriorYtdByStaffId,
   parsePayPeriodHoursRows,
   rebuildPayRunLines,
-  syncDraftPayTypes
+  syncDraftPayTypes,
+  ytdIncludingCurrent
 } from '@/lib/pay-run-build'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
@@ -22,21 +24,62 @@ import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
-async function presentRun<T extends { extraDisbursements?: string; lines?: Array<{ extraLines: string; extraDeductions?: string; staffId?: string | null; bankCode?: string; accountNo?: string | null }> }>(run: T) {
+async function presentRun<
+  T extends {
+    id: string
+    payDate: string
+    extraDisbursements?: string
+    lines?: Array<{
+      extraLines: string
+      extraDeductions?: string
+      staffId?: string | null
+      bankCode?: string
+      accountNo?: string | null
+      basicPay: number
+      otPay: number
+      extraPay: number
+      grossPay: number
+      nisEmployee: number
+      staffLoan: number
+      medical: number
+      shortageReady: number
+      extraDeductionPay: number
+      totalDeductions: number
+      netPay: number
+    }>
+  }
+>(run: T) {
   const lines = run.lines ?? []
   const staffIds = lines.map((line) => line.staffId).filter((id): id is string => Boolean(id))
-  const staff =
+  const [staff, priorYtd] = await Promise.all([
     staffIds.length > 0
-      ? await prisma.staff.findMany({
+      ? prisma.staff.findMany({
           where: { id: { in: staffIds } },
           select: { id: true, bankName: true, accountNumber: true }
         })
-      : []
+      : Promise.resolve([]),
+    loadPriorYtdByStaffId(run.payDate, run.id)
+  ])
   const staffById = new Map(staff.map((s) => [s.id, s]))
   return {
     ...run,
     extraDisbursements: parseExtraLines(run.extraDisbursements ?? '[]'),
-    lines: attachBankingToLines(lines.map((line) => presentPayRunLine(line)), staffById)
+    lines: attachBankingToLines(lines.map((line) => presentPayRunLine(line)), staffById).map((line) => ({
+      ...line,
+      ytd: ytdIncludingCurrent(line.staffId ? priorYtd[line.staffId] : undefined, {
+        basicPay: line.basicPay,
+        otPay: line.otPay,
+        extraPay: line.extraPay,
+        grossPay: line.grossPay,
+        nisEmployee: line.nisEmployee,
+        staffLoan: line.staffLoan,
+        medical: line.medical,
+        shortageReady: line.shortageReady,
+        extraDeductionPay: line.extraDeductionPay,
+        totalDeductions: line.totalDeductions,
+        netPay: line.netPay
+      })
+    }))
   }
 }
 

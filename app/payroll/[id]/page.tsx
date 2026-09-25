@@ -32,13 +32,30 @@ type PayRunLine = {
   salariedAmount: number
   extraLines: PayRunExtraLine[]
   extraDeductions: PayRunExtraLine[]
+  basicPay: number
+  otPay: number
+  extraPay: number
   grossPay: number
   shortageReady: number
   nisEmployee: number
+  ytd?: {
+    basicPay: number
+    otPay: number
+    extraPay: number
+    grossPay: number
+    nisEmployee: number
+    staffLoan: number
+    medical: number
+    shortageReady: number
+    extraDeductionPay: number
+    totalDeductions: number
+    netPay: number
+  }
   nisEmployer: number
   staffLoan: number
   medical: number
   totalDeductions: number
+  extraDeductionPay?: number
   netPay: number
   bankCode?: string
   accountNo?: string | null
@@ -102,6 +119,11 @@ function extraLinesFor(line: PayRunLine, draft: Draft): PayRunExtraLine[] {
   const withExtra = setSingleExtraAmount(line.extraLines, parseMoney(draft.extra))
   const salaried = parsePayType(line.payType) === 'salaried'
   return setSalarySkipped(withExtra, salaried && !draft.paySalary)
+}
+
+function shownYtd(savedYtd: number, savedCurrent: number, draftValue: string | undefined): number {
+  if (draftValue === undefined) return savedYtd
+  return savedYtd - savedCurrent + parseMoney(draftValue)
 }
 
 function deductionLines(amount: string): PayRunExtraLine[] {
@@ -1131,7 +1153,8 @@ function ReviewStep({
       </div>
       <p className="mb-6 text-sm text-slate-600">
         Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}. Net is gross minus employee
-        NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+.
+        NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+. YTD is approved
+        pay in {run.payDate.slice(0, 4)} through this pay date, including this payroll.
       </p>
 
       {details ? (
@@ -1163,86 +1186,134 @@ function ReviewStep({
                   <div>
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hours and earnings</h4>
                     <table className="mt-2 w-full text-sm">
+                      <thead>
+                        <tr className="text-xs uppercase tracking-wide text-slate-400">
+                          <th className="py-1 text-left font-medium" />
+                          <th className="py-1 text-right font-medium">Hours</th>
+                          <th className="py-1 text-right font-medium">Amount</th>
+                          <th className="py-1 text-right font-medium">YTD</th>
+                        </tr>
+                      </thead>
                       <tbody>
                         <tr>
                           <td className="py-1">Basic</td>
                           <td className="py-1 text-right tabular-nums">{line.basicHours.toFixed(2)}</td>
-                          <td className="py-1 text-right tabular-nums">{formatMoney(line.hourlyRate)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.basicPay)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.basicPay ?? line.basicPay)}</td>
                         </tr>
                         <tr>
                           <td className="py-1">Overtime</td>
                           <td className="py-1 text-right tabular-nums">{line.otHours.toFixed(2)}</td>
-                          <td className="py-1 text-right" />
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.otPay)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.otPay ?? line.otPay)}</td>
                         </tr>
                         <tr>
                           <td className="py-1">Extra</td>
                           <td />
-                          <td className="py-1 text-right tabular-nums">{formatMoney(extraPayTotal(line.extraLines))}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.extraPay)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.extraPay ?? line.extraPay)}</td>
                         </tr>
                         <tr className="font-semibold">
                           <td className="py-1">Gross pay</td>
                           <td />
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.grossPay ?? line.grossPay)}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                   <div>
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Deductions</h4>
-                    <dl className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <dt>NIS</dt>
-                        <dd className="tabular-nums">{formatMoney(line.nisEmployee)}</dd>
-                      </div>
-                      <label className="flex items-center justify-between gap-3">
-                        <span>Loan</span>
-                        <input
-                          aria-label={`Loan for ${line.staffName}`}
-                          value={draft?.loan ?? ''}
-                          disabled={locked}
-                          onChange={(e) => onDraft(line.id, { loan: e.target.value })}
-                          className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between gap-3">
-                        <span>Medical</span>
-                        <input
-                          aria-label={`Medical for ${line.staffName}`}
-                          value={draft?.medical ?? ''}
-                          disabled={locked}
-                          onChange={(e) => onDraft(line.id, { medical: e.target.value })}
-                          className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between gap-3">
-                        <span>Shortage</span>
-                        <input
-                          aria-label={`Shortage for ${line.staffName}`}
-                          value={draft?.shortage ?? ''}
-                          disabled={locked}
-                          onChange={(e) => onDraft(line.id, { shortage: e.target.value })}
-                          className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between gap-3">
-                        <span>Other</span>
-                        <input
-                          aria-label={`Other deduction for ${line.staffName}`}
-                          value={draft?.otherDeduction ?? ''}
-                          disabled={locked}
-                          onChange={(e) => onDraft(line.id, { otherDeduction: e.target.value })}
-                          className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
-                        />
-                      </label>
-                      <div className="flex justify-between font-semibold">
-                        <dt>Total deductions</dt>
-                        <dd className="tabular-nums">{formatMoney(line.totalDeductions)}</dd>
-                      </div>
-                      <div className="flex justify-between font-semibold text-emerald-800">
-                        <dt>Net pay</dt>
-                        <dd className="tabular-nums">{formatMoney(line.netPay)}</dd>
-                      </div>
-                    </dl>
+                    <table className="mt-2 w-full text-sm">
+                      <thead>
+                        <tr className="text-xs uppercase tracking-wide text-slate-400">
+                          <th className="py-1 text-left font-medium" />
+                          <th className="py-1 text-right font-medium">Amount</th>
+                          <th className="py-1 text-right font-medium">YTD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-1">NIS</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.nisEmployee ?? line.nisEmployee)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Loan</td>
+                          <td className="py-1 text-right">
+                            <input
+                              aria-label={`Loan for ${line.staffName}`}
+                              value={draft?.loan ?? ''}
+                              disabled={locked}
+                              onChange={(e) => onDraft(line.id, { loan: e.target.value })}
+                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                            />
+                          </td>
+                          <td className="py-1 text-right tabular-nums">
+                            {formatMoney(shownYtd(line.ytd?.staffLoan ?? line.staffLoan, line.staffLoan, draft?.loan))}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Medical</td>
+                          <td className="py-1 text-right">
+                            <input
+                              aria-label={`Medical for ${line.staffName}`}
+                              value={draft?.medical ?? ''}
+                              disabled={locked}
+                              onChange={(e) => onDraft(line.id, { medical: e.target.value })}
+                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                            />
+                          </td>
+                          <td className="py-1 text-right tabular-nums">
+                            {formatMoney(shownYtd(line.ytd?.medical ?? line.medical, line.medical, draft?.medical))}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Shortage</td>
+                          <td className="py-1 text-right">
+                            <input
+                              aria-label={`Shortage for ${line.staffName}`}
+                              value={draft?.shortage ?? ''}
+                              disabled={locked}
+                              onChange={(e) => onDraft(line.id, { shortage: e.target.value })}
+                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                            />
+                          </td>
+                          <td className="py-1 text-right tabular-nums">
+                            {formatMoney(shownYtd(line.ytd?.shortageReady ?? line.shortageReady, line.shortageReady, draft?.shortage))}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">Other</td>
+                          <td className="py-1 text-right">
+                            <input
+                              aria-label={`Other deduction for ${line.staffName}`}
+                              value={draft?.otherDeduction ?? ''}
+                              disabled={locked}
+                              onChange={(e) => onDraft(line.id, { otherDeduction: e.target.value })}
+                              className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                            />
+                          </td>
+                          <td className="py-1 text-right tabular-nums">
+                            {formatMoney(
+                              shownYtd(line.ytd?.extraDeductionPay ?? line.extraDeductionPay ?? 0, line.extraDeductionPay ?? 0, draft?.otherDeduction)
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="font-semibold">
+                          <td className="py-1">Total deductions</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.totalDeductions)}</td>
+                          <td className="py-1 text-right tabular-nums">
+                            {formatMoney(line.ytd?.totalDeductions ?? line.totalDeductions)}
+                          </td>
+                        </tr>
+                        <tr className="font-semibold text-emerald-800">
+                          <td className="py-1">Net pay</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.netPay)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.netPay ?? line.netPay)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                     <p className="mt-3 text-xs text-slate-500">
                       Employer NIS {formatMoney(line.nisEmployer)} is not taken from net.
                       {line.bankCode ? ` Bank ${line.bankCode}` : ''}

@@ -239,6 +239,109 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
   }
 }
 
+export type PayRunYtd = {
+  basicPay: number
+  otPay: number
+  extraPay: number
+  grossPay: number
+  nisEmployee: number
+  staffLoan: number
+  medical: number
+  shortageReady: number
+  extraDeductionPay: number
+  totalDeductions: number
+  netPay: number
+}
+
+const ZERO_YTD: PayRunYtd = {
+  basicPay: 0,
+  otPay: 0,
+  extraPay: 0,
+  grossPay: 0,
+  nisEmployee: 0,
+  staffLoan: 0,
+  medical: 0,
+  shortageReady: 0,
+  extraDeductionPay: 0,
+  totalDeductions: 0,
+  netPay: 0
+}
+
+function addYtd(left: PayRunYtd, right: PayRunYtd): PayRunYtd {
+  return {
+    basicPay: round2(left.basicPay + right.basicPay),
+    otPay: round2(left.otPay + right.otPay),
+    extraPay: round2(left.extraPay + right.extraPay),
+    grossPay: round2(left.grossPay + right.grossPay),
+    nisEmployee: round2(left.nisEmployee + right.nisEmployee),
+    staffLoan: round2(left.staffLoan + right.staffLoan),
+    medical: round2(left.medical + right.medical),
+    shortageReady: round2(left.shortageReady + right.shortageReady),
+    extraDeductionPay: round2(left.extraDeductionPay + right.extraDeductionPay),
+    totalDeductions: round2(left.totalDeductions + right.totalDeductions),
+    netPay: round2(left.netPay + right.netPay)
+  }
+}
+
+/** Approved pay in the same calendar year, up to this pay date, excluding this run. */
+export async function loadPriorYtdByStaffId(
+  payDate: string,
+  excludePayRunId: string
+): Promise<Record<string, PayRunYtd>> {
+  const year = payDate.slice(0, 4)
+  if (!/^\d{4}$/.test(year)) return {}
+  const lines = await prisma.payRunLine.findMany({
+    where: {
+      staffId: { not: null },
+      payRun: {
+        status: 'processed',
+        payDate: { gte: `${year}-01-01`, lte: payDate },
+        id: { not: excludePayRunId }
+      }
+    },
+    select: {
+      staffId: true,
+      basicPay: true,
+      otPay: true,
+      extraPay: true,
+      grossPay: true,
+      nisEmployee: true,
+      staffLoan: true,
+      medical: true,
+      shortageReady: true,
+      extraDeductionPay: true,
+      totalDeductions: true,
+      netPay: true
+    }
+  })
+  const totals: Record<string, PayRunYtd> = {}
+  for (const line of lines) {
+    if (!line.staffId) continue
+    const current = totals[line.staffId] ?? { ...ZERO_YTD }
+    totals[line.staffId] = addYtd(current, {
+      basicPay: line.basicPay,
+      otPay: line.otPay,
+      extraPay: line.extraPay,
+      grossPay: line.grossPay,
+      nisEmployee: line.nisEmployee,
+      staffLoan: line.staffLoan,
+      medical: line.medical,
+      shortageReady: line.shortageReady,
+      extraDeductionPay: line.extraDeductionPay,
+      totalDeductions: line.totalDeductions,
+      netPay: line.netPay
+    })
+  }
+  return totals
+}
+
+export function ytdIncludingCurrent(
+  prior: PayRunYtd | undefined,
+  current: PayRunYtd
+): PayRunYtd {
+  return addYtd(prior ?? ZERO_YTD, current)
+}
+
 export function attachBankingToLines<
   T extends { staffId?: string | null; bankCode?: string; accountNo?: string | null }
 >(
