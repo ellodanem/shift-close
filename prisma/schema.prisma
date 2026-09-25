@@ -42,6 +42,8 @@ model Staff {
   staffLoan     Float?  @map("staff_loan")
   /// Recurring medical deduction on each pay run.
   medicalAmount Float?  @map("medical_amount")
+  /// PAYE tax code used in Pay+. Stored here so payroll can update it with the rate.
+  taxCode      String   @default("") @map("tax_code")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -1119,6 +1121,7 @@ model PayRunLine {
   medical        Float   @default(0)
   totalDeductions Float  @default(0) @map("total_deductions")
   netPay         Float   @default(0) @map("net_pay")
+  taxCode        String  @default("") @map("tax_code")
   sortOrder      Int     @default(0) @map("sort_order")
 
   payRun PayRun @relation(fields: [payRunId], references: [id], onDelete: Cascade)

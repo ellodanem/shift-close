@@ -119,8 +119,8 @@ Header: pay schedule, pay period, pay date.
 
 - Hourly row: name, rate, basic hours, OT hours (1.5×, split with the existing cycle cap), extra pay, line total.
 - Hours prefill from extracted attendance for that period. The user can still edit them.
-- Click the name to change the hourly rate for this run only, or for this run and future runs.
-- Salaried row: **Pay salary** checked by default. Uncheck to skip that person this run. Salary amount can be changed the same way as a rate (this run, or this run and future).
+- Click the name to change the hourly rate and tax code for this run only, or for this run and future runs.
+- Salaried row: **Pay salary** checked by default. Uncheck to skip that person this run. Salary and tax code can be changed the same way as a rate (this run, or this run and future).
 - Default visible columns are the ones we use (basic, OT, extra pay). A **show all hours and money types** toggle reveals the rest. Which columns count as frequently used is a payroll setting.
 - Vacation and sick stay notes from attendance. They are not paid hour columns unless that is decided later.
 - Save entries, clear entries, then **Continue**.

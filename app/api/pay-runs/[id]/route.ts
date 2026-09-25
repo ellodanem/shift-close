@@ -129,6 +129,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const shortageReady =
         lineBody.shortageReady !== undefined ? parseMoney(lineBody.shortageReady) : existing.shortageReady
       const payType = parsePayType(lineBody.payType ?? existing.payType)
+      const taxCode =
+        typeof lineBody.taxCode === 'string' ? lineBody.taxCode.trim() : existing.taxCode
       const basicHours =
         lineBody.basicHours !== undefined ? parseMoney(lineBody.basicHours) : existing.basicHours
       const otHours = lineBody.otHours !== undefined ? parseMoney(lineBody.otHours) : existing.otHours
@@ -174,7 +176,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           staffLoan: deducted.staffLoan,
           medical: deducted.medical,
           totalDeductions: deducted.totalDeductions,
-          netPay: deducted.netPay
+          netPay: deducted.netPay,
+          taxCode
         }
       })
     }

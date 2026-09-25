@@ -42,6 +42,7 @@ type PayRunLine = {
   netPay: number
   bankCode?: string
   accountNo?: string | null
+  taxCode?: string
 }
 
 type PayRun = {
@@ -142,6 +143,7 @@ export default function PayrollRunPage() {
   const [error, setError] = useState<string | null>(null)
   const [rateLineId, setRateLineId] = useState<string | null>(null)
   const [rateValue, setRateValue] = useState('')
+  const [taxCode, setTaxCode] = useState('')
   const [rateScope, setRateScope] = useState<'run' | 'future'>('run')
 
   const load = useCallback(async () => {
@@ -317,31 +319,90 @@ export default function PayrollRunPage() {
     })
   }
 
+  const openPayInfo = (lineId: string) => {
+    if (!run || locked) return
+    const line = run.lines.find((item) => item.id === lineId)
+    const draft = drafts[lineId]
+    if (!line || !draft) return
+    const salariedLine = parsePayType(line.payType) === 'salaried'
+    setRateLineId(line.id)
+    setRateValue(salariedLine ? draft.salary : draft.rate)
+    setTaxCode(line.taxCode || '')
+    setRateScope('run')
+    if (line.staffId && !line.taxCode) {
+      fetch(`/api/staff/${line.staffId}`)
+        .then(async (res) => (res.ok ? res.json() : null))
+        .then((staff) => {
+          const code = typeof staff?.taxCode === 'string' ? staff.taxCode : ''
+          if (code) setTaxCode((current) => current || code)
+        })
+        .catch(() => undefined)
+    }
+  }
+
   const saveRate = async () => {
     if (!run || !rateLineId) return
     const line = run.lines.find((item) => item.id === rateLineId)
     if (!line) return
     const amount = parseMoney(rateValue)
+    const code = taxCode.trim()
     const salariedLine = parsePayType(line.payType) === 'salaried'
     patchDraft(line.id, salariedLine ? { salary: String(amount) } : { rate: String(amount) })
+    setRun((current) =>
+      current
+        ? {
+            ...current,
+            lines: current.lines.map((item) =>
+              item.id === line.id
+                ? {
+                    ...item,
+                    hourlyRate: salariedLine ? item.hourlyRate : amount,
+                    salariedAmount: salariedLine ? amount : item.salariedAmount,
+                    taxCode: code
+                  }
+                : item
+            )
+          }
+        : current
+    )
     setRateLineId(null)
-    if (rateScope === 'future' && line.staffId) {
-      setBusy(true)
-      try {
+    setBusy(true)
+    setError(null)
+    try {
+      const lineRes = await fetch(`/api/pay-runs/${run.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          line: {
+            id: line.id,
+            taxCode: code,
+            ...(salariedLine ? { salariedAmount: amount } : { hourlyRate: amount })
+          }
+        })
+      })
+      if (!lineRes.ok) {
+        const data = await lineRes.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to save pay information')
+      }
+      if (rateScope === 'future' && line.staffId) {
         const res = await fetch(`/api/staff/${line.staffId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(salariedLine ? { salariedAmount: amount } : { hourlyRate: amount })
+          body: JSON.stringify(
+            salariedLine
+              ? { salariedAmount: amount, taxCode: code }
+              : { hourlyRate: amount, taxCode: code }
+          )
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
           throw new Error(data.error || 'Failed to update future pay')
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to update future pay')
-      } finally {
-        setBusy(false)
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save pay information')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -512,7 +573,7 @@ export default function PayrollRunPage() {
               </label>
             </div>
             <p className="mb-4 text-sm text-slate-500">
-              Basic and OT hours are filled from extracted attendance. Edit them here if the punches need a correction.
+              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate and tax code.
             </p>
 
             <div className="overflow-x-auto">
@@ -545,15 +606,14 @@ export default function PayrollRunPage() {
                             <button
                               type="button"
                               disabled={locked}
-                              onClick={() => {
-                                setRateLineId(line.id)
-                                setRateValue(draft.rate)
-                                setRateScope('run')
-                              }}
-                              className="font-medium text-violet-700 hover:underline disabled:no-underline"
+                              onClick={() => openPayInfo(line.id)}
+                              className="text-left font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700 disabled:cursor-default disabled:text-slate-800 disabled:no-underline"
                             >
                               {line.staffName}
                             </button>
+                            {line.taxCode ? (
+                              <p className="text-xs text-slate-500">Tax code {line.taxCode}</p>
+                            ) : null}
                           </td>
                           <td className="py-3 pr-3 tabular-nums text-slate-700">{formatMoney(parseMoney(draft.rate))}</td>
                           <td className="py-3 pr-3 text-right">
@@ -635,15 +695,14 @@ export default function PayrollRunPage() {
                             <button
                               type="button"
                               disabled={locked}
-                              onClick={() => {
-                                setRateLineId(line.id)
-                                setRateValue(draft.salary)
-                                setRateScope('run')
-                              }}
-                              className="font-medium text-violet-700 hover:underline disabled:no-underline"
+                              onClick={() => openPayInfo(line.id)}
+                              className="text-left font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700 disabled:cursor-default disabled:text-slate-800 disabled:no-underline"
                             >
                               {line.staffName}
                             </button>
+                            {line.taxCode ? (
+                              <p className="text-xs text-slate-500">Tax code {line.taxCode}</p>
+                            ) : null}
                           </td>
                           <td className="py-3 pr-3">
                             <label className="inline-flex items-center gap-2 text-slate-700">
@@ -692,6 +751,7 @@ export default function PayrollRunPage() {
             drafts={drafts}
             onToggleDetails={() => setDetails((value) => !value)}
             onDraft={patchDraft}
+            onEditName={openPayInfo}
             locked={Boolean(locked)}
           />
         ) : null}
@@ -800,16 +860,27 @@ export default function PayrollRunPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Edit pay information for {rateLine.staffName}</h2>
-            <label className="mt-4 block text-sm">
-              <span className="font-medium text-slate-800">
-                {parsePayType(rateLine.payType) === 'salaried' ? 'Salary' : 'Pay rate'}
-              </span>
-              <input
-                value={rateValue}
-                onChange={(e) => setRateValue(e.target.value)}
-                className="mt-1 w-40 rounded-md border border-slate-300 px-3 py-2"
-              />
-            </label>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">
+                  {parsePayType(rateLine.payType) === 'salaried' ? 'Salary' : 'Pay rate'}
+                </span>
+                <input
+                  value={rateValue}
+                  onChange={(e) => setRateValue(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Tax code</span>
+                <input
+                  value={taxCode}
+                  onChange={(e) => setTaxCode(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  placeholder="Pay+ tax code"
+                />
+              </label>
+            </div>
             <fieldset className="mt-4 text-sm">
               <legend className="font-medium text-slate-800">Apply to</legend>
               <label className="mt-2 flex items-center gap-2">
@@ -856,6 +927,7 @@ function ReviewStep({
   drafts,
   onToggleDetails,
   onDraft,
+  onEditName,
   locked
 }: {
   run: PayRun
@@ -863,6 +935,7 @@ function ReviewStep({
   drafts: Record<string, Draft>
   onToggleDetails: () => void
   onDraft: (lineId: string, patch: Partial<Draft>) => void
+  onEditName: (lineId: string) => void
   locked: boolean
 }) {
   const hourly = run.lines.filter((line) => parsePayType(line.payType) !== 'salaried')
@@ -892,9 +965,17 @@ function ReviewStep({
               <article key={line.id} className="border-b border-slate-200 pb-8">
                 <header className="flex items-baseline justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">{line.staffName}</h3>
+                    <button
+                      type="button"
+                      disabled={locked}
+                      onClick={() => onEditName(line.id)}
+                      className="text-left text-base font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700 disabled:cursor-default disabled:text-slate-900 disabled:no-underline"
+                    >
+                      {line.staffName}
+                    </button>
                     <p className="text-xs uppercase tracking-wide text-slate-500">
                       Pay type: {parsePayType(line.payType)}
+                      {line.taxCode ? ` · Tax code ${line.taxCode}` : ''}
                     </p>
                   </div>
                   <p className="text-xs text-slate-500">
@@ -997,7 +1078,14 @@ function ReviewStep({
           })}
         </div>
       ) : (
-        <SummaryTable hourly={hourly} salaried={salaried} hours={hours} gross={gross} net={net} />
+        <SummaryTable
+          hourly={hourly}
+          salaried={salaried}
+          hours={hours}
+          gross={gross}
+          net={net}
+          onEditName={locked ? undefined : onEditName}
+        />
       )}
     </div>
   )
@@ -1008,13 +1096,15 @@ function SummaryTable({
   salaried,
   hours,
   gross,
-  net
+  net,
+  onEditName
 }: {
   hourly: PayRunLine[]
   salaried: PayRunLine[]
   hours: number
   gross: number
   net: number
+  onEditName?: (lineId: string) => void
 }) {
   const block = (title: string, lines: PayRunLine[]) => {
     const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
@@ -1029,7 +1119,20 @@ function SummaryTable({
         </tr>
         {lines.map((line) => (
           <tr key={line.id} className="border-b border-slate-100">
-            <td className="py-2">{line.staffName}</td>
+            <td className="py-2">
+              {onEditName ? (
+                <button
+                  type="button"
+                  onClick={() => onEditName(line.id)}
+                  className="font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700"
+                >
+                  {line.staffName}
+                </button>
+              ) : (
+                line.staffName
+              )}
+              {line.taxCode ? <p className="text-xs font-normal text-slate-500">Tax code {line.taxCode}</p> : null}
+            </td>
             <td className="py-2 text-right tabular-nums">
               {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours).toFixed(2)}
             </td>

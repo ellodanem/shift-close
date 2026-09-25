@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
       hourlyRate: hourlyRateBody,
       salariedAmount: salariedAmountBody,
       staffLoan: staffLoanBody,
-      medicalAmount: medicalAmountBody
+      medicalAmount: medicalAmountBody,
+      taxCode: taxCodeBody
     } = body
 
     const first = (firstName ?? name ?? '').toString().trim()
@@ -180,7 +181,8 @@ export async function POST(request: NextRequest) {
                 hourlyRate: parseOptionalMoney(hourlyRateBody),
                 salariedAmount: parseOptionalMoney(salariedAmountBody),
                 staffLoan: parseOptionalMoney(staffLoanBody),
-                medicalAmount: parseOptionalMoney(medicalAmountBody)
+                medicalAmount: parseOptionalMoney(medicalAmountBody),
+                taxCode: String(taxCodeBody ?? '').trim()
               }
             })
           },

@@ -46,8 +46,15 @@ export type PayRunStaffProfile = {
   salariedAmount: number | null
   staffLoan: number | null
   medicalAmount: number | null
+  taxCode?: string | null
   bankName?: string | null
   accountNumber?: string | null
+}
+
+export type PayRateOverride = {
+  hourlyRate?: number
+  salariedAmount?: number
+  taxCode?: string
 }
 
 export type BuiltPayRunLine = {
@@ -75,6 +82,7 @@ export type BuiltPayRunLine = {
   medical: number
   totalDeductions: number
   netPay: number
+  taxCode: string
   bankCode?: string
   accountNo?: string | null
 }
@@ -297,7 +305,7 @@ function lineFromHoursRow(
   row: PayRunHoursRow,
   profile: PayRunStaffProfile | undefined,
   extras: PayRunExtraLine[],
-  rateOverride?: { hourlyRate?: number; salariedAmount?: number },
+  rateOverride?: PayRateOverride,
   deductionOverride?: DeductionOverride,
   nisTaken?: NisTaken
 ): BuiltPayRunLine {
@@ -334,7 +342,8 @@ function lineFromHoursRow(
     extraPay: pay.extraPay,
     extraLines: extras,
     grossPay: pay.grossPay,
-    shortageReady: parseMoney(row.shortage)
+    shortageReady: parseMoney(row.shortage),
+    taxCode: (rateOverride?.taxCode ?? profile?.taxCode ?? '').trim()
   }
   return withDeductions(base, profile, deductionOverride, nisTaken)
 }
@@ -342,7 +351,7 @@ function lineFromHoursRow(
 function salariedLine(
   profile: PayRunStaffProfile,
   extras: PayRunExtraLine[],
-  rateOverride?: { salariedAmount?: number },
+  rateOverride?: PayRateOverride,
   deductionOverride?: DeductionOverride,
   nisTaken?: NisTaken
 ): BuiltPayRunLine {
@@ -370,7 +379,8 @@ function salariedLine(
       extraPay: pay.extraPay,
       extraLines: extras,
       grossPay: pay.grossPay,
-      shortageReady: 0
+      shortageReady: 0,
+      taxCode: (rateOverride?.taxCode ?? profile.taxCode ?? '').trim()
     },
     profile,
     deductionOverride,
@@ -384,7 +394,7 @@ export function buildPayRunLines(input: {
   hoursRows: PayRunHoursRow[]
   staff: PayRunStaffProfile[]
   extrasByStaffId?: Record<string, PayRunExtraLine[]>
-  rateOverrides?: Record<string, { hourlyRate?: number; salariedAmount?: number }>
+  rateOverrides?: Record<string, PayRateOverride>
   deductionOverrides?: Record<string, DeductionOverride>
   nisTakenByStaffId?: Record<string, NisTaken>
 }): BuiltPayRunLine[] {
@@ -462,6 +472,7 @@ export function serializePayRunLine(line: BuiltPayRunLine, sortOrder: number) {
     medical: line.medical,
     totalDeductions: line.totalDeductions,
     netPay: line.netPay,
+    taxCode: line.taxCode ?? '',
     sortOrder
   }
 }

@@ -57,6 +57,7 @@ export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
       salariedAmount: true,
       staffLoan: true,
       medicalAmount: true,
+      taxCode: true,
       bankName: true,
       accountNumber: true
     }
@@ -118,7 +119,11 @@ export async function rebuildPayRunLines(
       if (line.staffId) {
         extrasByStaffId[line.staffId] = extrasByStaffId[key]
       }
-      rateOverrides[key] = { hourlyRate: line.hourlyRate, salariedAmount: line.salariedAmount }
+      rateOverrides[key] = {
+        hourlyRate: line.hourlyRate,
+        salariedAmount: line.salariedAmount,
+        taxCode: line.taxCode
+      }
       if (line.staffId) rateOverrides[line.staffId] = rateOverrides[key]
       deductionOverrides[key] = {
         staffLoan: line.staffLoan,

@@ -173,7 +173,8 @@ function EditStaffPageInner() {
     hourlyRate: '' as string,
     salariedAmount: '' as string,
     staffLoan: '' as string,
-    medicalAmount: '' as string
+    medicalAmount: '' as string,
+    taxCode: ''
   })
   const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -456,7 +457,8 @@ function EditStaffPageInner() {
         medicalAmount:
           (data as any).medicalAmount != null && (data as any).medicalAmount !== ''
             ? String((data as any).medicalAmount)
-            : ''
+            : '',
+        taxCode: (data as any).taxCode || ''
       }
       setFormData(next)
       setShiftCount(data._count?.shifts || 0)
@@ -1626,6 +1628,16 @@ function EditStaffPageInner() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tax code</label>
+                    <input
+                      type="text"
+                      value={formData.taxCode}
+                      onChange={(e) => setFormData({ ...formData, taxCode: e.target.value })}
+                      className={inputClass}
+                      placeholder="Pay+ tax code"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
                     <input
                       type="number"
@@ -1655,6 +1667,7 @@ function EditStaffPageInner() {
                     value={formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
                   />
                 )}
+                <FieldDisplay label="Tax code" value={formData.taxCode || null} />
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
                 <FieldDisplay

@@ -48,7 +48,8 @@ export default function NewStaffPage() {
     hourlyRate: '',
     salariedAmount: '',
     staffLoan: '',
-    medicalAmount: ''
+    medicalAmount: '',
+    taxCode: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -433,8 +434,18 @@ export default function NewStaffPage() {
                       placeholder="Bank account number"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax code</label>
+                  <input
+                    type="text"
+                    value={formData.taxCode}
+                    onChange={(e) => setFormData({ ...formData, taxCode: e.target.value })}
+                    className={inputClass}
+                    placeholder="Pay+ tax code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
                     <input
                       type="number"
                       step="0.01"
