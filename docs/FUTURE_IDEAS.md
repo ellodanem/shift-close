@@ -99,7 +99,7 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ## 6. Payroll is its own tile and process
 
-**Status:** Interface planned from the Patriot Software payroll-run screens (2026-09-25). Do not implement yet.
+**Status:** First payroll screen is on `/payroll` (2026-09-25). It follows the Patriot three-step run and uses existing pay-run data. Column preferences beyond the show-all toggle, and voiding an approved run, are still open.
 
 **Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
 

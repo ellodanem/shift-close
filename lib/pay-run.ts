@@ -17,6 +17,9 @@ export const PAY_TYPE_LABELS: Record<PayType, string> = {
   salaried: 'Salaried'
 }
 
+/** Marks a salaried line that is unchecked for this run. Not an earning. */
+export const SKIP_SALARY_LABEL = '__skipSalary'
+
 export type PayRunExtraLine = {
   label: string
   amount: number
@@ -134,8 +137,27 @@ export function parseExtraLines(raw: unknown): PayRunExtraLine[] {
     .filter((line): line is PayRunExtraLine => line !== null)
 }
 
+export function salarySkipped(lines: PayRunExtraLine[]): boolean {
+  return lines.some((line) => line.label === SKIP_SALARY_LABEL)
+}
+
+export function visibleExtraLines(lines: PayRunExtraLine[]): PayRunExtraLine[] {
+  return lines.filter((line) => line.label !== SKIP_SALARY_LABEL)
+}
+
+export function setSalarySkipped(lines: PayRunExtraLine[], skipped: boolean): PayRunExtraLine[] {
+  const rest = lines.filter((line) => line.label !== SKIP_SALARY_LABEL)
+  return skipped ? [...rest, { label: SKIP_SALARY_LABEL, amount: 0 }] : rest
+}
+
 export function extraPayTotal(lines: PayRunExtraLine[]): number {
-  return round2(lines.reduce((s, line) => s + line.amount, 0))
+  return round2(visibleExtraLines(lines).reduce((s, line) => s + line.amount, 0))
+}
+
+export function setSingleExtraAmount(lines: PayRunExtraLine[], amount: number): PayRunExtraLine[] {
+  const skipped = salarySkipped(lines)
+  const next = parseMoney(amount) > 0 ? [{ label: 'Extra', amount: parseMoney(amount) }] : []
+  return setSalarySkipped(next, skipped)
 }
 
 export function computeGrossPay(input: {
@@ -155,7 +177,7 @@ export function computeGrossPay(input: {
   const payType = parsePayType(input.payType)
   const extraPay = extraPayTotal(input.extraLines ?? [])
   if (payType === 'salaried') {
-    const basicPay = parseMoney(input.salariedAmount)
+    const basicPay = salarySkipped(input.extraLines ?? []) ? 0 : parseMoney(input.salariedAmount)
     return { payType, basicPay, otPay: 0, extraPay, grossPay: round2(basicPay + extraPay) }
   }
   const rate = parseMoney(input.hourlyRate)

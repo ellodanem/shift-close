@@ -3,7 +3,7 @@ import type { HomeShortcutId } from '@/lib/home-shortcuts'
 /** Hex backgrounds for shortcut/nav tiles — not dependent on Tailwind purge. */
 export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'pay-period': '#7c3aed',
-  'pay-run': '#0f766e',
+  'pay-run': '#6d28d9',
   'late-absent': '#b45309',
   'uncashed-checks': '#f59e0b',
   'fuel-batches': '#0369a1',

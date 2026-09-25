@@ -4,6 +4,12 @@ import { loadPayRunStaffProfiles, parsePayPeriodHoursRows, rebuildPayRunLines } 
 import { inferPayRunCycle, presentPayRunLine, serializePayRunLine } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
 
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+
+function ymdOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' && YMD.test(value) ? value : fallback
+}
+
 export const dynamic = 'force-dynamic'
 
 function presentRun<
@@ -75,9 +81,9 @@ export async function POST(request: NextRequest) {
         payPeriodId,
         cycle,
         status: 'draft',
-        payDate: period.endDate,
-        startDate: period.startDate,
-        endDate: period.endDate,
+        payDate: ymdOr(body.payDate, period.endDate),
+        startDate: ymdOr(body.startDate, period.startDate),
+        endDate: ymdOr(body.endDate, period.endDate),
         entityName: period.entityName,
         notes: '',
         sourceHash: built.sourceHash,

@@ -87,10 +87,10 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
   },
   {
     id: 'pay-run',
-    label: 'Pay run',
-    href: '/pay-run',
-    tileClass: 'bg-teal-700',
-    matchPrefixes: ['/pay-run']
+    label: 'Payroll',
+    href: '/payroll',
+    tileClass: 'bg-violet-700',
+    matchPrefixes: ['/payroll', '/pay-run']
   },
   {
     id: 'late-absent',

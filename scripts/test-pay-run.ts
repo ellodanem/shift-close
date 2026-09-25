@@ -36,6 +36,20 @@ describe('pay run gross', () => {
     assert.equal(pay.grossPay, 1000)
   })
 
+  it('skips salaried pay without counting the skip marker as earnings', () => {
+    const pay = computeGrossPay({
+      payType: 'salaried',
+      salariedAmount: 3000,
+      extraLines: [
+        { label: '__skipSalary', amount: 0 },
+        { label: 'Extra', amount: 50 }
+      ]
+    })
+    assert.equal(pay.basicPay, 0)
+    assert.equal(pay.extraPay, 50)
+    assert.equal(pay.grossPay, 50)
+  })
+
   it('adds optional extra earnings only when present', () => {
     const pay = computeGrossPay({
       payType: 'hourly',

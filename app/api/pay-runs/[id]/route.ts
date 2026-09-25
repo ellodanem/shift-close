@@ -90,38 +90,58 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       })
     }
 
-    if (body.line && typeof body.line === 'object') {
-      const lineId = typeof body.line.id === 'string' ? body.line.id : ''
+    const YMD = /^\d{4}-\d{2}-\d{2}$/
+    const header: { payDate?: string; startDate?: string; endDate?: string } = {}
+    if (typeof body.payDate === 'string' && YMD.test(body.payDate)) header.payDate = body.payDate
+    if (typeof body.startDate === 'string' && YMD.test(body.startDate)) header.startDate = body.startDate
+    if (typeof body.endDate === 'string' && YMD.test(body.endDate)) header.endDate = body.endDate
+    if (Object.keys(header).length > 0) {
+      await prisma.payRun.update({ where: { id }, data: header })
+    }
+    const payDate = header.payDate ?? run.payDate
+
+    const linePatches = Array.isArray(body.lines)
+      ? body.lines
+      : body.line && typeof body.line === 'object'
+        ? [body.line]
+        : []
+    for (const lineBody of linePatches) {
+      if (!lineBody || typeof lineBody !== 'object') continue
+      const lineId = typeof lineBody.id === 'string' ? lineBody.id : ''
       const existing = run.lines.find((l) => l.id === lineId)
       if (!existing) {
         return NextResponse.json({ error: 'Pay run line not found' }, { status: 404 })
       }
-      const extraLines = body.line.extraLines !== undefined ? parseExtraLines(body.line.extraLines) : parseExtraLines(existing.extraLines)
+      const extraLines =
+        lineBody.extraLines !== undefined ? parseExtraLines(lineBody.extraLines) : parseExtraLines(existing.extraLines)
       const extraDeductions =
-        body.line.extraDeductions !== undefined
-          ? parseExtraLines(body.line.extraDeductions)
+        lineBody.extraDeductions !== undefined
+          ? parseExtraLines(lineBody.extraDeductions)
           : parseExtraLines(existing.extraDeductions)
       const hourlyRate =
-        body.line.hourlyRate !== undefined ? parseMoney(body.line.hourlyRate) : existing.hourlyRate
+        lineBody.hourlyRate !== undefined ? parseMoney(lineBody.hourlyRate) : existing.hourlyRate
       const salariedAmount =
-        body.line.salariedAmount !== undefined
-          ? parseMoney(body.line.salariedAmount)
+        lineBody.salariedAmount !== undefined
+          ? parseMoney(lineBody.salariedAmount)
           : existing.salariedAmount
-      const staffLoan = body.line.staffLoan !== undefined ? parseMoney(body.line.staffLoan) : existing.staffLoan
-      const medical = body.line.medical !== undefined ? parseMoney(body.line.medical) : existing.medical
+      const staffLoan = lineBody.staffLoan !== undefined ? parseMoney(lineBody.staffLoan) : existing.staffLoan
+      const medical = lineBody.medical !== undefined ? parseMoney(lineBody.medical) : existing.medical
       const shortageReady =
-        body.line.shortageReady !== undefined ? parseMoney(body.line.shortageReady) : existing.shortageReady
-      const payType = parsePayType(body.line.payType ?? existing.payType)
+        lineBody.shortageReady !== undefined ? parseMoney(lineBody.shortageReady) : existing.shortageReady
+      const payType = parsePayType(lineBody.payType ?? existing.payType)
+      const basicHours =
+        lineBody.basicHours !== undefined ? parseMoney(lineBody.basicHours) : existing.basicHours
+      const otHours = lineBody.otHours !== undefined ? parseMoney(lineBody.otHours) : existing.otHours
       const pay = computeGrossPay({
         payType,
-        basicHours: existing.basicHours,
-        otHours: existing.otHours,
+        basicHours,
+        otHours,
         hourlyRate,
         salariedAmount,
         extraLines
       })
       const nisTaken = existing.staffId
-        ? (await loadNisTakenByStaffId(run.payDate, id))[existing.staffId]
+        ? (await loadNisTakenByStaffId(payDate, id))[existing.staffId]
         : undefined
       const deducted = computePayRunDeductions({
         grossPay: pay.grossPay,
@@ -136,6 +156,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         where: { id: lineId },
         data: {
           payType,
+          transTtl: payType === 'salaried' ? existing.transTtl : parseMoney(basicHours + otHours),
+          basicHours: payType === 'salaried' ? 0 : basicHours,
+          otHours: payType === 'salaried' ? 0 : otHours,
           hourlyRate,
           salariedAmount,
           extraLines: JSON.stringify(extraLines),
@@ -202,6 +225,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
       })
       return NextResponse.json({ ...(await presentRun(updated!)), hoursOutOfDate: false })
+    }
+
+    if (action === 'approve') {
+      if (run.status === 'processed') {
+        return NextResponse.json(await presentRun(run))
+      }
+      const processed = await prisma.payRun.update({
+        where: { id },
+        data: { status: 'processed', processedAt: new Date() },
+        include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+      })
+      return NextResponse.json(await presentRun(processed))
     }
 
     if (action === 'process') {

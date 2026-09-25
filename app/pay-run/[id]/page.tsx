@@ -74,15 +74,19 @@ function ExtraLineEditor({
   onChange: (rows: PayRunExtraLine[]) => void
   addLabel: string
 }) {
+  const hidden = rows.filter((row) => row.label.startsWith('__'))
+  const visible = rows.filter((row) => !row.label.startsWith('__'))
+  const updateVisible = (next: PayRunExtraLine[]) => onChange([...hidden, ...next])
+
   return (
     <div className="space-y-2">
-      {rows.map((extra, index) => (
+      {visible.map((extra, index) => (
         <div key={`${extra.label}-${index}`} className="flex gap-2">
           <input
             type="text"
             value={extra.label}
             onChange={(e) =>
-              onChange(rows.map((row, i) => (i === index ? { ...row, label: e.target.value } : row)))
+              updateVisible(visible.map((row, i) => (i === index ? { ...row, label: e.target.value } : row)))
             }
             className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
             placeholder="Label"
@@ -92,8 +96,8 @@ function ExtraLineEditor({
             step="0.01"
             value={extra.amount}
             onChange={(e) =>
-              onChange(
-                rows.map((row, i) =>
+              updateVisible(
+                visible.map((row, i) =>
                   i === index ? { ...row, amount: parseMoney(e.target.value) } : row
                 )
               )
@@ -102,7 +106,7 @@ function ExtraLineEditor({
           />
           <button
             type="button"
-            onClick={() => onChange(rows.filter((_, i) => i !== index))}
+            onClick={() => updateVisible(visible.filter((_, i) => i !== index))}
             className="text-xs text-red-700"
           >
             Remove
@@ -111,7 +115,7 @@ function ExtraLineEditor({
       ))}
       <button
         type="button"
-        onClick={() => onChange([...rows, { label: '', amount: 0 }])}
+        onClick={() => updateVisible([...visible, { label: '', amount: 0 }])}
         className="text-xs text-teal-800"
       >
         {addLabel}
