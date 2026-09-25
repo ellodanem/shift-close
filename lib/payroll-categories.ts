@@ -30,6 +30,11 @@ export function defaultPayrollCategories(): PayrollCategory[] {
   return BUILTIN_PAYROLL_CATEGORIES.map((category) => ({ ...category }))
 }
 
+function parseCategoryKind(value: unknown): CategoryKind | null {
+  if (value === 'hours' || value === 'money' || value === 'deduction') return value
+  return null
+}
+
 export function loadPayrollCategories(): PayrollCategory[] {
   const defaults = defaultPayrollCategories()
   if (typeof window === 'undefined') return defaults
@@ -51,9 +56,9 @@ export function loadPayrollCategories(): PayrollCategory[] {
       ? stored.custom.flatMap((item) => {
           const label = typeof item.label === 'string' ? item.label.trim() : ''
           const id = typeof item.id === 'string' ? item.id.trim() : ''
-          const kind = item.kind === 'hours' || item.kind === 'money' || item.kind === 'deduction' ? item.kind : null
+          const kind = parseCategoryKind(item.kind)
           if (!label || !id || !kind) return []
-          return [{ id, label, kind, builtin: false, enabled: item.enabled !== false }]
+          return [{ id, label, kind, builtin: false as const, enabled: item.enabled !== false }]
         })
       : []
     return [...builtins, ...custom]
