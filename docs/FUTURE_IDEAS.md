@@ -99,19 +99,53 @@ Design notes for features **not yet implemented**. Add new sections here as idea
 
 ## 6. Payroll is its own tile and process
 
-**Status:** Decision only (2026-09-25). Do not implement yet.
+**Status:** Interface planned from the Patriot Software payroll-run screens (2026-09-25). Do not implement yet.
 
 **Goal:** Payroll is a first-class tile and its own process. Attendance and payroll stay linked — hours and punches still feed pay — but payroll is not a next step of attendance.
 
-**Rough behavior:**
+**Entry:** Own home tile and nav entry. The run starts there. It is not **Extract Pay Period** on Attendance, and not a continuation into `/pay-run` from that page. Attendance stays punches, roster match, late/absent, and the staff attendance report. Extracted attendance fills hours on step 1.
 
-- Own home tile and nav entry, separate from Attendance.
-- Enter the payroll flow from that tile. It is not a button or continuation on the Attendance page.
-- Today that continuation is **Extract Pay Period** on Attendance → `/attendance/pay-period`, then **Pay run** from a saved period (`/pay-run`). That chain should not be the way payroll is started.
-- Attendance stays punches, roster match, late/absent, and the staff attendance report.
-- The link is data (attendance feeds payroll). It is not a wizard step.
+The Patriot layout is the model. US-only pieces are not copied: payroll tax, Social Security, Medicare, 401(k), W-2, 1099 contractors, direct-deposit funding, and departments. PAYE stays in Pay+.
 
-**Open decisions:** Tile label (Payroll vs Pay period vs Pay run), and whether the pay-period report and pay run sit under one payroll process or stay two screens inside it.
+### Step 1 — Enter payroll
+
+Header: pay schedule, pay period, pay date.
+
+- Schedules already on staff: Weekly, Bi-weekly, Semi-monthly, Monthly.
+- Off-schedule: manual start date, end date, and pay date.
+- The schedule chooses who is on this run.
+
+**Enter hours and money**, split into Hourly and Salaried.
+
+- Hourly row: name, rate, basic hours, OT hours (1.5×, split with the existing cycle cap), extra pay, line total.
+- Hours prefill from extracted attendance for that period. The user can still edit them.
+- Click the name to change the hourly rate for this run only, or for this run and future runs.
+- Salaried row: **Pay salary** checked by default. Uncheck to skip that person this run. Salary amount can be changed the same way as a rate (this run, or this run and future).
+- Default visible columns are the ones we use (basic, OT, extra pay). A **show all hours and money types** toggle reveals the rest. Which columns count as frequently used is a payroll setting.
+- Vacation and sick stay notes from attendance. They are not paid hour columns unless that is decided later.
+- Save entries, clear entries, then **Continue**.
+
+Deductions are not typed on this grid. They show on the review, where they can be adjusted before approval: employee NIS (5%, $250 monthly cap), staff loan, medical, shortage, and extra deductions. Employer NIS is a memo and is not taken from net.
+
+### Step 2 — Review and approve
+
+Summary grouped the same way: Hourly, then Salaried, then payroll totals. Columns: total hours, gross, net.
+
+- **View details** opens each person: hours and earnings, deductions, gross, net, and bank / account for the banking pack. Employer NIS sits beside that as a memo. A line states that PAYE is still calculated in Pay+.
+- **Back** returns to step 1. Nothing is final until approve.
+- **Download preview** before approve, so someone else can review it.
+- **Approve payroll** locks the run.
+
+### Step 3 — Done
+
+Completed banner with the period and pay date.
+
+- Print or download now, or later: payroll register, banking pack, and the credit union allocation letter. These replace Patriot’s print-checks and tax-bill actions.
+- The run can be left and reopened.
+
+Patriot’s reports catalog (screenshot 18) is not part of this run. Add reports only when a specific one is needed.
+
+**Still open:** tile label (Payroll). Whether voiding an approved run is in the first build. Whether vacation or sick ever become paid columns.
 
 ---
 
