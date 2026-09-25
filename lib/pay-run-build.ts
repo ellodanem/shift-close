@@ -12,6 +12,7 @@ import {
   type BuiltPayRunLine,
   type DeductionOverride,
   type NisTaken,
+  type PayRateOverride,
   type PayRunHoursRow,
   type PayRunStaffProfile
 } from '@/lib/pay-run'
@@ -110,7 +111,7 @@ export async function rebuildPayRunLines(
 ) {
   const staff = await loadPayRunStaffProfiles()
   const extrasByStaffId: Record<string, ReturnType<typeof parseExtraLines>> = {}
-  const rateOverrides: Record<string, { hourlyRate?: number; salariedAmount?: number }> = {}
+  const rateOverrides: Record<string, PayRateOverride> = {}
   const deductionOverrides: Record<string, DeductionOverride> = {}
   const excludePayRunId = payRunId === 'new' ? undefined : payRunId
   const nisTakenByStaffId = await loadNisTakenByStaffId(options.payDate, excludePayRunId)
