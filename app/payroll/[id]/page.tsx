@@ -1022,6 +1022,16 @@ export default function PayrollRunPage() {
                   </tr>
                 </tbody>
               </table>
+
+              <div className="mt-6 flex min-w-[760px] items-center justify-between gap-4 border-t-2 border-emerald-700 pt-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">Gross pay</p>
+                  <p className="text-xs text-slate-500">Hourly and salaried staff</p>
+                </div>
+                <p className="text-sm font-semibold tabular-nums text-emerald-800">
+                  {formatMoney(sumGross(hourly) + sumGross(salaried))}
+                </p>
+              </div>
             </div>
           </>
         ) : null}
