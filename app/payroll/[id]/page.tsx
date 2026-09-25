@@ -147,6 +147,7 @@ export default function PayrollRunPage() {
   const [rateLineId, setRateLineId] = useState<string | null>(null)
   const [rateValue, setRateValue] = useState('')
   const [taxCode, setTaxCode] = useState('')
+  const [medicalValue, setMedicalValue] = useState('')
   const [rateScope, setRateScope] = useState<'run' | 'future'>('run')
   const [voidOpen, setVoidOpen] = useState(false)
   const [voidReason, setVoidReason] = useState('')
@@ -376,6 +377,7 @@ export default function PayrollRunPage() {
     setRateLineId(line.id)
     setRateValue(salariedLine ? draft.salary : draft.rate)
     setTaxCode(line.taxCode || '')
+    setMedicalValue(draft.medical)
     setRateScope('run')
     if (line.staffId && !line.taxCode) {
       fetch(`/api/staff/${line.staffId}`)
@@ -394,8 +396,12 @@ export default function PayrollRunPage() {
     if (!line) return
     const amount = parseMoney(rateValue)
     const code = taxCode.trim()
+    const medical = parseMoney(medicalValue)
     const salariedLine = parsePayType(line.payType) === 'salaried'
-    patchDraft(line.id, salariedLine ? { salary: String(amount) } : { rate: String(amount) })
+    patchDraft(line.id, {
+      ...(salariedLine ? { salary: String(amount) } : { rate: String(amount) }),
+      medical: medical ? String(medical) : ''
+    })
     setRun((current) =>
       current
         ? {
@@ -406,6 +412,7 @@ export default function PayrollRunPage() {
                     ...item,
                     hourlyRate: salariedLine ? item.hourlyRate : amount,
                     salariedAmount: salariedLine ? amount : item.salariedAmount,
+                    medical,
                     taxCode: code
                   }
                 : item
@@ -424,23 +431,34 @@ export default function PayrollRunPage() {
           line: {
             id: line.id,
             taxCode: code,
+            medical,
             ...(salariedLine ? { salariedAmount: amount } : { hourlyRate: amount })
           }
         })
       })
+      const saved = await lineRes.json().catch(() => ({}))
       if (!lineRes.ok) {
-        const data = await lineRes.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to save pay information')
+        throw new Error(saved.error || 'Failed to save pay information')
+      }
+      const savedLine = Array.isArray(saved.lines)
+        ? saved.lines.find((item: PayRunLine) => item.id === line.id)
+        : null
+      if (savedLine) {
+        setRun((current) =>
+          current
+            ? { ...current, lines: current.lines.map((item) => (item.id === line.id ? savedLine : item)) }
+            : current
+        )
       }
       if (rateScope === 'future' && line.staffId) {
         const res = await fetch(`/api/staff/${line.staffId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            salariedLine
-              ? { salariedAmount: amount, taxCode: code }
-              : { hourlyRate: amount, taxCode: code }
-          )
+          body: JSON.stringify({
+            ...(salariedLine ? { salariedAmount: amount } : { hourlyRate: amount }),
+            taxCode: code,
+            medicalAmount: medical
+          })
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -473,6 +491,8 @@ export default function PayrollRunPage() {
     lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.[field] ?? ''), 0)
   const sumExtra = (lines: PayRunLine[]) =>
     lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.extra ?? ''), 0)
+  const sumMedical = (lines: PayRunLine[]) =>
+    lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.medical ?? ''), 0)
   const sumGross = (lines: PayRunLine[]) => lines.reduce((sum, line) => sum + grossFor(line), 0)
 
   const openPreview = async () => {
@@ -649,7 +669,7 @@ export default function PayrollRunPage() {
               </label>
             </div>
             <p className="mb-4 text-sm text-slate-500">
-              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate and tax code.
+              Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code, and medical for this payroll or for future payrolls. The Medical column updates this payroll.
             </p>
 
             <div className="overflow-x-auto">
@@ -662,13 +682,14 @@ export default function PayrollRunPage() {
                     <th className="py-2 pr-3 text-right font-semibold">Overtime</th>
                     {showAll ? <th className="py-2 pr-3 text-right font-semibold">Shortage</th> : null}
                     <th className="py-2 pr-3 text-right font-semibold">Extra</th>
+                    <th className="py-2 pr-3 text-right font-semibold">Medical</th>
                     <th className="py-2 text-right font-semibold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {hourly.length === 0 ? (
                     <tr>
-                      <td colSpan={showAll ? 7 : 6} className="py-4 text-slate-500">
+                      <td colSpan={showAll ? 8 : 7} className="py-4 text-slate-500">
                         No hourly staff on this cycle.
                       </td>
                     </tr>
@@ -726,6 +747,14 @@ export default function PayrollRunPage() {
                               onChange={(value) => patchDraft(line.id, { extra: value })}
                             />
                           </td>
+                          <td className="py-3 pr-3 text-right">
+                            <HoursField
+                              label={`Medical for ${line.staffName}`}
+                              value={draft.medical}
+                              disabled={Boolean(locked)}
+                              onChange={(value) => patchDraft(line.id, { medical: value })}
+                            />
+                          </td>
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
                         </tr>
                       )
@@ -739,6 +768,7 @@ export default function PayrollRunPage() {
                     <td className="py-3 pr-3 text-right font-semibold tabular-nums">{sumHours(hourly, 'otHours').toFixed(2)}</td>
                     {showAll ? <td /> : null}
                     <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumExtra(hourly))}</td>
+                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumMedical(hourly))}</td>
                     <td className="py-3 text-right font-semibold tabular-nums">{formatMoney(sumGross(hourly))}</td>
                   </tr>
                 </tbody>
@@ -751,13 +781,14 @@ export default function PayrollRunPage() {
                     <th className="py-2 pr-3 font-semibold">Pay salary</th>
                     <th className="py-2 pr-3 font-semibold">Salary</th>
                     <th className="py-2 pr-3 text-right font-semibold">Extra</th>
+                    <th className="py-2 pr-3 text-right font-semibold">Medical</th>
                     <th className="py-2 text-right font-semibold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {salaried.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-4 text-slate-500">
+                      <td colSpan={6} className="py-4 text-slate-500">
                         No salaried staff on this cycle.
                       </td>
                     </tr>
@@ -802,6 +833,14 @@ export default function PayrollRunPage() {
                               onChange={(value) => patchDraft(line.id, { extra: value })}
                             />
                           </td>
+                          <td className="py-3 pr-3 text-right">
+                            <HoursField
+                              label={`Medical for ${line.staffName}`}
+                              value={draft.medical}
+                              disabled={Boolean(locked)}
+                              onChange={(value) => patchDraft(line.id, { medical: value })}
+                            />
+                          </td>
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
                         </tr>
                       )
@@ -812,6 +851,7 @@ export default function PayrollRunPage() {
                       Salaried employee totals
                     </td>
                     <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumExtra(salaried))}</td>
+                    <td className="py-3 pr-3 text-right font-semibold tabular-nums">{formatMoney(sumMedical(salaried))}</td>
                     <td className="py-3 text-right font-semibold tabular-nums">{formatMoney(sumGross(salaried))}</td>
                   </tr>
                 </tbody>
@@ -1006,6 +1046,15 @@ export default function PayrollRunPage() {
                   onChange={(e) => setTaxCode(e.target.value)}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                   placeholder="Pay+ tax code"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Medical</span>
+                <input
+                  value={medicalValue}
+                  onChange={(e) => setMedicalValue(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  placeholder="Medical insurance"
                 />
               </label>
             </div>
