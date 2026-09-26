@@ -8,6 +8,7 @@ export type PrintDocumentPreview = {
   subtitle: string
   html: string
   filename: string
+  onExcel?: () => void
 }
 
 export function PrintDocumentModal({
@@ -98,6 +99,15 @@ export function PrintDocumentModal({
           >
             Print
           </button>
+          {preview.onExcel ? (
+            <button
+              type="button"
+              onClick={preview.onExcel}
+              className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+            >
+              Excel
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {

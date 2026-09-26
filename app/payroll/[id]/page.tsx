@@ -30,6 +30,7 @@ import {
   buildPayrollPreviewLine,
   downloadPayrollPreview,
   payrollPreviewStatus,
+  previewBankAccountNote,
   printPayrollPreview,
   renderGlHtml,
   renderNisHtml,
@@ -1106,7 +1107,8 @@ export default function PayrollRunPage() {
       title: 'Banking pack preview',
       subtitle: periodLine(run),
       filename: `banks-listing-${run.payDate}.pdf`,
-      html: renderBankingPackHtml(banking, run.payDate)
+      html: renderBankingPackHtml(banking, run.payDate),
+      onExcel: () => downloadBankingPackExcel(banking, run.payDate)
     })
   }
 
@@ -2136,6 +2138,7 @@ function ReviewStep({
         <div className="space-y-10">
           {run.lines.map((line) => {
             const draft = drafts[line.id]
+            const bankNote = previewBankAccountNote(line)
             const hiddenDeductions = locked
               ? []
               : DETAIL_DEDUCTIONS.filter((field) => {
@@ -2282,11 +2285,7 @@ function ReviewStep({
                         ))}
                       </p>
                     ) : null}
-                    <p className="mt-3 text-xs text-slate-500">
-                      Employer NIS {formatMoney(line.nisEmployer)} is not taken from net.
-                      {line.bankCode ? ` Bank ${line.bankCode}` : ''}
-                      {line.accountNo ? ` · ${line.accountNo}` : ''}
-                    </p>
+                    {bankNote ? <p className="mt-3 text-xs text-slate-500">{bankNote}</p> : null}
                   </div>
                 </div>
               </article>
