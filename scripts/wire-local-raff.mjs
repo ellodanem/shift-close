@@ -35,6 +35,7 @@ function withPgbouncer(url) {
   const params = new URLSearchParams(qAt >= 0 ? url.slice(qAt + 1) : '')
   if (!params.has('sslmode')) params.set('sslmode', 'require')
   params.set('pgbouncer', 'true')
+  if (!params.has('connection_limit')) params.set('connection_limit', '1')
   return `${base}?${params.toString()}`
 }
 
@@ -62,7 +63,7 @@ writeFileSync(join(root, '.env.local'), `${lines.join('\n')}\n`, 'utf8')
 
 const parsed = new URL(databaseUrl.replace(/^postgres(ql)?:/i, 'http:'))
 console.log(
-  `Wrote .env.local DATABASE_URL host=${parsed.hostname} port=${parsed.port} pgbouncer=${parsed.searchParams.get('pgbouncer')}`
+  `Wrote .env.local DATABASE_URL host=${parsed.hostname} port=${parsed.port} pgbouncer=${parsed.searchParams.get('pgbouncer')} connection_limit=${parsed.searchParams.get('connection_limit')}`
 )
 
 const prisma = await import('@prisma/client')

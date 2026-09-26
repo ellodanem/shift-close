@@ -35,6 +35,7 @@ function withPgbouncer(url) {
   const params = new URLSearchParams(qAt >= 0 ? url.slice(qAt + 1) : '')
   if (!params.has('sslmode')) params.set('sslmode', 'require')
   params.set('pgbouncer', 'true')
+  if (!params.has('connection_limit')) params.set('connection_limit', '1')
   return `${base}?${params.toString()}`
 }
 
