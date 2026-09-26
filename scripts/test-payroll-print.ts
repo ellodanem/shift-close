@@ -516,7 +516,7 @@ describe('payroll preview', () => {
   })
 })
 
-describe('N.I.S. report', () => {
+describe('N.I.C. report', () => {
   it('lists staff charges in the printable report', () => {
     const html = renderNisHtml({
       startDate: '2026-07-30',
@@ -527,7 +527,8 @@ describe('N.I.S. report', () => {
         { staffName: 'Zero Pay', staffNo: '0', nisEmployee: 0, nisEmployer: 0, grossPay: 0 }
       ]
     })
-    assert.match(html, /N\.I\.S\./)
+    assert.match(html, /N\.I\.C\./)
+    assert.doesNotMatch(html, /N\.I\.S\./)
     assert.match(html, /Elenna James/)
     assert.doesNotMatch(html, /Zero Pay/)
     assert.match(html, /CYCLE: 15/)

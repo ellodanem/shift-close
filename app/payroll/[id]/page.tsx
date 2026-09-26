@@ -1080,9 +1080,9 @@ export default function PayrollRunPage() {
     if (!run) return
     setError(null)
     setPrintDoc({
-      title: 'N.I.S. preview',
+      title: 'N.I.C. preview',
       subtitle: periodLine(run),
-      filename: `nis-${run.startDate}-${run.endDate}.pdf`,
+      filename: `nic-${run.startDate}-${run.endDate}.pdf`,
       html: renderNisHtml({
         startDate: run.startDate,
         endDate: run.endDate,
@@ -1463,7 +1463,7 @@ export default function PayrollRunPage() {
                 </p>
                 <p className="mt-1">Reason: {run.voidReason || '—'}</p>
                 <p className="mt-2 text-red-800">
-                  The amounts stay on record and no longer count toward N.I.S. You can start a new payroll for this period.
+                  The amounts stay on record and no longer count toward N.I.C. You can start a new payroll for this period.
                 </p>
               </div>
             ) : (
@@ -1823,7 +1823,7 @@ export default function PayrollRunPage() {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Void this payroll</h2>
             <p className="mt-2 text-sm text-slate-600">
-              The paycheck amounts stay on file. They stop counting toward N.I.S., and you can run this period again. A
+              The paycheck amounts stay on file. They stop counting toward N.I.C., and you can run this period again. A
               reason is required.
             </p>
             <label className="mt-4 block text-sm">

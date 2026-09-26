@@ -124,7 +124,7 @@ export function renderNisHtml(input: NisReportInput): string {
   return `<!DOCTYPE html>
 <html>
   <head>
-    <title>N.I.S. ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</title>
+    <title>N.I.C. ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</title>
     <style>
       body { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; margin: 32px; }
       h1 { display: inline-block; border: 3px solid #111; padding: 4px 14px; letter-spacing: 0.08em; }
@@ -139,7 +139,7 @@ export function renderNisHtml(input: NisReportInput): string {
     </style>
   </head>
   <body>
-    <h1>N.I.S.</h1>
+    <h1>N.I.C.</h1>
     ${input.voided ? '<p><strong>VOIDED.</strong> This report is a record only and is not filed.</p>' : ''}
     <div class="meta">
       <span>PERIOD: ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</span>
