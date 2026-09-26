@@ -2,9 +2,12 @@
 
 import { useEffect, useId, useState } from 'react'
 import {
-  DEFAULT_PAYSLIP_COMPANY_NAME,
+  DEFAULT_PAYSLIP_COMPANY,
+  PAYSLIP_COMPANY_ADDRESS_MAX,
   PAYSLIP_COMPANY_NAME_MAX,
-  normalizePayslipCompanyName
+  PAYSLIP_COMPANY_PHONE_MAX,
+  normalizePayslipCompany,
+  type PayslipCompany
 } from '@/lib/payroll-settings'
 
 export function PayrollSettingsButton() {
@@ -43,10 +46,11 @@ export function PayrollSettingsButton() {
 
 function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
   const titleId = useId()
-  const [companyName, setCompanyName] = useState(DEFAULT_PAYSLIP_COMPANY_NAME)
+  const [company, setCompany] = useState<PayslipCompany>({ ...DEFAULT_PAYSLIP_COMPANY })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const ready = Boolean(company.companyName.trim() && company.address.trim() && company.phone.trim())
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -62,10 +66,10 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Failed to load payroll settings')
-        return data as { companyName?: unknown }
+        return data as Partial<PayslipCompany>
       })
       .then((data) => {
-        if (!cancelled) setCompanyName(normalizePayslipCompanyName(data.companyName))
+        if (!cancelled) setCompany(normalizePayslipCompany(data))
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load payroll settings')
@@ -79,9 +83,16 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
   }, [])
 
   const save = async () => {
-    const name = companyName.trim()
-    if (!name) {
+    if (!company.companyName.trim()) {
       setError('Enter a company name.')
+      return
+    }
+    if (!company.address.trim()) {
+      setError('Enter an address.')
+      return
+    }
+    if (!company.phone.trim()) {
+      setError('Enter a contact number.')
       return
     }
     setSaving(true)
@@ -90,7 +101,11 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       const res = await fetch('/api/pay-runs/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: name })
+        body: JSON.stringify({
+          companyName: company.companyName.trim(),
+          address: company.address.trim(),
+          phone: company.phone.trim()
+        })
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save payroll settings')
@@ -100,6 +115,10 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  const field = (key: keyof PayslipCompany, value: string) => {
+    setCompany((current) => ({ ...current, [key]: value }))
   }
 
   return (
@@ -113,15 +132,35 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
         <h2 id={titleId} className="text-lg font-semibold text-slate-900">
           Payroll settings
         </h2>
-        <p className="mt-2 text-sm text-slate-600">This name prints at the bottom of each payslip.</p>
+        <p className="mt-2 text-sm text-slate-600">These print at the bottom of each payslip.</p>
         <label className="mt-4 block text-sm">
           <span className="font-medium text-slate-800">Company name</span>
           <input
-            value={companyName}
+            value={company.companyName}
             maxLength={PAYSLIP_COMPANY_NAME_MAX}
             disabled={loading || saving}
             autoFocus
-            onChange={(e) => setCompanyName(e.target.value)}
+            onChange={(e) => field('companyName', e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <label className="mt-4 block text-sm">
+          <span className="font-medium text-slate-800">Address</span>
+          <input
+            value={company.address}
+            maxLength={PAYSLIP_COMPANY_ADDRESS_MAX}
+            disabled={loading || saving}
+            onChange={(e) => field('address', e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <label className="mt-4 block text-sm">
+          <span className="font-medium text-slate-800">Contact number</span>
+          <input
+            value={company.phone}
+            maxLength={PAYSLIP_COMPANY_PHONE_MAX}
+            disabled={loading || saving}
+            onChange={(e) => field('phone', e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </label>
@@ -140,7 +179,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={loading || saving || !companyName.trim()}
+            disabled={loading || saving || !ready}
             className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}

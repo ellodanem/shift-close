@@ -166,6 +166,8 @@ describe('payslips', () => {
     assert.match(html, /HOURS/)
     assert.match(html, /YTD/)
     assert.match(html, /Total Auto/)
+    assert.match(html, /John Compton Highway Castries, Saint Lucia/)
+    assert.match(html, /758 4515400/)
     assert.doesNotMatch(html, /Westline Fuels/)
     assert.match(html, /CENTRE:/)
     assert.match(html, /CUL DE SAC/)
@@ -176,6 +178,8 @@ describe('payslips', () => {
       endDate: '2026-08-15',
       payDate: '2026-08-15',
       companyName: 'Westline <Fuels>',
+      companyAddress: 'Bridge Street',
+      companyPhone: '758 450 0000',
       lines: [
         {
           staffName: 'Althea Frank',
@@ -192,6 +196,9 @@ describe('payslips', () => {
       ]
     })
     assert.match(renamed, /Westline &lt;Fuels&gt;/)
+    assert.match(renamed, /Bridge Street/)
+    assert.match(renamed, /758 450 0000/)
+    assert.doesNotMatch(renamed, /John Compton Highway/)
     assert.doesNotMatch(renamed, /Westline <Fuels>/)
     assert.match(html, /NET :/)
   })

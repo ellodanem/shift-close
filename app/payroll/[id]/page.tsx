@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
-import { loadPayslipCompanyName } from '@/lib/payroll-settings'
+import { loadPayslipCompany } from '@/lib/payroll-settings'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
@@ -1195,8 +1195,15 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={() => {
                   void (async () => {
-                    const companyName = await loadPayslipCompanyName()
-                    if (!printPayslips({ ...payslipsFromRun(run), companyName })) {
+                    const company = await loadPayslipCompany()
+                    if (
+                      !printPayslips({
+                        ...payslipsFromRun(run),
+                        companyName: company.companyName,
+                        companyAddress: company.address,
+                        companyPhone: company.phone
+                      })
+                    ) {
                       setError('Allow pop-ups to print these payslips.')
                     }
                   })()
