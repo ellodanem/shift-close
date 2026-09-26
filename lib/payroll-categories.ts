@@ -17,7 +17,7 @@ export const BUILTIN_PAYROLL_CATEGORIES: PayrollCategory[] = [
   { id: 'basic', label: 'Basic', kind: 'hours', builtin: true, enabled: true },
   { id: 'ot', label: 'Overtime', kind: 'hours', builtin: true, enabled: true },
   { id: 'vacation', label: 'Vacation', kind: 'attendance', builtin: true, enabled: true },
-  { id: 'sickDays', label: 'Sick Days', kind: 'attendance', builtin: true, enabled: true },
+  { id: 'sickDays', label: 'SICK', kind: 'attendance', builtin: true, enabled: true },
   { id: 'extra', label: 'Extra', kind: 'money', builtin: true, enabled: true },
   { id: 'medical', label: 'Medical', kind: 'deduction', builtin: true, enabled: true },
   { id: 'shortage', label: 'Shortage', kind: 'deduction', builtin: true, enabled: false }
@@ -93,6 +93,29 @@ export function newPayrollCategory(label: string, kind: CategoryKind): PayrollCa
 export function categoryLabelTaken(categories: PayrollCategory[], label: string): boolean {
   const key = label.trim().toLowerCase()
   return categories.some((category) => category.label.toLowerCase() === key)
+}
+
+/** Custom "Sick" / "Sick Days" money columns repeat the attendance sick column. */
+export function isSickAliasLabel(label: string): boolean {
+  const key = label.trim().toLowerCase().replace(/\s+/g, '')
+  return key === 'sick' || key === 'sickday' || key === 'sickdays'
+}
+
+export function sickDaysColumnEnabled(categories: PayrollCategory[]): boolean {
+  return categories.some((category) => category.id === 'sickDays' && category.enabled)
+}
+
+/** Hide a custom Sick type while the attendance SICK column is on. */
+export function listedPayrollCategories(categories: PayrollCategory[]): PayrollCategory[] {
+  const sickOn = sickDaysColumnEnabled(categories)
+  return categories.filter(
+    (category) => !(sickOn && !category.builtin && isSickAliasLabel(category.label))
+  )
+}
+
+/** Drop a custom Sick column while the attendance SICK column is on. */
+export function visiblePayrollColumns(categories: PayrollCategory[]): PayrollCategory[] {
+  return listedPayrollCategories(categories).filter((category) => category.enabled)
 }
 
 export function amountForLabel(lines: PayRunExtraLine[], label: string): number {

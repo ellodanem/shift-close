@@ -41,6 +41,10 @@ import {
   buildDeductionLines,
   buildExtraLines,
   categoryLabelTaken,
+  isSickAliasLabel,
+  listedPayrollCategories,
+  sickDaysColumnEnabled,
+  visiblePayrollColumns,
   defaultPayrollCategories,
   hoursForLabel,
   loadPayrollCategories,
@@ -288,12 +292,14 @@ function payrollEntryPayload(
 function HoursField({
   value,
   disabled,
+  readOnly,
   onChange,
   onBlur,
   label
 }: {
   value: string
-  disabled: boolean
+  disabled?: boolean
+  readOnly?: boolean
   onChange: (value: string) => void
   onBlur?: () => void
   label: string
@@ -304,11 +310,17 @@ function HoursField({
       inputMode="decimal"
       value={value}
       disabled={disabled}
+      readOnly={readOnly}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
-      className="w-20 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums disabled:opacity-60"
+      className="w-20 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums read-only:cursor-default disabled:opacity-60"
     />
   )
+}
+
+function categoryAlign(category: PayrollCategory): string {
+  if (category.kind === 'attendance' && category.id !== 'sickDays') return 'text-center'
+  return 'text-right'
 }
 
 export default function PayrollRunPage() {
@@ -922,7 +934,7 @@ export default function PayrollRunPage() {
   const sumMedical = (lines: PayRunLine[]) =>
     lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.medical ?? ''), 0)
   const sumGross = (lines: PayRunLine[]) => lines.reduce((sum, line) => sum + grossFor(line), 0)
-  const hourlyColumns = categories.filter((category) => category.enabled)
+  const hourlyColumns = visiblePayrollColumns(categories)
   const salariedColumns = hourlyColumns.filter((category) => category.kind !== 'hours')
 
   const updateCategories = (next: PayrollCategory[]) => {
@@ -941,7 +953,7 @@ export default function PayrollRunPage() {
   const addCategory = () => {
     const label = newTypeName.trim()
     if (!label) return
-    if (categoryLabelTaken(categories, label)) {
+    if (categoryLabelTaken(categories, label) || (sickDaysColumnEnabled(categories) && isSickAliasLabel(label))) {
       setError('That hours or money type is already on the list.')
       return
     }
@@ -1158,9 +1170,9 @@ export default function PayrollRunPage() {
                   role="tooltip"
                   className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
                 >
-                  Basic and OT hours are filled from extracted attendance. Vacation and Sick Days match the attendance
-                  report. Edits save on their own. Click a name to change the pay rate, tax code, and medical. Use Hours
-                  & money types to add or remove columns.
+                  Basic and OT hours are filled from extracted attendance. Vacation and SICK match the attendance
+                  report. SICK is locked. Edits save on their own. Click a name to change the pay rate, tax code, and
+                  medical. Use Hours & money types to add or remove columns.
                 </span>
               </span>
               <button
@@ -1181,7 +1193,7 @@ export default function PayrollRunPage() {
                     {hourlyColumns.map((category) => (
                       <th
                         key={category.id}
-                        className={`py-2 pr-3 font-bold ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                        className={`py-2 pr-3 font-bold ${categoryAlign(category)}`}
                       >
                         {category.label}
                       </th>
@@ -1219,9 +1231,16 @@ export default function PayrollRunPage() {
                           {hourlyColumns.map((category) => (
                             <td
                               key={category.id}
-                              className={`py-3 pr-3 ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                              className={`py-3 pr-3 ${categoryAlign(category)}`}
                             >
-                              {category.kind === 'attendance' ? (
+                              {category.id === 'sickDays' ? (
+                                <HoursField
+                                  label={`SICK for ${line.staffName}`}
+                                  value={attendanceText(line, category)}
+                                  readOnly
+                                  onChange={() => {}}
+                                />
+                              ) : category.kind === 'attendance' ? (
                                 <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
                                   {attendanceText(line, category)}
                                 </span>
@@ -1249,7 +1268,7 @@ export default function PayrollRunPage() {
                       <td
                         key={category.id}
                         className={`py-3 pr-3 font-semibold tabular-nums ${
-                          category.kind === 'attendance' ? 'text-center' : 'text-right'
+                          categoryAlign(category)
                         }`}
                       >
                         {categoryTotal(hourly, category)}
@@ -1268,7 +1287,7 @@ export default function PayrollRunPage() {
                     {salariedColumns.map((category) => (
                       <th
                         key={category.id}
-                        className={`py-2 pr-3 font-bold ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                        className={`py-2 pr-3 font-bold ${categoryAlign(category)}`}
                       >
                         {category.label}
                       </th>
@@ -1308,9 +1327,16 @@ export default function PayrollRunPage() {
                           {salariedColumns.map((category) => (
                             <td
                               key={category.id}
-                              className={`py-3 pr-3 ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                              className={`py-3 pr-3 ${categoryAlign(category)}`}
                             >
-                              {category.kind === 'attendance' ? (
+                              {category.id === 'sickDays' ? (
+                                <HoursField
+                                  label={`SICK for ${line.staffName}`}
+                                  value={attendanceText(line, category)}
+                                  readOnly
+                                  onChange={() => {}}
+                                />
+                              ) : category.kind === 'attendance' ? (
                                 <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
                                   {attendanceText(line, category)}
                                 </span>
@@ -1338,7 +1364,7 @@ export default function PayrollRunPage() {
                       <td
                         key={category.id}
                         className={`py-3 pr-3 font-semibold tabular-nums ${
-                          category.kind === 'attendance' ? 'text-center' : 'text-right'
+                          categoryAlign(category)
                         }`}
                       >
                         {categoryTotal(salaried, category)}
@@ -1659,12 +1685,12 @@ export default function PayrollRunPage() {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Hours and money types</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Choose which columns are on this payroll. Basic stays. Vacation and Sick Days match the attendance
-              report and are not pay amounts. Added hour columns are paid at the hourly rate. Removing a type drops it
-              from this payroll when you save.
+              Choose which columns are on this payroll. Basic stays. Vacation and SICK match the attendance
+              report and are not pay amounts. SICK stays locked. Added hour columns are paid at the hourly rate.
+              Removing a type drops it from this payroll when you save.
             </p>
             <ul className="mt-4 divide-y divide-slate-100">
-              {categories.map((category) => (
+              {listedPayrollCategories(categories).map((category) => (
                 <li key={category.id} className="flex items-center justify-between gap-3 py-2">
                   <label className="flex items-center gap-2 text-sm text-slate-800">
                     <input
