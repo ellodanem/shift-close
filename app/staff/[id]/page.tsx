@@ -144,8 +144,6 @@ function EditStaffPageInner() {
     else next.set('tab', tab)
     const qs = next.toString()
     router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
-    setEditing(false)
-    setError(null)
     setDocumentMenuId(null)
     setShowUploadPanel(false)
   }
@@ -485,6 +483,21 @@ function EditStaffPageInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.firstName.trim() && !formData.lastName.trim()) {
+      setActiveTab('profile')
+      setError('First name or last name is required')
+      return
+    }
+    if (!formData.address.trim()) {
+      setActiveTab('profile')
+      setError('Address is required')
+      return
+    }
+    if (!formData.roleId) {
+      setActiveTab('profile')
+      setError('Role is required')
+      return
+    }
     setSaving(true)
     setError(null)
 
@@ -604,6 +617,15 @@ function EditStaffPageInner() {
     formData.vacationStart <= businessTodayYmd() &&
     formData.vacationEnd >= businessTodayYmd()
 
+  const requestSave = () => {
+    const form = document.getElementById('staff-edit-form') as HTMLFormElement | null
+    if (form) {
+      form.requestSubmit()
+      return
+    }
+    void handleSubmit({ preventDefault() {} } as React.FormEvent)
+  }
+
   const editFooter = (
     <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
       <button
@@ -692,16 +714,33 @@ function EditStaffPageInner() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
-                {(activeTab === 'profile' || activeTab === 'attendance' || activeTab === 'payroll') &&
-                  !editing && (
+                {editing ? (
+                  <>
                     <button
                       type="button"
-                      onClick={startEditing}
+                      onClick={cancelEditing}
                       className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
                     >
-                      Edit
+                      Cancel
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={requestSave}
+                      disabled={saving}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded font-medium hover:bg-gray-50"
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => router.push('/staff')}
@@ -746,6 +785,11 @@ function EditStaffPageInner() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-6">
+        {editing && (activeTab === 'time-off' || activeTab === 'documents') && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+            You are editing this staff member. Profile, Attendance, and Payroll stay editable while you move between tabs. Save when you are done.
+          </div>
+        )}
         {shiftCount > 0 && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
             This staff member is referenced by {shiftCount} shift(s). Changes will affect future shifts only.
@@ -759,6 +803,7 @@ function EditStaffPageInner() {
         {/* Profile */}
         {activeTab === 'profile' && (
           <form
+            id="staff-edit-form"
             onSubmit={handleSubmit}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
           >
@@ -1479,6 +1524,7 @@ function EditStaffPageInner() {
         {/* Attendance */}
         {activeTab === 'attendance' && (
           <form
+            id="staff-edit-form"
             onSubmit={handleSubmit}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
           >
@@ -1540,6 +1586,7 @@ function EditStaffPageInner() {
         {/* Payroll */}
         {activeTab === 'payroll' && canViewStaffSensitive && (
           <form
+            id="staff-edit-form"
             onSubmit={handleSubmit}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6"
           >
