@@ -3,12 +3,16 @@ import { describe, it } from 'node:test'
 import { ytdAsOfLine } from '../lib/pay-run-build'
 import {
   buildGlSummary,
+  buildPayrollPreviewLine,
+  buildPayrollPreviewPdf,
   buildPayslipLine,
   payPeriodCycleNumber,
   buildPayslipPeriodTotals,
   renderGlHtml,
+  renderPayrollPreviewHtml,
   renderPayslipsHtml,
-  renderStaffPayslipsHtml
+  renderStaffPayslipsHtml,
+  type PayrollPreviewInput
 } from '../lib/payroll-print'
 
 describe('payslips', () => {
@@ -403,5 +407,110 @@ describe('staff salary slips', () => {
     assert.doesNotMatch(html, /Page: 3/)
     assert.doesNotMatch(html, /PERIODTOTALS/)
     assert.doesNotMatch(html, /Pay Register/)
+  })
+})
+
+function previewSource(name: string, payType: 'hourly' | 'salaried', gross: number, deductions: number) {
+  return buildPayrollPreviewLine({
+    staffName: name,
+    payType,
+    taxCode: '220',
+    basicHours: payType === 'salaried' ? 0 : 40,
+    otHours: payType === 'salaried' ? 0 : 2,
+    basicPay: gross,
+    otPay: 0,
+    extraPay: 0,
+    grossPay: gross,
+    nisEmployee: deductions,
+    staffLoan: 0,
+    medical: 0,
+    shortageReady: 0,
+    extraDeductionPay: 0,
+    totalDeductions: deductions,
+    netPay: gross - deductions,
+    nisEmployer: 10,
+    bankCode: 'REP',
+    accountNo: '12345'
+  })
+}
+
+describe('payroll preview', () => {
+  const input: PayrollPreviewInput = {
+    startDate: '2026-09-01',
+    endDate: '2026-09-15',
+    payDate: '2026-09-15',
+    status: 'draft',
+    lines: [
+      previewSource('Elenna James', 'hourly', 515.08, 25.75),
+      previewSource('Althea Frank', 'salaried', 900, 125.98)
+    ]
+  }
+
+  it('puts deductions between gross and net, then the detail pages', () => {
+    const html = renderPayrollPreviewHtml(input)
+    const header = html.slice(html.indexOf('<thead>'), html.indexOf('</thead>'))
+    assert.match(header, /Gross pay<\/th><th>Deductions<\/th><th>Net pay/)
+    assert.ok(html.indexOf('Payroll summary') < html.indexOf('Payroll details'))
+    assert.match(html, /Elenna James/)
+    assert.match(html, /Althea Frank/)
+    assert.match(html, /\$25\.75/)
+    assert.match(html, /\$125\.98/)
+    assert.match(html, /Hours and earnings/)
+    assert.match(html, /class="page"/)
+    assert.equal(html.match(/class="page"/g)?.length, 2)
+    assert.doesNotMatch(html, />Loan</)
+    assert.match(html, />NIS</)
+  })
+
+  it('keeps a loan that has an amount on the detail page', () => {
+    const line = buildPayrollPreviewLine({
+      staffName: 'Jervis Byron',
+      payType: 'hourly',
+      basicHours: 80,
+      otHours: 0,
+      basicPay: 521.6,
+      otPay: 0,
+      extraPay: 0,
+      grossPay: 521.6,
+      nisEmployee: 26.08,
+      staffLoan: 40,
+      medical: 0,
+      shortageReady: 0,
+      totalDeductions: 66.08,
+      netPay: 455.52,
+      nisEmployer: 26.08
+    })
+    assert.deepEqual(
+      line.deductions.map((row) => row.label),
+      ['NIS', 'Loan']
+    )
+  })
+
+  it('downloads a summary page followed by detail pages', () => {
+    const doc = buildPayrollPreviewPdf(input)
+    assert.ok(doc.getNumberOfPages() >= 2)
+    const pages = ((doc as unknown as { internal: { pages: unknown[] } }).internal.pages ?? [])
+      .filter(Boolean)
+      .map((page) => String(page))
+    assert.match(pages[0], /Payroll summary/)
+    assert.match(pages[0], /Deductions/)
+    assert.doesNotMatch(pages[0], /Payroll details/)
+    assert.match(pages.slice(1).join('\n'), /Payroll details/)
+    assert.match(pages.slice(1).join('\n'), /Elenna James/)
+    assert.match(pages.slice(1).join('\n'), /Althea Frank/)
+  })
+
+  it('uses extra pages when the details do not fit on one page', () => {
+    const lines = Array.from({ length: 12 }, (_, index) =>
+      previewSource(`Employee ${index + 1}`, index > 9 ? 'salaried' : 'hourly', 400 + index, 20 + index)
+    )
+    const doc = buildPayrollPreviewPdf({ ...input, lines })
+    assert.ok(doc.getNumberOfPages() >= 3)
+    const pages = ((doc as unknown as { internal: { pages: unknown[] } }).internal.pages ?? [])
+      .filter(Boolean)
+      .map((page) => String(page))
+    assert.match(pages[0], /Payroll summary/)
+    assert.doesNotMatch(pages[0], /Payroll details/)
+    assert.ok(pages.slice(1).every((page) => page.includes('Payroll details')))
   })
 })

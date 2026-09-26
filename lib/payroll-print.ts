@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import { normalizePayslipCompany } from '@/lib/payroll-settings'
-import { formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
+import { formatMoney, parseMoney, parsePayType, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
 export type NisPrintLine = {
   staffName: string
@@ -13,12 +13,70 @@ export type NisPrintLine = {
   grossPay: number
 }
 
+export type PayrollPreviewDeduction = {
+  label: string
+  amount: number
+  ytd: number
+}
+
 export type PayrollPreviewLine = {
   staffName: string
   payType: string
+  taxCode: string
   hours: number
   grossPay: number
+  totalDeductions: number
   netPay: number
+  basicHours: number
+  basicPay: number
+  basicYtd: number
+  otHours: number
+  otPay: number
+  otYtd: number
+  extraPay: number
+  extraYtd: number
+  grossYtd: number
+  deductions: PayrollPreviewDeduction[]
+  deductionsYtd: number
+  netYtd: number
+  nisEmployer: number
+  bankCode: string
+  accountNo: string
+}
+
+export type PayrollPreviewSourceLine = {
+  staffName: string
+  payType: string
+  taxCode?: string | null
+  basicHours: number
+  otHours: number
+  basicPay: number
+  otPay: number
+  extraPay: number
+  grossPay: number
+  nisEmployee: number
+  staffLoan: number
+  medical: number
+  shortageReady: number
+  extraDeductionPay?: number
+  totalDeductions: number
+  netPay: number
+  nisEmployer: number
+  bankCode?: string | null
+  accountNo?: string | null
+  ytd?: {
+    basicPay: number
+    otPay: number
+    extraPay: number
+    grossPay: number
+    nisEmployee: number
+    staffLoan: number
+    medical: number
+    shortageReady: number
+    extraDeductionPay: number
+    totalDeductions: number
+    netPay: number
+  }
 }
 
 function usd(n: number): string {
@@ -140,21 +198,75 @@ export function payrollPreviewFilename(input: Pick<PayrollPreviewInput, 'startDa
 
 function previewSections(lines: PayrollPreviewLine[]) {
   return [
-    { title: 'Hourly employees', lines: lines.filter((line) => line.payType !== 'salaried') },
-    { title: 'Salaried employees', lines: lines.filter((line) => line.payType === 'salaried') }
+    { title: 'Hourly employees', lines: lines.filter((line) => parsePayType(line.payType) !== 'salaried') },
+    { title: 'Salaried employees', lines: lines.filter((line) => parsePayType(line.payType) === 'salaried') }
   ].filter((section) => section.lines.length > 0)
 }
 
 function sectionTotals(lines: PayrollPreviewLine[]) {
   return {
-    hours: lines.reduce((sum, line) => sum + (line.payType === 'salaried' ? 0 : line.hours), 0),
+    hours: lines.reduce((sum, line) => sum + line.hours, 0),
     gross: lines.reduce((sum, line) => sum + line.grossPay, 0),
+    deductions: lines.reduce((sum, line) => sum + line.totalDeductions, 0),
     net: lines.reduce((sum, line) => sum + line.netPay, 0)
   }
 }
 
 function hoursCell(line: PayrollPreviewLine): string {
-  return line.payType === 'salaried' ? '—' : usd(line.hours)
+  return parsePayType(line.payType) === 'salaried' ? '—' : usd(line.hours)
+}
+
+function hoursTotalCell(hours: number): string {
+  return hours ? usd(hours) : '—'
+}
+
+function previewDeduction(label: string, amount: number, ytd: number | undefined): PayrollPreviewDeduction | null {
+  const current = parseMoney(amount)
+  const year = ytdOrCurrent(ytd, current)
+  if (current === 0 && year === 0) return null
+  return { label, amount: current, ytd: year }
+}
+
+/** Summary plus the detail rows shown on the payroll review screen. */
+export function buildPayrollPreviewLine(line: PayrollPreviewSourceLine): PayrollPreviewLine {
+  const basicPay = parseMoney(line.basicPay)
+  const otPay = parseMoney(line.otPay)
+  const extraPay = parseMoney(line.extraPay)
+  const grossPay = parseMoney(line.grossPay)
+  const totalDeductions = parseMoney(line.totalDeductions)
+  const netPay = parseMoney(line.netPay)
+  const nis = parseMoney(line.nisEmployee)
+  const optional = [
+    previewDeduction('Loan', line.staffLoan, line.ytd?.staffLoan),
+    previewDeduction('Medical', line.medical, line.ytd?.medical),
+    previewDeduction('Shortage', line.shortageReady, line.ytd?.shortageReady),
+    previewDeduction('Other', line.extraDeductionPay ?? 0, line.ytd?.extraDeductionPay)
+  ].filter((row): row is PayrollPreviewDeduction => row !== null)
+
+  return {
+    staffName: line.staffName,
+    payType: line.payType,
+    taxCode: (line.taxCode ?? '').trim(),
+    hours: round2(parseMoney(line.basicHours) + parseMoney(line.otHours)),
+    grossPay,
+    totalDeductions,
+    netPay,
+    basicHours: parseMoney(line.basicHours),
+    basicPay,
+    basicYtd: ytdOrCurrent(line.ytd?.basicPay, basicPay),
+    otHours: parseMoney(line.otHours),
+    otPay,
+    otYtd: ytdOrCurrent(line.ytd?.otPay, otPay),
+    extraPay,
+    extraYtd: ytdOrCurrent(line.ytd?.extraPay, extraPay),
+    grossYtd: ytdOrCurrent(line.ytd?.grossPay, grossPay),
+    deductions: [{ label: 'NIS', amount: nis, ytd: ytdOrCurrent(line.ytd?.nisEmployee, nis) }, ...optional],
+    deductionsYtd: ytdOrCurrent(line.ytd?.totalDeductions, totalDeductions),
+    netYtd: ytdOrCurrent(line.ytd?.netPay, netPay),
+    nisEmployer: parseMoney(line.nisEmployer),
+    bankCode: (line.bankCode ?? '').trim(),
+    accountNo: (line.accountNo ?? '').trim()
+  }
 }
 
 export type PayslipAmount = {
@@ -977,113 +1089,407 @@ export function printGlReport(input: PayslipPrintInput): boolean {
   return true
 }
 
-export function printPayrollPreview(input: PayrollPreviewInput): boolean {
-  const printWin = window.open('', '_blank')
-  if (!printWin) return false
-  const section = (title: string, lines: PayrollPreviewLine[]) => {
-    const body = lines
-      .map(
-        (line) => `<tr>
-          <td>${escapePayPeriodHtml(line.staffName)}</td>
-          <td class="num">${hoursCell(line)}</td>
-          <td class="num">${formatMoney(line.grossPay)}</td>
-          <td class="num">${formatMoney(line.netPay)}</td>
-        </tr>`
-      )
-      .join('')
-    const totals = sectionTotals(lines)
-    return `<h2>${escapePayPeriodHtml(title)}</h2>
-      <table>
-        <thead><tr><th>Name</th><th>Total hours</th><th>Gross pay</th><th>Net pay</th></tr></thead>
-        <tbody>${body}</tbody>
-        <tfoot><tr><td>Subtotal</td><td class="num">${usd(totals.hours)}</td><td class="num">${formatMoney(totals.gross)}</td><td class="num">${formatMoney(totals.net)}</td></tr></tfoot>
-      </table>`
-  }
+function summaryMoneyRow(label: string, hours: string, totals: { gross: number; deductions: number; net: number }, kind: string) {
+  return `<tr class="${kind}"><td>${escapePayPeriodHtml(label)}</td><td class="num">${hours}</td><td class="num">${formatMoney(totals.gross)}</td><td class="num">${formatMoney(totals.deductions)}</td><td class="num">${formatMoney(totals.net)}</td></tr>`
+}
+
+function summarySectionHtml(title: string, lines: PayrollPreviewLine[]): string {
+  const totals = sectionTotals(lines)
+  const body = lines
+    .map(
+      (line) => `<tr>
+        <td>${escapePayPeriodHtml(line.staffName)}</td>
+        <td class="num">${hoursCell(line)}</td>
+        <td class="num">${formatMoney(line.grossPay)}</td>
+        <td class="num">${formatMoney(line.totalDeductions)}</td>
+        <td class="num">${formatMoney(line.netPay)}</td>
+      </tr>`
+    )
+    .join('')
+  return `<tr class="group"><td colspan="5">${escapePayPeriodHtml(title)}</td></tr>${body}${summaryMoneyRow('Subtotal', hoursTotalCell(totals.hours), totals, 'subtotal')}`
+}
+
+function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine): string {
+  const payType = parsePayType(line.payType)
+  const meta = line.taxCode
+    ? `Pay type: ${payType} · Tax code ${escapePayPeriodHtml(line.taxCode)}`
+    : `Pay type: ${payType}`
+  const earning = (label: string, hours: string, amount: number, ytd: number, kind = '') =>
+    `<tr class="${kind}"><td>${label}</td><td class="num">${hours}</td><td class="num">${formatMoney(amount)}</td><td class="num">${formatMoney(ytd)}</td></tr>`
+  const deduction = (label: string, amount: number, ytd: number, kind = '') =>
+    `<tr class="${kind}"><td>${escapePayPeriodHtml(label)}</td><td class="num">${formatMoney(amount)}</td><td class="num">${formatMoney(ytd)}</td></tr>`
+  return `<article class="person">
+    <header>
+      <div>
+        <h2>${escapePayPeriodHtml(line.staffName)}</h2>
+        <p>${meta}</p>
+      </div>
+      <p>Pay date ${escapePayPeriodHtml(mdy(input.payDate))} · ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))}</p>
+    </header>
+    <div class="cols">
+      <div>
+        <h3>Hours and earnings</h3>
+        <table>
+          <thead><tr><th></th><th>Hours</th><th>Amount</th><th>YTD</th></tr></thead>
+          <tbody>
+            ${earning('Basic', usd(line.basicHours), line.basicPay, line.basicYtd)}
+            ${earning('Overtime', usd(line.otHours), line.otPay, line.otYtd)}
+            ${earning('Extra', '', line.extraPay, line.extraYtd)}
+            ${earning('Gross pay', '', line.grossPay, line.grossYtd, 'total')}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>Deductions</h3>
+        <table>
+          <thead><tr><th></th><th>Amount</th><th>YTD</th></tr></thead>
+          <tbody>
+            ${line.deductions.map((row) => deduction(row.label, row.amount, row.ytd)).join('')}
+            ${deduction('Total deductions', line.totalDeductions, line.deductionsYtd, 'total')}
+            ${deduction('Net pay', line.netPay, line.netYtd, 'net')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="note">${escapePayPeriodHtml(previewEmployerNote(line))}</p>
+  </article>`
+}
+
+/** Printable preview: summary on the first page, employee details on the pages after it. */
+export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
   const totals = sectionTotals(input.lines)
-  printWin.document.write(`<!DOCTYPE html>
+  const summaryRows = previewSections(input.lines)
+    .map((section) => summarySectionHtml(section.title, section.lines))
+    .join('')
+  const details =
+    input.lines.length > 0
+      ? input.lines.map((line) => detailArticleHtml(input, line)).join('')
+      : '<p class="empty">No employees in this payroll.</p>'
+  return `<!DOCTYPE html>
 <html>
   <head>
-    <title>Payroll preview</title>
+    <meta charset="utf-8" />
+    <title>Payroll preview ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))}</title>
     <style>
-      body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 32px; color: #111; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
+      @page { size: letter; margin: 0.55in; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      h1 { margin: 0; font-size: 20px; }
+      .banner { margin: 8px 0 16px; }
+      .page { page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; }
       th:not(:first-child), td.num { text-align: right; }
-      tfoot td { font-weight: 600; }
-      .banner { background: #f5f3ff; padding: 12px 16px; margin-bottom: 20px; }
+      th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+      .group td { padding-top: 12px; border-bottom: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; }
+      .subtotal td { font-weight: 700; background: #f5f3ff; }
+      .grand td { font-weight: 700; background: #ede9fe; }
+      .note { color: #64748b; font-size: 11px; }
+      .person { page-break-inside: avoid; margin: 0 0 22px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+      .person header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+      .person h2 { margin: 0; font-size: 14px; }
+      .person header p, .person .note { margin: 2px 0 0; color: #64748b; font-size: 11px; }
+      .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px; }
+      .person h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+      .person .total td { font-weight: 700; }
+      .person .net td { font-weight: 700; color: #065f46; }
+      .empty { color: #64748b; }
     </style>
   </head>
   <body>
-    <h1>Payroll preview</h1>
-    <p class="banner">Pay period ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))} · Pay date ${escapePayPeriodHtml(mdy(input.payDate))}. ${escapePayPeriodHtml(payrollPreviewStatus(input))}</p>
-    ${previewSections(input.lines).map((item) => section(item.title, item.lines)).join('')}
-    <p><strong>Total hours</strong> ${usd(totals.hours)} · <strong>Gross</strong> ${formatMoney(totals.gross)} · <strong>Net</strong> ${formatMoney(totals.net)}</p>
-    <p>PAYE is still calculated in Pay+.</p>
+    <section class="page">
+      <h1>Payroll summary</h1>
+      <p class="banner">Pay period ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))} · Pay date ${escapePayPeriodHtml(mdy(input.payDate))}. ${escapePayPeriodHtml(payrollPreviewStatus(input))}</p>
+      <table>
+        <thead><tr><th>Name</th><th>Total hours</th><th>Gross pay</th><th>Deductions</th><th>Net pay</th></tr></thead>
+        <tbody>
+          ${summaryRows}
+          ${summaryMoneyRow('Total', usd(totals.hours), totals, 'grand')}
+        </tbody>
+      </table>
+      <p class="note">PAYE is still calculated in Pay+.</p>
+    </section>
+    <section class="page">
+      <h1>Payroll details</h1>
+      <p class="banner">Pay period ${escapePayPeriodHtml(mdy(input.startDate))} – ${escapePayPeriodHtml(mdy(input.endDate))} · Pay date ${escapePayPeriodHtml(mdy(input.payDate))}</p>
+      ${details}
+    </section>
   </body>
-</html>`)
+</html>`
+}
+
+export function printPayrollPreview(input: PayrollPreviewInput): boolean {
+  const printWin = window.open('', '_blank')
+  if (!printWin) return false
+  printWin.document.write(renderPayrollPreviewHtml(input))
   printWin.document.close()
   printWin.focus()
   printWin.print()
   return true
 }
 
-export function downloadPayrollPreview(input: PayrollPreviewInput) {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
-  const margin = 40
+const PREVIEW_MARGIN = 40
+const PREVIEW_BOTTOM = 40
+
+type PreviewCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> }
+
+function previewPageHeight(doc: jsPDF): number {
+  return doc.internal.pageSize.getHeight()
+}
+
+function previewPageWidth(doc: jsPDF): number {
+  return doc.internal.pageSize.getWidth()
+}
+
+function previewEmployerNote(line: PayrollPreviewLine): string {
+  let note = `Employer NIS ${formatMoney(line.nisEmployer)} is not taken from net.`
+  if (line.bankCode) note += ` Bank ${line.bankCode}`
+  if (line.accountNo) note += ` · ${line.accountNo}`
+  return note
+}
+
+function summaryFillRow(
+  label: string,
+  hours: string,
+  totals: { gross: number; deductions: number; net: number },
+  fill: [number, number, number]
+): PreviewCell[] {
+  const styles = { fontStyle: 'bold', fillColor: fill }
+  return [label, hours, formatMoney(totals.gross), formatMoney(totals.deductions), formatMoney(totals.net)].map(
+    (content) => ({ content, styles })
+  )
+}
+
+function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
+  const body: PreviewCell[][] = []
+  for (const section of previewSections(lines)) {
+    body.push([
+      {
+        content: section.title.toUpperCase(),
+        colSpan: 5,
+        styles: {
+          fontStyle: 'bold',
+          textColor: [71, 85, 105],
+          fontSize: 8,
+          cellPadding: { top: 8, bottom: 2, left: 2, right: 2 }
+        }
+      }
+    ])
+    for (const line of section.lines) {
+      body.push([
+        line.staffName,
+        hoursCell(line),
+        formatMoney(line.grossPay),
+        formatMoney(line.totalDeductions),
+        formatMoney(line.netPay)
+      ])
+    }
+    const totals = sectionTotals(section.lines)
+    body.push(summaryFillRow('Subtotal', hoursTotalCell(totals.hours), totals, [245, 243, 255]))
+  }
+  const grand = sectionTotals(lines)
+  body.push(summaryFillRow('Total', usd(grand.hours), grand, [237, 233, 254]))
+  return body
+}
+
+function employeeBlockHeight(doc: jsPDF, line: PayrollPreviewLine): number {
+  const rows = Math.max(4, line.deductions.length + 2)
+  const noteLines = doc.splitTextToSize(previewEmployerNote(line), previewPageWidth(doc) - PREVIEW_MARGIN * 2).length
+  return 77 + rows * 13 + noteLines * 10
+}
+
+function drawMoneyRow(
+  doc: jsPDF,
+  row: { label: string; hours?: string; amount: string; ytd: string; bold?: boolean; net?: boolean },
+  labelX: number,
+  hoursX: number | undefined,
+  amountX: number,
+  ytdX: number,
+  y: number
+) {
+  doc.setFont('helvetica', row.bold ? 'bold' : 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(row.net ? 6 : 17, row.net ? 95 : 24, row.net ? 70 : 39)
+  doc.text(row.label, labelX, y)
+  if (hoursX && row.hours) doc.text(row.hours, hoursX, y, { align: 'right' })
+  doc.text(row.amount, amountX, y, { align: 'right' })
+  doc.text(row.ytd, ytdX, y, { align: 'right' })
+}
+
+function drawEmployeeBlock(doc: jsPDF, input: PayrollPreviewInput, line: PayrollPreviewLine, y: number): number {
+  const left = PREVIEW_MARGIN
+  const right = previewPageWidth(doc) - PREVIEW_MARGIN
+  const mid = left + (right - left) * 0.52
+  const earnHours = left + 148
+  const earnAmount = left + 214
+  const earnYtd = mid - 18
+  const dedAmount = right - 72
+  const dedYtd = right
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(17, 24, 39)
+  doc.text(line.staffName, left, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(100)
+  doc.text(`Pay date ${mdy(input.payDate)}  ·  ${mdy(input.startDate)} – ${mdy(input.endDate)}`, right, y, {
+    align: 'right'
+  })
+  const payType = parsePayType(line.payType)
+  doc.text(line.taxCode ? `Pay type: ${payType}   ·   Tax code ${line.taxCode}` : `Pay type: ${payType}`, left, y + 13)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  doc.text('HOURS AND EARNINGS', left, y + 30)
+  doc.text('DEDUCTIONS', mid, y + 30)
+  doc.setFontSize(7)
+  doc.setTextColor(148, 163, 184)
+  doc.text('HOURS', earnHours, y + 42, { align: 'right' })
+  doc.text('AMOUNT', earnAmount, y + 42, { align: 'right' })
+  doc.text('YTD', earnYtd, y + 42, { align: 'right' })
+  doc.text('AMOUNT', dedAmount, y + 42, { align: 'right' })
+  doc.text('YTD', dedYtd, y + 42, { align: 'right' })
+
+  const earnings = [
+    { label: 'Basic', hours: usd(line.basicHours), amount: formatMoney(line.basicPay), ytd: formatMoney(line.basicYtd) },
+    { label: 'Overtime', hours: usd(line.otHours), amount: formatMoney(line.otPay), ytd: formatMoney(line.otYtd) },
+    { label: 'Extra', hours: '', amount: formatMoney(line.extraPay), ytd: formatMoney(line.extraYtd) },
+    { label: 'Gross pay', amount: formatMoney(line.grossPay), ytd: formatMoney(line.grossYtd), bold: true }
+  ]
+  const deductions = [
+    ...line.deductions.map((row) => ({ label: row.label, amount: formatMoney(row.amount), ytd: formatMoney(row.ytd) })),
+    {
+      label: 'Total deductions',
+      amount: formatMoney(line.totalDeductions),
+      ytd: formatMoney(line.deductionsYtd),
+      bold: true
+    },
+    { label: 'Net pay', amount: formatMoney(line.netPay), ytd: formatMoney(line.netYtd), bold: true, net: true }
+  ]
+  const count = Math.max(earnings.length, deductions.length)
+  let rowY = y + 55
+  for (let index = 0; index < count; index += 1) {
+    const earn = earnings[index]
+    const ded = deductions[index]
+    if (earn) drawMoneyRow(doc, earn, left, earnHours, earnAmount, earnYtd, rowY)
+    if (ded) drawMoneyRow(doc, ded, mid, undefined, dedAmount, dedYtd, rowY)
+    rowY += 13
+  }
+
+  const note = doc.splitTextToSize(previewEmployerNote(line), right - left)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(100)
+  const noteY = rowY + 2
+  doc.text(note, left, noteY)
+  const ruleY = noteY + note.length * 10 + 4
+  doc.setDrawColor(226, 232, 240)
+  doc.line(left, ruleY, right, ruleY)
+  return ruleY + 16
+}
+
+function drawDetailsHeading(doc: jsPDF, input: PayrollPreviewInput, y: number): number {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.text('Payroll preview', margin, 48)
+  doc.setTextColor(17, 24, 39)
+  doc.text('Payroll details', PREVIEW_MARGIN, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(55)
   doc.text(
     `Pay period ${mdy(input.startDate)} – ${mdy(input.endDate)}  ·  Pay date ${mdy(input.payDate)}`,
-    margin,
-    68
+    PREVIEW_MARGIN,
+    y + 16
   )
-  doc.text(payrollPreviewStatus(input), margin, 84)
-  doc.setTextColor(0)
+  return y + 36
+}
 
-  let y = 100
-  for (const section of previewSections(input.lines)) {
-    const totals = sectionTotals(section.lines)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.text(section.title, margin, y)
-    autoTable(doc, {
-      startY: y + 8,
-      head: [['Name', 'Total hours', 'Gross pay', 'Net pay']],
-      body: section.lines.map((line) => [
-        line.staffName,
-        hoursCell(line),
-        formatMoney(line.grossPay),
-        formatMoney(line.netPay)
-      ]),
-      foot: [['Subtotal', usd(totals.hours), formatMoney(totals.gross), formatMoney(totals.net)]],
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [91, 33, 182], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [245, 243, 255], textColor: [17, 24, 39], fontStyle: 'bold' },
-      columnStyles: {
-        1: { halign: 'right' },
-        2: { halign: 'right' },
-        3: { halign: 'right' }
-      },
-      margin: { left: margin, right: margin }
-    })
-    y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 28
+function drawPreviewDetails(doc: jsPDF, input: PayrollPreviewInput) {
+  doc.addPage()
+  let y = drawDetailsHeading(doc, input, 48)
+  if (input.lines.length === 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(55)
+    doc.text('No employees in this payroll.', PREVIEW_MARGIN, y)
+    return
   }
+  for (const line of input.lines) {
+    const height = employeeBlockHeight(doc, line)
+    if (y + height > previewPageHeight(doc) - PREVIEW_BOTTOM) {
+      doc.addPage()
+      y = drawDetailsHeading(doc, input, 48)
+    }
+    y = drawEmployeeBlock(doc, input, line, y)
+  }
+}
 
-  const totals = sectionTotals(input.lines)
+function stampPreviewPages(doc: jsPDF) {
+  const total = doc.getNumberOfPages()
+  for (let page = 1; page <= total; page += 1) {
+    doc.setPage(page)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(120)
+    doc.text(`Page ${page} of ${total}`, previewPageWidth(doc) - PREVIEW_MARGIN, previewPageHeight(doc) - 22, {
+      align: 'right'
+    })
+  }
+}
+
+/** Letter PDF. Page 1 is the summary. Later pages are the employee details. */
+export function buildPayrollPreviewPdf(input: PayrollPreviewInput): jsPDF {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(17, 24, 39)
+  doc.text('Payroll summary', PREVIEW_MARGIN, 48)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.setTextColor(17)
+  doc.setTextColor(55)
   doc.text(
-    `Total hours ${usd(totals.hours)}    Gross ${formatMoney(totals.gross)}    Net ${formatMoney(totals.net)}`,
-    margin,
-    y
+    `Pay period ${mdy(input.startDate)} – ${mdy(input.endDate)}  ·  Pay date ${mdy(input.payDate)}`,
+    PREVIEW_MARGIN,
+    68
   )
+  doc.text(payrollPreviewStatus(input), PREVIEW_MARGIN, 84)
+
+  autoTable(doc, {
+    startY: 100,
+    head: [['Name', 'Total hours', 'Gross pay', 'Deductions', 'Net pay']],
+    body: summaryTableBody(input.lines),
+    theme: 'plain',
+    styles: { fontSize: 9, cellPadding: 3, textColor: [17, 24, 39], overflow: 'linebreak' },
+    headStyles: { fillColor: [91, 33, 182], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      1: { halign: 'right' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' }
+    },
+    margin: { left: PREVIEW_MARGIN, right: PREVIEW_MARGIN, bottom: 48 },
+    showHead: 'everyPage'
+  })
+
+  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100
+  let noteY = finalY + 18
+  if (noteY > previewPageHeight(doc) - PREVIEW_BOTTOM) {
+    doc.addPage()
+    noteY = 48
+  }
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100)
-  doc.text('PAYE is still calculated in Pay+.', margin, y + 16)
-  doc.save(payrollPreviewFilename(input))
+  doc.text('PAYE is still calculated in Pay+.', PREVIEW_MARGIN, noteY)
+
+  drawPreviewDetails(doc, input)
+  stampPreviewPages(doc)
+  return doc
+}
+
+export function downloadPayrollPreview(input: PayrollPreviewInput) {
+  buildPayrollPreviewPdf(input).save(payrollPreviewFilename(input))
 }

@@ -26,6 +26,7 @@ import {
   type CreditUnionLetterDraft
 } from '@/app/components/CreditUnionLetterDialog'
 import {
+  buildPayrollPreviewLine,
   downloadPayrollPreview,
   payrollPreviewStatus,
   printGlReport,
@@ -167,13 +168,7 @@ function previewFromRun(saved: PayRun): PayrollPreviewInput {
     payDate: saved.payDate,
     status: saved.status,
     voidReason: saved.voidReason,
-    lines: saved.lines.map((line) => ({
-      staffName: line.staffName,
-      payType: line.payType,
-      hours: parseMoney(line.basicHours) + parseMoney(line.otHours),
-      grossPay: line.grossPay,
-      netPay: line.netPay
-    }))
+    lines: saved.lines.map((line) => buildPayrollPreviewLine(line))
   }
 }
 
@@ -1455,7 +1450,7 @@ export default function PayrollRunPage() {
                 Print GL
               </button>
               <button type="button" onClick={openNis} className="text-sm font-medium text-violet-700 hover:underline">
-                N.I.S. report
+                Print NIC
               </button>
               <button
                 type="button"
@@ -1886,10 +1881,11 @@ export default function PayrollRunPage() {
 
 function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInput; onClose: () => void }) {
   const [printError, setPrintError] = useState<string | null>(null)
-  const hourly = preview.lines.filter((line) => line.payType !== 'salaried')
-  const salaried = preview.lines.filter((line) => line.payType === 'salaried')
-  const hours = preview.lines.reduce((sum, line) => sum + (line.payType === 'salaried' ? 0 : line.hours), 0)
+  const hourly = preview.lines.filter((line) => parsePayType(line.payType) !== 'salaried')
+  const salaried = preview.lines.filter((line) => parsePayType(line.payType) === 'salaried')
+  const hours = preview.lines.reduce((sum, line) => sum + line.hours, 0)
   const gross = preview.lines.reduce((sum, line) => sum + line.grossPay, 0)
+  const deductions = preview.lines.reduce((sum, line) => sum + line.totalDeductions, 0)
   const net = preview.lines.reduce((sum, line) => sum + line.netPay, 0)
 
   useEffect(() => {
@@ -1936,6 +1932,7 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
             <p className="mt-4 text-sm text-slate-800">
               <span className="font-semibold">Total hours</span> {hours.toFixed(2)} ·{' '}
               <span className="font-semibold">Gross</span> {formatMoney(gross)} ·{' '}
+              <span className="font-semibold">Deductions</span> {formatMoney(deductions)} ·{' '}
               <span className="font-semibold">Net</span> {formatMoney(net)}
             </p>
             <p className="mt-2 text-sm text-slate-500">PAYE is still calculated in Pay+.</p>
@@ -1972,8 +1969,9 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
 
 function PreviewSection({ title, lines }: { title: string; lines: PayrollPreviewLine[] }) {
   if (lines.length === 0) return null
-  const hours = lines.reduce((sum, line) => sum + (line.payType === 'salaried' ? 0 : line.hours), 0)
+  const hours = lines.reduce((sum, line) => sum + line.hours, 0)
   const gross = lines.reduce((sum, line) => sum + line.grossPay, 0)
+  const deductions = lines.reduce((sum, line) => sum + line.totalDeductions, 0)
   const net = lines.reduce((sum, line) => sum + line.netPay, 0)
   return (
     <section className="mt-5">
@@ -1984,6 +1982,7 @@ function PreviewSection({ title, lines }: { title: string; lines: PayrollPreview
             <th className="py-2 font-semibold">Name</th>
             <th className="py-2 text-right font-semibold">Total hours</th>
             <th className="py-2 text-right font-semibold">Gross pay</th>
+            <th className="py-2 text-right font-semibold">Deductions</th>
             <th className="py-2 text-right font-semibold">Net pay</th>
           </tr>
         </thead>
@@ -1992,16 +1991,18 @@ function PreviewSection({ title, lines }: { title: string; lines: PayrollPreview
             <tr key={`${line.staffName}-${index}`} className="border-b border-slate-100">
               <td className="py-2">{line.staffName}</td>
               <td className="py-2 text-right tabular-nums">
-                {line.payType === 'salaried' ? '—' : line.hours.toFixed(2)}
+                {parsePayType(line.payType) === 'salaried' ? '—' : line.hours.toFixed(2)}
               </td>
               <td className="py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+              <td className="py-2 text-right tabular-nums">{formatMoney(line.totalDeductions)}</td>
               <td className="py-2 text-right tabular-nums">{formatMoney(line.netPay)}</td>
             </tr>
           ))}
           <tr className="bg-violet-50 font-semibold">
             <td className="py-2">Subtotal</td>
-            <td className="py-2 text-right tabular-nums">{hours.toFixed(2)}</td>
+            <td className="py-2 text-right tabular-nums">{hours ? hours.toFixed(2) : '—'}</td>
             <td className="py-2 text-right tabular-nums">{formatMoney(gross)}</td>
+            <td className="py-2 text-right tabular-nums">{formatMoney(deductions)}</td>
             <td className="py-2 text-right tabular-nums">{formatMoney(net)}</td>
           </tr>
         </tbody>
@@ -2034,6 +2035,7 @@ function ReviewStep({
   const salaried = run.lines.filter((line) => parsePayType(line.payType) === 'salaried')
   const hours = run.lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
   const gross = run.lines.reduce((sum, line) => sum + line.grossPay, 0)
+  const deductions = run.lines.reduce((sum, line) => sum + line.totalDeductions, 0)
   const net = run.lines.reduce((sum, line) => sum + line.netPay, 0)
 
   return (
@@ -2231,6 +2233,7 @@ function ReviewStep({
           salaried={salaried}
           hours={hours}
           gross={gross}
+          deductions={deductions}
           net={net}
           onEditName={locked ? undefined : onEditName}
         />
@@ -2244,6 +2247,7 @@ function SummaryTable({
   salaried,
   hours,
   gross,
+  deductions,
   net,
   onEditName
 }: {
@@ -2251,17 +2255,19 @@ function SummaryTable({
   salaried: PayRunLine[]
   hours: number
   gross: number
+  deductions: number
   net: number
   onEditName?: (lineId: string) => void
 }) {
   const block = (title: string, lines: PayRunLine[]) => {
     const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
     const blockGross = lines.reduce((sum, line) => sum + line.grossPay, 0)
+    const blockDeductions = lines.reduce((sum, line) => sum + line.totalDeductions, 0)
     const blockNet = lines.reduce((sum, line) => sum + line.netPay, 0)
     return (
       <>
         <tr>
-          <td colSpan={4} className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <td colSpan={5} className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {title}
           </td>
         </tr>
@@ -2285,6 +2291,7 @@ function SummaryTable({
               {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours).toFixed(2)}
             </td>
             <td className="py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+            <td className="py-2 text-right tabular-nums">{formatMoney(line.totalDeductions)}</td>
             <td className="py-2 text-right tabular-nums">{formatMoney(line.netPay)}</td>
           </tr>
         ))}
@@ -2292,6 +2299,7 @@ function SummaryTable({
           <td className="py-2">Subtotal</td>
           <td className="py-2 text-right tabular-nums">{blockHours ? blockHours.toFixed(2) : '—'}</td>
           <td className="py-2 text-right tabular-nums">{formatMoney(blockGross)}</td>
+          <td className="py-2 text-right tabular-nums">{formatMoney(blockDeductions)}</td>
           <td className="py-2 text-right tabular-nums">{formatMoney(blockNet)}</td>
         </tr>
       </>
@@ -2299,25 +2307,29 @@ function SummaryTable({
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-          <th className="py-2 font-semibold">Name</th>
-          <th className="py-2 text-right font-semibold">Total hours</th>
-          <th className="py-2 text-right font-semibold">Gross pay</th>
-          <th className="py-2 text-right font-semibold">Net pay</th>
-        </tr>
-      </thead>
-      <tbody>
-        {block('Hourly employees', hourly)}
-        {block('Salaried employees', salaried)}
-        <tr className="bg-violet-100 font-semibold">
-          <td className="py-3">Total</td>
-          <td className="py-3 text-right tabular-nums">{hours.toFixed(2)}</td>
-          <td className="py-3 text-right tabular-nums">{formatMoney(gross)}</td>
-          <td className="py-3 text-right tabular-nums">{formatMoney(net)}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <th className="py-2 font-semibold">Name</th>
+            <th className="py-2 text-right font-semibold">Total hours</th>
+            <th className="py-2 text-right font-semibold">Gross pay</th>
+            <th className="py-2 text-right font-semibold">Deductions</th>
+            <th className="py-2 text-right font-semibold">Net pay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {block('Hourly employees', hourly)}
+          {block('Salaried employees', salaried)}
+          <tr className="bg-violet-100 font-semibold">
+            <td className="py-3">Total</td>
+            <td className="py-3 text-right tabular-nums">{hours.toFixed(2)}</td>
+            <td className="py-3 text-right tabular-nums">{formatMoney(gross)}</td>
+            <td className="py-3 text-right tabular-nums">{formatMoney(deductions)}</td>
+            <td className="py-3 text-right tabular-nums">{formatMoney(net)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   )
 }
