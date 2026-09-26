@@ -271,7 +271,13 @@ export default function PayrollRunPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [cycleNumber, setCycleNumber] = useState('')
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [periodDraft, setPeriodDraft] = useState<{
+    startDate: string
+    endDate: string
+    payDate: string
+    cycleNumber: string
+  } | null>(null)
   const [details, setDetails] = useState(false)
   const [categories, setCategories] = useState<PayrollCategory[]>(defaultPayrollCategories)
   const [typesOpen, setTypesOpen] = useState(false)
@@ -307,7 +313,7 @@ export default function PayrollRunPage() {
     const savedCategories = loadPayrollCategories()
     for (const line of next.lines) seeded[line.id] = draftFromLine(line, savedCategories)
     setDrafts(seeded)
-    if (next.status === 'processed' || next.status === 'void') setStep(4)
+    if (next.status === 'processed' || next.status === 'void') setStep(3)
     return next
   }, [id])
 
@@ -347,16 +353,25 @@ export default function PayrollRunPage() {
     setDrafts((current) => ({ ...current, [lineId]: { ...current[lineId], ...patch } }))
   }
 
-  const persist = async () => {
+  const persist = async (header?: {
+    payDate: string
+    startDate: string
+    endDate: string
+    cycleNumber: string
+  }) => {
     if (!run) return null
+    const nextPayDate = header?.payDate ?? payDate
+    const nextStart = header?.startDate ?? startDate
+    const nextEnd = header?.endDate ?? endDate
+    const nextCycle = header?.cycleNumber ?? cycleNumber
     const res = await fetch(`/api/pay-runs/${run.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        payDate,
-        startDate,
-        endDate,
-        cycleNumber: Number(cycleNumber),
+        payDate: nextPayDate,
+        startDate: nextStart,
+        endDate: nextEnd,
+        cycleNumber: Number(nextCycle),
         lines: run.lines.map((line) => {
           const draft = drafts[line.id] ?? draftFromLine(line, categories)
           return {
@@ -401,16 +416,24 @@ export default function PayrollRunPage() {
     }
   }
 
-  const importTimeList = async () => {
-    if (locked) {
-      setStep(2)
-      return
-    }
-    if (!startDate || !endDate || startDate > endDate) {
+  const openPeriod = () => {
+    if (!run || locked) return
+    setError(null)
+    setPeriodDraft({
+      startDate: run.startDate,
+      endDate: run.endDate,
+      payDate: run.payDate,
+      cycleNumber: String(shownCycleNumber(run.cycleNumber, run.endDate))
+    })
+  }
+
+  const savePeriod = async () => {
+    if (!periodDraft) return
+    if (!periodDraft.startDate || !periodDraft.endDate || periodDraft.startDate > periodDraft.endDate) {
       setError('Choose a pay range. The end date has to be on or after the start date.')
       return
     }
-    const cycle = Number(cycleNumber)
+    const cycle = Number(periodDraft.cycleNumber)
     if (!Number.isInteger(cycle) || cycle < 1 || cycle > 53) {
       setError('Pay cycle must be a number from 1 to 53.')
       return
@@ -418,8 +441,8 @@ export default function PayrollRunPage() {
     setBusy(true)
     setError(null)
     try {
-      await persist()
-      setStep(2)
+      await persist(periodDraft)
+      setPeriodDraft(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save the pay period')
     } finally {
@@ -433,7 +456,7 @@ export default function PayrollRunPage() {
     try {
       await persist()
       setDetails(false)
-      setStep(3)
+      setStep(2)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save payroll')
     } finally {
@@ -454,7 +477,7 @@ export default function PayrollRunPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to approve payroll')
       setRun(data)
-      setStep(4)
+      setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve payroll')
     } finally {
@@ -496,7 +519,7 @@ export default function PayrollRunPage() {
       setRun(data)
       setVoidOpen(false)
       setVoidReason('')
-      setStep(4)
+      setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to void payroll')
     } finally {
@@ -834,11 +857,21 @@ export default function PayrollRunPage() {
       <div className="mx-auto max-w-6xl px-6 py-8 pb-28">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              {step === 1 ? 'Choose pay period' : 'Pay employees'}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Cycle {shownCycleNumber(run.cycleNumber, run.endDate)} · {mdy(run.startDate)} – {mdy(run.endDate)}
+            <h1 className="text-2xl font-semibold text-slate-900">Pay employees</h1>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+              <span>
+                Cycle {shownCycleNumber(run.cycleNumber, run.endDate)} · {mdy(run.startDate)} – {mdy(run.endDate)} · Pay{' '}
+                {mdy(run.payDate)}
+              </span>
+              {locked ? null : (
+                <button
+                  type="button"
+                  onClick={openPeriod}
+                  className="font-medium text-violet-700 hover:text-violet-900"
+                >
+                  Edit
+                </button>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -876,19 +909,20 @@ export default function PayrollRunPage() {
           </div>
         </div>
 
-        <ol className="mb-8 grid grid-cols-2 border-b border-slate-200 sm:grid-cols-4">
-          {(['Pay period', 'Enter payroll', 'Approve payroll', 'Print'] as const).map((label, index) => {
-            const n = (index + 1) as 1 | 2 | 3 | 4
+        <ol className="mb-8 grid grid-cols-3 border-b border-slate-200">
+          {(['Enter payroll', 'Approve payroll', 'Print'] as const).map((label, index) => {
+            const n = (index + 1) as 1 | 2 | 3
             const active = step === n
             return (
               <li key={label}>
                 <button
                   type="button"
                   onClick={() => {
-                    if (n === 4 && !locked) return
+                    if (n === 3 && !locked) return
                     setStep(n)
                   }}
-                  className={`w-full pb-3 text-left text-sm ${
+                  disabled={n === 3 && !locked}
+                  className={`w-full pb-3 text-left text-sm disabled:cursor-default ${
                     active ? 'border-b-2 border-violet-700 font-semibold text-slate-900' : 'text-slate-400'
                   }`}
                 >
@@ -904,66 +938,6 @@ export default function PayrollRunPage() {
         ) : null}
 
         {step === 1 ? (
-          <div className="max-w-3xl">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay range start</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  disabled={locked}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay range end</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  disabled={locked}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setCycleNumber((current) =>
-                      current === payPeriodCycleNumber(endDate) ? payPeriodCycleNumber(value) : current
-                    )
-                    setPayDate((current) => (current === endDate ? value : current))
-                    setEndDate(value)
-                  }}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay cycle</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={53}
-                  value={cycleNumber}
-                  disabled={locked}
-                  onChange={(e) => setCycleNumber(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay date</span>
-                <input
-                  type="date"
-                  value={payDate}
-                  disabled={locked}
-                  onChange={(e) => setPayDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-            </div>
-            <p className="mt-4 text-sm text-slate-500">
-              Import time list fills hours from the attendance extract for this period. You can still edit them on the
-              next step.
-            </p>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
           <>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
@@ -1158,7 +1132,7 @@ export default function PayrollRunPage() {
           </>
         ) : null}
 
-        {step === 3 ? (
+        {step === 2 ? (
           <ReviewStep
             run={run}
             details={details}
@@ -1170,7 +1144,7 @@ export default function PayrollRunPage() {
           />
         ) : null}
 
-        {step === 4 ? (
+        {step === 3 ? (
           <div>
             {voided ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -1272,30 +1246,8 @@ export default function PayrollRunPage() {
 
       {step === 1 ? (
         <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
-          <div className="mx-auto flex max-w-6xl justify-end">
-            <button
-              type="button"
-              onClick={importTimeList}
-              disabled={busy}
-              className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
-            >
-              {busy ? 'Saving…' : 'Import time list'}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {step === 2 ? (
-        <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100"
-              >
-                Back to pay period
-              </button>
               <button
                 type="button"
                 onClick={clearEntries}
@@ -1333,11 +1285,11 @@ export default function PayrollRunPage() {
         </div>
       ) : null}
 
-      {step === 3 ? (
+      {step === 2 ? (
         <div className="sticky bottom-0 border-t border-violet-100 bg-violet-50 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div className="flex gap-4 text-sm">
-              <button type="button" onClick={() => setStep(2)} className="font-medium text-violet-700">
+              <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
                 Back to employees
               </button>
               <button
@@ -1359,6 +1311,98 @@ export default function PayrollRunPage() {
                 {busy ? 'Approving…' : 'Approve payroll'}
               </button>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {periodDraft ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Pay period</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Cycle, range, and pay date for this draft. A 1st–15th or 16th–end range pays semi-monthly staff.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay range start</span>
+                <input
+                  type="date"
+                  value={periodDraft.startDate}
+                  onChange={(e) =>
+                    setPeriodDraft((current) => (current ? { ...current, startDate: e.target.value } : current))
+                  }
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay range end</span>
+                <input
+                  type="date"
+                  value={periodDraft.endDate}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setPeriodDraft((current) => {
+                      if (!current) return current
+                      const cycleFollows = current.cycleNumber === payPeriodCycleNumber(current.endDate)
+                      const payFollows = current.payDate === current.endDate
+                      return {
+                        ...current,
+                        endDate: value,
+                        cycleNumber: cycleFollows ? payPeriodCycleNumber(value) : current.cycleNumber,
+                        payDate: payFollows ? value : current.payDate
+                      }
+                    })
+                  }}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay cycle</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={53}
+                  value={periodDraft.cycleNumber}
+                  onChange={(e) =>
+                    setPeriodDraft((current) => (current ? { ...current, cycleNumber: e.target.value } : current))
+                  }
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay date</span>
+                <input
+                  type="date"
+                  value={periodDraft.payDate}
+                  onChange={(e) =>
+                    setPeriodDraft((current) => (current ? { ...current, payDate: e.target.value } : current))
+                  }
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+            </div>
+            {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null)
+                  setPeriodDraft(null)
+                }}
+                disabled={busy}
+                className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={savePeriod}
+                disabled={busy}
+                className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
