@@ -159,19 +159,12 @@ export function visibleExtraLines(lines: PayRunExtraLine[]): PayRunExtraLine[] {
   return lines.filter((line) => line.label !== SKIP_SALARY_LABEL)
 }
 
-export function setSalarySkipped(lines: PayRunExtraLine[], skipped: boolean): PayRunExtraLine[] {
-  const rest = lines.filter((line) => line.label !== SKIP_SALARY_LABEL)
-  return skipped ? [...rest, { label: SKIP_SALARY_LABEL, amount: 0 }] : rest
-}
-
 export function extraPayTotal(lines: PayRunExtraLine[]): number {
   return round2(visibleExtraLines(lines).reduce((s, line) => s + line.amount, 0))
 }
 
-export function setSingleExtraAmount(lines: PayRunExtraLine[], amount: number): PayRunExtraLine[] {
-  const skipped = salarySkipped(lines)
-  const next = parseMoney(amount) > 0 ? [{ label: 'Extra', amount: parseMoney(amount) }] : []
-  return setSalarySkipped(next, skipped)
+export function setSingleExtraAmount(_lines: PayRunExtraLine[], amount: number): PayRunExtraLine[] {
+  return parseMoney(amount) > 0 ? [{ label: 'Extra', amount: parseMoney(amount) }] : []
 }
 
 export function computeGrossPay(input: {
@@ -193,7 +186,7 @@ export function computeGrossPay(input: {
   const payType = parsePayType(input.payType)
   const extraPay = extraPayTotal(input.extraLines ?? [])
   if (payType === 'salaried') {
-    const basicPay = salarySkipped(input.extraLines ?? []) ? 0 : parseMoney(input.salariedAmount)
+    const basicPay = parseMoney(input.salariedAmount)
     return { payType, basicPay, otPay: 0, extraPay, grossPay: round2(basicPay + extraPay) }
   }
   const rate = parseMoney(input.hourlyRate)

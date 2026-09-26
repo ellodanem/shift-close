@@ -1,4 +1,4 @@
-import { SKIP_SALARY_LABEL, parseMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
+import { parseMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
 export type CategoryKind = 'hours' | 'money' | 'deduction' | 'attendance'
 
@@ -112,7 +112,6 @@ export function buildExtraLines(input: {
   hourlyRate: number
   categories: PayrollCategory[]
   values: Record<string, string>
-  salarySkipped: boolean
 }): PayRunExtraLine[] {
   const custom = input.categories.filter((category) => !category.builtin && category.kind !== 'deduction')
   const managed = new Set(['Extra', ...custom.map((category) => category.label)])
@@ -128,7 +127,7 @@ export function buildExtraLines(input: {
       next.push({ label: category.label, amount: entered })
     }
   }
-  return input.salarySkipped ? [...next, { label: SKIP_SALARY_LABEL, amount: 0 }] : next
+  return next
 }
 
 export function buildDeductionLines(input: {

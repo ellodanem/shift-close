@@ -122,7 +122,6 @@ type Draft = {
   basicHours: string
   otHours: string
   extra: string
-  paySalary: boolean
   shortage: string
   loan: string
   medical: string
@@ -193,7 +192,6 @@ function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
     basicHours: line.basicHours ? String(line.basicHours) : '',
     otHours: line.otHours ? String(line.otHours) : '',
     extra: moneyInput(amountForLabel(line.extraLines, 'Extra')),
-    paySalary: !salarySkipped(line.extraLines),
     shortage: moneyInput(line.shortageReady),
     loan: moneyInput(line.staffLoan),
     medical: moneyInput(line.medical),
@@ -203,14 +201,12 @@ function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
 }
 
 function extraLinesFor(line: PayRunLine, draft: Draft, categories: PayrollCategory[]): PayRunExtraLine[] {
-  const salaried = parsePayType(line.payType) === 'salaried'
   return buildExtraLines({
     existing: line.extraLines,
     extraAmount: parseMoney(draft.extra),
     hourlyRate: parseMoney(draft.rate),
     categories,
-    values: draft.custom,
-    salarySkipped: salaried && !draft.paySalary
+    values: draft.custom
   })
 }
 
@@ -381,7 +377,12 @@ export default function PayrollRunPage() {
     draftsRef.current = seeded
     categoriesRef.current = savedCategories
     headerRef.current = nextHeader
-    savedSignature.current = JSON.stringify(payrollEntryPayload(next, seeded, savedCategories, nextHeader))
+    const payload = JSON.stringify(payrollEntryPayload(next, seeded, savedCategories, nextHeader))
+    const draftStillSkipsSalary =
+      next.status !== 'processed' &&
+      next.status !== 'void' &&
+      next.lines.some((line) => salarySkipped(line.extraLines))
+    savedSignature.current = draftStillSkipsSalary ? '' : payload
     autosaveReady.current = true
     setRun(next)
     setPayDate(nextHeader.payDate)
@@ -1263,7 +1264,6 @@ export default function PayrollRunPage() {
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-wide text-slate-900">
                     <th className="py-2 pr-3 font-bold">Salaried employees</th>
-                    <th className="py-2 pr-3 font-bold">Pay salary</th>
                     <th className="py-2 pr-3 font-bold">Salary</th>
                     {salariedColumns.map((category) => (
                       <th
@@ -1279,7 +1279,7 @@ export default function PayrollRunPage() {
                 <tbody>
                   {salaried.length === 0 ? (
                     <tr>
-                      <td colSpan={salariedColumns.length + 4} className="py-4 text-slate-500">
+                      <td colSpan={salariedColumns.length + 3} className="py-4 text-slate-500">
                         No salaried staff for this pay period.
                       </td>
                     </tr>
@@ -1301,20 +1301,6 @@ export default function PayrollRunPage() {
                             {line.taxCode ? (
                               <p className="text-xs text-slate-500">Tax code {line.taxCode}</p>
                             ) : null}
-                          </td>
-                          <td className="py-3 pr-3">
-                            <label className="inline-flex items-center gap-2 text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={draft.paySalary}
-                                disabled={Boolean(locked) || busy}
-                                onChange={(e) => {
-                                  patchDraft(line.id, { paySalary: e.target.checked })
-                                  flushSave()
-                                }}
-                              />
-                              Pay salary
-                            </label>
                           </td>
                           <td className="py-3 pr-3 tabular-nums text-slate-700">
                             {formatMoney(parseMoney(draft.salary))}
@@ -1345,7 +1331,7 @@ export default function PayrollRunPage() {
                     })
                   )}
                   <tr className="text-emerald-700">
-                    <td className="py-3 font-semibold" colSpan={3}>
+                    <td className="py-3 font-semibold" colSpan={2}>
                       Salaried employee totals
                     </td>
                     {salariedColumns.map((category) => (
