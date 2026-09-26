@@ -1099,7 +1099,7 @@ function summaryMoneyRow(label: string, hours: string, totals: { gross: number; 
   return `<tr class="${kind}"><td>${escapePayPeriodHtml(label)}</td><td class="num">${hours}</td><td class="num">${formatMoney(totals.gross)}</td><td class="num">${formatMoney(totals.deductions)}</td><td class="num">${formatMoney(totals.net)}</td></tr>`
 }
 
-function summarySectionHtml(title: string, lines: PayrollPreviewLine[]): string {
+function summarySectionHtml(title: string, lines: PayrollPreviewLine[], spaced: boolean): string {
   const totals = sectionTotals(lines)
   const body = lines
     .map(
@@ -1112,7 +1112,8 @@ function summarySectionHtml(title: string, lines: PayrollPreviewLine[]): string 
       </tr>`
     )
     .join('')
-  return `<tr class="group"><td colspan="5">${escapePayPeriodHtml(title)}</td></tr>${body}${summaryMoneyRow('Subtotal', hoursTotalCell(totals.hours), totals, 'subtotal')}`
+  const group = spaced ? 'group spaced' : 'group'
+  return `<tr class="${group}"><td colspan="5">${escapePayPeriodHtml(title)}</td></tr>${body}${summaryMoneyRow('Subtotal', hoursTotalCell(totals.hours), totals, 'subtotal')}`
 }
 
 function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine): string {
@@ -1166,7 +1167,7 @@ function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine)
 export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
   const totals = sectionTotals(input.lines)
   const summaryRows = previewSections(input.lines)
-    .map((section) => summarySectionHtml(section.title, section.lines))
+    .map((section, index) => summarySectionHtml(section.title, section.lines, index > 0))
     .join('')
   const details =
     input.lines.length > 0
@@ -1189,8 +1190,10 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
       th, td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; }
       th:not(:first-child), td.num { text-align: right; }
       th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-      .group td { padding-top: 14px; border-bottom: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
+      .group td { padding-top: 10px; border-bottom: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
+      .group.spaced td { padding-top: 22px; }
       .subtotal td { font-weight: 700; background: #f5f3ff; }
+      .gap td { height: 12px; padding: 0; border: 0; }
       .grand td { font-weight: 700; background: #ede9fe; }
       .note { margin: 2px 0 0; color: #64748b; font-size: 11px; }
       .person { page-break-inside: avoid; margin: 0 0 22px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
@@ -1212,6 +1215,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
         <thead><tr><th>Name</th><th>Total hours</th><th>Gross pay</th><th>Deductions</th><th>Net pay</th></tr></thead>
         <tbody>
           ${summaryRows}
+          <tr class="gap"><td colspan="5"></td></tr>
           ${summaryMoneyRow('Total', usd(totals.hours), totals, 'grand')}
         </tbody>
       </table>
@@ -1262,9 +1266,14 @@ function summaryFillRow(
   label: string,
   hours: string,
   totals: { gross: number; deductions: number; net: number },
-  fill: [number, number, number]
+  fill: [number, number, number],
+  top = 4
 ): PreviewCell[] {
-  const styles = { fontStyle: 'bold', fillColor: fill }
+  const styles = {
+    fontStyle: 'bold',
+    fillColor: fill,
+    cellPadding: { top, bottom: 5, left: 3, right: 3 }
+  }
   return [label, hours, formatMoney(totals.gross), formatMoney(totals.deductions), formatMoney(totals.net)].map(
     (content) => ({ content, styles })
   )
@@ -1272,7 +1281,7 @@ function summaryFillRow(
 
 function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
   const body: PreviewCell[][] = []
-  for (const section of previewSections(lines)) {
+  previewSections(lines).forEach((section, index) => {
     body.push([
       {
         content: section.title.toUpperCase(),
@@ -1282,7 +1291,7 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
           fontStyle: 'bold',
           textColor: [194, 65, 12],
           fontSize: 11,
-          cellPadding: { top: 12, bottom: 4, left: 2, right: 2 }
+          cellPadding: { top: index === 0 ? 10 : 20, bottom: 6, left: 2, right: 2 }
         }
       }
     ])
@@ -1297,9 +1306,16 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
     }
     const totals = sectionTotals(section.lines)
     body.push(summaryFillRow('Subtotal', hoursTotalCell(totals.hours), totals, [245, 243, 255]))
-  }
+  })
+  body.push([
+    {
+      content: '',
+      colSpan: 5,
+      styles: { fillColor: false, minCellHeight: 14, cellPadding: 0, lineWidth: 0, fontSize: 1 }
+    }
+  ])
   const grand = sectionTotals(lines)
-  body.push(summaryFillRow('Total', usd(grand.hours), grand, [237, 233, 254]))
+  body.push(summaryFillRow('Total', usd(grand.hours), grand, [237, 233, 254], 5))
   return body
 }
 
