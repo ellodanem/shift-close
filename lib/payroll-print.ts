@@ -1182,7 +1182,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
       th, td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; }
       th:not(:first-child), td.num { text-align: right; }
       th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-      .group td { padding-top: 12px; border-bottom: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; }
+      .group td { padding-top: 12px; border-bottom: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #92400e; }
       .subtotal td { font-weight: 700; background: #f5f3ff; }
       .grand td { font-weight: 700; background: #ede9fe; }
       .note { color: #64748b; font-size: 11px; }
@@ -1269,10 +1269,11 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
         content: section.title.toUpperCase(),
         colSpan: 5,
         styles: {
+          font: 'helvetica',
           fontStyle: 'bold',
-          textColor: [71, 85, 105],
-          fontSize: 8,
-          cellPadding: { top: 8, bottom: 2, left: 2, right: 2 }
+          textColor: [146, 64, 14],
+          fontSize: 9,
+          cellPadding: { top: 10, bottom: 3, left: 2, right: 2 }
         }
       }
     ])
