@@ -9,9 +9,11 @@ datasource db {
 
 model Staff {
   id          String   @id @default(cuid())
-  name        String   // Full display name (kept in sync with firstName + lastName)
+  name        String   // Staff name (first + last). Used for payroll and documents.
   firstName   String   @default("") @map("first_name")
   lastName    String   @default("") @map("last_name")
+  /// Roster scheduling label. Set to the first name when the staff member is created.
+  displayName String   @default("") @map("display_name")
   dateOfBirth String?  @map("date_of_birth") // YYYY-MM-DD
   startDate   String?  @map("start_date") // YYYY-MM-DD
   status      String   @default("active") // "active" | "inactive"

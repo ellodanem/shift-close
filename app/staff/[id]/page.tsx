@@ -21,6 +21,7 @@ interface Staff {
   name: string
   firstName?: string
   lastName?: string
+  displayName?: string | null
   dateOfBirth: string | null
   startDate: string | null
   status: string
@@ -153,6 +154,7 @@ function EditStaffPageInner() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    displayName: '',
     dateOfBirth: '',
     startDate: '',
     status: 'active',
@@ -176,7 +178,7 @@ function EditStaffPageInner() {
     medicalAmount: '' as string,
     taxCode: ''
   })
-  const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
+  const staffName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingRoles, setLoadingRoles] = useState(true)
@@ -396,7 +398,7 @@ function EditStaffPageInner() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} - ${displayName}</title>
+            <title>${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} - ${staffName}</title>
             <style>
               body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
               pre { white-space: pre-wrap; font-family: Arial, sans-serif; }
@@ -425,6 +427,7 @@ function EditStaffPageInner() {
       const next = {
         firstName: first,
         lastName: last,
+        displayName: data.displayName?.trim() || first,
         dateOfBirth: data.dateOfBirth || '',
         startDate: data.startDate || '',
         status: data.status,
@@ -513,7 +516,8 @@ function EditStaffPageInner() {
           dateOfBirth: formData.dateOfBirth || null,
           startDate: formData.startDate || null,
           firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim()
+          lastName: formData.lastName.trim(),
+          displayName: formData.displayName.trim()
         })
       })
 
@@ -533,7 +537,7 @@ function EditStaffPageInner() {
   }
 
   const handleDeleteStaff = async () => {
-    if (!confirm(`Are you sure you want to delete ${displayName}?`)) return
+    if (!confirm(`Are you sure you want to delete ${staffName}?`)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/staff/${id}`, { method: 'DELETE' })
@@ -660,7 +664,7 @@ function EditStaffPageInner() {
                 </Link>
               </li>
               <li aria-hidden="true">›</li>
-              <li className="text-gray-700 font-medium truncate max-w-[min(100%,20rem)]">{displayName}</li>
+              <li className="text-gray-700 font-medium truncate max-w-[min(100%,20rem)]">{staffName}</li>
             </ol>
           </nav>
 
@@ -672,11 +676,11 @@ function EditStaffPageInner() {
                   className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-semibold text-slate-700"
                   aria-hidden
                 >
-                  {initialsFor(formData.firstName, formData.lastName, displayName)}
+                  {initialsFor(formData.firstName, formData.lastName, staffName)}
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{staffName}</h1>
                     <StaffReliabilityGrade
                       staffId={id}
                       grade={formData.reliabilityGrade}
@@ -842,6 +846,19 @@ function EditStaffPageInner() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+                    <input
+                      type="text"
+                      value={formData.displayName}
+                      onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                      className={inputClass}
+                      placeholder="Name on the roster"
+                    />
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Shown on the roster. Payroll and documents use the full name.
+                    </p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
                     <input
                       type="date"
@@ -948,6 +965,7 @@ function EditStaffPageInner() {
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
                 <FieldDisplay label="First name" value={formData.firstName} />
                 <FieldDisplay label="Last name" value={formData.lastName} />
+                <FieldDisplay label="Display name" value={formData.displayName} />
                 <FieldDisplay label="Date of birth" value={formData.dateOfBirth} />
                 {canViewStaffSensitive && (
                   <FieldDisplay label="NIC number" value={formData.nicNumber || null} />
@@ -1730,7 +1748,7 @@ function EditStaffPageInner() {
       {showTemplateSelection && (
         <DocumentGenerationModal
           staffId={id}
-          staffName={displayName}
+          staffName={staffName}
           onClose={() => setShowTemplateSelection(false)}
           onGenerate={handleGenerateDocument}
         />
@@ -1743,7 +1761,7 @@ function EditStaffPageInner() {
               <h3 className="text-lg font-semibold">
                 {selectedTemplate.charAt(0).toUpperCase() +
                   selectedTemplate.slice(1).replace('-', ' ')}{' '}
-                - {displayName}
+                - {staffName}
               </h3>
               <button
                 onClick={() => setShowGenerateModal(false)}

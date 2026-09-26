@@ -44,13 +44,15 @@ import {
   weekStartMondayFromDate,
   buildCountByDayAndShift,
   GHOST_ROSTER_STAFF_TITLE,
-  rosterCellLabel
+  rosterCellLabel,
+  staffDisplayName
 } from '@/lib/roster-week-client'
 
 interface Staff {
   id: string
   name: string
   firstName?: string
+  displayName?: string | null
   status: string
   role: string
   /** YYYY-MM-DD — roster rows only from this date onward */
@@ -1073,7 +1075,7 @@ export default function RosterPage() {
 
     displayStaff.filter((s) => !isGhostRosterStaff(s)).forEach((s) => {
       const dayStrings = weekDates.map((date) => shareCellLabel(s, date))
-      const displayName = s.firstName?.trim() || s.name
+      const displayName = staffDisplayName(s)
       lines.push(`${displayName}: ${dayStrings.join(' | ')}`)
     })
 
@@ -1969,7 +1971,7 @@ export default function RosterPage() {
                                 onClick={() => handleSendSmsToStaff(s)}
                                 className="block w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
                               >
-                                {s.firstName?.trim() || s.name}
+                                {staffDisplayName(s)}
                               </button>
                             ))}
                           </div>
@@ -2151,7 +2153,7 @@ export default function RosterPage() {
                               👻
                             </span>
                           ) : null}
-                          <span className="truncate">{s.firstName?.trim() || s.name}</span>
+                          <span className="truncate">{staffDisplayName(s)}</span>
                         </div>
                       </div>
                       {!rosterLockedEdit && !ghost && (
@@ -2529,7 +2531,7 @@ export default function RosterPage() {
                                 👻
                               </span>
                             ) : null}
-                            <span>{s.firstName?.trim() || s.name}</span>
+                            <span>{staffDisplayName(s)}</span>
                           </div>
                         </div>
                         {!rosterLockedEdit && !ghost && (
@@ -2780,7 +2782,7 @@ export default function RosterPage() {
                       .filter((s) => s.status === 'active' && s.role !== 'manager')
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.firstName?.trim() || s.name}
+                          {staffDisplayName(s)}
                         </option>
                       ))}
                   </select>
@@ -2911,7 +2913,7 @@ export default function RosterPage() {
                       .filter((s) => s.status === 'active' && s.role !== 'manager')
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.firstName?.trim() || s.name}
+                          {staffDisplayName(s)}
                         </option>
                       ))}
                   </select>
@@ -3034,7 +3036,7 @@ export default function RosterPage() {
                       .filter((s) => s.status === 'active' && s.role !== 'manager')
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.firstName?.trim() || s.name}
+                          {staffDisplayName(s)}
                         </option>
                       ))}
                   </select>
@@ -3136,7 +3138,7 @@ export default function RosterPage() {
                       .filter((s) => s.status === 'active' && s.role !== 'manager')
                       .map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.firstName?.trim() || s.name}
+                          {staffDisplayName(s)}
                         </option>
                       ))}
                   </select>
@@ -3236,7 +3238,7 @@ export default function RosterPage() {
                     </p>
                     <ul className="text-sm text-amber-700 list-disc list-inside">
                       {whatsappStaffWithoutMobile.map((s) => (
-                        <li key={s.id}>{s.firstName?.trim() || s.name}</li>
+                        <li key={s.id}>{staffDisplayName(s)}</li>
                       ))}
                     </ul>
                     <p className="text-xs text-amber-600 mt-2">
@@ -3276,7 +3278,7 @@ export default function RosterPage() {
                     </p>
                     <ul className="text-sm text-gray-600 max-h-32 overflow-y-auto">
                       {whatsappStaffWithMobile.map((s) => (
-                        <li key={s.id}>• {s.firstName?.trim() || s.name}</li>
+                        <li key={s.id}>• {staffDisplayName(s)}</li>
                       ))}
                     </ul>
                     </>
@@ -3339,7 +3341,7 @@ export default function RosterPage() {
                       }`}
                       title={staffOffDaysWarningTitle(s)}
                     >
-                      {s.firstName?.trim() || s.name}</div>
+                      {staffDisplayName(s)}</div>
                     </td>
                     {weekDates.map((date) => {
                       const entry = getEntryFor(s.id, date)

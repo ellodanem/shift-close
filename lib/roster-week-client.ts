@@ -16,6 +16,8 @@ export interface RosterStaffClient {
   id: string
   name: string
   firstName?: string
+  /** Short name shown on the roster. Defaults to first name. */
+  displayName?: string | null
   status: string
   role: string
   /** YYYY-MM-DD — staff appear on rosters from this date onward */
@@ -251,8 +253,12 @@ export function buildFullWeekEntries(params: {
   )
 }
 
-export function staffDisplayName(s: { name: string; firstName?: string }): string {
-  return s.firstName?.trim() || s.name
+export function staffDisplayName(s: {
+  name: string
+  firstName?: string | null
+  displayName?: string | null
+}): string {
+  return s.displayName?.trim() || s.firstName?.trim() || s.name
 }
 
 export interface ShiftTemplateRef {

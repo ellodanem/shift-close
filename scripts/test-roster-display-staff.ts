@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   displayStaffForWeek,
+  staffDisplayName,
   staffStartedOnOrBeforeWeek,
   weekStartMondayFromDate,
   type RosterEntryClient,
@@ -18,6 +19,20 @@ function staff(
     ...overrides
   }
 }
+
+describe('staffDisplayName', () => {
+  it('uses the roster display name when set', () => {
+    assert.equal(
+      staffDisplayName({ name: 'Christina James', firstName: 'Christina', displayName: 'Tina' }),
+      'Tina'
+    )
+  })
+
+  it('falls back to first name, then the full staff name', () => {
+    assert.equal(staffDisplayName({ name: 'Christina James', firstName: 'Christina' }), 'Christina')
+    assert.equal(staffDisplayName({ name: 'Christina James', displayName: '  ' }), 'Christina James')
+  })
+})
 
 describe('weekStartMondayFromDate', () => {
   it('returns the same date when picked day is Monday', () => {

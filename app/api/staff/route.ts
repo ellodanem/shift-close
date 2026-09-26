@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       name,
       firstName,
       lastName,
+      displayName: displayNameBody,
       dateOfBirth,
       startDate,
       status,
@@ -83,10 +84,11 @@ export async function POST(request: NextRequest) {
 
     const first = (firstName ?? name ?? '').toString().trim()
     const last = (lastName ?? '').toString().trim()
-    const displayName = fullNameFromFirstLast(first, last)
-    if (!displayName) {
+    const fullName = fullNameFromFirstLast(first, last)
+    if (!fullName) {
       return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
     }
+    const rosterDisplayName = String(displayNameBody ?? '').trim() || first
 
     const addressTrimmed = (address ?? '').toString().trim()
     if (!addressTrimmed) {
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reliability score must be A, B, C, D, or F' }, { status: 400 })
     }
     if (!reliabilityGrade) {
-      reliabilityGrade = randomPlaceholderReliabilityGrade(first, last, displayName)
+      reliabilityGrade = randomPlaceholderReliabilityGrade(first, last, fullName)
     }
 
     let resolvedRole = (role || 'cashier').toString()
@@ -158,9 +160,10 @@ export async function POST(request: NextRequest) {
 
             return tx.staff.create({
               data: {
-                name: displayName,
+                name: fullName,
                 firstName: first || '',
                 lastName: last || '',
+                displayName: rosterDisplayName,
                 sortOrder: nextSort,
                 deviceUserId,
                 dateOfBirth: dateOfBirth && dateOfBirth.trim() !== '' ? dateOfBirth : null,

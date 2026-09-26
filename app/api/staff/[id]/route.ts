@@ -49,6 +49,7 @@ export async function PATCH(
       name,
       firstName,
       lastName,
+      displayName,
       dateOfBirth,
       startDate,
       status,
@@ -113,22 +114,36 @@ export async function PATCH(
       }
     }
 
+    const namesTouched =
+      firstName !== undefined || lastName !== undefined || displayName !== undefined || name !== undefined
+    const currentNames = namesTouched
+      ? await prisma.staff.findUnique({
+          where: { id: params.id },
+          select: { firstName: true, lastName: true }
+        })
+      : null
+
     if (firstName !== undefined || lastName !== undefined) {
-      const current = await prisma.staff.findUnique({ where: { id: params.id }, select: { firstName: true, lastName: true } })
-      const first = (firstName !== undefined ? firstName : current?.firstName ?? '').toString().trim()
-      const last = (lastName !== undefined ? lastName : current?.lastName ?? '').toString().trim()
-      const displayName = [first, last].filter(Boolean).join(' ').trim()
-      if (!displayName) {
+      const first = (firstName !== undefined ? firstName : currentNames?.firstName ?? '').toString().trim()
+      const last = (lastName !== undefined ? lastName : currentNames?.lastName ?? '').toString().trim()
+      const fullName = [first, last].filter(Boolean).join(' ').trim()
+      if (!fullName) {
         return NextResponse.json({ error: 'First name or last name is required' }, { status: 400 })
       }
       data.firstName = first || ''
       data.lastName = last || ''
-      data.name = displayName
+      data.name = fullName
     } else if (name !== undefined) {
       if (name.trim() === '') {
         return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
       }
       data.name = name.trim()
+    }
+
+    if (displayName !== undefined) {
+      const trimmed = String(displayName ?? '').trim()
+      const first = String(data.firstName ?? currentNames?.firstName ?? '').trim()
+      data.displayName = trimmed || first
     }
 
     if (deviceUserId !== undefined) {

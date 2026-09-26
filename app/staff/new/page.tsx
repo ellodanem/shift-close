@@ -31,6 +31,7 @@ export default function NewStaffPage() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    displayName: '',
     dateOfBirth: '',
     startDate: '',
     status: 'active',
@@ -54,8 +55,9 @@ export default function NewStaffPage() {
   const [loading, setLoading] = useState(false)
   const [loadingRoles, setLoadingRoles] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [displayNameTouched, setDisplayNameTouched] = useState(false)
 
-  const displayName =
+  const staffName =
     [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'New staff member'
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === formData.roleId) ?? null,
@@ -98,6 +100,7 @@ export default function NewStaffPage() {
           startDate: formData.startDate || null,
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
+          displayName: formData.displayName.trim(),
           ...(canViewStaffSensitive
             ? {}
             : { nicNumber: undefined, bankName: undefined, accountNumber: undefined })
@@ -149,11 +152,11 @@ export default function NewStaffPage() {
                   className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-semibold text-slate-700"
                   aria-hidden
                 >
-                  {initialsFor(formData.firstName, formData.lastName, displayName)}
+                  {initialsFor(formData.firstName, formData.lastName, staffName)}
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-2xl font-bold text-gray-900 truncate">{displayName}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 truncate">{staffName}</h1>
                     <StaffReliabilityGrade
                       grade={formData.reliabilityGrade}
                       persist={false}
@@ -220,7 +223,14 @@ export default function NewStaffPage() {
                   type="text"
                   required
                   value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  onChange={(e) => {
+                    const firstName = e.target.value
+                    setFormData((prev) => ({
+                      ...prev,
+                      firstName,
+                      displayName: displayNameTouched ? prev.displayName : firstName
+                    }))
+                  }}
                   className={inputClass}
                   placeholder="First name"
                 />
@@ -237,6 +247,22 @@ export default function NewStaffPage() {
                   className={inputClass}
                   placeholder="Last name"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+                <input
+                  type="text"
+                  value={formData.displayName}
+                  onChange={(e) => {
+                    setDisplayNameTouched(true)
+                    setFormData({ ...formData, displayName: e.target.value })
+                  }}
+                  className={inputClass}
+                  placeholder="Name on the roster"
+                />
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Shown on the roster. Payroll and documents use the full name. Defaults to the first name.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>

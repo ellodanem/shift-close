@@ -747,7 +747,7 @@ export default function RosterMobilePage() {
                               `${staffDisplayName(s)} — tap to fill entire week`
                             }
                           >
-                            {s.firstName?.trim() || s.name.split(' ')[0]}
+                            {staffDisplayName(s)}
                           </button>
                         ) : (
                           <span
@@ -759,7 +759,7 @@ export default function RosterMobilePage() {
                                 👻
                               </span>
                             ) : null}
-                            {s.firstName?.trim() || s.name.split(' ')[0]}
+                            {staffDisplayName(s)}
                           </span>
                         )}
                       </td>
