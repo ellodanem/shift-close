@@ -7,6 +7,7 @@ import {
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isStakeholderPeoplePath,
   isSupervisorLike,
   normalizeAppRole
 } from '@/lib/roles'
@@ -76,14 +77,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
   if (isFullAccessRole(role)) return true
 
   if (normalizeAppRole(role) === 'stakeholder') {
-    if (
-      pathname.startsWith('/time-off') ||
-      pathname.startsWith('/call-outs') ||
-      pathname.startsWith('/api/time-off') ||
-      pathname.startsWith('/api/call-outs')
-    ) {
-      return false
-    }
+    if (isStakeholderPeoplePath(pathname)) return true
     if (pathname.startsWith('/api/')) {
       return (
         pathname.startsWith('/api/auth/') ||
@@ -151,6 +145,7 @@ export function apiWriteAllowedForRole(
   if (isFullAccessRole(role)) return true
   if (pathname.startsWith('/api/fuel-inventory')) return false
   if (normalizeAppRole(role) === 'stakeholder') {
+    if (isStakeholderPeoplePath(pathname)) return true
     return (
       pathname.startsWith('/api/auth/') ||
       pathname.startsWith('/api/insights/') ||

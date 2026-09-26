@@ -80,9 +80,47 @@ export function isSupervisorLike(role: string): boolean {
   return r === 'supervisor' || r === 'senior_supervisor'
 }
 
-/** NIC, bank account — admin/manager/operations_manager (not supervisors; not stakeholders). */
+/** NIC, bank account, and pay rates — admin, manager, operations manager, and stakeholder. */
 export function canViewStaffSensitiveFields(role: string): boolean {
-  return isFullAccessRole(role) || isOperationsManagerRole(role)
+  return isFullAccessRole(role) || isOperationsManagerRole(role) || normalizeAppRole(role) === 'stakeholder'
+}
+
+/**
+ * People menu and the APIs those pages call.
+ * Mobile roster and the attendance viewer stay on their own role checks.
+ */
+const STAKEHOLDER_PEOPLE_PREFIXES = [
+  '/staff',
+  '/payroll',
+  '/pay-run',
+  '/roster',
+  '/attendance',
+  '/time-off',
+  '/applications',
+  '/api/staff',
+  '/api/staff-roles',
+  '/api/pay-runs',
+  '/api/roster',
+  '/api/attendance',
+  '/api/time-off',
+  '/api/call-outs',
+  '/api/applications',
+  '/api/applicant-forms'
+]
+
+function pathMatchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`)
+}
+
+export function isStakeholderPeoplePath(pathname: string): boolean {
+  if (
+    pathMatchesPrefix(pathname, '/roster/mobile') ||
+    pathMatchesPrefix(pathname, '/attendance/viewer') ||
+    pathMatchesPrefix(pathname, '/api/attendance/viewer-summary')
+  ) {
+    return false
+  }
+  return STAKEHOLDER_PEOPLE_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix))
 }
 
 export function canEditRoster(role: string): boolean {
