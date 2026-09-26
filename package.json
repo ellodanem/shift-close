@@ -28,6 +28,7 @@
     "test:pay-run": "tsx --test scripts/test-pay-run.ts",
     "test:pay-run-list": "tsx --test scripts/test-pay-run-list.ts",
     "test:pay-run-deductions": "tsx --test scripts/test-pay-run-deductions.ts",
+    "test:staff-loan": "tsx --test scripts/test-staff-loan.ts",
     "test:pay-run-banking": "tsx --test scripts/test-pay-run-banking.ts",
     "test:payroll-print": "tsx --test scripts/test-payroll-print.ts",
     "test:email": "tsx --test scripts/test-email-defaults.ts",

@@ -47,7 +47,6 @@ export default function NewStaffPage() {
     payType: 'hourly',
     hourlyRate: '',
     salariedAmount: '',
-    staffLoan: '',
     medicalAmount: '',
     taxCode: ''
   })
@@ -445,18 +444,6 @@ export default function NewStaffPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.staffLoan}
-                      onChange={(e) => setFormData({ ...formData, staffLoan: e.target.value })}
-                      className={inputClass}
-                      placeholder="Per pay run"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
                     <input
                       type="number"

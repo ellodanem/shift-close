@@ -24,6 +24,8 @@ import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
 import { prisma } from '@/lib/prisma'
 import { parseCycleNumber } from '@/lib/pay-cycle'
 import { getSessionFromRequest } from '@/lib/session'
+import { capStaffLoanDeduction } from '@/lib/staff-loan'
+import { loadStaffLoanSnapshots, syncStaffLoanStatuses } from '@/lib/staff-loan-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,11 +66,13 @@ async function presentRun<
     loadPriorYtdByStaffId(run.payDate, run.id)
   ])
   const staffById = new Map(staff.map((s) => [s.id, s]))
+  const loans = await loadStaffLoanSnapshots(staffIds)
   return {
     ...run,
     extraDisbursements: parseExtraLines(run.extraDisbursements ?? '[]'),
     lines: attachBankingToLines(lines.map((line) => presentPayRunLine(line)), staffById).map((line) => ({
       ...line,
+      loanRemaining: line.staffId ? loans[line.staffId]?.remaining ?? null : null,
       ytd: ytdIncludingCurrent(line.staffId ? priorYtd[line.staffId] : undefined, {
         basicPay: line.basicPay,
         otPay: line.otPay,
@@ -134,6 +138,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         data: { status: 'draft', processedAt: null },
         include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
       })
+      await syncStaffLoanStatuses(
+        unlocked.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
+      )
       return NextResponse.json(await presentRun(unlocked))
     }
 
@@ -199,7 +206,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         lineBody.salariedAmount !== undefined
           ? parseMoney(lineBody.salariedAmount)
           : existing.salariedAmount
-      const staffLoan = lineBody.staffLoan !== undefined ? parseMoney(lineBody.staffLoan) : existing.staffLoan
+      const requestedLoan = lineBody.staffLoan !== undefined ? parseMoney(lineBody.staffLoan) : existing.staffLoan
+      const loans = existing.staffId ? await loadStaffLoanSnapshots([existing.staffId]) : {}
+      const staffLoan = capStaffLoanDeduction(requestedLoan, existing.staffId ? loans[existing.staffId]?.remaining : null)
       const medical = lineBody.medical !== undefined ? parseMoney(lineBody.medical) : existing.medical
       const shortageReady =
         lineBody.shortageReady !== undefined ? parseMoney(lineBody.shortageReady) : existing.shortageReady
@@ -337,6 +346,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         },
         include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
       })
+      await syncStaffLoanStatuses(
+        voided.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
+      )
       return NextResponse.json(await presentRun(voided))
     }
 
@@ -349,6 +361,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         data: { status: 'processed', processedAt: new Date() },
         include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
       })
+      await syncStaffLoanStatuses(
+        processed.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
+      )
       return NextResponse.json(await presentRun(processed))
     }
 
@@ -379,6 +394,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
         })
       })
+      await syncStaffLoanStatuses(
+        processed.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
+      )
       return NextResponse.json(await presentRun(processed))
     }
 

@@ -50,6 +50,7 @@ type PayRunLine = {
   nisEmployee: number
   nisEmployer: number
   staffLoan: number
+  loanRemaining?: number | null
   medical: number
   totalDeductions: number
   netPay: number
@@ -593,6 +594,9 @@ export default function PayRunDetailPage() {
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {line.staffLoan > 0 ? formatMoney(line.staffLoan) : ''}
+                          {line.staffLoan > 0 && line.loanRemaining != null && line.loanRemaining > 0 ? (
+                            <div className="text-[11px] text-gray-500">{formatMoney(line.loanRemaining)} left</div>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {line.medical > 0 ? formatMoney(line.medical) : ''}

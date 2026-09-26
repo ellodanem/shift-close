@@ -9,6 +9,7 @@ import BankSelect from '../BankSelect'
 import PayCycleSelect from '../PayCycleSelect'
 import PayTypeSelect from '../PayTypeSelect'
 import StaffPayslipHistory from '../StaffPayslipHistory'
+import StaffLoanCard from '../StaffLoanCard'
 import { payCycleLabel } from '@/lib/pay-cycle'
 import { formatMoney, parsePayType, payTypeLabel } from '@/lib/pay-run'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -508,6 +509,7 @@ function EditStaffPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          staffLoan: undefined,
           dateOfBirth: formData.dateOfBirth || null,
           startDate: formData.startDate || null,
           firstName: formData.firstName.trim(),
@@ -1665,18 +1667,6 @@ function EditStaffPageInner() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff loan</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.staffLoan}
-                      onChange={(e) => setFormData({ ...formData, staffLoan: e.target.value })}
-                      className={inputClass}
-                      placeholder="Per pay run"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tax code</label>
                     <input
                       type="text"
@@ -1720,16 +1710,18 @@ function EditStaffPageInner() {
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />
                 <FieldDisplay
-                  label="Staff loan"
-                  value={formData.staffLoan ? formatMoney(Number(formData.staffLoan)) : null}
-                />
-                <FieldDisplay
                   label="Medical"
                   value={formData.medicalAmount ? formatMoney(Number(formData.medicalAmount)) : null}
                 />
               </dl>
             )}
           </form>
+          <StaffLoanCard
+            staffId={id}
+            payCycle={formData.payCycle}
+            legacyLoan={Number(formData.staffLoan) || 0}
+            onLegacyCleared={() => setFormData((current) => ({ ...current, staffLoan: '' }))}
+          />
           <StaffPayslipHistory staffId={id} />
           </>
         )}

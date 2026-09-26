@@ -38,7 +38,7 @@ model Staff {
   hourlyRate  Float?   @map("hourly_rate")
   /// Basic amount for one cycle when salaried.
   salariedAmount Float? @map("salaried_amount")
-  /// Recurring staff loan deducted on each pay run.
+  /// Legacy open-ended loan deduction when no StaffLoan is active.
   staffLoan     Float?  @map("staff_loan")
   /// Recurring medical deduction on each pay run.
   medicalAmount Float?  @map("medical_amount")
@@ -60,8 +60,27 @@ model Staff {
   promotionEntries  PromotionEntry[]
   promotionReceipts PromotionReceipt[]
   payRunLines       PayRunLine[]
+  loans             StaffLoan[]
 
   @@map("staff")
+}
+
+/// Interest-free staff loan. Remaining is principal minus processed pay-run deductions.
+model StaffLoan {
+  id          String   @id @default(cuid())
+  staffId     String   @map("staff_id")
+  principal   Float
+  termPays    Int      @map("term_pays")
+  installment Float
+  startDate   String   @map("start_date") // YYYY-MM-DD; first eligible pay date
+  status      String   @default("active") // active | paid | cancelled
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, status])
+  @@map("staff_loans")
 }
 
 model StaffDocument {

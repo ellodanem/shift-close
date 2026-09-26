@@ -1,3 +1,4 @@
+import { capStaffLoanDeduction } from './staff-loan'
 import { computePayRunDeductions } from './pay-run-deductions'
 import { normalizeOvertimeMultiplier } from './payroll-settings'
 import { isReportOnlyPayPeriodRow } from './pay-period-rows'
@@ -48,6 +49,8 @@ export type PayRunStaffProfile = {
   hourlyRate: number | null
   salariedAmount: number | null
   staffLoan: number | null
+  /** When set, the loan deduction cannot exceed what is still owed. */
+  loanRemaining?: number | null
   medicalAmount: number | null
   taxCode?: string | null
   bankName?: string | null
@@ -276,7 +279,10 @@ function withDeductions(
 ): BuiltPayRunLine {
   const deducted = computePayRunDeductions({
     grossPay: line.grossPay,
-    staffLoan: deductionOverride?.staffLoan ?? parseMoney(profile?.staffLoan),
+    staffLoan: capStaffLoanDeduction(
+      deductionOverride?.staffLoan ?? parseMoney(profile?.staffLoan),
+      profile?.loanRemaining
+    ),
     medical: deductionOverride?.medical ?? parseMoney(profile?.medicalAmount),
     shortage: deductionOverride?.shortageReady ?? line.shortageReady,
     extraDeductions: deductionOverride?.extraDeductions ?? [],

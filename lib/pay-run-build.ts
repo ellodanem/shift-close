@@ -21,6 +21,7 @@ import {
 import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
 import { prisma } from '@/lib/prisma'
 import { parsePayCycle, splitPayPeriodHours, type PayCycle } from '@/lib/pay-cycle'
+import { loanDeductionForProfile, loadStaffLoanSnapshots } from '@/lib/staff-loan-store'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -70,7 +71,15 @@ export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
       accountNumber: true
     }
   })
-  return staff
+  const loans = await loadStaffLoanSnapshots(staff.map((person) => person.id))
+  return staff.map((person) => {
+    const deducted = loanDeductionForProfile(person.staffLoan, loans[person.id])
+    return {
+      ...person,
+      staffLoan: deducted.staffLoan,
+      loanRemaining: deducted.loanRemaining
+    }
+  })
 }
 
 /** NIS already taken this pay-date month on other processed runs. */
