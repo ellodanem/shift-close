@@ -9,6 +9,7 @@ import {
   payPeriodCycleNumber,
   buildPayslipPeriodTotals,
   renderGlHtml,
+  renderNisHtml,
   renderPayrollPreviewHtml,
   renderPayslipsHtml,
   renderStaffPayslipsHtml,
@@ -512,5 +513,23 @@ describe('payroll preview', () => {
     assert.match(pages[0], /Payroll summary/)
     assert.doesNotMatch(pages[0], /Payroll details/)
     assert.ok(pages.slice(1).every((page) => page.includes('Payroll details')))
+  })
+})
+
+describe('N.I.S. report', () => {
+  it('lists staff charges in the printable report', () => {
+    const html = renderNisHtml({
+      startDate: '2026-07-30',
+      endDate: '2026-08-12',
+      cycle: '15',
+      lines: [
+        { staffName: 'Elenna James', staffNo: '100', nisEmployee: 25.75, nisEmployer: 25.75, grossPay: 515.08 },
+        { staffName: 'Zero Pay', staffNo: '0', nisEmployee: 0, nisEmployer: 0, grossPay: 0 }
+      ]
+    })
+    assert.match(html, /N\.I\.S\./)
+    assert.match(html, /Elenna James/)
+    assert.doesNotMatch(html, /Zero Pay/)
+    assert.match(html, /CYCLE: 15/)
   })
 })

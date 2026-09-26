@@ -1157,7 +1157,6 @@ function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine)
         </table>
       </div>
     </div>
-    <p class="note">${escapePayPeriodHtml(previewEmployerNote(line))}</p>
   </article>`
 }
 
@@ -1191,11 +1190,10 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
       .group td { padding-top: 14px; border-bottom: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
       .subtotal td { font-weight: 700; background: #f5f3ff; }
       .grand td { font-weight: 700; background: #ede9fe; }
-      .note { color: #64748b; font-size: 11px; }
       .person { page-break-inside: avoid; margin: 0 0 22px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
       .person header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
       .person h2 { margin: 0; font-size: 14px; }
-      .person header p, .person .note { margin: 2px 0 0; color: #64748b; font-size: 11px; }
+      .person header p { margin: 2px 0 0; color: #64748b; font-size: 11px; }
       .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px; }
       .person h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
       .person .total td { font-weight: 700; }
@@ -1248,13 +1246,6 @@ function previewPageWidth(doc: jsPDF): number {
   return doc.internal.pageSize.getWidth()
 }
 
-function previewEmployerNote(line: PayrollPreviewLine): string {
-  let note = `Employer NIS ${formatMoney(line.nisEmployer)} is not taken from net.`
-  if (line.bankCode) note += ` Bank ${line.bankCode}`
-  if (line.accountNo) note += ` · ${line.accountNo}`
-  return note
-}
-
 function summaryFillRow(
   label: string,
   hours: string,
@@ -1300,10 +1291,9 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
   return body
 }
 
-function employeeBlockHeight(doc: jsPDF, line: PayrollPreviewLine): number {
+function employeeBlockHeight(line: PayrollPreviewLine): number {
   const rows = Math.max(4, line.deductions.length + 2)
-  const noteLines = doc.splitTextToSize(previewEmployerNote(line), previewPageWidth(doc) - PREVIEW_MARGIN * 2).length
-  return 77 + rows * 13 + noteLines * 10
+  return 75 + rows * 13
 }
 
 function drawMoneyRow(
@@ -1386,13 +1376,7 @@ function drawEmployeeBlock(doc: jsPDF, input: PayrollPreviewInput, line: Payroll
     rowY += 13
   }
 
-  const note = doc.splitTextToSize(previewEmployerNote(line), right - left)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(100)
-  const noteY = rowY + 2
-  doc.text(note, left, noteY)
-  const ruleY = noteY + note.length * 10 + 4
+  const ruleY = rowY + 4
   doc.setDrawColor(226, 232, 240)
   doc.line(left, ruleY, right, ruleY)
   return ruleY + 16
@@ -1425,7 +1409,7 @@ function drawPreviewDetails(doc: jsPDF, input: PayrollPreviewInput) {
     return
   }
   for (const line of input.lines) {
-    const height = employeeBlockHeight(doc, line)
+    const height = employeeBlockHeight(line)
     if (y + height > previewPageHeight(doc) - PREVIEW_BOTTOM) {
       doc.addPage()
       y = drawDetailsHeading(doc, input, 48)

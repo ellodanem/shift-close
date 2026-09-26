@@ -13,7 +13,7 @@ import { DEFAULT_OVERTIME_MULTIPLIER, loadOvertimeMultiplier, loadPayslipCompany
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
-import { printBankingPack } from '@/lib/pay-run-banking-print'
+import { renderBankingPackHtml } from '@/lib/pay-run-banking-print'
 import {
   creditUnionLetters,
   cuLetterEmailBody,
@@ -25,14 +25,15 @@ import {
   CreditUnionLetterDialog,
   type CreditUnionLetterDraft
 } from '@/app/components/CreditUnionLetterDialog'
+import { PrintDocumentModal, type PrintDocumentPreview } from '@/app/payroll/PrintDocumentModal'
 import {
   buildPayrollPreviewLine,
   downloadPayrollPreview,
   payrollPreviewStatus,
-  printGlReport,
-  printNisReport,
   printPayrollPreview,
-  printPayslips,
+  renderGlHtml,
+  renderNisHtml,
+  renderPayslipsHtml,
   type PayrollPreviewInput,
   type PayrollPreviewLine,
   type PayslipPrintInput
@@ -352,6 +353,8 @@ export default function PayrollRunPage() {
   const [voidReason, setVoidReason] = useState('')
   const [preview, setPreview] = useState<PayrollPreviewInput | null>(null)
   const [openingPreview, setOpeningPreview] = useState(false)
+  const [printDoc, setPrintDoc] = useState<PrintDocumentPreview | null>(null)
+  const [openingDoc, setOpeningDoc] = useState<'payslips' | 'gl' | 'nis' | 'banking' | null>(null)
   const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
   const [cuError, setCuError] = useState<string | null>(null)
   const [cuSent, setCuSent] = useState<string | null>(null)
@@ -1037,20 +1040,73 @@ export default function PayrollRunPage() {
     }
   }
 
-  const openNis = () => {
+  const periodLine = (saved: PayRun) =>
+    `Pay period ${mdy(saved.startDate)} – ${mdy(saved.endDate)} · Pay date ${mdy(saved.payDate)}`
+
+  const openPayslipPreview = async () => {
     if (!run) return
-    printNisReport({
-      startDate: run.startDate,
-      endDate: run.endDate,
-      cycle: String(shownCycleNumber(run.cycleNumber, run.endDate)),
-      voided: run.status === 'void',
-      lines: run.lines.map((line) => ({
-        staffName: line.staffName,
-        staffNo: line.staffNo,
-        nisEmployee: line.nisEmployee,
-        nisEmployer: line.nisEmployer,
-        grossPay: line.grossPay
-      }))
+    setOpeningDoc('payslips')
+    setError(null)
+    try {
+      const company = await loadPayslipCompany()
+      setPrintDoc({
+        title: 'Payslip preview',
+        subtitle: periodLine(run),
+        filename: `payslips-${run.startDate}-${run.endDate}.pdf`,
+        html: renderPayslipsHtml({
+          ...payslipsFromRun(run),
+          companyName: company.companyName,
+          companyAddress: company.address,
+          companyPhone: company.phone
+        })
+      })
+    } finally {
+      setOpeningDoc(null)
+    }
+  }
+
+  const openGlPreview = () => {
+    if (!run) return
+    setError(null)
+    setPrintDoc({
+      title: 'G/L preview',
+      subtitle: periodLine(run),
+      filename: `gl-${run.startDate}-${run.endDate}.pdf`,
+      html: renderGlHtml(payslipsFromRun(run))
+    })
+  }
+
+  const openNisPreview = () => {
+    if (!run) return
+    setError(null)
+    setPrintDoc({
+      title: 'N.I.S. preview',
+      subtitle: periodLine(run),
+      filename: `nis-${run.startDate}-${run.endDate}.pdf`,
+      html: renderNisHtml({
+        startDate: run.startDate,
+        endDate: run.endDate,
+        cycle: String(shownCycleNumber(run.cycleNumber, run.endDate)),
+        voided: run.status === 'void',
+        lines: run.lines.map((line) => ({
+          staffName: line.staffName,
+          staffNo: line.staffNo,
+          nisEmployee: line.nisEmployee,
+          nisEmployer: line.nisEmployer,
+          grossPay: line.grossPay
+        }))
+      })
+    })
+  }
+
+  const openBankingPreview = () => {
+    if (!run) return
+    setError(null)
+    setPrintDoc({
+      title: 'Banking pack preview',
+      subtitle: periodLine(run),
+      filename: `banks-listing-${run.payDate}.pdf`,
+      html: renderBankingPackHtml(banking, run.payDate)
     })
   }
 
@@ -1420,38 +1476,23 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 onClick={() => {
-                  void (async () => {
-                    const company = await loadPayslipCompany()
-                    if (
-                      !printPayslips({
-                        ...payslipsFromRun(run),
-                        companyName: company.companyName,
-                        companyAddress: company.address,
-                        companyPhone: company.phone
-                      })
-                    ) {
-                      setError('Allow pop-ups to print these payslips.')
-                    }
-                  })()
+                  void openPayslipPreview()
                 }}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+                disabled={openingDoc === 'payslips'}
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50"
               >
-                Print Payslips
+                {openingDoc === 'payslips' ? 'Preparing…' : 'Print Payslips'}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!printGlReport(payslipsFromRun(run))) {
-                    setError('Allow pop-ups to print the G/L summary.')
-                  }
-                }}
+                onClick={openGlPreview}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
                 Print GL
               </button>
               <button
                 type="button"
-                onClick={openNis}
+                onClick={openNisPreview}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
                 Print NIC
@@ -1474,7 +1515,7 @@ export default function PayrollRunPage() {
               </button>
               <button
                 type="button"
-                onClick={() => printBankingPack(banking, run.payDate)}
+                onClick={openBankingPreview}
                 className="text-sm font-medium text-violet-700 hover:underline"
               >
                 Print banking pack
@@ -1812,6 +1853,7 @@ export default function PayrollRunPage() {
       ) : null}
 
       {preview ? <PayrollPreviewModal preview={preview} onClose={() => setPreview(null)} /> : null}
+      {printDoc ? <PrintDocumentModal preview={printDoc} onClose={() => setPrintDoc(null)} /> : null}
 
       {rateLine && !locked ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">

@@ -6,6 +6,7 @@ import {
   isCreditUnionBank,
   payrollBankCode
 } from '../lib/pay-run-banking'
+import { renderBankingPackHtml } from '../lib/pay-run-banking-print'
 import { creditUnionLetters, defaultCreditUnionLetterText } from '../lib/pay-run-cu-letter'
 
 describe('pay run banking', () => {
@@ -86,5 +87,13 @@ describe('pay run banking', () => {
     const text = defaultCreditUnionLetterText(letters[0]!, '2026-09-15')
     assert.match(text, /Laborie Co-operative Credit Union/)
     assert.match(text, /your institution/)
+  })
+
+  it('renders the banks listing for the print preview', () => {
+    const pack = buildBankingPack([{ staffName: 'Elenna James', bankCode: 'BOSL', accountNo: '1', netPay: 489.33 }])
+    const html = renderBankingPackHtml(pack, '2026-08-15')
+    assert.match(html, /Banks Listing/)
+    assert.match(html, /Elenna James/)
+    assert.match(html, /489\.33/)
   })
 })

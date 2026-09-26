@@ -3,9 +3,7 @@ import { escapePayPeriodHtml } from './pay-period-email'
 import { formatMoney } from './pay-run'
 import type { BankingPack } from './pay-run-banking'
 
-export function printBankingPack(pack: BankingPack, payDate: string) {
-  const printWin = window.open('', '_blank')
-  if (!printWin) return
+export function renderBankingPackHtml(pack: BankingPack, payDate: string): string {
   const listing = pack.listing
     .map(
       (row) =>
@@ -24,7 +22,7 @@ export function printBankingPack(pack: BankingPack, payDate: string) {
   const extras = pack.extraDisbursements
     .map((row) => `<tr><td>${escapePayPeriodHtml(row.label)}</td><td style="text-align:right">${formatMoney(row.amount)}</td></tr>`)
     .join('')
-  printWin.document.write(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
   <head><title>Banks Listing ${escapePayPeriodHtml(payDate)}</title></head>
   <body style="font-family: system-ui; padding: 24px;">
@@ -53,7 +51,13 @@ export function printBankingPack(pack: BankingPack, payDate: string) {
     }
     <p style="font-weight:bold">Banking total ${formatMoney(pack.bankingTotal)}</p>
   </body>
-</html>`)
+</html>`
+}
+
+export function printBankingPack(pack: BankingPack, payDate: string) {
+  const printWin = window.open('', '_blank')
+  if (!printWin) return
+  printWin.document.write(renderBankingPackHtml(pack, payDate))
   printWin.document.close()
   printWin.focus()
   printWin.print()
