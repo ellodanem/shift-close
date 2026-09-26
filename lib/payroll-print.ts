@@ -1459,7 +1459,13 @@ export function buildPayrollPreviewPdf(input: PayrollPreviewInput): jsPDF {
 
   autoTable(doc, {
     startY: 100,
-    head: [['Name', 'Total hours', 'Gross pay', 'Deductions', 'Net pay']],
+    head: [[
+      'Name',
+      { content: 'Total hours', styles: { halign: 'right' } },
+      { content: 'Gross pay', styles: { halign: 'right' } },
+      { content: 'Deductions', styles: { halign: 'right' } },
+      { content: 'Net pay', styles: { halign: 'right' } }
+    ]],
     body: summaryTableBody(input.lines),
     theme: 'plain',
     styles: { fontSize: 9, cellPadding: 3, textColor: [17, 24, 39], overflow: 'linebreak' },
