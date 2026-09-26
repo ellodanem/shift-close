@@ -1516,39 +1516,43 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 onClick={openBankingPreview}
-                className="text-sm font-medium text-violet-700 hover:underline"
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
                 Print banking pack
               </button>
               <button
                 type="button"
                 onClick={() => downloadBankingPackExcel(banking, run.payDate)}
-                className="text-sm font-medium text-violet-700 hover:underline"
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
                 Download banking pack
               </button>
-              {letters.map((letter) => (
-                <button
-                  key={letter.code}
-                  type="button"
-                  onClick={() => {
-                    setCuError(null)
-                    setCuSent(null)
-                    setCuDraft({
-                      code: letter.code,
-                      to: '',
-                      subject: cuLetterSubject(letter, run.payDate),
-                      message: cuLetterEmailBody(letter),
-                      letterText: defaultCreditUnionLetterText(letter, run.payDate),
-                      summary: `${letter.members.length} ${letter.members.length === 1 ? 'person' : 'people'} · ${formatMoney(letter.total)}`
-                    })
-                  }}
-                  className="text-sm font-medium text-violet-700 hover:underline"
-                >
-                  Email {letter.code}
-                </button>
-              ))}
             </div>
+            {letters.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-3">
+                {letters.map((letter) => (
+                  <button
+                    key={letter.code}
+                    type="button"
+                    onClick={() => {
+                      setCuError(null)
+                      setCuSent(null)
+                      setCuDraft({
+                        code: letter.code,
+                        to: '',
+                        subject: cuLetterSubject(letter, run.payDate),
+                        message: cuLetterEmailBody(letter),
+                        letterText: defaultCreditUnionLetterText(letter, run.payDate),
+                        summary: `${letter.members.length} ${letter.members.length === 1 ? 'person' : 'people'} · ${formatMoney(letter.total)}`
+                      })
+                    }}
+                    className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800"
+                  >
+                    Email {letter.code}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {cuSent ? <p className="mt-3 text-sm text-emerald-800">{cuSent}</p> : null}
             <p className="mt-6 text-sm text-slate-500">
               You can leave and open this payroll again. PAYE stays in Pay+.
