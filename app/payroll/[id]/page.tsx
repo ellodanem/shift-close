@@ -1520,14 +1520,7 @@ export default function PayrollRunPage() {
                 onClick={openBankingPreview}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
-                Print banking pack
-              </button>
-              <button
-                type="button"
-                onClick={() => downloadBankingPackExcel(banking, run.payDate)}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
-              >
-                Download banking pack
+                Print Banking List
               </button>
             </div>
             {letters.length > 0 ? (
