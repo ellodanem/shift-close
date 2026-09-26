@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { buildGlSummary, buildPayslipLine, payPeriodCycleDay, renderGlHtml, renderPayslipsHtml } from '../lib/payroll-print'
+import {
+  buildGlSummary,
+  buildPayslipLine,
+  buildPayslipPeriodTotals,
+  payPeriodCycleDay,
+  renderGlHtml,
+  renderPayslipsHtml
+} from '../lib/payroll-print'
 
 describe('payslips', () => {
   it('uses the period end day as the pay cycle', () => {
@@ -142,6 +149,49 @@ describe('payslips', () => {
     assert.match(html, /519\.06/)
     assert.match(html, /Printed:/)
     assert.match(html, /Page: 1/)
+    assert.match(html, /PERIODTOTALS :/)
+    assert.match(html, /GRAND TOTALS :/)
+    assert.match(html, /1419\.06/)
+    assert.match(html, /125\.98/)
+    assert.match(html, /BASIC :/)
+    assert.match(html, /NIS :/)
+    assert.match(html, /45\.00/)
+    assert.match(html, /PAYE :/)
+    assert.match(html, /BONUS :/)
+    assert.match(html, /NET :/)
+    assert.match(html, /1293\.08/)
+    assert.match(html, /Page: 2/)
+  })
+
+  it('adds bonus and PAYE into the period totals', () => {
+    const totals = buildPayslipPeriodTotals([
+      {
+        staffName: 'Soraya Rickaille',
+        staffNo: '282836',
+        taxCode: '330',
+        basicPay: 1000,
+        otPay: 0,
+        extraLines: [
+          { label: 'Commission', amount: 1868 },
+          { label: 'Bonus', amount: 50 }
+        ],
+        extraDeductions: [{ label: 'P.A.Y.E.', amount: 222.89 }],
+        nisEmployee: 125,
+        medical: 51.71,
+        staffLoan: 0,
+        shortageReady: 0,
+        grossPay: 2918,
+        totalDeductions: 399.6,
+        netPay: 2518.4
+      }
+    ])
+    assert.equal(totals.earnings, 2918)
+    assert.equal(totals.deductions, 399.6)
+    assert.equal(totals.basic, 1000)
+    assert.equal(totals.nis, 125)
+    assert.equal(totals.paye, 222.89)
+    assert.equal(totals.bonus, 50)
+    assert.equal(totals.net, 2518.4)
   })
 })
 

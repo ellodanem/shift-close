@@ -276,6 +276,51 @@ function payslipPages(lines: PayslipLine[]): PayslipLine[][] {
   return pages.length > 0 ? pages : [[]]
 }
 
+export type PayslipPeriodTotals = {
+  earnings: number
+  deductions: number
+  basic: number
+  nis: number
+  paye: number
+  bonus: number
+  net: number
+}
+
+function labelKey(label: string): string {
+  return label.trim().toLowerCase().replace(/[^a-z]/g, '')
+}
+
+/** Register totals for the last payslip page. One run, so period and grand totals match. */
+export function buildPayslipPeriodTotals(lines: PayslipSourceLine[]): PayslipPeriodTotals {
+  const totals: PayslipPeriodTotals = {
+    earnings: 0,
+    deductions: 0,
+    basic: 0,
+    nis: 0,
+    paye: 0,
+    bonus: 0,
+    net: 0
+  }
+  for (const line of lines) {
+    totals.earnings += line.grossPay
+    totals.deductions += line.totalDeductions
+    totals.basic += line.basicPay
+    totals.nis += line.nisEmployee
+    totals.net += line.netPay
+    for (const extra of visibleExtraLines(line.extraLines ?? [])) {
+      if (labelKey(extra.label) === 'bonus') totals.bonus += extra.amount
+    }
+    for (const extra of line.extraDeductions ?? []) {
+      const key = labelKey(extra.label)
+      if (key === 'paye' || key === 'payetax') totals.paye += extra.amount
+    }
+  }
+  ;(Object.keys(totals) as (keyof PayslipPeriodTotals)[]).forEach((key) => {
+    totals[key] = round2(totals[key])
+  })
+  return totals
+}
+
 function slipHtml(line: PayslipLine, payDate: string, cycleDay: string): string {
   const count = Math.max(line.earnings.length, line.deductions.length)
   const itemRows = Array.from({ length: count }, (_, index) => {
@@ -349,13 +394,40 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
       ? `<p class="void">VOIDED${input.voidReason ? `: ${escapePayPeriodHtml(input.voidReason)}` : ''}. Record only.</p>`
       : ''
   const pages = payslipPages(slips)
-  const body = pages
-    .map((page, index) => {
-      const content =
-        page.length > 0
-          ? page.map((line) => slipHtml(line, payDate, cycleDay)).join('')
-          : '<p class="empty">No payslips for this payroll.</p>'
-      return `<section class="page">
+  const totals = buildPayslipPeriodTotals(input.lines)
+  const totalsPage = `<section class="page">
+        <header class="banner">
+          <div class="reg-title">Pay Register ( ANALYSIS )</div>
+          <div class="banner-range reg-range">${escapePayPeriodHtml(period)}</div>
+          ${voided}
+        </header>
+        <div class="reg-pair period">
+          <span>PERIODTOTALS :</span>
+          <span>${plainMoney(totals.earnings)}</span>
+          <span>${plainMoney(totals.deductions)}</span>
+        </div>
+        <div class="reg-pair grand">
+          <span>GRAND TOTALS :</span>
+          <span>${plainMoney(totals.earnings)}</span>
+          <span>${plainMoney(totals.deductions)}</span>
+        </div>
+        <div class="reg-break">
+          <div><span>BASIC :</span><span>${plainMoney(totals.basic)}</span></div>
+          <div><span>NIS :</span><span>${plainMoney(totals.nis)}</span></div>
+          <div><span>PAYE :</span><span>${plainMoney(totals.paye)}</span></div>
+          <div><span>BONUS :</span><span>${plainMoney(totals.bonus)}</span></div>
+          <div><span>NET :</span><span>${plainMoney(totals.net)}</span></div>
+        </div>
+        <footer>Printed: ${printedLabel}<span>Page: ${pages.length + 1}</span></footer>
+      </section>`
+  const body =
+    pages
+      .map((page, index) => {
+        const content =
+          page.length > 0
+            ? page.map((line) => slipHtml(line, payDate, cycleDay)).join('')
+            : '<p class="empty">No payslips for this payroll.</p>'
+        return `<section class="page">
         <header class="banner">
           <div class="banner-title">Payslips</div>
           <div class="banner-range">${escapePayPeriodHtml(period)}</div>
@@ -364,8 +436,8 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
         ${content}
         <footer>Printed: ${printedLabel}<span>Page: ${index + 1}</span></footer>
       </section>`
-    })
-    .join('')
+      })
+      .join('') + totalsPage
 
   return `<!DOCTYPE html>
 <html>
@@ -395,6 +467,28 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
         padding: 1px 10px 0;
       }
       .banner-range { margin-top: 3px; font-size: 12px; }
+      .reg-title {
+        display: inline-block;
+        color: #e10600;
+        border: 2px solid #111;
+        border-bottom-width: 5px;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        padding: 1px 8px 0;
+      }
+      .reg-range { text-align: center; width: 280px; }
+      .reg-pair, .reg-break div {
+        display: grid;
+        grid-template-columns: 168px 120px 120px;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .reg-pair span:not(:first-child), .reg-break span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+      .period { color: #0000cc; margin-top: 28px; }
+      .grand { color: #e10600; margin-top: 42px; }
+      .reg-break { margin-top: 36px; color: #e10600; }
+      .reg-break div + div { margin-top: 10px; }
       .void { margin: 4px 0 0; font-weight: 700; }
       .empty { margin-top: 24px; }
       .slip { width: 100%; border-collapse: collapse; margin-top: 10px; page-break-inside: avoid; }
