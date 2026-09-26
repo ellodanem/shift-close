@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
+import {
+  attendanceForStaff,
+  formatSickDays,
+  payPeriodAttendanceFromRows,
+  type PayPeriodAttendance
+} from '@/lib/pay-period-rows'
 import { DEFAULT_OVERTIME_MULTIPLIER, loadOvertimeMultiplier, loadPayslipCompany } from '@/lib/payroll-settings'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
@@ -97,6 +103,7 @@ type PayRunLine = {
 
 type PayRun = {
   id: string
+  payPeriod?: { rows?: string | null } | null
   cycle: string
   cycleNumber: number
   status: string
@@ -433,6 +440,19 @@ export default function PayrollRunPage() {
   const voided = run?.status === 'void'
   const hourly = (run?.lines ?? []).filter((line) => parsePayType(line.payType) === 'hourly')
   const salaried = (run?.lines ?? []).filter((line) => parsePayType(line.payType) === 'salaried')
+  const attendanceByStaff = useMemo(
+    () => payPeriodAttendanceFromRows(run?.payPeriod?.rows),
+    [run?.payPeriod?.rows]
+  )
+
+  const attendanceFact = (line: PayRunLine): PayPeriodAttendance =>
+    attendanceForStaff(attendanceByStaff, line.staffId, line.staffName)
+
+  const attendanceText = (line: PayRunLine, category: PayrollCategory): string => {
+    const fact = attendanceFact(line)
+    if (category.id === 'vacation') return fact.vacation
+    return formatSickDays(fact.sickLeaveDays)
+  }
 
   const grossFor = useCallback(
     (line: PayRunLine) => {
@@ -975,6 +995,10 @@ export default function PayrollRunPage() {
   }
 
   const categoryTotal = (lines: PayRunLine[], category: PayrollCategory) => {
+    if (category.kind === 'attendance') {
+      if (category.id === 'vacation') return ''
+      return formatSickDays(lines.reduce((sum, line) => sum + attendanceFact(line).sickLeaveDays, 0))
+    }
     if (category.id === 'basic') return sumHours(lines, 'basicHours').toFixed(2)
     if (category.id === 'ot') return sumHours(lines, 'otHours').toFixed(2)
     if (category.kind === 'hours') {
@@ -1133,8 +1157,9 @@ export default function PayrollRunPage() {
                   role="tooltip"
                   className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
                 >
-                  Basic and OT hours are filled from extracted attendance. Edits save on their own. Click a name to
-                  change the pay rate, tax code, and medical. Use Hours & money types to add or remove columns.
+                  Basic and OT hours are filled from extracted attendance. Vacation and Sick Days match the attendance
+                  report. Edits save on their own. Click a name to change the pay rate, tax code, and medical. Use Hours
+                  & money types to add or remove columns.
                 </span>
               </span>
               <button
@@ -1153,7 +1178,10 @@ export default function PayrollRunPage() {
                     <th className="py-2 pr-3 font-bold">Hourly employees</th>
                     <th className="py-2 pr-3 font-bold">Hourly rate</th>
                     {hourlyColumns.map((category) => (
-                      <th key={category.id} className="py-2 pr-3 text-right font-bold">
+                      <th
+                        key={category.id}
+                        className={`py-2 pr-3 font-bold ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                      >
                         {category.label}
                       </th>
                     ))}
@@ -1188,14 +1216,23 @@ export default function PayrollRunPage() {
                           </td>
                           <td className="py-3 pr-3 tabular-nums text-slate-700">{formatMoney(parseMoney(draft.rate))}</td>
                           {hourlyColumns.map((category) => (
-                            <td key={category.id} className="py-3 pr-3 text-right">
-                              <HoursField
-                                label={`${category.label} for ${line.staffName}`}
-                                value={categoryValue(draft, category)}
-                                disabled={Boolean(locked) || busy}
-                                onBlur={flushSave}
-                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
-                              />
+                            <td
+                              key={category.id}
+                              className={`py-3 pr-3 ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                            >
+                              {category.kind === 'attendance' ? (
+                                <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
+                                  {attendanceText(line, category)}
+                                </span>
+                              ) : (
+                                <HoursField
+                                  label={`${category.label} for ${line.staffName}`}
+                                  value={categoryValue(draft, category)}
+                                  disabled={Boolean(locked) || busy}
+                                  onBlur={flushSave}
+                                  onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                                />
+                              )}
                             </td>
                           ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
@@ -1208,7 +1245,12 @@ export default function PayrollRunPage() {
                       Hourly employee totals
                     </td>
                     {hourlyColumns.map((category) => (
-                      <td key={category.id} className="py-3 pr-3 text-right font-semibold tabular-nums">
+                      <td
+                        key={category.id}
+                        className={`py-3 pr-3 font-semibold tabular-nums ${
+                          category.kind === 'attendance' ? 'text-center' : 'text-right'
+                        }`}
+                      >
                         {categoryTotal(hourly, category)}
                       </td>
                     ))}
@@ -1224,7 +1266,10 @@ export default function PayrollRunPage() {
                     <th className="py-2 pr-3 font-bold">Pay salary</th>
                     <th className="py-2 pr-3 font-bold">Salary</th>
                     {salariedColumns.map((category) => (
-                      <th key={category.id} className="py-2 pr-3 text-right font-bold">
+                      <th
+                        key={category.id}
+                        className={`py-2 pr-3 font-bold ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                      >
                         {category.label}
                       </th>
                     ))}
@@ -1275,14 +1320,23 @@ export default function PayrollRunPage() {
                             {formatMoney(parseMoney(draft.salary))}
                           </td>
                           {salariedColumns.map((category) => (
-                            <td key={category.id} className="py-3 pr-3 text-right">
-                              <HoursField
-                                label={`${category.label} for ${line.staffName}`}
-                                value={categoryValue(draft, category)}
-                                disabled={Boolean(locked) || busy}
-                                onBlur={flushSave}
-                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
-                              />
+                            <td
+                              key={category.id}
+                              className={`py-3 pr-3 ${category.kind === 'attendance' ? 'text-center' : 'text-right'}`}
+                            >
+                              {category.kind === 'attendance' ? (
+                                <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
+                                  {attendanceText(line, category)}
+                                </span>
+                              ) : (
+                                <HoursField
+                                  label={`${category.label} for ${line.staffName}`}
+                                  value={categoryValue(draft, category)}
+                                  disabled={Boolean(locked) || busy}
+                                  onBlur={flushSave}
+                                  onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                                />
+                              )}
                             </td>
                           ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
@@ -1295,7 +1349,12 @@ export default function PayrollRunPage() {
                       Salaried employee totals
                     </td>
                     {salariedColumns.map((category) => (
-                      <td key={category.id} className="py-3 pr-3 text-right font-semibold tabular-nums">
+                      <td
+                        key={category.id}
+                        className={`py-3 pr-3 font-semibold tabular-nums ${
+                          category.kind === 'attendance' ? 'text-center' : 'text-right'
+                        }`}
+                      >
                         {categoryTotal(salaried, category)}
                       </td>
                     ))}
@@ -1614,8 +1673,9 @@ export default function PayrollRunPage() {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Hours and money types</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Choose which columns are on this payroll. Basic stays. Added hour columns are paid at the hourly rate.
-              Removing a type drops it from this payroll when you save.
+              Choose which columns are on this payroll. Basic stays. Vacation and Sick Days match the attendance
+              report and are not pay amounts. Added hour columns are paid at the hourly rate. Removing a type drops it
+              from this payroll when you save.
             </p>
             <ul className="mt-4 divide-y divide-slate-100">
               {categories.map((category) => (
@@ -1967,16 +2027,30 @@ function ReviewStep({
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">{details ? 'Payroll details' : 'Payroll summary'}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-900">{details ? 'Payroll details' : 'Payroll summary'}</h2>
+          <span className="group relative inline-flex">
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+              aria-label="About this payroll"
+            >
+              ?
+            </button>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}. Net is gross minus
+              employee NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+.
+              YTD is approved pay in {run.payDate.slice(0, 4)} through this pay date, including this payroll.
+            </span>
+          </span>
+        </div>
         <button type="button" onClick={onToggleDetails} className="text-sm font-medium text-violet-700 hover:underline">
           {details ? 'View summary' : 'View details'}
         </button>
       </div>
-      <p className="mb-6 text-sm text-slate-600">
-        Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}. Net is gross minus employee
-        NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+. YTD is approved
-        pay in {run.payDate.slice(0, 4)} through this pay date, including this payroll.
-      </p>
 
       {details ? (
         <div className="space-y-10">

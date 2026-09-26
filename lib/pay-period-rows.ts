@@ -57,6 +57,58 @@ export function createReportOnlyPayPeriodRow(): PayPeriodRow {
   }
 }
 
+export type PayPeriodAttendance = {
+  vacation: string
+  sickLeaveDays: number
+}
+
+const EMPTY_ATTENDANCE: PayPeriodAttendance = { vacation: '', sickLeaveDays: 0 }
+
+/** Vacation mask and sick-day count from a saved attendance pay period, keyed by staff id and name. */
+export function payPeriodAttendanceFromRows(raw: string | null | undefined): Map<string, PayPeriodAttendance> {
+  const byKey = new Map<string, PayPeriodAttendance>()
+  if (raw == null || !String(raw).trim()) return byKey
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return byKey
+  }
+  if (!Array.isArray(parsed)) return byKey
+  for (const row of parsed) {
+    if (!row || typeof row !== 'object') continue
+    const record = row as Record<string, unknown>
+    const staffId = typeof record.staffId === 'string' ? record.staffId : ''
+    const staffName = typeof record.staffName === 'string' ? record.staffName.trim() : ''
+    const vacation = typeof record.vacation === 'string' ? record.vacation : ''
+    const daysRaw = typeof record.sickLeaveDays === 'number' ? record.sickLeaveDays : Number(record.sickLeaveDays)
+    const sickLeaveDays = Number.isFinite(daysRaw) ? daysRaw : 0
+    const fact = { vacation, sickLeaveDays }
+    if (staffId) byKey.set(staffId, fact)
+    if (staffName) byKey.set(`name:${staffName.toLowerCase()}`, fact)
+  }
+  return byKey
+}
+
+export function attendanceForStaff(
+  byKey: Map<string, PayPeriodAttendance>,
+  staffId: string | null | undefined,
+  staffName: string
+): PayPeriodAttendance {
+  if (staffId) {
+    const byId = byKey.get(staffId)
+    if (byId) return byId
+  }
+  return byKey.get(`name:${staffName.trim().toLowerCase()}`) ?? EMPTY_ATTENDANCE
+}
+
+/** Whole days stay whole, matching the attendance sick-days column. */
+export function formatSickDays(days: number): string {
+  if (!Number.isFinite(days)) return '0'
+  const rounded = Math.round(days * 100) / 100
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded)
+}
+
 export function parsePayPeriodPreviousRows(raw: string | null | undefined): PayPeriodRow[] | null {
   if (raw == null || !String(raw).trim()) return null
   try {

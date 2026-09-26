@@ -1,6 +1,6 @@
 import { SKIP_SALARY_LABEL, parseMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
-export type CategoryKind = 'hours' | 'money' | 'deduction'
+export type CategoryKind = 'hours' | 'money' | 'deduction' | 'attendance'
 
 export type PayrollCategory = {
   id: string
@@ -16,6 +16,8 @@ const SHOW_ALL_KEY = 'payroll-show-all-money'
 export const BUILTIN_PAYROLL_CATEGORIES: PayrollCategory[] = [
   { id: 'basic', label: 'Basic', kind: 'hours', builtin: true, enabled: true },
   { id: 'ot', label: 'Overtime', kind: 'hours', builtin: true, enabled: true },
+  { id: 'vacation', label: 'Vacation', kind: 'attendance', builtin: true, enabled: true },
+  { id: 'sickDays', label: 'Sick Days', kind: 'attendance', builtin: true, enabled: true },
   { id: 'extra', label: 'Extra', kind: 'money', builtin: true, enabled: true },
   { id: 'medical', label: 'Medical', kind: 'deduction', builtin: true, enabled: true },
   { id: 'shortage', label: 'Shortage', kind: 'deduction', builtin: true, enabled: false }
