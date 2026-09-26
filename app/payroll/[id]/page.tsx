@@ -1449,8 +1449,28 @@ export default function PayrollRunPage() {
               >
                 Print GL
               </button>
-              <button type="button" onClick={openNis} className="text-sm font-medium text-violet-700 hover:underline">
+              <button
+                type="button"
+                onClick={openNis}
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+              >
                 Print NIC
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Coming soon"
+                className="cursor-not-allowed rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:border-violet-700 disabled:text-violet-700"
+              >
+                Print PAYE
+              </button>
+              <button
+                type="button"
+                onClick={openPreview}
+                disabled={openingPreview}
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50"
+              >
+                {openingPreview ? 'Preparing…' : 'Print Payroll Summary'}
               </button>
               <button
                 type="button"
