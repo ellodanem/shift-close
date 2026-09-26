@@ -387,6 +387,23 @@ export function ytdIncludingCurrent(
   return addYtd(prior ?? ZERO_YTD, current)
 }
 
+/** Year-to-date through this pay date, including this run and excluding later runs. */
+export function ytdAsOfLine(
+  history: Array<PayRunYtd & { payRunId: string; payDate: string }>,
+  current: PayRunYtd & { payRunId: string; payDate: string }
+): PayRunYtd {
+  const year = current.payDate.slice(0, 4)
+  if (!/^\d{4}$/.test(year)) return ytdIncludingCurrent(undefined, current)
+  const from = `${year}-01-01`
+  let prior: PayRunYtd | undefined
+  for (const line of history) {
+    if (line.payRunId === current.payRunId) continue
+    if (line.payDate < from || line.payDate > current.payDate) continue
+    prior = addYtd(prior ?? { ...ZERO_YTD }, line)
+  }
+  return ytdIncludingCurrent(prior, current)
+}
+
 export function attachBankingToLines<
   T extends { staffId?: string | null; bankCode?: string; accountNo?: string | null }
 >(

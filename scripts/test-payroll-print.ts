@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { ytdAsOfLine } from '../lib/pay-run-build'
 import {
   buildGlSummary,
   buildPayslipLine,
   payPeriodCycleNumber,
   buildPayslipPeriodTotals,
   renderGlHtml,
-  renderPayslipsHtml
+  renderPayslipsHtml,
+  renderStaffPayslipsHtml
 } from '../lib/payroll-print'
 
 describe('payslips', () => {
@@ -302,5 +304,104 @@ describe('G/L summary', () => {
     assert.match(html, /824\.36/)
     assert.match(html, /Page: 1/)
     assert.match(html, /Page: 2/)
+  })
+})
+
+describe('staff salary slips', () => {
+  const amounts = {
+    basicPay: 0,
+    otPay: 0,
+    extraPay: 0,
+    grossPay: 0,
+    nisEmployee: 0,
+    staffLoan: 0,
+    medical: 0,
+    shortageReady: 0,
+    extraDeductionPay: 0,
+    totalDeductions: 0,
+    netPay: 0
+  }
+
+  it('keeps year-to-date through that pay date', () => {
+    const january = { payRunId: 'jan', payDate: '2026-01-15', ...amounts, basicPay: 100, grossPay: 100, netPay: 100 }
+    const february = { payRunId: 'feb', payDate: '2026-02-15', ...amounts, basicPay: 200, grossPay: 200, netPay: 190 }
+    const lastYear = { payRunId: 'old', payDate: '2025-12-15', ...amounts, basicPay: 50, grossPay: 50 }
+    const nextYear = { payRunId: 'next', payDate: '2027-01-15', ...amounts, basicPay: 80, grossPay: 80 }
+    const history = [january, february, lastYear, nextYear]
+    assert.equal(ytdAsOfLine(history, february).basicPay, 300)
+    assert.equal(ytdAsOfLine(history, january).basicPay, 100)
+    assert.equal(ytdAsOfLine(history, nextYear).basicPay, 80)
+  })
+
+  it('prints each period on its own page without the pay register', () => {
+    const person = {
+      staffName: 'Eli Joseph',
+      staffNo: '100200',
+      taxCode: '220',
+      otPay: 0,
+      extraLines: [],
+      extraDeductions: [],
+      nisEmployee: 0,
+      medical: 0,
+      staffLoan: 0,
+      shortageReady: 0
+    }
+    const html = renderStaffPayslipsHtml({
+      slips: [
+        {
+          startDate: '2026-08-16',
+          endDate: '2026-08-31',
+          payDate: '2026-08-31',
+          cycleNumber: 16,
+          line: {
+            ...person,
+            basicPay: 400,
+            grossPay: 400,
+            totalDeductions: 0,
+            netPay: 400,
+            ytd: {
+              basicPay: 900,
+              otPay: 0,
+              extraPay: 0,
+              grossPay: 900,
+              nisEmployee: 0,
+              staffLoan: 0,
+              medical: 0,
+              shortageReady: 0,
+              extraDeductionPay: 0,
+              totalDeductions: 0,
+              netPay: 900
+            }
+          }
+        },
+        {
+          startDate: '2026-09-01',
+          endDate: '2026-09-15',
+          payDate: '2026-09-15',
+          cycleNumber: 17,
+          line: {
+            ...person,
+            basicPay: 500,
+            grossPay: 500,
+            totalDeductions: 0,
+            netPay: 500
+          }
+        }
+      ]
+    })
+    assert.match(html, /Eli Joseph/)
+    assert.match(html, /08\/31\/2026/)
+    assert.match(html, /09\/15\/2026/)
+    assert.match(html, /08\/16\/2026 - 08\/31\/2026/)
+    assert.match(html, /09\/01\/2026 - 09\/15\/2026/)
+    assert.match(html, /PAY CYCLE:<\/span> 16/)
+    assert.match(html, /PAY CYCLE:<\/span> 17/)
+    assert.match(html, /900\.00/)
+    assert.match(html, /500\.00/)
+    assert.match(html, /Page: 1/)
+    assert.match(html, /Page: 2/)
+    assert.doesNotMatch(html, /Page: 3/)
+    assert.doesNotMatch(html, /PERIODTOTALS/)
+    assert.doesNotMatch(html, /Pay Register/)
   })
 })

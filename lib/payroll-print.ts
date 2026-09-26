@@ -501,75 +501,12 @@ function slipHtml(
   </article>`
 }
 
-export function renderPayslipsHtml(input: PayslipPrintInput): string {
-  const slips = input.lines.flatMap((line) => {
-    const slip = buildPayslipLine(line)
-    return slip ? [slip] : []
-  })
-  const payDate = mdy(input.payDate)
-  const cycleDay =
-    input.cycleNumber && input.cycleNumber > 0
-      ? String(input.cycleNumber)
-      : payPeriodCycleNumber(input.endDate)
-  const period = `${mdy(input.startDate)} - ${mdy(input.endDate)}`
-  const printed = new Date()
-  const printedLabel = `${String(printed.getMonth() + 1).padStart(2, '0')}/${String(printed.getDate()).padStart(2, '0')}/${printed.getFullYear()}`
-  const voided =
-    input.status === 'void'
-      ? `<p class="void">VOIDED${input.voidReason ? `: ${escapePayPeriodHtml(input.voidReason)}` : ''}. Record only.</p>`
-      : ''
-  const company = normalizePayslipCompany({
-    companyName: input.companyName,
-    address: input.companyAddress,
-    phone: input.companyPhone
-  })
-  const pages = payslipPages(slips)
-  const totals = buildPayslipPeriodTotals(input.lines)
-  const totalsPage = `<section class="page">
-        <header class="banner">
-          <div class="reg-title">Pay Register ( ANALYSIS )</div>
-          <div class="banner-range reg-range">${escapePayPeriodHtml(period)}</div>
-          ${voided}
-        </header>
-        <div class="reg-pair period">
-          <span>PERIODTOTALS :</span>
-          <span>${plainMoney(totals.earnings)}</span>
-          <span>${plainMoney(totals.deductions)}</span>
-        </div>
-        <div class="reg-pair grand">
-          <span>GRAND TOTALS :</span>
-          <span>${plainMoney(totals.earnings)}</span>
-          <span>${plainMoney(totals.deductions)}</span>
-        </div>
-        <div class="reg-break">
-          <div><span>BASIC :</span><span>${plainMoney(totals.basic)}</span></div>
-          <div><span>NIS :</span><span>${plainMoney(totals.nis)}</span></div>
-          <div><span>PAYE :</span><span>${plainMoney(totals.paye)}</span></div>
-          <div><span>BONUS :</span><span>${plainMoney(totals.bonus)}</span></div>
-          <div><span>NET :</span><span>${plainMoney(totals.net)}</span></div>
-        </div>
-        <footer>Printed: ${printedLabel}<span>Page: ${pages.length + 1}</span></footer>
-      </section>`
-  const body =
-    pages
-      .map((page, index) => {
-        const content =
-          page.length > 0
-            ? page.map((line) => slipHtml(line, payDate, cycleDay, period, company)).join('')
-            : '<p class="empty">No payslips for this payroll.</p>'
-        return `<section class="page">
-        ${voided}
-        ${content}
-        <footer>Printed: ${printedLabel}<span>Page: ${index + 1}</span></footer>
-      </section>`
-      })
-      .join('') + totalsPage
-
+function payslipDocument(title: string, body: string): string {
   return `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Payslips ${escapePayPeriodHtml(period)}</title>
+    <title>${escapePayPeriodHtml(title)}</title>
     <style>
       @page { size: letter; margin: 0; }
       * { box-sizing: border-box; }
@@ -673,10 +610,144 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
 </html>`
 }
 
+function printedLabel(now = new Date()): string {
+  return `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}/${now.getFullYear()}`
+}
+
+function cycleDayLabel(cycleNumber: number | undefined, endDate: string): string {
+  if (cycleNumber && cycleNumber > 0) return String(cycleNumber)
+  return payPeriodCycleNumber(endDate)
+}
+
+export function renderPayslipsHtml(input: PayslipPrintInput): string {
+  const slips = input.lines.flatMap((line) => {
+    const slip = buildPayslipLine(line)
+    return slip ? [slip] : []
+  })
+  const payDate = mdy(input.payDate)
+  const cycleDay = cycleDayLabel(input.cycleNumber, input.endDate)
+  const period = `${mdy(input.startDate)} - ${mdy(input.endDate)}`
+  const printed = printedLabel()
+  const voided =
+    input.status === 'void'
+      ? `<p class="void">VOIDED${input.voidReason ? `: ${escapePayPeriodHtml(input.voidReason)}` : ''}. Record only.</p>`
+      : ''
+  const company = normalizePayslipCompany({
+    companyName: input.companyName,
+    address: input.companyAddress,
+    phone: input.companyPhone
+  })
+  const pages = payslipPages(slips)
+  const totals = buildPayslipPeriodTotals(input.lines)
+  const totalsPage = `<section class="page">
+        <header class="banner">
+          <div class="reg-title">Pay Register ( ANALYSIS )</div>
+          <div class="banner-range reg-range">${escapePayPeriodHtml(period)}</div>
+          ${voided}
+        </header>
+        <div class="reg-pair period">
+          <span>PERIODTOTALS :</span>
+          <span>${plainMoney(totals.earnings)}</span>
+          <span>${plainMoney(totals.deductions)}</span>
+        </div>
+        <div class="reg-pair grand">
+          <span>GRAND TOTALS :</span>
+          <span>${plainMoney(totals.earnings)}</span>
+          <span>${plainMoney(totals.deductions)}</span>
+        </div>
+        <div class="reg-break">
+          <div><span>BASIC :</span><span>${plainMoney(totals.basic)}</span></div>
+          <div><span>NIS :</span><span>${plainMoney(totals.nis)}</span></div>
+          <div><span>PAYE :</span><span>${plainMoney(totals.paye)}</span></div>
+          <div><span>BONUS :</span><span>${plainMoney(totals.bonus)}</span></div>
+          <div><span>NET :</span><span>${plainMoney(totals.net)}</span></div>
+        </div>
+        <footer>Printed: ${printed}<span>Page: ${pages.length + 1}</span></footer>
+      </section>`
+  const body =
+    pages
+      .map((page, index) => {
+        const content =
+          page.length > 0
+            ? page.map((line) => slipHtml(line, payDate, cycleDay, period, company)).join('')
+            : '<p class="empty">No payslips for this payroll.</p>'
+        return `<section class="page">
+        ${voided}
+        ${content}
+        <footer>Printed: ${printed}<span>Page: ${index + 1}</span></footer>
+      </section>`
+      })
+      .join('') + totalsPage
+
+  return payslipDocument(`Payslips ${period}`, body)
+}
+
+export type StaffPayslipSlip = {
+  startDate: string
+  endDate: string
+  payDate: string
+  cycleNumber?: number
+  line: PayslipSourceLine
+}
+
+/** One slip per page, each with its own period. No pay-register totals page. */
+export function renderStaffPayslipsHtml(input: {
+  companyName?: string
+  companyAddress?: string
+  companyPhone?: string
+  slips: StaffPayslipSlip[]
+}): string {
+  const company = normalizePayslipCompany({
+    companyName: input.companyName,
+    address: input.companyAddress,
+    phone: input.companyPhone
+  })
+  const printed = printedLabel()
+  const pages = input.slips.flatMap((slip) => {
+    const line = buildPayslipLine(slip.line)
+    if (!line) return []
+    const period = `${mdy(slip.startDate)} - ${mdy(slip.endDate)}`
+    return [
+      slipHtml(line, mdy(slip.payDate), cycleDayLabel(slip.cycleNumber, slip.endDate), period, company)
+    ]
+  })
+  const body =
+    pages.length > 0
+      ? pages
+          .map(
+            (content, index) => `<section class="page">
+        ${content}
+        <footer>Printed: ${printed}<span>Page: ${index + 1}</span></footer>
+      </section>`
+          )
+          .join('')
+      : `<section class="page">
+        <p class="empty">No payslips to print.</p>
+        <footer>Printed: ${printed}<span>Page: 1</span></footer>
+      </section>`
+  const titleName = input.slips[0]?.line.staffName?.trim()
+  return payslipDocument(titleName ? `Payslips ${titleName}` : 'Payslips', body)
+}
+
 export function printPayslips(input: PayslipPrintInput): boolean {
   const printWin = window.open('', '_blank')
   if (!printWin) return false
   printWin.document.write(renderPayslipsHtml(input))
+  printWin.document.close()
+  printWin.focus()
+  printWin.print()
+  return true
+}
+
+export function printStaffPayslips(input: {
+  companyName?: string
+  companyAddress?: string
+  companyPhone?: string
+  slips: StaffPayslipSlip[]
+}): boolean {
+  const printWin = window.open('', '_blank')
+  if (!printWin) return false
+  printWin.document.write(renderStaffPayslipsHtml(input))
   printWin.document.close()
   printWin.focus()
   printWin.print()

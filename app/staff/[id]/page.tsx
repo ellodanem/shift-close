@@ -8,6 +8,7 @@ import DocumentGenerationModal from '../DocumentGenerationModal'
 import BankSelect from '../BankSelect'
 import PayCycleSelect from '../PayCycleSelect'
 import PayTypeSelect from '../PayTypeSelect'
+import StaffPayslipHistory from '../StaffPayslipHistory'
 import { payCycleLabel } from '@/lib/pay-cycle'
 import { formatMoney, parsePayType, payTypeLabel } from '@/lib/pay-run'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -1585,6 +1586,7 @@ function EditStaffPageInner() {
 
         {/* Payroll */}
         {activeTab === 'payroll' && canViewStaffSensitive && (
+          <>
           <form
             id="staff-edit-form"
             onSubmit={handleSubmit}
@@ -1728,6 +1730,8 @@ function EditStaffPageInner() {
               </dl>
             )}
           </form>
+          <StaffPayslipHistory staffId={id} />
+          </>
         )}
       </div>
 
