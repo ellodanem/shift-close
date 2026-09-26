@@ -2,11 +2,17 @@
 
 import { useEffect, useId, useState } from 'react'
 import {
+  DEFAULT_OVERTIME_MULTIPLIER,
   DEFAULT_PAYSLIP_COMPANY,
+  MAX_OVERTIME_MULTIPLIER,
+  MIN_OVERTIME_MULTIPLIER,
   PAYSLIP_COMPANY_ADDRESS_MAX,
   PAYSLIP_COMPANY_NAME_MAX,
   PAYSLIP_COMPANY_PHONE_MAX,
+  normalizeOvertimeMultiplier,
   normalizePayslipCompany,
+  overtimeMultiplierLabel,
+  parseOvertimeMultiplierInput,
   type PayslipCompany
 } from '@/lib/payroll-settings'
 
@@ -47,10 +53,14 @@ export function PayrollSettingsButton() {
 function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
   const titleId = useId()
   const [company, setCompany] = useState<PayslipCompany>({ ...DEFAULT_PAYSLIP_COMPANY })
+  const [overtimeRate, setOvertimeRate] = useState(String(DEFAULT_OVERTIME_MULTIPLIER))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const ready = Boolean(company.companyName.trim() && company.address.trim() && company.phone.trim())
+  const parsedOvertime = parseOvertimeMultiplierInput(overtimeRate)
+  const ready = Boolean(
+    company.companyName.trim() && company.address.trim() && company.phone.trim() && parsedOvertime != null
+  )
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -66,10 +76,12 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Failed to load payroll settings')
-        return data as Partial<PayslipCompany>
+        return data as Partial<PayslipCompany> & { overtimeMultiplier?: unknown }
       })
       .then((data) => {
-        if (!cancelled) setCompany(normalizePayslipCompany(data))
+        if (cancelled) return
+        setCompany(normalizePayslipCompany(data))
+        setOvertimeRate(String(normalizeOvertimeMultiplier(data.overtimeMultiplier)))
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load payroll settings')
@@ -95,6 +107,10 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       setError('Enter a contact number.')
       return
     }
+    if (parsedOvertime == null) {
+      setError('Enter an overtime rate from 1 to 3. 1.5 is time and a half.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -104,11 +120,13 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({
           companyName: company.companyName.trim(),
           address: company.address.trim(),
-          phone: company.phone.trim()
+          phone: company.phone.trim(),
+          overtimeMultiplier: parsedOvertime
         })
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save payroll settings')
+      window.dispatchEvent(new Event('payroll-settings-saved'))
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save payroll settings')
@@ -132,7 +150,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
         <h2 id={titleId} className="text-lg font-semibold text-slate-900">
           Payroll settings
         </h2>
-        <p className="mt-2 text-sm text-slate-600">These print at the bottom of each payslip.</p>
+        <p className="mt-2 text-sm text-slate-600">The company details print at the bottom of each payslip.</p>
         <label className="mt-4 block text-sm">
           <span className="font-medium text-slate-800">Company name</span>
           <input
@@ -164,6 +182,26 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </label>
+        <div className="mt-6 border-t border-slate-200 pt-4">
+          <label className="block text-sm">
+            <span className="font-medium text-slate-800">Overtime rate</span>
+            <input
+              type="number"
+              min={MIN_OVERTIME_MULTIPLIER}
+              max={MAX_OVERTIME_MULTIPLIER}
+              step="0.05"
+              value={overtimeRate}
+              disabled={loading || saving}
+              onChange={(e) => setOvertimeRate(e.target.value)}
+              className="mt-1 w-32 rounded-md border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <p className="mt-2 text-sm text-slate-600">
+            Overtime is this multiple of the hourly rate.
+            {parsedOvertime != null ? ` ${overtimeMultiplierLabel(parsedOvertime)}.` : ' 1.5 is time and a half.'}{' '}
+            A draft uses the new rate when you save it. Approved payroll keeps the overtime already calculated.
+          </p>
+        </div>
         {error ? (
           <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         ) : null}

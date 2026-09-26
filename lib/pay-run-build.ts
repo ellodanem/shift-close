@@ -18,6 +18,7 @@ import {
   type PayRunHoursRow,
   type PayRunStaffProfile
 } from '@/lib/pay-run'
+import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
 import { prisma } from '@/lib/prisma'
 import { parsePayCycle, splitPayPeriodHours, type PayCycle } from '@/lib/pay-cycle'
 
@@ -151,6 +152,7 @@ export async function rebuildPayRunLines(
     }
   }
 
+  const otMultiplier = await readOvertimeMultiplier()
   const built = buildPayRunLines({
     cycle: parsePayCycle(options.cycle),
     hoursRows: options.hoursRows,
@@ -158,7 +160,8 @@ export async function rebuildPayRunLines(
     extrasByStaffId,
     rateOverrides: options.keepOverrides ? rateOverrides : undefined,
     deductionOverrides: options.keepOverrides ? deductionOverrides : undefined,
-    nisTakenByStaffId
+    nisTakenByStaffId,
+    otMultiplier
   })
   const staffById = new Map(staff.map((s) => [s.id, s]))
   const lines = attachBankingToLines(built, staffById)
@@ -223,6 +226,7 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
   const staffById = new Map(staff.map((person) => [person.id, person]))
   const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
   const nisTaken = await loadNisTakenByStaffId(run.payDate, payRunId)
+  const otMultiplier = await readOvertimeMultiplier()
 
   for (const line of run.lines) {
     if (!line.staffId) continue
@@ -244,7 +248,8 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
       otHours,
       hourlyRate,
       salariedAmount,
-      extraLines
+      extraLines,
+      otMultiplier
     })
     const taken = nisTaken[line.staffId]
     const deducted = computePayRunDeductions({

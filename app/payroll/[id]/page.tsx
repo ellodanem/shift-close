@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
-import { loadPayslipCompany } from '@/lib/payroll-settings'
+import { DEFAULT_OVERTIME_MULTIPLIER, loadOvertimeMultiplier, loadPayslipCompany } from '@/lib/payroll-settings'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
@@ -284,6 +284,7 @@ export default function PayrollRunPage() {
   const [newTypeName, setNewTypeName] = useState('')
   const [newTypeKind, setNewTypeKind] = useState<CategoryKind>('money')
   const [loading, setLoading] = useState(true)
+  const [otMultiplier, setOtMultiplier] = useState(DEFAULT_OVERTIME_MULTIPLIER)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rateLineId, setRateLineId] = useState<string | null>(null)
@@ -328,6 +329,21 @@ export default function PayrollRunPage() {
     setCategories(loadPayrollCategories())
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const refresh = () => {
+      void loadOvertimeMultiplier().then((multiplier) => {
+        if (!cancelled) setOtMultiplier(multiplier)
+      })
+    }
+    refresh()
+    window.addEventListener('payroll-settings-saved', refresh)
+    return () => {
+      cancelled = true
+      window.removeEventListener('payroll-settings-saved', refresh)
+    }
+  }, [])
+
   const locked = run?.status === 'processed' || run?.status === 'void'
   const voided = run?.status === 'void'
   const hourly = (run?.lines ?? []).filter((line) => parsePayType(line.payType) === 'hourly')
@@ -336,17 +352,18 @@ export default function PayrollRunPage() {
   const grossFor = useCallback(
     (line: PayRunLine) => {
       const draft = drafts[line.id]
-      if (!draft) return line.grossPay
+      if (!draft || locked) return line.grossPay
       return computeGrossPay({
         payType: line.payType,
         basicHours: parseMoney(draft.basicHours),
         otHours: parseMoney(draft.otHours),
         hourlyRate: parseMoney(draft.rate),
         salariedAmount: parseMoney(draft.salary),
-        extraLines: extraLinesFor(line, draft, categories)
+        extraLines: extraLinesFor(line, draft, categories),
+        otMultiplier
       }).grossPay
     },
-    [drafts, categories]
+    [drafts, categories, locked, otMultiplier]
   )
 
   const patchDraft = (lineId: string, patch: Partial<Draft>) => {
@@ -969,15 +986,15 @@ export default function PayrollRunPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="py-2 pr-3 font-semibold">Hourly employees</th>
-                    <th className="py-2 pr-3 font-semibold">Hourly rate</th>
+                  <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-wide text-slate-900">
+                    <th className="py-2 pr-3 font-bold">Hourly employees</th>
+                    <th className="py-2 pr-3 font-bold">Hourly rate</th>
                     {hourlyColumns.map((category) => (
-                      <th key={category.id} className="py-2 pr-3 text-right font-semibold">
+                      <th key={category.id} className="py-2 pr-3 text-right font-bold">
                         {category.label}
                       </th>
                     ))}
-                    <th className="py-2 text-right font-semibold">Total</th>
+                    <th className="py-2 text-right font-bold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1038,16 +1055,16 @@ export default function PayrollRunPage() {
 
               <table className="mt-8 w-full min-w-[760px] text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="py-2 pr-3 font-semibold">Salaried employees</th>
-                    <th className="py-2 pr-3 font-semibold">Pay salary</th>
-                    <th className="py-2 pr-3 font-semibold">Salary</th>
+                  <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-wide text-slate-900">
+                    <th className="py-2 pr-3 font-bold">Salaried employees</th>
+                    <th className="py-2 pr-3 font-bold">Pay salary</th>
+                    <th className="py-2 pr-3 font-bold">Salary</th>
                     {salariedColumns.map((category) => (
-                      <th key={category.id} className="py-2 pr-3 text-right font-semibold">
+                      <th key={category.id} className="py-2 pr-3 text-right font-bold">
                         {category.label}
                       </th>
                     ))}
-                    <th className="py-2 text-right font-semibold">Total</th>
+                    <th className="py-2 text-right font-bold">Total</th>
                   </tr>
                 </thead>
                 <tbody>

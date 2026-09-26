@@ -20,6 +20,7 @@ import {
   presentPayRunLine,
   serializePayRunLine
 } from '@/lib/pay-run'
+import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
 import { prisma } from '@/lib/prisma'
 import { parseCycleNumber } from '@/lib/pay-cycle'
 import { getSessionFromRequest } from '@/lib/session'
@@ -178,6 +179,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       : body.line && typeof body.line === 'object'
         ? [body.line]
         : []
+    const otMultiplier = await readOvertimeMultiplier()
     for (const lineBody of linePatches) {
       if (!lineBody || typeof lineBody !== 'object') continue
       const lineId = typeof lineBody.id === 'string' ? lineBody.id : ''
@@ -213,7 +215,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         otHours,
         hourlyRate,
         salariedAmount,
-        extraLines
+        extraLines,
+        otMultiplier
       })
       const nisTaken = existing.staffId
         ? (await loadNisTakenByStaffId(payDate, id))[existing.staffId]

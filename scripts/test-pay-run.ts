@@ -23,6 +23,19 @@ describe('pay run gross', () => {
     assert.equal(pay.grossPay, 618.74)
   })
 
+  it('pays overtime at a chosen multiple of the hourly rate', () => {
+    const pay = computeGrossPay({
+      payType: 'hourly',
+      basicHours: 86.67,
+      otHours: 3.33,
+      hourlyRate: 6.75,
+      otMultiplier: 2
+    })
+    assert.equal(pay.basicPay, 585.02)
+    assert.equal(pay.otPay, 44.96)
+    assert.equal(pay.grossPay, 629.98)
+  })
+
   it('pays salaried basic with no OT', () => {
     const pay = computeGrossPay({
       payType: 'salaried',

@@ -1,4 +1,5 @@
 import { computePayRunDeductions } from './pay-run-deductions'
+import { normalizeOvertimeMultiplier } from './payroll-settings'
 import { isReportOnlyPayPeriodRow } from './pay-period-rows'
 import {
   DEFAULT_PAY_CYCLE,
@@ -180,6 +181,8 @@ export function computeGrossPay(input: {
   hourlyRate?: number
   salariedAmount?: number
   extraLines?: PayRunExtraLine[]
+  /** Times the hourly rate. Defaults to time and a half. */
+  otMultiplier?: number
 }): {
   payType: PayType
   basicPay: number
@@ -194,8 +197,9 @@ export function computeGrossPay(input: {
     return { payType, basicPay, otPay: 0, extraPay, grossPay: round2(basicPay + extraPay) }
   }
   const rate = parseMoney(input.hourlyRate)
+  const multiplier = normalizeOvertimeMultiplier(input.otMultiplier ?? OT_MULTIPLIER)
   const basicPay = round2(parseMoney(input.basicHours) * rate)
-  const otPay = round2(parseMoney(input.otHours) * rate * OT_MULTIPLIER)
+  const otPay = round2(parseMoney(input.otHours) * rate * multiplier)
   return { payType, basicPay, otPay, extraPay, grossPay: round2(basicPay + otPay + extraPay) }
 }
 
@@ -313,7 +317,8 @@ function lineFromHoursRow(
   extras: PayRunExtraLine[],
   rateOverride?: PayRateOverride,
   deductionOverride?: DeductionOverride,
-  nisTaken?: NisTaken
+  nisTaken?: NisTaken,
+  otMultiplier?: number
 ): BuiltPayRunLine {
   const payCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
   const payType = parsePayType(profile?.payType)
@@ -334,7 +339,8 @@ function lineFromHoursRow(
     otHours: split.otHours,
     hourlyRate,
     salariedAmount,
-    extraLines: extras
+    extraLines: extras,
+    otMultiplier
   })
   const base = {
     staffId: isReportOnlyPayPeriodRow(row) ? null : row.staffId,
@@ -411,6 +417,7 @@ export function buildPayRunLines(input: {
   rateOverrides?: Record<string, PayRateOverride>
   deductionOverrides?: Record<string, DeductionOverride>
   nisTakenByStaffId?: Record<string, NisTaken>
+  otMultiplier?: number
 }): BuiltPayRunLine[] {
   const cycle = parsePayCycle(input.cycle)
   const staffById = new Map(input.staff.map((s) => [s.id, s]))
@@ -431,7 +438,8 @@ export function buildPayRunLines(input: {
         input.extrasByStaffId?.[key] ?? [],
         input.rateOverrides?.[key],
         input.deductionOverrides?.[key],
-        input.nisTakenByStaffId?.[row.staffId]
+        input.nisTakenByStaffId?.[row.staffId],
+        input.otMultiplier
       )
     )
   }

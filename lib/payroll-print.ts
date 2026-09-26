@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import { normalizePayslipCompany } from '@/lib/payroll-settings'
-import { OT_MULTIPLIER, formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
+import { formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
 export type NisPrintLine = {
   staffName: string
@@ -298,7 +298,7 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
     ytd: ytdOrCurrent(ytd?.basicPay, line.basicPay)
   })
   pushAmount(earnings, 'Overtime', line.otPay, {
-    rate: hourly && hourlyRate ? round2(hourlyRate * OT_MULTIPLIER) : undefined,
+    rate: hourly && line.otHours ? round2(line.otPay / line.otHours) : undefined,
     hours: line.otHours || undefined,
     ytd: ytdOrCurrent(ytd?.otPay, line.otPay)
   })
