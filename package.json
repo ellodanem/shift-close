@@ -26,6 +26,7 @@
     "test:pay-period-rows": "tsx --test scripts/test-pay-period-rows.ts",
     "test:pay-cycle": "tsx --test scripts/test-pay-cycle.ts",
     "test:pay-run": "tsx --test scripts/test-pay-run.ts",
+    "test:pay-run-list": "tsx --test scripts/test-pay-run-list.ts",
     "test:pay-run-deductions": "tsx --test scripts/test-pay-run-deductions.ts",
     "test:pay-run-banking": "tsx --test scripts/test-pay-run-banking.ts",
     "test:payroll-print": "tsx --test scripts/test-payroll-print.ts",

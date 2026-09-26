@@ -1,8 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
+import {
+  PAYROLL_MONTHS,
+  activePayrollYear,
+  filterPayRuns,
+  payrollCycleOptions,
+  payrollYears,
+  shownCycleNumber,
+  type PayRunSort
+} from '@/lib/pay-run-list'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 
 type SavedPeriod = {
@@ -27,7 +36,7 @@ function mdy(ymd: string): string {
 }
 
 function cycleLabel(cycleNumber: number, endDate: string): string {
-  const n = cycleNumber > 0 ? cycleNumber : Number(payPeriodCycleNumber(endDate))
+  const n = shownCycleNumber(cycleNumber, endDate)
   return n > 0 ? `Cycle ${n}` : 'Cycle'
 }
 
@@ -45,6 +54,10 @@ export default function PayrollStartPage() {
   const [cycleNumber, setCycleNumber] = useState('')
   const [cycleTouched, setCycleTouched] = useState(false)
   const [hideVoided, setHideVoided] = useState(true)
+  const [year, setYear] = useState<number | 'all'>(() => activePayrollYear())
+  const [month, setMonth] = useState<number | 'all'>('all')
+  const [cycle, setCycle] = useState<number | 'all'>('all')
+  const [sort, setSort] = useState<PayRunSort>('latest')
 
   useEffect(() => {
     Promise.all([
@@ -142,7 +155,26 @@ export default function PayrollStartPage() {
     }
   }
 
-  const visibleRuns = hideVoided ? runs.filter((run) => run.status !== 'void') : runs
+  const yearOptions = useMemo(() => payrollYears(runs), [runs])
+  const cycleOptions = useMemo(() => {
+    const source = hideVoided ? runs.filter((run) => run.status !== 'void') : runs
+    const present = payrollCycleOptions(source, year, month)
+    if (cycle !== 'all' && !present.includes(cycle)) return [...present, cycle].sort((a, b) => a - b)
+    return present
+  }, [runs, year, month, cycle, hideVoided])
+  const matchedRuns = useMemo(
+    () => filterPayRuns(runs, { year, month, cycle, hideVoided: false, sort }),
+    [runs, year, month, cycle, sort]
+  )
+  const visibleRuns = hideVoided ? matchedRuns.filter((run) => run.status !== 'void') : matchedRuns
+  const listMessage =
+    runs.length === 0
+      ? 'No payroll runs yet.'
+      : matchedRuns.length > 0 && visibleRuns.length === 0
+        ? 'All payroll runs are voided.'
+        : year !== 'all' && month === 'all' && cycle === 'all'
+          ? `No payroll runs in ${year}.`
+          : 'No payroll runs match these filters.'
 
   return (
     <div className="min-h-full bg-white">
@@ -239,23 +271,79 @@ export default function PayrollStartPage() {
         </div>
 
         <section className="mt-12">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-900">Payroll runs</h2>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                checked={hideVoided}
-                onChange={(e) => setHideVoided(e.target.checked)}
-              />
-              Hide voided
-            </label>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Year</span>
+                <select
+                  value={year === 'all' ? 'all' : String(year)}
+                  onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                >
+                  {yearOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value="all">All years</option>
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Month</span>
+                <select
+                  value={month === 'all' ? 'all' : String(month)}
+                  onChange={(e) => setMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                >
+                  <option value="all">All months</option>
+                  {PAYROLL_MONTHS.map((name, index) => (
+                    <option key={name} value={index + 1}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Cycle</span>
+                <select
+                  value={cycle === 'all' ? 'all' : String(cycle)}
+                  onChange={(e) => setCycle(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                >
+                  <option value="all">All cycles</option>
+                  {cycleOptions.map((option) => (
+                    <option key={option} value={option}>
+                      Cycle {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Sort</span>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value === 'earliest' ? 'earliest' : 'latest')}
+                  className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                >
+                  <option value="latest">Latest cycle</option>
+                  <option value="earliest">Earliest cycle</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 pb-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={hideVoided}
+                  onChange={(e) => setHideVoided(e.target.checked)}
+                />
+                Hide voided
+              </label>
+            </div>
           </div>
           {loading ? (
             <p className="mt-3 text-sm text-slate-500">Loading…</p>
-          ) : runs.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No payroll runs yet.</p>
           ) : visibleRuns.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">All payroll runs are voided.</p>
+            <p className="mt-3 text-sm text-slate-500">{listMessage}</p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">
               {visibleRuns.map((run) => (
