@@ -1116,6 +1116,7 @@ function summarySectionHtml(title: string, lines: PayrollPreviewLine[]): string 
 }
 
 function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine): string {
+  const bankNote = previewBankAccountNote(line)
   const payType = parsePayType(line.payType)
   const meta = line.taxCode
     ? `Pay type: ${payType} · Tax code ${escapePayPeriodHtml(line.taxCode)}`
@@ -1157,6 +1158,7 @@ function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine)
         </table>
       </div>
     </div>
+    ${bankNote ? `<p class="note">${escapePayPeriodHtml(bankNote)}</p>` : ''}
   </article>`
 }
 
@@ -1190,6 +1192,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
       .group td { padding-top: 14px; border-bottom: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
       .subtotal td { font-weight: 700; background: #f5f3ff; }
       .grand td { font-weight: 700; background: #ede9fe; }
+      .note { margin: 2px 0 0; color: #64748b; font-size: 11px; }
       .person { page-break-inside: avoid; margin: 0 0 22px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
       .person header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
       .person h2 { margin: 0; font-size: 14px; }
@@ -1246,6 +1249,15 @@ function previewPageWidth(doc: jsPDF): number {
   return doc.internal.pageSize.getWidth()
 }
 
+export function previewBankAccountNote(line: { bankCode?: string | null; accountNo?: string | null }): string {
+  const bank = (line.bankCode ?? '').trim()
+  const account = (line.accountNo ?? '').trim()
+  if (!bank && !account) return ''
+  if (!bank) return account
+  if (!account) return `Bank ${bank}`
+  return `Bank ${bank} · ${account}`
+}
+
 function summaryFillRow(
   label: string,
   hours: string,
@@ -1293,7 +1305,8 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
 
 function employeeBlockHeight(line: PayrollPreviewLine): number {
   const rows = Math.max(4, line.deductions.length + 2)
-  return 75 + rows * 13
+  const note = previewBankAccountNote(line) ? 12 : 0
+  return 75 + rows * 13 + note
 }
 
 function drawMoneyRow(
@@ -1376,7 +1389,16 @@ function drawEmployeeBlock(doc: jsPDF, input: PayrollPreviewInput, line: Payroll
     rowY += 13
   }
 
-  const ruleY = rowY + 4
+  const bankNote = previewBankAccountNote(line)
+  let ruleY = rowY + 4
+  if (bankNote) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(100)
+    const noteY = rowY + 2
+    doc.text(bankNote, left, noteY)
+    ruleY = noteY + 14
+  }
   doc.setDrawColor(226, 232, 240)
   doc.line(left, ruleY, right, ruleY)
   return ruleY + 16
