@@ -51,6 +51,18 @@ export function loanInstallment(principal: number, termPays: number): number {
   return round2(Math.max(0, principal) / pays)
 }
 
+/** How many pays a chosen installment needs. Leftover cents stay on the last pay. */
+export function termPaysForInstallment(principal: number, installment: number): number {
+  const total = parseMoney(principal)
+  const due = parseMoney(installment)
+  if (total <= 0) return 1
+  if (due <= 0 || due >= total) return 1
+  const pays = Math.max(1, Math.floor((total + 1e-6) / due))
+  const leftover = loanRemaining(total, due * pays)
+  if (leftover >= 1) return pays + 1
+  return pays
+}
+
 export function loanRemaining(principal: number, paid: number): number {
   return round2(Math.max(0, parseMoney(principal) - parseMoney(paid)))
 }
@@ -64,9 +76,9 @@ export function loanThisPay(installment: number, remaining: number): number {
   return due
 }
 
-export function lastLoanInstallment(principal: number, termPays: number): number {
+export function lastLoanInstallment(principal: number, termPays: number, installment?: number): number {
   const pays = Math.max(1, Math.floor(termPays))
-  const regular = loanInstallment(principal, pays)
+  const regular = parseMoney(installment) > 0 ? parseMoney(installment) : loanInstallment(principal, pays)
   if (pays <= 1) return parseMoney(principal)
   return loanRemaining(principal, regular * (pays - 1))
 }
@@ -152,18 +164,30 @@ export function previewStaffLoan(input: {
   termUnit: LoanTermUnit
   cycle: PayCycle
   startDate: string
+  installment?: number
 }): {
   termPays: number
   installment: number
   lastInstallment: number
   lastPayDate: string
 } {
+  const custom = parseMoney(input.installment)
+  if (custom > 0) {
+    const installment = Math.min(custom, parseMoney(input.principal) || custom)
+    const termPays = termPaysForInstallment(input.principal, installment)
+    return {
+      termPays,
+      installment,
+      lastInstallment: lastLoanInstallment(input.principal, termPays, installment),
+      lastPayDate: expectedLastPayDate(input.startDate, input.cycle, termPays)
+    }
+  }
   const termPays = paysForLoanTerm(input.cycle, input.termCount, input.termUnit)
   const installment = loanInstallment(input.principal, termPays)
   return {
     termPays,
     installment,
-    lastInstallment: lastLoanInstallment(input.principal, termPays),
+    lastInstallment: lastLoanInstallment(input.principal, termPays, installment),
     lastPayDate: expectedLastPayDate(input.startDate, input.cycle, termPays)
   }
 }

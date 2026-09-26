@@ -5,13 +5,7 @@ import { parseMoney, parseOptionalMoney } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
 import { canViewStaffSensitiveFields } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
-import {
-  loanInstallment,
-  loanThisPay,
-  parseLoanTermUnit,
-  paysForLoanTerm,
-  previewStaffLoan
-} from '@/lib/staff-loan'
+import { loanThisPay, parseLoanTermUnit, previewStaffLoan } from '@/lib/staff-loan'
 import {
   applyLoanToDraftLines,
   loadStaffLoanSnapshot,
@@ -90,12 +84,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const cycle = parsePayCycle(staff.payCycle)
+    const installment = parseOptionalMoney(body.installment)
     const preview = previewStaffLoan({
       principal,
       termCount,
       termUnit,
       cycle,
-      startDate
+      startDate,
+      installment: installment && installment > 0 ? installment : undefined
     })
 
     await prisma.$transaction([
@@ -123,7 +119,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-/** PATCH /api/staff/:id/loan — cancel, or change remaining term. */
+/** PATCH /api/staff/:id/loan — cancel, or change the remaining payment. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireSensitive(request)
@@ -150,23 +146,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (action === 'adjust') {
+      const cycle = parsePayCycle(staff.payCycle)
+      const chosenAmount = parseOptionalMoney(body.installment)
       const termUnit = parseLoanTermUnit(body.termUnit)
       const termCount = Number(body.termCount)
-      if (!Number.isFinite(termCount) || termCount < 1) {
-        return NextResponse.json({ error: 'Enter how many pays are left.' }, { status: 400 })
+      const preview = previewStaffLoan({
+        principal: loan.remaining,
+        termCount: Number.isFinite(termCount) && termCount >= 1 ? termCount : 1,
+        termUnit,
+        cycle,
+        startDate: loan.startDate,
+        installment: chosenAmount && chosenAmount > 0 ? chosenAmount : undefined
+      })
+      if (preview.installment <= 0) {
+        return NextResponse.json({ error: 'Enter a payment amount or remaining term.' }, { status: 400 })
       }
-      const cycle = parsePayCycle(staff.payCycle)
-      const remainingPays = paysForLoanTerm(cycle, termCount, termUnit)
-      const installment = loanInstallment(loan.remaining, remainingPays)
       const paidPays = loan.repayments.length
       await prisma.staffLoan.update({
         where: { id: loan.id },
         data: {
-          installment,
-          termPays: paidPays + remainingPays
+          installment: preview.installment,
+          termPays: paidPays + preview.termPays
         }
       })
-      await applyLoanToDraftLines(id, loanThisPay(installment, loan.remaining))
+      await applyLoanToDraftLines(id, loanThisPay(preview.installment, loan.remaining))
       return NextResponse.json(await present(id, null))
     }
 

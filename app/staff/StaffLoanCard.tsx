@@ -5,8 +5,11 @@ import { formatDateOnlyForDisplay } from '@/lib/datetime-policy'
 import { parsePayCycle, payCycleLabel, type PayCycle } from '@/lib/pay-cycle'
 import { formatMoney, parseMoney } from '@/lib/pay-run'
 import {
+  loanInstallment,
   parseLoanTermUnit,
+  paysForLoanTerm,
   previewStaffLoan,
+  termPaysForInstallment,
   type LoanTermUnit
 } from '@/lib/staff-loan'
 
@@ -66,6 +69,8 @@ export default function StaffLoanCard({
   const [principal, setPrincipal] = useState('')
   const [termCount, setTermCount] = useState('5')
   const [termUnit, setTermUnit] = useState<LoanTermUnit>('months')
+  const [installment, setInstallment] = useState('')
+  const [lastEdited, setLastEdited] = useState<'term' | 'amount'>('term')
   const [startDate, setStartDate] = useState('')
 
   const load = useCallback(async () => {
@@ -92,23 +97,38 @@ export default function StaffLoanCard({
   const openEnded = !loan && (data?.legacyLoan || legacyLoan) > 0 ? data?.legacyLoan || legacyLoan : 0
 
   const preview = useMemo(() => {
-    const amount = parseMoney(principal)
+    const amount = modal === 'adjust' && loan ? loan.remaining : parseMoney(principal)
     const count = Number(termCount)
-    if (amount <= 0 || !Number.isFinite(count) || count < 1 || !startDate) return null
+    const chosen = parseMoney(installment)
+    if (amount <= 0 || !startDate) return null
+    if (lastEdited === 'amount') {
+      if (chosen <= 0) return null
+      return previewStaffLoan({
+        principal: amount,
+        termCount: 1,
+        termUnit: 'pays',
+        cycle,
+        startDate,
+        installment: chosen
+      })
+    }
+    if (!Number.isFinite(count) || count < 1) return null
     return previewStaffLoan({
-      principal: modal === 'adjust' && loan ? loan.remaining : amount,
+      principal: amount,
       termCount: count,
       termUnit,
       cycle,
-      startDate: modal === 'adjust' && loan ? loan.startDate : startDate
+      startDate
     })
-  }, [principal, termCount, termUnit, startDate, cycle, modal, loan])
+  }, [principal, termCount, termUnit, installment, lastEdited, startDate, cycle, modal, loan])
 
   const openAdd = () => {
     const today = new Date().toISOString().slice(0, 10)
     setPrincipal('')
     setTermCount('5')
     setTermUnit('months')
+    setInstallment('')
+    setLastEdited('term')
     setStartDate(today)
     setError(null)
     setModal('add')
@@ -116,12 +136,59 @@ export default function StaffLoanCard({
 
   const openAdjust = () => {
     if (!loan) return
+    const today = new Date().toISOString().slice(0, 10)
     setPrincipal(String(loan.remaining))
-    setTermCount('1')
+    setInstallment(String(loan.installment))
+    setTermCount(String(termPaysForInstallment(loan.remaining, loan.installment)))
     setTermUnit('pays')
-    setStartDate(loan.startDate)
+    setLastEdited('amount')
+    setStartDate(today)
     setError(null)
     setModal('adjust')
+  }
+
+  const balanceAmount = () => (modal === 'adjust' && loan ? loan.remaining : parseMoney(principal))
+
+  const changePrincipal = (value: string) => {
+    setPrincipal(value)
+    const total = parseMoney(value)
+    if (lastEdited === 'amount') {
+      const due = parseMoney(installment)
+      if (total > 0 && due > 0) {
+        setTermCount(String(termPaysForInstallment(total, due)))
+        setTermUnit('pays')
+      }
+      return
+    }
+    const pays = paysForLoanTerm(cycle, Number(termCount), termUnit)
+    if (total > 0 && pays > 0) setInstallment(String(loanInstallment(total, pays)))
+  }
+
+  const changeTermCount = (value: string) => {
+    setTermCount(value)
+    setLastEdited('term')
+    const total = balanceAmount()
+    const pays = paysForLoanTerm(cycle, Number(value), termUnit)
+    if (total > 0 && pays > 0) setInstallment(String(loanInstallment(total, pays)))
+  }
+
+  const changeTermUnit = (value: LoanTermUnit) => {
+    setTermUnit(value)
+    setLastEdited('term')
+    const total = balanceAmount()
+    const pays = paysForLoanTerm(cycle, Number(termCount), value)
+    if (total > 0 && pays > 0) setInstallment(String(loanInstallment(total, pays)))
+  }
+
+  const changeInstallment = (value: string) => {
+    setInstallment(value)
+    setLastEdited('amount')
+    const total = balanceAmount()
+    const due = parseMoney(value)
+    if (total > 0 && due > 0) {
+      setTermCount(String(termPaysForInstallment(total, due)))
+      setTermUnit('pays')
+    }
   }
 
   const submit = async () => {
@@ -138,9 +205,15 @@ export default function StaffLoanCard({
                 principal: parseMoney(principal),
                 termCount: Number(termCount),
                 termUnit,
-                startDate
+                startDate,
+                installment: preview?.installment ?? parseMoney(installment)
               }
-            : { action: 'adjust', termCount: Number(termCount), termUnit }
+            : {
+                action: 'adjust',
+                termCount: Number(termCount),
+                termUnit,
+                installment: preview?.installment ?? parseMoney(installment)
+              }
         )
       })
       const body = await res.json().catch(() => ({}))
@@ -295,20 +368,22 @@ export default function StaffLoanCard({
 
       {modal ? (
         <LoanModal
-          title={modal === 'add' ? 'Add staff loan' : 'Adjust remaining term'}
+          title={modal === 'add' ? 'Add staff loan' : 'Adjust loan'}
           cycle={cycle}
           principal={principal}
           termCount={termCount}
           termUnit={termUnit}
+          installment={installment}
           startDate={startDate}
           showPrincipal={modal === 'add'}
           showStart={modal === 'add'}
           preview={preview}
           error={error}
           busy={busy}
-          onPrincipal={setPrincipal}
-          onTermCount={setTermCount}
-          onTermUnit={setTermUnit}
+          onPrincipal={changePrincipal}
+          onTermCount={changeTermCount}
+          onTermUnit={changeTermUnit}
+          onInstallment={changeInstallment}
           onStartDate={setStartDate}
           onClose={() => {
             setModal(null)
@@ -327,6 +402,7 @@ function LoanModal({
   principal,
   termCount,
   termUnit,
+  installment,
   startDate,
   showPrincipal,
   showStart,
@@ -336,6 +412,7 @@ function LoanModal({
   onPrincipal,
   onTermCount,
   onTermUnit,
+  onInstallment,
   onStartDate,
   onClose,
   onSubmit
@@ -345,6 +422,7 @@ function LoanModal({
   principal: string
   termCount: string
   termUnit: LoanTermUnit
+  installment: string
   startDate: string
   showPrincipal: boolean
   showStart: boolean
@@ -354,6 +432,7 @@ function LoanModal({
   onPrincipal: (value: string) => void
   onTermCount: (value: string) => void
   onTermUnit: (value: LoanTermUnit) => void
+  onInstallment: (value: string) => void
   onStartDate: (value: string) => void
   onClose: () => void
   onSubmit: () => void
@@ -385,10 +464,21 @@ function LoanModal({
             </label>
           ) : (
             <p className="text-sm text-gray-700">
-              Remaining {principal ? formatMoney(parseMoney(principal)) : '—'}. Choose how many pays are
-              left.
+              Remaining {principal ? formatMoney(parseMoney(principal)) : '—'}. Change the amount each
+              pay or how long is left.
             </p>
           )}
+          <label className="block">
+            <span className="block text-sm font-medium text-gray-700 mb-1">Each pay</span>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={installment}
+              onChange={(e) => onInstallment(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            />
+          </label>
           <div>
             <span className="block text-sm font-medium text-gray-700 mb-1">Repay over</span>
             <div className="flex gap-2">
@@ -428,10 +518,12 @@ function LoanModal({
               <dt>Pay runs</dt>
               <dd className="tabular-nums">{preview.termPays}</dd>
             </div>
-            <div className="flex justify-between gap-3">
-              <dt>Each pay</dt>
-              <dd className="tabular-nums">{formatMoney(preview.installment)}</dd>
-            </div>
+            {preview.lastInstallment !== preview.installment ? (
+              <div className="flex justify-between gap-3">
+                <dt>Last payment</dt>
+                <dd className="tabular-nums">{formatMoney(preview.lastInstallment)}</dd>
+              </div>
+            ) : null}
             <div className="flex justify-between gap-3">
               <dt>Last pay expected</dt>
               <dd>{formatDateOnlyForDisplay(preview.lastPayDate)}</dd>

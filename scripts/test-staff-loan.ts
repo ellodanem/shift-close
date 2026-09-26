@@ -11,7 +11,8 @@ import {
   loanThisPay,
   nextPayDate,
   paysForLoanTerm,
-  previewStaffLoan
+  previewStaffLoan,
+  termPaysForInstallment
 } from '../lib/staff-loan'
 
 describe('staff loan math', () => {
@@ -55,6 +56,23 @@ describe('staff loan math', () => {
     assert.equal(preview.termPays, 10)
     assert.equal(preview.installment, 200)
     assert.equal(preview.lastPayDate, '2027-01-31')
+  })
+
+  it('keeps a chosen payment amount and stretches the term', () => {
+    assert.equal(termPaysForInstallment(5000, 50), 100)
+    assert.equal(termPaysForInstallment(5000, 75), 67)
+    assert.equal(lastLoanInstallment(5000, 67, 75), 50)
+    assert.equal(termPaysForInstallment(1000, 333.33), 3)
+    const preview = previewStaffLoan({
+      principal: 5000,
+      termCount: 5,
+      termUnit: 'months',
+      cycle: 'semimonthly',
+      startDate: '2026-09-16',
+      installment: 50
+    })
+    assert.equal(preview.installment, 50)
+    assert.equal(preview.termPays, 100)
   })
 })
 
