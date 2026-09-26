@@ -3,16 +3,17 @@ import { describe, it } from 'node:test'
 import {
   buildGlSummary,
   buildPayslipLine,
+  payPeriodCycleNumber,
   buildPayslipPeriodTotals,
-  payPeriodCycleDay,
   renderGlHtml,
   renderPayslipsHtml
 } from '../lib/payroll-print'
 
 describe('payslips', () => {
-  it('uses the period end day as the pay cycle', () => {
-    assert.equal(payPeriodCycleDay('2026-08-15'), '15')
-    assert.equal(payPeriodCycleDay('2026-08-31'), '31')
+  it('numbers the pay cycle the way Pay+ does', () => {
+    assert.equal(payPeriodCycleNumber('2026-05-31'), '10')
+    assert.equal(payPeriodCycleNumber('2026-05-15'), '9')
+    assert.equal(payPeriodCycleNumber('2026-08-15'), '15')
   })
 
   it('lists earnings and deductions the way a payslip does', () => {
@@ -33,10 +34,10 @@ describe('payslips', () => {
       netPay: 774.02
     })
     assert.ok(slip)
-    assert.deepEqual(slip.earnings, [{ label: 'Basic', amount: 900 }])
+    assert.deepEqual(slip.earnings, [{ label: 'Basic', amount: 900, ytd: 900 }])
     assert.deepEqual(slip.deductions, [
-      { label: 'N.I.S.', amount: 45 },
-      { label: 'Medical Insurance', amount: 80.98 }
+      { label: 'N.I.S.', amount: 45, ytd: 45 },
+      { label: 'Medical Insurance', amount: 80.98, ytd: 80.98 }
     ])
     assert.equal(slip.netPay, 774.02)
     assert.equal(slip.nisNumber, '289864')
@@ -144,7 +145,7 @@ describe('payslips', () => {
     assert.match(html, /289864/)
     assert.match(html, /Medical Insurance/)
     assert.match(html, /N\.I\.S\./)
-    assert.match(html, /NET:/)
+    assert.match(html, /NET :/)
     assert.match(html, /774\.02/)
     assert.match(html, /519\.06/)
     assert.match(html, /Printed:/)
@@ -161,6 +162,15 @@ describe('payslips', () => {
     assert.match(html, /NET :/)
     assert.match(html, /1293\.08/)
     assert.match(html, /Page: 2/)
+    assert.match(html, /RATE/)
+    assert.match(html, /HOURS/)
+    assert.match(html, /YTD/)
+    assert.match(html, /Total Auto/)
+    assert.match(html, /CENTRE:/)
+    assert.match(html, /CUL DE SAC/)
+    assert.match(html, /PERIOD:/)
+    assert.match(html, /Bi-monthly/)
+    assert.match(html, /NET :/)
   })
 
   it('adds bonus and PAYE into the period totals', () => {

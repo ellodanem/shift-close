@@ -1,8 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { payCycleLabel } from '@/lib/pay-cycle'
+import { parsePayCycle, payCycleLabel } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
-import { formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
+import { OT_MULTIPLIER, formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
 export type NisPrintLine = {
   staffName: string
@@ -159,6 +159,23 @@ function hoursCell(line: PayrollPreviewLine): string {
 export type PayslipAmount = {
   label: string
   amount: number
+  rate?: number
+  hours?: number
+  ytd?: number
+}
+
+export type PayslipYtd = {
+  basicPay: number
+  otPay: number
+  extraPay: number
+  grossPay: number
+  nisEmployee: number
+  staffLoan: number
+  medical: number
+  shortageReady: number
+  extraDeductionPay: number
+  totalDeductions: number
+  netPay: number
 }
 
 export type PayslipLine = {
@@ -168,14 +185,23 @@ export type PayslipLine = {
   earnings: PayslipAmount[]
   deductions: PayslipAmount[]
   grossPay: number
+  grossYtd: number
   totalDeductions: number
+  deductionsYtd: number
   netPay: number
+  bankLabel: string
+  periodLabel: string
 }
 
 export type PayslipSourceLine = {
   staffName: string
   staffNo?: string | null
   taxCode?: string | null
+  payType?: string | null
+  payCycle?: string | null
+  hourlyRate?: number | null
+  basicHours?: number | null
+  otHours?: number | null
   basicPay: number
   otPay: number
   extraLines?: PayRunExtraLine[] | null
@@ -187,6 +213,9 @@ export type PayslipSourceLine = {
   grossPay: number
   totalDeductions: number
   netPay: number
+  ytd?: PayslipYtd | null
+  bankCode?: string | null
+  accountNo?: string | null
 }
 
 export type PayslipPrintInput = {
@@ -206,37 +235,108 @@ function plainMoney(n: number): string {
   return round2(n).toFixed(2)
 }
 
-function pushAmount(rows: PayslipAmount[], label: string, amount: number) {
+function pushAmount(rows: PayslipAmount[], label: string, amount: number, extra?: Partial<PayslipAmount>) {
   const n = round2(amount)
   if (!Number.isFinite(n) || n === 0) return
-  rows.push({ label, amount: n })
+  const row: PayslipAmount = { label, amount: n }
+  if (extra?.rate) row.rate = round2(extra.rate)
+  if (extra?.hours) row.hours = round2(extra.hours)
+  if (extra?.ytd !== undefined && Number.isFinite(extra.ytd)) row.ytd = round2(extra.ytd)
+  rows.push(row)
 }
 
-/** Day the period ends. Pay+ prints that day as PAY CYCLE (15 for a 1st–15th run). */
+/**
+ * Pay+ period number. Semi-monthly pays are numbered from 1 in January,
+ * so 15 May is 9 and 31 May is 10.
+ */
+export function payPeriodCycleNumber(endDate: string): string {
+  const [, monthText, dayText] = endDate.split('-')
+  const month = Number(monthText)
+  const day = Number(dayText)
+  if (!month || !day) return ''
+  return String((month - 1) * 2 + (day <= 15 ? 1 : 2))
+}
+
+/** @deprecated Use payPeriodCycleNumber. Kept so older checks of the end day still run. */
 export function payPeriodCycleDay(endDate: string): string {
   const day = endDate.split('-')[2]
   if (!day || !/^\d{1,2}$/.test(day)) return ''
   return String(Number(day))
 }
 
+function payslipPeriodName(cycle: unknown): string {
+  switch (parsePayCycle(cycle)) {
+    case 'weekly':
+      return 'Weekly'
+    case 'biweekly':
+      return 'Bi-weekly'
+    case 'monthly':
+      return 'Monthly'
+    default:
+      return 'Bi-monthly'
+  }
+}
+
+function payslipBankLabel(code?: string | null, account?: string | null): string {
+  const raw = (code ?? '').trim().toUpperCase()
+  const accountNo = (account ?? '').trim()
+  const short = raw === 'REPUBLIC' ? 'REP' : raw
+  if (!short && !accountNo) return ''
+  if (!accountNo) return short
+  return `${short || 'BANK'} ( ${accountNo} )`
+}
+
+function ytdOrCurrent(ytd: number | undefined, current: number): number {
+  return round2(ytd ?? current)
+}
+
 export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
+  const hourly = line.payType === 'hourly'
+  const hourlyRate = line.hourlyRate && line.hourlyRate > 0 ? round2(line.hourlyRate) : undefined
+  const ytd = line.ytd
   const earnings: PayslipAmount[] = []
-  pushAmount(earnings, 'Basic', line.basicPay)
-  pushAmount(earnings, 'Overtime', line.otPay)
-  for (const extra of visibleExtraLines(line.extraLines ?? [])) {
-    pushAmount(earnings, extra.label || 'Extra', extra.amount)
+  pushAmount(earnings, 'Basic', line.basicPay, {
+    rate: hourly ? hourlyRate : undefined,
+    hours: hourly && line.basicHours ? line.basicHours : undefined,
+    ytd: ytdOrCurrent(ytd?.basicPay, line.basicPay)
+  })
+  pushAmount(earnings, 'Overtime', line.otPay, {
+    rate: hourly && hourlyRate ? round2(hourlyRate * OT_MULTIPLIER) : undefined,
+    hours: line.otHours || undefined,
+    ytd: ytdOrCurrent(ytd?.otPay, line.otPay)
+  })
+  const extraEarnings = visibleExtraLines(line.extraLines ?? [])
+  for (const extra of extraEarnings) {
+    pushAmount(earnings, extra.label || 'Extra', extra.amount, {
+      hours: extra.hours,
+      rate: extra.hours && hourlyRate ? hourlyRate : undefined,
+      ytd: extraEarnings.length === 1 ? ytd?.extraPay : undefined
+    })
   }
   if (earnings.length === 0 && round2(line.grossPay) !== 0) {
-    pushAmount(earnings, 'Basic', line.grossPay)
+    pushAmount(earnings, 'Basic', line.grossPay, { ytd: ytdOrCurrent(ytd?.grossPay, line.grossPay) })
   }
 
   const deductions: PayslipAmount[] = []
-  pushAmount(deductions, 'N.I.S.', line.nisEmployee)
-  pushAmount(deductions, 'Medical Insurance', line.medical)
-  pushAmount(deductions, 'Staff Loan', line.staffLoan)
-  pushAmount(deductions, 'Shortage', line.shortageReady)
-  for (const extra of line.extraDeductions ?? []) {
-    pushAmount(deductions, extra.label || 'Other', extra.amount)
+  const extras = line.extraDeductions ?? []
+  const paye = extras.filter((extra) => {
+    const key = labelKey(extra.label)
+    return key === 'paye' || key === 'payetax'
+  })
+  const otherExtras = extras.filter((extra) => !paye.includes(extra))
+  for (const extra of paye) {
+    pushAmount(deductions, 'P.A.Y.E.', extra.amount, {
+      ytd: paye.length === 1 ? ytd?.extraDeductionPay : undefined
+    })
+  }
+  pushAmount(deductions, 'N.I.S.', line.nisEmployee, { ytd: ytdOrCurrent(ytd?.nisEmployee, line.nisEmployee) })
+  pushAmount(deductions, 'Medical Insurance', line.medical, { ytd: ytdOrCurrent(ytd?.medical, line.medical) })
+  pushAmount(deductions, 'Staff Loan', line.staffLoan, { ytd: ytdOrCurrent(ytd?.staffLoan, line.staffLoan) })
+  pushAmount(deductions, 'Shortage', line.shortageReady, { ytd: ytdOrCurrent(ytd?.shortageReady, line.shortageReady) })
+  for (const extra of otherExtras) {
+    pushAmount(deductions, extra.label || 'Other', extra.amount, {
+      ytd: otherExtras.length === 1 && paye.length === 0 ? ytd?.extraDeductionPay : undefined
+    })
   }
 
   const grossPay = round2(line.grossPay)
@@ -251,8 +351,12 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
     earnings,
     deductions,
     grossPay,
+    grossYtd: ytdOrCurrent(ytd?.grossPay, grossPay),
     totalDeductions,
-    netPay
+    deductionsYtd: ytdOrCurrent(ytd?.totalDeductions, totalDeductions),
+    netPay,
+    bankLabel: payslipBankLabel(line.bankCode, line.accountNo),
+    periodLabel: payslipPeriodName(line.payCycle)
   }
 }
 
@@ -263,8 +367,8 @@ function payslipPages(lines: PayslipLine[]): PayslipLine[][] {
   const pageBody = 820
   for (const line of lines) {
     const rows = Math.max(line.earnings.length, line.deductions.length, 1)
-    const height = 58 + rows * 16
-    if (current.length > 0 && used + height > pageBody) {
+    const height = 150 + rows * 14
+    if (current.length >= 3 || (current.length > 0 && used + height > pageBody)) {
       pages.push(current)
       current = []
       used = 0
@@ -321,62 +425,77 @@ export function buildPayslipPeriodTotals(lines: PayslipSourceLine[]): PayslipPer
   return totals
 }
 
-function slipHtml(line: PayslipLine, payDate: string, cycleDay: string): string {
-  const count = Math.max(line.earnings.length, line.deductions.length)
+function cellQty(value: number | undefined): string {
+  return value ? plainMoney(value) : ''
+}
+
+function slipHtml(line: PayslipLine, payDate: string, cycleDay: string, periodRange: string): string {
+  const count = Math.max(line.earnings.length, line.deductions.length, 1)
   const itemRows = Array.from({ length: count }, (_, index) => {
     const earning = line.earnings[index]
     const deduction = line.deductions[index]
     return `<tr>
       <td>${earning ? escapePayPeriodHtml(earning.label) : ''}</td>
+      <td class="num">${cellQty(earning?.rate)}</td>
+      <td class="num">${cellQty(earning?.hours)}</td>
       <td class="num">${earning ? plainMoney(earning.amount) : ''}</td>
+      <td class="num">${cellQty(earning?.ytd)}</td>
       <td class="ded">${deduction ? escapePayPeriodHtml(deduction.label) : ''}</td>
       <td class="num">${deduction ? plainMoney(deduction.amount) : ''}</td>
-      <td></td>
+      <td class="num">${cellQty(deduction?.ytd)}</td>
       <td></td>
     </tr>`
   }).join('')
-  const deductionTotal = line.totalDeductions !== 0 ? plainMoney(line.totalDeductions) : ''
-  return `<table class="slip">
-    <colgroup>
-      <col class="c-label" />
-      <col class="c-amt" />
-      <col class="c-ded" />
-      <col class="c-amt" />
-      <col class="c-net" />
-      <col class="c-amt" />
-    </colgroup>
-    <tbody>
-      <tr>
-        <td class="id" colspan="6">
-          <div class="id-row">
-            <div class="payee"><span class="lbl">PAYEE</span> ${escapePayPeriodHtml(line.staffName)}</div>
-            <div><span class="lbl">PAY DATE:</span> ${escapePayPeriodHtml(payDate)}</div>
-            <div><span class="lbl">PAY CYCLE:</span> ${escapePayPeriodHtml(cycleDay)}</div>
-            <div class="tax"><span class="tax-stack">TAX<br>CODE</span><span>${escapePayPeriodHtml(line.taxCode)}</span></div>
-            <div><span class="lbl">NIS #:</span> ${escapePayPeriodHtml(line.nisNumber)}</div>
-            <div class="nis-box">${escapePayPeriodHtml(line.nisNumber)}</div>
-          </div>
-        </td>
-      </tr>
-      <tr class="col-h">
-        <th>EARNINGS</th>
-        <th class="num">AMOUNT</th>
-        <th class="ded">DEDUCTIONS</th>
-        <th class="num">AMOUNT</th>
-        <th></th>
-        <th></th>
-      </tr>
-      ${itemRows}
-      <tr class="tot">
-        <td></td>
-        <td class="num">${plainMoney(line.grossPay)}</td>
-        <td></td>
-        <td class="num">${deductionTotal}</td>
-        <td class="net">NET:</td>
-        <td class="num net">${plainMoney(line.netPay)}</td>
-      </tr>
-    </tbody>
-  </table>`
+  const bank = line.bankLabel
+    ? `<div><span class="k">BANK:</span> ${escapePayPeriodHtml(line.bankLabel)}</div>`
+    : ''
+  return `<article class="slip">
+    <div class="id-row">
+      <div class="payee"><span class="lbl">PAYEE:</span> ${escapePayPeriodHtml(line.staffName)}</div>
+      <div><span class="lbl">PAY DATE:</span> ${escapePayPeriodHtml(payDate)}</div>
+      <div><span class="lbl">PAY CYCLE:</span> ${escapePayPeriodHtml(cycleDay)}</div>
+      <div><span class="lbl">TAX CODE:</span> ${escapePayPeriodHtml(line.taxCode)}</div>
+      <div><span class="lbl">NIS #:</span> ${escapePayPeriodHtml(line.nisNumber)}</div>
+      <div class="nis-box">${escapePayPeriodHtml(line.nisNumber)}</div>
+    </div>
+    <table class="grid">
+      <colgroup>
+        <col class="c-earn" /><col class="c-rate" /><col class="c-hours" /><col class="c-amt" /><col class="c-ytd" />
+        <col class="c-ded" /><col class="c-amt" /><col class="c-ytd" /><col class="c-bal" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>EARNINGS</th><th class="num">RATE</th><th class="num">HOURS</th><th class="num">AMOUNT</th><th class="num">YTD</th>
+          <th class="ded">DEDUCTIONS</th><th class="num">AMOUNT</th><th class="num">YTD</th><th class="num">BALANCE</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+      <tfoot>
+        <tr>
+          <td class="net-label" colspan="2">NET :</td>
+          <td class="net-box">${plainMoney(line.netPay)}</td>
+          <td class="num">${plainMoney(line.grossPay)}</td>
+          <td class="num">${plainMoney(line.grossYtd)}</td>
+          <td></td>
+          <td class="num">${line.totalDeductions ? plainMoney(line.totalDeductions) : ''}</td>
+          <td class="num">${line.deductionsYtd ? plainMoney(line.deductionsYtd) : ''}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="slip-foot">
+      <div class="company">
+        <div>Total Auto</div>
+        <div>John Compton Highway Castries, Saint Lucia</div>
+        <div>758 4515400</div>
+      </div>
+      <div class="place">
+        <div><span class="k">CENTRE:</span> CUL DE SAC</div>
+        ${bank}
+        <div><span class="k">PERIOD:</span> ${escapePayPeriodHtml(line.periodLabel)} ( ${escapePayPeriodHtml(periodRange)} )</div>
+      </div>
+    </div>
+  </article>`
 }
 
 export function renderPayslipsHtml(input: PayslipPrintInput): string {
@@ -385,7 +504,7 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
     return slip ? [slip] : []
   })
   const payDate = mdy(input.payDate)
-  const cycleDay = payPeriodCycleDay(input.endDate)
+  const cycleDay = payPeriodCycleNumber(input.endDate)
   const period = `${mdy(input.startDate)} - ${mdy(input.endDate)}`
   const printed = new Date()
   const printedLabel = `${String(printed.getMonth() + 1).padStart(2, '0')}/${String(printed.getDate()).padStart(2, '0')}/${printed.getFullYear()}`
@@ -425,14 +544,10 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
       .map((page, index) => {
         const content =
           page.length > 0
-            ? page.map((line) => slipHtml(line, payDate, cycleDay)).join('')
+            ? page.map((line) => slipHtml(line, payDate, cycleDay, period)).join('')
             : '<p class="empty">No payslips for this payroll.</p>'
         return `<section class="page">
-        <header class="banner">
-          <div class="banner-title">Payslips</div>
-          <div class="banner-range">${escapePayPeriodHtml(period)}</div>
-          ${voided}
-        </header>
+        ${voided}
         ${content}
         <footer>Printed: ${printedLabel}<span>Page: ${index + 1}</span></footer>
       </section>`
@@ -491,26 +606,21 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
       .reg-break div + div { margin-top: 10px; }
       .void { margin: 4px 0 0; font-weight: 700; }
       .empty { margin-top: 24px; }
-      .slip { width: 100%; border-collapse: collapse; margin-top: 10px; page-break-inside: avoid; }
-      .slip th, .slip td { padding: 0 6px 0 0; text-align: left; font-weight: 400; vertical-align: baseline; }
-      .c-label { width: 22%; }
-      .c-ded { width: 22%; }
-      .c-amt { width: 12%; }
-      .c-net { width: 8%; }
-      .id { border-bottom: 1px solid #111; padding: 0 0 2px; }
+      .slip { margin-top: 16px; page-break-inside: avoid; }
+      .slip:first-child { margin-top: 0; }
       .id-row {
         width: 100%;
         display: grid;
-        grid-template-columns: minmax(138px, 1.45fr) minmax(108px, 1.15fr) minmax(74px, 0.9fr) minmax(46px, 0.5fr) minmax(76px, 0.95fr) auto;
+        grid-template-columns: minmax(120px, 1.35fr) auto auto auto auto auto;
         align-items: center;
         column-gap: 8px;
         font-size: 10px;
+        border-bottom: 1px solid #111;
+        padding-bottom: 2px;
       }
       .id-row > div { white-space: nowrap; }
       .payee { overflow: hidden; text-overflow: ellipsis; }
       .lbl { font-weight: 700; }
-      .tax { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-      .tax-stack { font-size: 8px; font-weight: 700; line-height: 1.05; }
       .nis-box {
         justify-self: end;
         border: 1.5px solid #111;
@@ -519,13 +629,31 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
         text-align: center;
         font-weight: 700;
       }
-      .col-h th { font-weight: 700; padding-top: 3px; }
-      .ded { padding-left: 18px; }
-      .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 0; }
-      .tot td { padding-top: 1px; }
-      .tot td.num { border-top: 1px solid #111; }
-      .tot td.net, .tot td.num.net { border-top: 0; font-weight: 700; }
-      .tot td.net { text-align: left; padding-left: 12px; }
+      .grid { width: 100%; border-collapse: collapse; margin-top: 2px; }
+      .grid th, .grid td { padding: 1px 4px 1px 0; text-align: left; font-weight: 400; vertical-align: baseline; }
+      .grid th { font-weight: 700; }
+      .c-earn { width: 16%; }
+      .c-rate, .c-hours { width: 7%; }
+      .c-amt { width: 11%; }
+      .c-ytd { width: 12%; }
+      .c-ded { width: 16%; }
+      .c-bal { width: 8%; }
+      .ded { padding-left: 8px; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .grid tfoot td { border-top: 1px solid #111; border-bottom: 1px solid #111; padding-top: 2px; padding-bottom: 2px; }
+      .net-label { color: #0000cc; font-weight: 700; border-bottom: 0; }
+      .net-box {
+        color: #0000cc;
+        font-weight: 700;
+        text-align: center;
+        border: 1.5px solid #111;
+        width: 1%;
+        white-space: nowrap;
+      }
+      .slip-foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 3px; font-size: 9px; }
+      .company { text-align: center; flex: 1; }
+      .place { color: #0000cc; text-align: right; font-style: italic; }
+      .place .k { font-style: italic; font-weight: 700; }
       footer { position: absolute; right: 0.48in; bottom: 0.28in; font-size: 11px; }
       footer span { margin-left: 16px; }
     </style>
