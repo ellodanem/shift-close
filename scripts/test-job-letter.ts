@@ -5,6 +5,8 @@ import {
   buildJobLetter,
   employmentTenure,
   formatJobLetterDate,
+  jobLetterBodyText,
+  jobLetterPrintHtml,
   jobLetterLaterName,
   monthlyBasicSalary
 } from '../lib/job-letter'
@@ -52,7 +54,7 @@ describe('job letter', () => {
       '2025-07-08'
     )
 
-    assert.match(letter, /^Total Auto Inc\.\nJohn Compton Highway & Cul-de-sac\nGm 674, Castries\nTele\. \(758\) 451-4500\/458-2943\/451-5969/)
+    assert.match(letter, /^Total Auto Inc\.\nJohn Compton Highway & Cul-de-sac\nCastries, St Lucia\nTele\. \(758\) 451-5969 or 451-5400/)
     assert.match(letter, /July 8, 2025/)
     assert.match(letter, /The Manager\n\nDear Sir\/Madam,/)
     assert.match(
@@ -64,6 +66,12 @@ describe('job letter', () => {
       /Ms\. Poleon has indicated an interest in doing business with your company\.\nAny courtesies extended would be greatly appreciated\./
     )
     assert.match(letter, /Yours truly,\n\n\nElrus Elcock\nManaging Director$/)
+    const printHtml = jobLetterPrintHtml('Job letter', jobLetterBodyText(letter))
+    assert.match(printHtml, /<h1>Total Auto Inc\.<\/h1>/)
+    assert.match(printHtml, /John Compton Highway &amp; Cul-de-sac/)
+    assert.match(printHtml, /Castries, St Lucia/)
+    assert.match(printHtml, /Tele\. \(758\) 451-5969 or 451-5400/)
+    assert.equal((printHtml.match(/Total Auto Inc\./g) || []).length, 2)
     assert.doesNotMatch(letter, /\[Not provided\]|\[Company Name\]|JOB LETTER/)
   })
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DocumentGenerationModal from './DocumentGenerationModal'
+import GeneratedDocumentDialog from './GeneratedDocumentDialog'
 import StaffReliabilityGrade from '@/app/components/StaffReliabilityGrade'
 
 interface Staff {
@@ -192,28 +193,6 @@ export default function StaffPage() {
     }
   }
 
-  const handlePrintDocument = () => {
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} - ${previewStaffName}</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
-              pre { white-space: pre-wrap; font-family: Arial, sans-serif; }
-            </style>
-          </head>
-          <body>
-            <pre>${generatedContent}</pre>
-          </body>
-        </html>
-      `)
-      printWindow.document.close()
-      printWindow.print()
-    }
-  }
-
   const getStatusColor = (status: string) => {
     return status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
   }
@@ -333,42 +312,13 @@ export default function StaffPage() {
         )}
 
         {showGeneratedPreview && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">
-                  {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1).replace('-', ' ')} -{' '}
-                  {previewStaffName}
-                </h3>
-                <button
-                  onClick={() => setShowGeneratedPreview(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              <textarea
-                value={generatedContent}
-                onChange={(e) => setGeneratedContent(e.target.value)}
-                rows={20}
-                className="w-full border border-gray-300 rounded px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex gap-3 justify-end mt-4">
-                <button
-                  onClick={() => setShowGeneratedPreview(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={handlePrintDocument}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
-                >
-                  Print / Save as PDF
-                </button>
-              </div>
-            </div>
-          </div>
+          <GeneratedDocumentDialog
+            title={`${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1).replace('-', ' ')} - ${previewStaffName}`}
+            templateType={selectedTemplate}
+            content={generatedContent}
+            onChange={setGeneratedContent}
+            onClose={() => setShowGeneratedPreview(false)}
+          />
         )}
       </div>
     </div>

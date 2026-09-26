@@ -2,12 +2,12 @@ import { businessTodayYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { parsePayCycle, type PayCycle } from '@/lib/pay-cycle'
 import { formatMoney, parseOptionalMoney } from '@/lib/pay-run'
 
-/** Letterhead and close taken from the Total Auto job-letter template. */
+/** Letterhead and close taken from the Total Auto job-letter samples. */
 export const JOB_LETTER_COMPANY = {
   name: 'Total Auto Inc.',
   addressLine: 'John Compton Highway & Cul-de-sac',
-  boxLine: 'Gm 674, Castries',
-  phoneLine: 'Tele. (758) 451-4500/458-2943/451-5969',
+  cityLine: 'Castries, St Lucia',
+  phoneLine: 'Tele. (758) 451-5969 or 451-5400',
   signatory: 'Elrus Elcock',
   signatoryTitle: 'Managing Director'
 } as const
@@ -310,10 +310,10 @@ export function buildJobLetter(input: JobLetterInput, asOfYmd = businessTodayYmd
   const confirm = employmentSentence(full, position, input.startDate, asOfYmd, hourly)
   const earnings = hourly ? hourlyEarningsSentence(later, input) : salariedEarningsSentence(later, input)
   const body = earnings ? `${confirm} ${earnings}` : confirm
-  const { name, addressLine, boxLine, phoneLine, signatory, signatoryTitle } = JOB_LETTER_COMPANY
+  const { signatory, signatoryTitle } = JOB_LETTER_COMPANY
 
   return [
-    [name, addressLine, boxLine, phoneLine].join('\n'),
+    jobLetterHeadText(),
     formatJobLetterDate(asOfYmd),
     'The Manager',
     'Dear Sir/Madam,',
@@ -321,4 +321,76 @@ export function buildJobLetter(input: JobLetterInput, asOfYmd = businessTodayYmd
     interestParagraph(full, later, hourly),
     `Yours truly,\n\n\n${signatory}\n${signatoryTitle}`
   ].join('\n\n')
+}
+
+export function jobLetterHeadText(): string {
+  const { name, addressLine, cityLine, phoneLine } = JOB_LETTER_COMPANY
+  return [name, addressLine, cityLine, phoneLine].join('\n')
+}
+
+/** Letter text under the formatted letterhead. */
+export function jobLetterBodyText(content: string): string {
+  const head = jobLetterHeadText()
+  if (!content.startsWith(head)) return content
+  return content.slice(head.length).replace(/^\n+/, '')
+}
+
+export function withJobLetterHead(body: string): string {
+  return `${jobLetterHeadText()}\n\n${body.replace(/^\n+/, '')}`
+}
+
+function escapeLetterHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** Printable page whose letterhead matches the Word sample: centered name, italic address, rule. */
+export function jobLetterPrintHtml(title: string, body: string): string {
+  const { name, addressLine, cityLine, phoneLine } = JOB_LETTER_COMPANY
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeLetterHtml(title)}</title>
+  <style>
+    @page { margin: 0.85in; }
+    body {
+      margin: 0;
+      color: #111;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.45;
+    }
+    .letterhead { text-align: center; }
+    .letterhead h1 {
+      margin: 0;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 28pt;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .letterhead p {
+      margin: 1px 0 0;
+      font-size: 12pt;
+      font-style: italic;
+      line-height: 1.3;
+    }
+    .letterhead hr {
+      margin: 10px 0 16px;
+      border: 0;
+      border-top: 2px solid #111;
+    }
+    .body { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header class="letterhead">
+    <h1>${escapeLetterHtml(name)}</h1>
+    <p>${escapeLetterHtml(addressLine)}</p>
+    <p>${escapeLetterHtml(cityLine)}</p>
+    <p>${escapeLetterHtml(phoneLine)}</p>
+    <hr />
+  </header>
+  <div class="body">${escapeLetterHtml(body)}</div>
+</body>
+</html>`
 }
