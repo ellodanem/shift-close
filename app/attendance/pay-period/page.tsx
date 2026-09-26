@@ -205,25 +205,7 @@ export default function PayPeriodPage() {
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
   const [staffPayrollById, setStaffPayrollById] = useState<Record<string, StaffPayrollSnapshot>>({})
   const [staffNameById, setStaffNameById] = useState<Record<string, string>>({})
-  const [openingPayRunId, setOpeningPayRunId] = useState<string | null>(null)
   const blankStaffSaveError = reportData ? blankReportOnlyStaffSaveError(reportData.rows) : null
-
-  const handleOpenPayRun = async (payPeriodId: string) => {
-    setOpeningPayRunId(payPeriodId)
-    try {
-      const res = await fetch('/api/pay-runs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payPeriodId })
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to open pay run')
-      router.push(`/pay-run/${data.id}`)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to open pay run')
-      setOpeningPayRunId(null)
-    }
-  }
 
   const loadStaffPayroll = async (staffIds: string[]) => {
     const ids = [...new Set(staffIds.filter(Boolean))]
@@ -616,15 +598,6 @@ export default function PayPeriodPage() {
                         title="BSC / OTH hours for Pay+"
                       >
                         Time list
-                      </button>
-                      <button
-                        type="button"
-                        disabled={openingPayRunId === p.id}
-                        onClick={() => handleOpenPayRun(p.id)}
-                        className="px-3 py-1 text-sm bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200 disabled:opacity-60"
-                        title="Station gross pay from this saved period"
-                      >
-                        {openingPayRunId === p.id ? 'Opening…' : 'Pay run'}
                       </button>
                       <button
                         type="button"
