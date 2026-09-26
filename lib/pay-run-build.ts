@@ -5,10 +5,12 @@ import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   buildPayRunLines,
   computeGrossPay,
+  inferPayCycleFromRange,
   parseExtraLines,
   parseMoney,
   parsePayType,
   payPeriodSourceHash,
+  serializePayRunLine,
   type BuiltPayRunLine,
   type DeductionOverride,
   type NisTaken,
@@ -165,6 +167,49 @@ export async function rebuildPayRunLines(
     lines,
     sourceHash: payPeriodSourceHash(options.hoursRows)
   }
+}
+
+/** Save the pay range, pay date, and Pay+ cycle number. Rebuild lines when the range implies a different staff frequency. */
+export async function updatePayRunSchedule(
+  payRunId: string,
+  input: { startDate: string; endDate: string; payDate: string; cycleNumber: number }
+): Promise<{ rebuilt: boolean }> {
+  const run = await prisma.payRun.findUnique({
+    where: { id: payRunId },
+    include: { payPeriod: true }
+  })
+  if (!run) throw new Error('Pay run not found')
+  const frequency = inferPayCycleFromRange(input.startDate, input.endDate)
+  const header = {
+    startDate: input.startDate,
+    endDate: input.endDate,
+    payDate: input.payDate,
+    cycle: frequency,
+    cycleNumber: input.cycleNumber
+  }
+  if (parsePayCycle(run.cycle) === frequency) {
+    await prisma.payRun.update({ where: { id: payRunId }, data: header })
+    return { rebuilt: false }
+  }
+  const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
+  const built = await rebuildPayRunLines(payRunId, {
+    hoursRows,
+    cycle: frequency,
+    payDate: input.payDate,
+    keepOverrides: true
+  })
+  await prisma.$transaction(async (tx) => {
+    await tx.payRunLine.deleteMany({ where: { payRunId } })
+    await tx.payRun.update({
+      where: { id: payRunId },
+      data: {
+        ...header,
+        sourceHash: built.sourceHash,
+        lines: { create: built.lines.map((line, i) => serializePayRunLine(line, i)) }
+      }
+    })
+  })
+  return { rebuilt: true }
 }
 
 /** Draft lines keep the pay type from when the run was opened. Follow the staff record instead. */

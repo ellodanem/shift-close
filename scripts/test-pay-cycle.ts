@@ -3,12 +3,23 @@ import { describe, it } from 'node:test'
 import {
   DEFAULT_PAY_CYCLE,
   PAY_CYCLE_HOUR_CAPS,
+  parseCycleNumber,
   parsePayCycle,
+  payPeriodCycleNumber,
   splitPayPeriodHours
 } from '../lib/pay-cycle'
 import { buildPayPeriodTimeListAoA, buildPayPeriodWorksheetAoA } from '../lib/pay-period-excel'
 
 describe('pay cycle hours split', () => {
+  it('numbers a September 1–15 period as cycle 17', () => {
+    assert.equal(payPeriodCycleNumber('2025-09-15'), '17')
+    assert.equal(payPeriodCycleNumber('2026-05-15'), '9')
+    assert.equal(payPeriodCycleNumber('2026-05-31'), '10')
+    assert.equal(parseCycleNumber(undefined, '2025-09-15'), 17)
+    assert.equal(parseCycleNumber(18, '2025-09-15'), 18)
+    assert.equal(parseCycleNumber(0, '2025-09-15'), null)
+  })
+
   it('defaults unknown cycles to semi-monthly', () => {
     assert.equal(parsePayCycle(undefined), DEFAULT_PAY_CYCLE)
     assert.equal(parsePayCycle('Bi-monthly'), DEFAULT_PAY_CYCLE)

@@ -216,6 +216,7 @@ export function inferPayCycleFromRange(startDate: string, endDate: string): PayC
   const lastDay = new Date(end.y, end.m, 0).getDate()
   if (start.d === 1 && end.d === 15) return 'semimonthly'
   if (start.d === 16 && end.d === lastDay) return 'semimonthly'
+  if (start.d === 1 && end.d === lastDay) return 'monthly'
   if (days <= 8) return 'weekly'
   if (days >= 27) return 'monthly'
   return DEFAULT_PAY_CYCLE

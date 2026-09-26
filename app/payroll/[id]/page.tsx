@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { payCycleLabel } from '@/lib/pay-cycle'
+import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
 import { printBankingPack } from '@/lib/pay-run-banking-print'
@@ -96,6 +96,7 @@ type PayRunLine = {
 type PayRun = {
   id: string
   cycle: string
+  cycleNumber: number
   status: string
   startDate: string
   endDate: string
@@ -130,11 +131,17 @@ function moneyInput(value: number): string {
   return value ? String(value) : ''
 }
 
+function shownCycleNumber(cycleNumber: number, endDate: string): number {
+  if (cycleNumber > 0) return cycleNumber
+  return Number(payPeriodCycleNumber(endDate)) || 0
+}
+
 function payslipsFromRun(saved: PayRun): PayslipPrintInput {
   return {
     startDate: saved.startDate,
     endDate: saved.endDate,
     payDate: saved.payDate,
+    cycleNumber: shownCycleNumber(saved.cycleNumber, saved.endDate),
     status: saved.status,
     voidReason: saved.voidReason,
     lines: saved.lines
@@ -261,6 +268,7 @@ export default function PayrollRunPage() {
   const [payDate, setPayDate] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [cycleNumber, setCycleNumber] = useState('')
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [details, setDetails] = useState(false)
   const [categories, setCategories] = useState<PayrollCategory[]>(defaultPayrollCategories)
@@ -292,6 +300,7 @@ export default function PayrollRunPage() {
     setPayDate(next.payDate)
     setStartDate(next.startDate)
     setEndDate(next.endDate)
+    setCycleNumber(String(shownCycleNumber(next.cycleNumber, next.endDate)))
     const seeded: Record<string, Draft> = {}
     const savedCategories = loadPayrollCategories()
     for (const line of next.lines) seeded[line.id] = draftFromLine(line, savedCategories)
@@ -345,6 +354,7 @@ export default function PayrollRunPage() {
         payDate,
         startDate,
         endDate,
+        cycleNumber: Number(cycleNumber),
         lines: run.lines.map((line) => {
           const draft = drafts[line.id] ?? draftFromLine(line, categories)
           return {
@@ -368,6 +378,9 @@ export default function PayrollRunPage() {
     if (typeof data.payDate === 'string') setPayDate(data.payDate)
     if (typeof data.startDate === 'string') setStartDate(data.startDate)
     if (typeof data.endDate === 'string') setEndDate(data.endDate)
+    if (typeof data.cycleNumber === 'number') {
+      setCycleNumber(String(shownCycleNumber(data.cycleNumber, data.endDate || endDate)))
+    }
     const seeded: Record<string, Draft> = {}
     for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line, categories)
     setDrafts(seeded)
@@ -392,7 +405,12 @@ export default function PayrollRunPage() {
       return
     }
     if (!startDate || !endDate || startDate > endDate) {
-      setError('Choose a pay period. The end date has to be on or after the start date.')
+      setError('Choose a pay range. The end date has to be on or after the start date.')
+      return
+    }
+    const cycle = Number(cycleNumber)
+    if (!Number.isInteger(cycle) || cycle < 1 || cycle > 53) {
+      setError('Pay cycle must be a number from 1 to 53.')
       return
     }
     setBusy(true)
@@ -788,7 +806,7 @@ export default function PayrollRunPage() {
     printNisReport({
       startDate: run.startDate,
       endDate: run.endDate,
-      cycle: run.cycle,
+      cycle: String(shownCycleNumber(run.cycleNumber, run.endDate)),
       voided: run.status === 'void',
       lines: run.lines.map((line) => ({
         staffName: line.staffName,
@@ -818,7 +836,7 @@ export default function PayrollRunPage() {
               {step === 1 ? 'Choose pay period' : 'Pay employees'}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {payCycleLabel(run.cycle)} · {mdy(run.startDate)} – {mdy(run.endDate)}
+              Cycle {shownCycleNumber(run.cycleNumber, run.endDate)} · {mdy(run.startDate)} – {mdy(run.endDate)}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -885,24 +903,8 @@ export default function PayrollRunPage() {
         {step === 1 ? (
           <div className="max-w-3xl">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm font-medium text-slate-800">Pay schedule</p>
-                <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                  {payCycleLabel(run.cycle)}
-                </p>
-              </div>
               <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay date</span>
-                <input
-                  type="date"
-                  value={payDate}
-                  disabled={locked}
-                  onChange={(e) => setPayDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay period start</span>
+                <span className="font-medium text-slate-800">Pay range start</span>
                 <input
                   type="date"
                   value={startDate}
@@ -912,12 +914,41 @@ export default function PayrollRunPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="font-medium text-slate-800">Pay period end</span>
+                <span className="font-medium text-slate-800">Pay range end</span>
                 <input
                   type="date"
                   value={endDate}
                   disabled={locked}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setCycleNumber((current) =>
+                      current === payPeriodCycleNumber(endDate) ? payPeriodCycleNumber(value) : current
+                    )
+                    setPayDate((current) => (current === endDate ? value : current))
+                    setEndDate(value)
+                  }}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay cycle</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={53}
+                  value={cycleNumber}
+                  disabled={locked}
+                  onChange={(e) => setCycleNumber(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-medium text-slate-800">Pay date</span>
+                <input
+                  type="date"
+                  value={payDate}
+                  disabled={locked}
+                  onChange={(e) => setPayDate(e.target.value)}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 />
               </label>
@@ -976,7 +1007,7 @@ export default function PayrollRunPage() {
                   {hourly.length === 0 ? (
                     <tr>
                       <td colSpan={hourlyColumns.length + 3} className="py-4 text-slate-500">
-                        No hourly staff on this cycle.
+                        No hourly staff for this pay period.
                       </td>
                     </tr>
                   ) : (
@@ -1046,7 +1077,7 @@ export default function PayrollRunPage() {
                   {salaried.length === 0 ? (
                     <tr>
                       <td colSpan={salariedColumns.length + 4} className="py-4 text-slate-500">
-                        No salaried staff on this cycle.
+                        No salaried staff for this pay period.
                       </td>
                     </tr>
                   ) : (

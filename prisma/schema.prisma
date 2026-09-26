@@ -1070,7 +1070,10 @@ model PayPeriod {
 model PayRun {
   id             String    @id @default(cuid())
   payPeriodId    String    @map("pay_period_id")
+  /// Staff frequency included on this run, inferred from the pay range.
   cycle          String    @default("semimonthly")
+  /// Pay+ period number for the year. 17 is 1 Sep–15 Sep.
+  cycleNumber    Int       @default(0) @map("cycle_number")
   status         String    @default("draft") // draft | processed | void
   payDate        String    @map("pay_date")
   startDate      String    @map("start_date")
@@ -1093,7 +1096,7 @@ model PayRun {
   lines     PayRunLine[]
   voidedBy  AppUser?     @relation(fields: [voidedById], references: [id], onDelete: SetNull)
 
-  /// One open run per period and cycle. Voided runs are excluded by pay_run_open_period_cycle.
+  /// One open run per attendance period. Voided runs are excluded by pay_run_open_period.
   @@index([payPeriodId, cycle])
   @@index([status])
   @@map("pay_runs")

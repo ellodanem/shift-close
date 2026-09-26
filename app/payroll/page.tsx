@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PAY_CYCLE_LABELS, PAY_CYCLE_VALUES, type PayCycle } from '@/lib/pay-cycle'
+import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 
 type SavedPeriod = {
   id: string
@@ -12,25 +12,22 @@ type SavedPeriod = {
 
 type RunListItem = {
   id: string
-  cycle: string
+  cycleNumber: number
   status: string
   startDate: string
   endDate: string
   payDate: string
 }
 
-const SCHEDULES: Array<{ id: PayCycle | 'off'; label: string; hint: string }> = [
-  { id: 'weekly', label: 'Weekly', hint: 'Pay once a week' },
-  { id: 'biweekly', label: 'Bi-weekly', hint: 'Pay once every two weeks' },
-  { id: 'semimonthly', label: 'Semi-monthly', hint: 'Pay twice a month' },
-  { id: 'monthly', label: 'Monthly', hint: 'Pay once a month' },
-  { id: 'off', label: 'Off-schedule', hint: 'Choose the dates yourself' }
-]
-
 function mdy(ymd: string): string {
   const [y, m, d] = ymd.split('-')
   if (!y || !m || !d) return ymd
   return `${Number(m)}/${Number(d)}/${y}`
+}
+
+function cycleLabel(cycleNumber: number, endDate: string): string {
+  const n = cycleNumber > 0 ? cycleNumber : Number(payPeriodCycleNumber(endDate))
+  return n > 0 ? `Cycle ${n}` : 'Cycle'
 }
 
 export default function PayrollStartPage() {
@@ -40,12 +37,12 @@ export default function PayrollStartPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [schedule, setSchedule] = useState<PayCycle | 'off'>('semimonthly')
-  const [staffCycle, setStaffCycle] = useState<PayCycle>('semimonthly')
   const [periodId, setPeriodId] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [payDate, setPayDate] = useState('')
+  const [cycleNumber, setCycleNumber] = useState('')
+  const [cycleTouched, setCycleTouched] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -68,24 +65,26 @@ export default function PayrollStartPage() {
           setStartDate(first.startDate)
           setEndDate(first.endDate)
           setPayDate(first.endDate)
+          setCycleNumber(payPeriodCycleNumber(first.endDate))
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load payroll'))
       .finally(() => setLoading(false))
   }, [])
 
-  const selectedPeriod = useMemo(
-    () => periods.find((period) => period.id === periodId) ?? null,
-    [periods, periodId]
-  )
+  const applyEndDate = (value: string, forceCycle: boolean) => {
+    setPayDate((current) => (forceCycle || current === endDate ? value : current))
+    setEndDate(value)
+    if (forceCycle || !cycleTouched) setCycleNumber(payPeriodCycleNumber(value))
+  }
 
   const choosePeriod = (id: string) => {
     setPeriodId(id)
     const period = periods.find((item) => item.id === id)
-    if (!period || schedule === 'off') return
+    if (!period) return
+    setCycleTouched(false)
     setStartDate(period.startDate)
-    setEndDate(period.endDate)
-    setPayDate(period.endDate)
+    applyEndDate(period.endDate, true)
   }
 
   const deleteDraft = async (runId: string) => {
@@ -109,33 +108,31 @@ export default function PayrollStartPage() {
       setError('Choose an attendance period. Hours are filled from that extract.')
       return
     }
+    if (!startDate || !endDate || startDate > endDate) {
+      setError('Choose a pay range. The end date has to be on or after the start date.')
+      return
+    }
+    const cycle = Number(cycleNumber)
+    if (!Number.isInteger(cycle) || cycle < 1 || cycle > 53) {
+      setError('Pay cycle must be a number from 1 to 53.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      const cycle = schedule === 'off' ? staffCycle : schedule
       const res = await fetch('/api/pay-runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payPeriodId: periodId,
-          cycle,
-          payDate: payDate || selectedPeriod?.endDate,
-          startDate: schedule === 'off' ? startDate : selectedPeriod?.startDate,
-          endDate: schedule === 'off' ? endDate : selectedPeriod?.endDate
+          payDate: payDate || endDate,
+          startDate,
+          endDate,
+          cycleNumber: cycle
         })
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to open payroll')
-      if (data.status === 'draft' && data.id) {
-        await fetch(`/api/pay-runs/${data.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            payDate: payDate || data.payDate,
-            ...(schedule === 'off' ? { startDate, endDate } : {})
-          })
-        })
-      }
       router.push(`/payroll/${data.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open payroll')
@@ -148,87 +145,59 @@ export default function PayrollStartPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-2xl font-semibold text-slate-900">Run a new payroll</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Hours come from extracted attendance. Payroll starts here, not from the attendance page.
+          Choose the pay range and pay date. Hours come from the attendance extract.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-sm">
-            <span className="font-medium text-slate-800">Pay schedule</span>
+          <label className="block text-sm sm:col-span-2">
+            <span className="font-medium text-slate-800">Hours from attendance</span>
             <select
-              value={schedule}
-              onChange={(e) => {
-                const next = e.target.value as PayCycle | 'off'
-                setSchedule(next)
-                if (next !== 'off' && selectedPeriod) {
-                  setStartDate(selectedPeriod.startDate)
-                  setEndDate(selectedPeriod.endDate)
-                  setPayDate(selectedPeriod.endDate)
-                }
-              }}
+              value={periodId}
+              onChange={(e) => choosePeriod(e.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
             >
-              {SCHEDULES.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label} — {item.hint}
+              {periods.length === 0 ? <option value="">No extracted period yet</option> : null}
+              {periods.map((period, index) => (
+                <option key={period.id} value={period.id}>
+                  {mdy(period.startDate)} – {mdy(period.endDate)}
+                  {index === 0 ? ' (latest)' : ''}
                 </option>
               ))}
             </select>
           </label>
 
-          {schedule === 'off' ? (
-            <>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Staff cycle</span>
-                <select
-                  value={staffCycle}
-                  onChange={(e) => setStaffCycle(e.target.value as PayCycle)}
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
-                >
-                  {PAY_CYCLE_VALUES.map((cycle) => (
-                    <option key={cycle} value={cycle}>
-                      {PAY_CYCLE_LABELS[cycle]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Period start</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-800">Period end</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-            </>
-          ) : (
-            <label className="block text-sm sm:col-span-2">
-              <span className="font-medium text-slate-800">Pay period</span>
-              <select
-                value={periodId}
-                onChange={(e) => choosePeriod(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
-              >
-                {periods.length === 0 ? <option value="">No extracted period yet</option> : null}
-                {periods.map((period, index) => (
-                  <option key={period.id} value={period.id}>
-                    {mdy(period.startDate)} – {mdy(period.endDate)}
-                    {index === 0 ? ' (latest)' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
+          <label className="block text-sm">
+            <span className="font-medium text-slate-800">Pay range start</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-800">Pay range end</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => applyEndDate(e.target.value, false)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-800">Pay cycle</span>
+            <input
+              type="number"
+              min={1}
+              max={53}
+              value={cycleNumber}
+              onChange={(e) => {
+                setCycleTouched(true)
+                setCycleNumber(e.target.value)
+              }}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            />
+          </label>
           <label className="block text-sm">
             <span className="font-medium text-slate-800">Pay date</span>
             <input
@@ -240,23 +209,10 @@ export default function PayrollStartPage() {
           </label>
         </div>
 
-        {schedule === 'off' ? (
-          <label className="mt-4 block max-w-xl text-sm">
-            <span className="font-medium text-slate-800">Hours from attendance period</span>
-            <select
-              value={periodId}
-              onChange={(e) => setPeriodId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
-            >
-              {periods.length === 0 ? <option value="">No extracted period yet</option> : null}
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>
-                  {mdy(period.startDate)} – {mdy(period.endDate)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        <p className="mt-4 max-w-2xl text-sm text-slate-500">
+          People are included from the pay frequency on their staff record. A 1st–15th or 16th–end range pays
+          semi-monthly staff.
+        </p>
 
         {error ? (
           <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -293,7 +249,7 @@ export default function PayrollStartPage() {
                         {mdy(run.startDate)} – {mdy(run.endDate)}
                       </span>
                       <span className="ml-2 text-sm text-slate-500">
-                        {PAY_CYCLE_LABELS[run.cycle as PayCycle] ?? run.cycle} · Pay {mdy(run.payDate)}
+                        {cycleLabel(run.cycleNumber, run.endDate)} · Pay {mdy(run.payDate)}
                       </span>
                     </span>
                     <span

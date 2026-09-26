@@ -6,11 +6,13 @@ import {
   parsePayPeriodHoursRows,
   rebuildPayRunLines,
   syncDraftPayTypes,
+  updatePayRunSchedule,
   ytdIncludingCurrent
 } from '@/lib/pay-run-build'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   computeGrossPay,
+  inferPayCycleFromRange,
   parseExtraLines,
   parseMoney,
   parsePayType,
@@ -19,7 +21,7 @@ import {
   serializePayRunLine
 } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
-import { parsePayCycle } from '@/lib/pay-cycle'
+import { parseCycleNumber } from '@/lib/pay-cycle'
 import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
@@ -154,12 +156,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.payDate === 'string' && YMD.test(body.payDate)) header.payDate = body.payDate
     if (typeof body.startDate === 'string' && YMD.test(body.startDate)) header.startDate = body.startDate
     if (typeof body.endDate === 'string' && YMD.test(body.endDate)) header.endDate = body.endDate
-    if (Object.keys(header).length > 0) {
-      await prisma.payRun.update({ where: { id }, data: header })
-    }
+    const startDate = header.startDate ?? run.startDate
+    const endDate = header.endDate ?? run.endDate
     const payDate = header.payDate ?? run.payDate
+    if (startDate > endDate) {
+      return NextResponse.json({ error: 'The pay range end has to be on or after the start.' }, { status: 400 })
+    }
+    const cycleNumber =
+      body.cycleNumber !== undefined
+        ? parseCycleNumber(body.cycleNumber, endDate)
+        : run.cycleNumber || parseCycleNumber(undefined, endDate)
+    if (!cycleNumber) {
+      return NextResponse.json({ error: 'Pay cycle must be a number from 1 to 53.' }, { status: 400 })
+    }
+    const schedule = await updatePayRunSchedule(id, { startDate, endDate, payDate, cycleNumber })
 
-    const linePatches = Array.isArray(body.lines)
+    const linePatches = schedule.rebuilt
+      ? []
+      : Array.isArray(body.lines)
       ? body.lines
       : body.line && typeof body.line === 'object'
         ? [body.line]
@@ -266,9 +280,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Unlock the pay run before recalculating.' }, { status: 409 })
       }
       const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
+      const frequency = inferPayCycleFromRange(run.startDate, run.endDate)
       const built = await rebuildPayRunLines(id, {
         hoursRows,
-        cycle: parsePayCycle(run.cycle),
+        cycle: frequency,
         payDate: run.payDate,
         keepOverrides: true
       })
@@ -278,8 +293,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           where: { id },
           data: {
             sourceHash: built.sourceHash,
-            startDate: run.payPeriod.startDate,
-            endDate: run.payPeriod.endDate,
+            cycle: frequency,
             entityName: run.payPeriod.entityName,
             lines: { create: built.lines.map((line, i) => serializePayRunLine(line, i)) }
           }
@@ -340,9 +354,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json(await presentRun(run))
       }
       const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
+      const frequency = inferPayCycleFromRange(run.startDate, run.endDate)
       const built = await rebuildPayRunLines(id, {
         hoursRows,
-        cycle: parsePayCycle(run.cycle),
+        cycle: frequency,
         payDate: run.payDate,
         keepOverrides: true
       })
@@ -354,8 +369,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             status: 'processed',
             processedAt: new Date(),
             sourceHash: built.sourceHash,
-            startDate: run.payPeriod.startDate,
-            endDate: run.payPeriod.endDate,
+            cycle: frequency,
             entityName: run.payPeriod.entityName,
             lines: { create: built.lines.map((line, i) => serializePayRunLine(line, i)) }
           },

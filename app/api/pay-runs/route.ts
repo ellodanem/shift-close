@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parsePayCycle } from '@/lib/pay-cycle'
-import { loadPayRunStaffProfiles, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
-import { inferPayRunCycle, presentPayRunLine, serializePayRunLine } from '@/lib/pay-run'
+import { parseCycleNumber } from '@/lib/pay-cycle'
+import { parsePayPeriodHoursRows, rebuildPayRunLines, updatePayRunSchedule } from '@/lib/pay-run-build'
+import { inferPayCycleFromRange, presentPayRunLine, serializePayRunLine } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -42,7 +42,7 @@ export async function GET() {
   }
 }
 
-/** POST /api/pay-runs — create or open the run for a saved pay period + cycle */
+/** POST /api/pay-runs — create or open the payroll for a saved attendance period. */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
@@ -56,23 +56,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Pay period not found' }, { status: 404 })
     }
 
+    const startDate = ymdOr(body.startDate, period.startDate)
+    const endDate = ymdOr(body.endDate, period.endDate)
+    const payDate = ymdOr(body.payDate, endDate)
+    const cycleNumber = parseCycleNumber(body.cycleNumber, endDate)
+    if (!cycleNumber) {
+      return NextResponse.json({ error: 'Pay cycle must be a number from 1 to 53.' }, { status: 400 })
+    }
+    if (startDate > endDate) {
+      return NextResponse.json({ error: 'The pay range end has to be on or after the start.' }, { status: 400 })
+    }
+
     const hoursRows = parsePayPeriodHoursRows(period.rows)
-    const staffProfiles = body.cycle ? [] : await loadPayRunStaffProfiles()
-    const cycle = parsePayCycle(
-      body.cycle ??
-        inferPayRunCycle(period.startDate, period.endDate, hoursRows, staffProfiles)
-    )
+    const cycle = inferPayCycleFromRange(startDate, endDate)
     const existing = await prisma.payRun.findFirst({
-      where: { payPeriodId, cycle, status: { in: ['draft', 'processed'] } },
+      where: { payPeriodId, status: { in: ['draft', 'processed'] } },
       include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
     })
-    if (existing) {
+    if (existing?.status === 'processed') {
       return NextResponse.json(presentRun(existing))
+    }
+    if (existing) {
+      await updatePayRunSchedule(existing.id, { startDate, endDate, payDate, cycleNumber })
+      const refreshed = await prisma.payRun.findUnique({
+        where: { id: existing.id },
+        include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+      })
+      return NextResponse.json(presentRun(refreshed!))
     }
     const built = await rebuildPayRunLines('new', {
       hoursRows,
       cycle,
-      payDate: period.endDate,
+      payDate,
       keepOverrides: false
     })
 
@@ -80,10 +95,11 @@ export async function POST(request: NextRequest) {
       data: {
         payPeriodId,
         cycle,
+        cycleNumber,
         status: 'draft',
-        payDate: ymdOr(body.payDate, period.endDate),
-        startDate: ymdOr(body.startDate, period.startDate),
-        endDate: ymdOr(body.endDate, period.endDate),
+        payDate,
+        startDate,
+        endDate,
         entityName: period.entityName,
         notes: '',
         sourceHash: built.sourceHash,

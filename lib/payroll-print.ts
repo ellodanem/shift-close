@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { parsePayCycle, payCycleLabel } from '@/lib/pay-cycle'
+import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import { OT_MULTIPLIER, formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
@@ -84,7 +84,7 @@ export function printNisReport(input: {
     ${input.voided ? '<p><strong>VOIDED.</strong> This report is a record only and is not filed.</p>' : ''}
     <div class="meta">
       <span>PERIOD: ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</span>
-      <span>CYCLE: ${escapePayPeriodHtml(payCycleLabel(input.cycle))}</span>
+      <span>CYCLE: ${escapePayPeriodHtml(input.cycle)}</span>
       <span>FOR: ${escapePayPeriodHtml(monthLabel(input.endDate))}</span>
     </div>
     <table>
@@ -222,6 +222,8 @@ export type PayslipPrintInput = {
   startDate: string
   endDate: string
   payDate: string
+  /** Pay+ period number. Falls back to the number implied by the period end. */
+  cycleNumber?: number
   status?: string
   voidReason?: string
   lines: PayslipSourceLine[]
@@ -245,17 +247,7 @@ function pushAmount(rows: PayslipAmount[], label: string, amount: number, extra?
   rows.push(row)
 }
 
-/**
- * Pay+ period number. Semi-monthly pays are numbered from 1 in January,
- * so 15 May is 9 and 31 May is 10.
- */
-export function payPeriodCycleNumber(endDate: string): string {
-  const [, monthText, dayText] = endDate.split('-')
-  const month = Number(monthText)
-  const day = Number(dayText)
-  if (!month || !day) return ''
-  return String((month - 1) * 2 + (day <= 15 ? 1 : 2))
-}
+export { payPeriodCycleNumber } from '@/lib/pay-cycle'
 
 /** @deprecated Use payPeriodCycleNumber. Kept so older checks of the end day still run. */
 export function payPeriodCycleDay(endDate: string): string {
@@ -504,7 +496,10 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
     return slip ? [slip] : []
   })
   const payDate = mdy(input.payDate)
-  const cycleDay = payPeriodCycleNumber(input.endDate)
+  const cycleDay =
+    input.cycleNumber && input.cycleNumber > 0
+      ? String(input.cycleNumber)
+      : payPeriodCycleNumber(input.endDate)
   const period = `${mdy(input.startDate)} - ${mdy(input.endDate)}`
   const printed = new Date()
   const printedLabel = `${String(printed.getMonth() + 1).padStart(2, '0')}/${String(printed.getDate()).padStart(2, '0')}/${printed.getFullYear()}`

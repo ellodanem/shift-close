@@ -43,6 +43,29 @@ export function payCycleLabel(value: unknown): string {
   return PAY_CYCLE_LABELS[parsePayCycle(value)]
 }
 
+/**
+ * Pay+ period number. Semi-monthly pays are numbered from 1 in January,
+ * so 15 May is 9, 31 May is 10, and 15 Sep is 17.
+ */
+export function payPeriodCycleNumber(endDate: string): string {
+  const [, monthText, dayText] = endDate.split('-')
+  const month = Number(monthText)
+  const day = Number(dayText)
+  if (!month || !day) return ''
+  return String((month - 1) * 2 + (day <= 15 ? 1 : 2))
+}
+
+/** A cycle number typed on the payroll, or the number implied by the period end. */
+export function parseCycleNumber(value: unknown, endDate: string): number | null {
+  if (value === undefined || value === null || value === '') {
+    const derived = Number(payPeriodCycleNumber(endDate))
+    return derived >= 1 ? derived : null
+  }
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(n) || n < 1 || n > 53) return null
+  return n
+}
+
 /** Split clocked hours into Pay+ BSC / OTH using the staff member’s cycle cap. */
 export function splitPayPeriodHours(transTtl: number, cycle?: unknown): PayPeriodHoursSplit {
   const parsed = parsePayCycle(cycle)

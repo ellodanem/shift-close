@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { payCycleLabel } from '@/lib/pay-cycle'
+import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { formatDateDisplay, formatDateRange } from '@/lib/pay-period-excel'
 import {
   formatMoney,
@@ -61,6 +61,7 @@ type PayRunLine = {
 type PayRun = {
   id: string
   cycle: string
+  cycleNumber?: number
   status: string
   startDate: string
   endDate: string
@@ -381,7 +382,8 @@ export default function PayRunDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900">Pay run</h1>
             {run ? (
               <p className="text-sm text-gray-600 mt-1">
-                {formatDateRange(run.startDate, run.endDate)} · {payCycleLabel(run.cycle)}
+                {formatDateRange(run.startDate, run.endDate)} · Cycle{' '}
+                {run.cycleNumber || payPeriodCycleNumber(run.endDate)}
               </p>
             ) : null}
           </div>
