@@ -166,10 +166,33 @@ describe('payslips', () => {
     assert.match(html, /HOURS/)
     assert.match(html, /YTD/)
     assert.match(html, /Total Auto/)
+    assert.doesNotMatch(html, /Westline Fuels/)
     assert.match(html, /CENTRE:/)
     assert.match(html, /CUL DE SAC/)
     assert.match(html, /PERIOD:/)
     assert.match(html, /Bi-monthly/)
+    const renamed = renderPayslipsHtml({
+      startDate: '2026-08-01',
+      endDate: '2026-08-15',
+      payDate: '2026-08-15',
+      companyName: 'Westline <Fuels>',
+      lines: [
+        {
+          staffName: 'Althea Frank',
+          basicPay: 900,
+          otPay: 0,
+          nisEmployee: 45,
+          medical: 0,
+          staffLoan: 0,
+          shortageReady: 0,
+          grossPay: 900,
+          totalDeductions: 45,
+          netPay: 855
+        }
+      ]
+    })
+    assert.match(renamed, /Westline &lt;Fuels&gt;/)
+    assert.doesNotMatch(renamed, /Westline <Fuels>/)
     assert.match(html, /NET :/)
   })
 

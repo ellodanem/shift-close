@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
+import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 
 type SavedPeriod = {
   id: string
@@ -43,6 +44,7 @@ export default function PayrollStartPage() {
   const [payDate, setPayDate] = useState('')
   const [cycleNumber, setCycleNumber] = useState('')
   const [cycleTouched, setCycleTouched] = useState(false)
+  const [hideVoided, setHideVoided] = useState(true)
 
   useEffect(() => {
     Promise.all([
@@ -140,13 +142,20 @@ export default function PayrollStartPage() {
     }
   }
 
+  const visibleRuns = hideVoided ? runs.filter((run) => run.status !== 'void') : runs
+
   return (
     <div className="min-h-full bg-white">
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <h1 className="text-2xl font-semibold text-slate-900">Run a new payroll</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Choose the pay range and pay date. Hours come from the attendance extract.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Run a new payroll</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Choose the pay range and pay date. Hours come from the attendance extract.
+            </p>
+          </div>
+          <PayrollSettingsButton />
+        </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-sm sm:col-span-2">
@@ -230,14 +239,26 @@ export default function PayrollStartPage() {
         </div>
 
         <section className="mt-12">
-          <h2 className="text-lg font-semibold text-slate-900">Payroll runs</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-900">Payroll runs</h2>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={hideVoided}
+                onChange={(e) => setHideVoided(e.target.checked)}
+              />
+              Hide voided
+            </label>
+          </div>
           {loading ? (
             <p className="mt-3 text-sm text-slate-500">Loading…</p>
           ) : runs.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">No payroll runs yet.</p>
+          ) : visibleRuns.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">All payroll runs are voided.</p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">
-              {runs.map((run) => (
+              {visibleRuns.map((run) => (
                 <li key={run.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50">
                   <button
                     type="button"

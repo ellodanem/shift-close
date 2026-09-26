@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
+import { loadPayslipCompanyName } from '@/lib/payroll-settings'
+import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
 import { printBankingPack } from '@/lib/pay-run-banking-print'
@@ -840,6 +842,7 @@ export default function PayrollRunPage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <PayrollSettingsButton />
             {run.status === 'draft' ? (
               <button
                 type="button"
@@ -1191,9 +1194,12 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!printPayslips(payslipsFromRun(run))) {
-                    setError('Allow pop-ups to print these payslips.')
-                  }
+                  void (async () => {
+                    const companyName = await loadPayslipCompanyName()
+                    if (!printPayslips({ ...payslipsFromRun(run), companyName })) {
+                      setError('Allow pop-ups to print these payslips.')
+                    }
+                  })()
                 }}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >

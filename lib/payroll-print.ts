@@ -2,6 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
+import { normalizePayslipCompanyName } from '@/lib/payroll-settings'
 import { OT_MULTIPLIER, formatMoney, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
 
 export type NisPrintLine = {
@@ -224,6 +225,8 @@ export type PayslipPrintInput = {
   payDate: string
   /** Pay+ period number. Falls back to the number implied by the period end. */
   cycleNumber?: number
+  /** Printed at the bottom of each payslip. Defaults to Total Auto. */
+  companyName?: string
   status?: string
   voidReason?: string
   lines: PayslipSourceLine[]
@@ -421,7 +424,13 @@ function cellQty(value: number | undefined): string {
   return value ? plainMoney(value) : ''
 }
 
-function slipHtml(line: PayslipLine, payDate: string, cycleDay: string, periodRange: string): string {
+function slipHtml(
+  line: PayslipLine,
+  payDate: string,
+  cycleDay: string,
+  periodRange: string,
+  companyName: string
+): string {
   const count = Math.max(line.earnings.length, line.deductions.length, 1)
   const itemRows = Array.from({ length: count }, (_, index) => {
     const earning = line.earnings[index]
@@ -477,7 +486,7 @@ function slipHtml(line: PayslipLine, payDate: string, cycleDay: string, periodRa
     </table>
     <div class="slip-foot">
       <div class="company">
-        <div>Total Auto</div>
+        <div>${escapePayPeriodHtml(companyName)}</div>
         <div>John Compton Highway Castries, Saint Lucia</div>
         <div>758 4515400</div>
       </div>
@@ -507,6 +516,7 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
     input.status === 'void'
       ? `<p class="void">VOIDED${input.voidReason ? `: ${escapePayPeriodHtml(input.voidReason)}` : ''}. Record only.</p>`
       : ''
+  const companyName = normalizePayslipCompanyName(input.companyName)
   const pages = payslipPages(slips)
   const totals = buildPayslipPeriodTotals(input.lines)
   const totalsPage = `<section class="page">
@@ -539,7 +549,7 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
       .map((page, index) => {
         const content =
           page.length > 0
-            ? page.map((line) => slipHtml(line, payDate, cycleDay, period)).join('')
+            ? page.map((line) => slipHtml(line, payDate, cycleDay, period, companyName)).join('')
             : '<p class="empty">No payslips for this payroll.</p>'
         return `<section class="page">
         ${voided}
