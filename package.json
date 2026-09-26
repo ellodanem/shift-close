@@ -31,6 +31,7 @@
     "test:staff-loan": "tsx --test scripts/test-staff-loan.ts",
     "test:pay-run-banking": "tsx --test scripts/test-pay-run-banking.ts",
     "test:payroll-print": "tsx --test scripts/test-payroll-print.ts",
+    "test:job-letter": "tsx --test scripts/test-job-letter.ts",
     "test:email": "tsx --test scripts/test-email-defaults.ts",
     "test:shift-sales": "tsx --test scripts/test-shift-sales.ts",
     "test:fuel-inventory": "tsx --test scripts/test-fuel-inventory.ts",

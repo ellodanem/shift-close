@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { businessTodayYmd } from '@/lib/datetime-policy'
+import { buildJobLetter } from '@/lib/job-letter'
 import { prisma } from '@/lib/prisma'
 
 // Simple template system - templates stored in code for now
@@ -75,11 +77,33 @@ export async function POST(
     
     // Get staff information
     const staff = await prisma.staff.findUnique({
-      where: { id }
+      where: { id },
+      include: { staffRole: { select: { name: true } } }
     })
     
     if (!staff) {
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
+    }
+
+    if (templateType === 'job-letter' && !customContent) {
+      const content = buildJobLetter(
+        {
+          name: staff.name,
+          startDate: staff.startDate,
+          roleName: staff.staffRole?.name,
+          role: staff.role,
+          payType: staff.payType,
+          payCycle: staff.payCycle,
+          hourlyRate: staff.hourlyRate,
+          salariedAmount: staff.salariedAmount
+        },
+        businessTodayYmd()
+      )
+      return NextResponse.json({
+        content,
+        templateType,
+        staffName: staff.name
+      })
     }
     
     // Get template
