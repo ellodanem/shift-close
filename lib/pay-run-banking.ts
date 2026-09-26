@@ -5,16 +5,63 @@ export type BankingLine = {
   staffName: string
   staffNo?: string | null
   bankCode?: string | null
+  bankName?: string | null
   accountNo?: string | null
   netPay: number
 }
 
 export type BankingListingRow = {
   bankCode: string
+  bankName: string
   staffName: string
   staffNo: string
   accountNo: string
   netPay: number
+}
+
+export type CreditUnionRef = {
+  code: string
+  name: string
+}
+
+/** Short Pay+ codes for the credit-union dropdown. NFGWCCU keeps the code already on file. */
+const CREDIT_UNIONS: Array<CreditUnionRef & { pattern: RegExp }> = [
+  { code: 'NFGWCCU', name: 'National Farmers & General Workers', pattern: /nfgw|national farmers|general workers/ },
+  { code: 'CHOISEUL', name: 'Choiseul Co-operative Credit Union', pattern: /choiseul/ },
+  { code: 'DENNERY', name: 'Dennery Community Co-operative Credit Union', pattern: /dennery/ },
+  { code: 'ELKS', name: 'Elks City of Castries Co-operative Credit Union', pattern: /elks/ },
+  { code: 'FONDSTJ', name: 'Fond St. Jacques Co-operative Credit Union', pattern: /fond st|fondst/ },
+  { code: 'JANNOU', name: 'Jannou Credit Union', pattern: /jannou|civil service/ },
+  { code: 'LABORIE', name: 'Laborie Co-operative Credit Union', pattern: /laborie/ },
+  { code: 'MABOUYA', name: 'Mabouya Valley Co-operative Credit Union', pattern: /mabouya/ },
+  { code: 'MONREPOS', name: 'Mon Repos Eastern Co-operative Credit Union', pattern: /mon repos|monrepos/ },
+  { code: 'POLICE', name: 'Royal St. Lucia Police and Allied Services', pattern: /police/ },
+  { code: 'SALTIBUS', name: 'Saltibus Co-operative Credit Union', pattern: /saltibus/ },
+  { code: 'HOSPITALITY', name: 'Saint Lucia Hospitality Industry Workers', pattern: /hospitality/ },
+  { code: 'SDA', name: 'Seventh Day Adventist Credit Union', pattern: /seventh day|adventist/ },
+  { code: 'TEACHERS', name: "St. Lucia Teachers Co-operative Credit Union", pattern: /teachers/ },
+  { code: 'WORKERS', name: "St. Lucia Workers' Credit Co-operative Society", pattern: /workers' credit|workers credit|workers co-operative|workers cooperative/ }
+]
+
+export function creditUnionByName(bankName?: string | null): CreditUnionRef | undefined {
+  const name = (bankName ?? '').trim().toLowerCase()
+  if (!name) return undefined
+  const match = CREDIT_UNIONS.find((cu) => cu.pattern.test(name))
+  return match ? { code: match.code, name: match.name } : undefined
+}
+
+export function creditUnionByCode(bankCode?: string | null): CreditUnionRef | undefined {
+  const code = (bankCode ?? '').trim().toUpperCase()
+  const match = CREDIT_UNIONS.find((cu) => cu.code === code)
+  return match ? { code: match.code, name: match.name } : undefined
+}
+
+export function isCreditUnionName(value?: string | null): boolean {
+  const name = (value ?? '').trim().toLowerCase()
+  if (!name) return false
+  if (creditUnionByName(name)) return true
+  if (CREDIT_UNION_NAMES.has(name)) return true
+  return /credit union|co-operative credit/.test(name)
 }
 
 export type BankingPack = {
@@ -43,7 +90,12 @@ export function payrollBankCode(bankName?: string | null, accountNo?: string | n
   const account = (accountNo ?? '').trim()
   if (!name && !account) return 'CHQ'
   if (/\b(chq|cheque|check)\b/.test(name)) return 'CHQ'
-  if (/nfgw|farmers|general workers/.test(name)) return 'NFGWCCU'
+  const creditUnion = creditUnionByName(name)
+  if (creditUnion) return creditUnion.code
+  if (isCreditUnionName(name)) {
+    const compact = name.replace(/[^a-z0-9]+/g, '').slice(0, 12).toUpperCase()
+    return compact || 'CU'
+  }
   if (/fics|financial investment/.test(name)) return 'FICS'
   if (/firstcaribbean|fcib|\bcibc\b/.test(name)) return 'FCIB'
   if (/bank of saint lucia|\bbosl\b/.test(name)) return 'BOSL'
@@ -53,23 +105,21 @@ export function payrollBankCode(bankName?: string | null, accountNo?: string | n
   return compact || 'OTHER'
 }
 
-/** Footer bucket. FCIB and FICS roll into CIBC. NFGWCCU is unsplit. CHQ is Cheques. */
+/** Footer bucket. FCIB and FICS roll into CIBC. Each credit union stays unsplit. CHQ is Cheques. */
 export function bankTotalLabel(bankCode: string): string {
   const code = (bankCode || 'CHQ').toUpperCase()
+  if (creditUnionByCode(code)) return code
   if (code === 'BOSL') return 'BOSL S/Station'
   if (code === 'FCIB' || code === 'CIBC' || code === 'FICS') return 'CIBC S/Station'
-  if (code === 'NFGWCCU') return 'NFGWCCU'
   if (code === 'CHQ') return 'Cheques'
   if (code === 'REPUBLIC') return 'Republic S/Station'
   return `${code} S/Station`
 }
 
 export function isCreditUnionBank(bankCode: string, bankName?: string | null): boolean {
-  if ((bankCode || '').toUpperCase() === 'NFGWCCU') return true
-  const name = (bankName ?? '').trim().toLowerCase()
-  if (!name) return false
-  if (CREDIT_UNION_NAMES.has(name)) return true
-  return /credit union|co-operative credit/.test(name)
+  if (creditUnionByCode(bankCode)) return true
+  if (isCreditUnionName(bankName) || isCreditUnionName(bankCode)) return true
+  return false
 }
 
 export function buildBankingPack(
@@ -78,9 +128,17 @@ export function buildBankingPack(
 ): BankingPack {
   const listing = lines
     .map((line) => {
-      const bankCode = (line.bankCode || payrollBankCode(null, line.accountNo)).toUpperCase() || 'CHQ'
+      const bankName = (line.bankName ?? '').trim()
+      const fromName = creditUnionByName(bankName)
+      const bankCode = (
+        fromName?.code ||
+        line.bankCode ||
+        payrollBankCode(bankName, line.accountNo) ||
+        'CHQ'
+      ).toUpperCase()
       return {
         bankCode,
+        bankName,
         staffName: line.staffName.trim(),
         staffNo: (line.staffNo ?? '').trim(),
         accountNo: bankCode === 'CHQ' ? '' : (line.accountNo ?? '').trim(),
@@ -95,7 +153,7 @@ export function buildBankingPack(
 
   const totals = new Map<string, number>()
   for (const row of listing) {
-    const label = bankTotalLabel(row.bankCode)
+    const label = isCreditUnionBank(row.bankCode, row.bankName) ? row.bankCode : bankTotalLabel(row.bankCode)
     totals.set(label, round2((totals.get(label) ?? 0) + row.netPay))
   }
   const bankTotals = [...totals.entries()]

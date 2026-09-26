@@ -49,6 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const subject = typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim() : cuLetterSubject(letter, run.payDate)
     const html = typeof body.html === 'string' && body.html.trim() ? body.html.trim() : `<p>${cuLetterEmailBody(letter)}</p>`
+    const letterText = typeof body.letterText === 'string' ? body.letterText.slice(0, 12000) : ''
 
     await sendMail({
       to,
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       attachments: [
         {
           filename: cuLetterFilename(letter, run.payDate),
-          content: creditUnionLetterPdfBuffer(letter, run.payDate),
+          content: creditUnionLetterPdfBuffer(letter, run.payDate, letterText),
           contentType: 'application/pdf'
         }
       ]

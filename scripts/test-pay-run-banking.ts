@@ -3,9 +3,10 @@ import { describe, it } from 'node:test'
 import {
   bankTotalLabel,
   buildBankingPack,
+  isCreditUnionBank,
   payrollBankCode
 } from '../lib/pay-run-banking'
-import { creditUnionLetters } from '../lib/pay-run-cu-letter'
+import { creditUnionLetters, defaultCreditUnionLetterText } from '../lib/pay-run-cu-letter'
 
 describe('pay run banking', () => {
   it('maps staff banks to Pay+ codes', () => {
@@ -58,5 +59,32 @@ describe('pay run banking', () => {
     assert.equal(letters[0]?.code, 'NFGWCCU')
     assert.equal(letters[0]?.total, 774.02)
     assert.equal(letters[0]?.settlementAccount, '412102733')
+    assert.match(defaultCreditUnionLetterText(letters[0]!, '2026-08-31'), /412102733/)
+  })
+
+  it('emails any credit union from a default letter', () => {
+    assert.equal(payrollBankCode('Laborie Co-operative Credit Union', '55'), 'LABORIE')
+    assert.equal(isCreditUnionBank('LABORIE'), true)
+    assert.equal(bankTotalLabel('LABORIE'), 'LABORIE')
+    const pack = buildBankingPack([
+      {
+        staffName: 'Jane Charles',
+        bankName: 'Laborie Co-operative Credit Union',
+        bankCode: 'LABORIECOOPE',
+        accountNo: '55',
+        netPay: 120
+      },
+      { staffName: 'Crestie', bankCode: 'BOSL', accountNo: '1', netPay: 40 }
+    ])
+    assert.equal(pack.listing.find((row) => row.staffName === 'Jane Charles')?.bankCode, 'LABORIE')
+    assert.equal(pack.bankTotals.find((row) => row.label === 'LABORIE')?.amount, 120)
+    const letters = creditUnionLetters(pack)
+    assert.equal(letters.length, 1)
+    assert.equal(letters[0]?.code, 'LABORIE')
+    assert.equal(letters[0]?.legalName, 'Laborie Co-operative Credit Union')
+    assert.equal(letters[0]?.settlementAccount, '')
+    const text = defaultCreditUnionLetterText(letters[0]!, '2026-09-15')
+    assert.match(text, /Laborie Co-operative Credit Union/)
+    assert.match(text, /your institution/)
   })
 })

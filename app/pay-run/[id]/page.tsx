@@ -18,9 +18,14 @@ import { printBankingPack } from '@/lib/pay-run-banking-print'
 import {
   creditUnionLetters,
   cuLetterEmailBody,
+  cuLetterEmailHtml,
   cuLetterSubject,
-  downloadCreditUnionLetter
+  defaultCreditUnionLetterText
 } from '@/lib/pay-run-cu-letter'
+import {
+  CreditUnionLetterDialog,
+  type CreditUnionLetterDraft
+} from '@/app/components/CreditUnionLetterDialog'
 
 type PayRunLine = {
   id: string
@@ -49,6 +54,7 @@ type PayRunLine = {
   totalDeductions: number
   netPay: number
   bankCode?: string
+  bankName?: string | null
   accountNo?: string | null
 }
 
@@ -140,11 +146,8 @@ export default function PayRunDetailPage() {
   const [editExtras, setEditExtras] = useState<PayRunExtraLine[]>([])
   const [editDeductions, setEditDeductions] = useState<PayRunExtraLine[]>([])
   const [extras, setExtras] = useState<PayRunExtraLine[]>([])
-  const [cuEmailOpen, setCuEmailOpen] = useState(false)
-  const [cuEmailTo, setCuEmailTo] = useState('')
-  const [cuEmailSubject, setCuEmailSubject] = useState('')
-  const [cuEmailBody, setCuEmailBody] = useState('')
-  const [cuEmailCode, setCuEmailCode] = useState('NFGWCCU')
+  const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
+  const [cuError, setCuError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`)
@@ -183,6 +186,7 @@ export default function PayRunDetailPage() {
           staffName: line.staffName,
           staffNo: line.staffNo,
           bankCode: line.bankCode,
+          bankName: line.bankName,
           accountNo: line.accountNo,
           netPay: line.netPay
         })),
@@ -291,36 +295,44 @@ export default function PayRunDetailPage() {
   const openCuEmail = (code: string) => {
     const letter = cuLetters.find((item) => item.code === code)
     if (!letter || !run) return
-    setCuEmailCode(letter.code)
-    setCuEmailTo('')
-    setCuEmailSubject(cuLetterSubject(letter, run.payDate))
-    setCuEmailBody(cuLetterEmailBody(letter))
-    setCuEmailOpen(true)
+    setError(null)
+    setCuError(null)
+    setCuDraft({
+      code: letter.code,
+      to: '',
+      subject: cuLetterSubject(letter, run.payDate),
+      message: cuLetterEmailBody(letter),
+      letterText: defaultCreditUnionLetterText(letter, run.payDate),
+      summary: `${letter.members.length} ${letter.members.length === 1 ? 'person' : 'people'} · ${formatMoney(letter.total)}`
+    })
   }
 
   const sendCuEmail = async () => {
-    if (!cuEmailTo.trim()) {
-      setError('Enter the credit union email address.')
+    if (!cuDraft) return
+    if (!cuDraft.to.trim()) {
+      setCuError('Enter the credit union email address.')
       return
     }
     setBusy(true)
     setError(null)
+    setCuError(null)
     try {
       const res = await fetch(`/api/pay-runs/${id}/cu-letter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: cuEmailTo.trim(),
-          code: cuEmailCode,
-          subject: cuEmailSubject,
-          html: `<p>${cuEmailBody.replace(/\n/g, '<br/>')}</p>`
+          to: cuDraft.to.trim(),
+          code: cuDraft.code,
+          subject: cuDraft.subject,
+          html: cuLetterEmailHtml(cuDraft.message),
+          letterText: cuDraft.letterText
         })
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to email CU letter')
-      setCuEmailOpen(false)
+      setCuDraft(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to email CU letter')
+      setCuError(err instanceof Error ? err.message : 'Failed to email CU letter')
     } finally {
       setBusy(false)
     }
@@ -657,22 +669,14 @@ export default function PayRunDetailPage() {
                     Print
                   </button>
                   {cuLetters.map((letter) => (
-                    <span key={letter.code} className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => downloadCreditUnionLetter(letter, run.payDate)}
-                        className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded hover:bg-teal-800"
-                      >
-                        {letter.code} PDF
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openCuEmail(letter.code)}
-                        className="px-3 py-1.5 text-sm bg-teal-50 text-teal-900 rounded hover:bg-teal-100"
-                      >
-                        Email {letter.code}
-                      </button>
-                    </span>
+                    <button
+                      key={letter.code}
+                      type="button"
+                      onClick={() => openCuEmail(letter.code)}
+                      className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded hover:bg-teal-800"
+                    >
+                      Email {letter.code}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -804,61 +808,17 @@ export default function PayRunDetailPage() {
         )}
       </div>
 
-      {cuEmailOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="text-lg font-semibold text-gray-900">Email {cuEmailCode} letter</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              To is empty on purpose — fill the credit union address. The allocation PDF is attached.
-            </p>
-            <label className="mt-4 block text-sm font-medium text-gray-700">
-              To
-              <input
-                type="email"
-                value={cuEmailTo}
-                onChange={(e) => setCuEmailTo(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="credit-union@example.com"
-              />
-            </label>
-            <label className="mt-3 block text-sm font-medium text-gray-700">
-              Subject
-              <input
-                type="text"
-                value={cuEmailSubject}
-                onChange={(e) => setCuEmailSubject(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="mt-3 block text-sm font-medium text-gray-700">
-              Message
-              <textarea
-                value={cuEmailBody}
-                onChange={(e) => setCuEmailBody(e.target.value)}
-                rows={4}
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCuEmailOpen(false)}
-                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-800 rounded"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={sendCuEmail}
-                className="px-3 py-1.5 text-sm bg-teal-700 text-white rounded disabled:opacity-60"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <CreditUnionLetterDialog
+        draft={cuDraft}
+        busy={busy}
+        error={cuError}
+        onChange={setCuDraft}
+        onClose={() => {
+          setCuDraft(null)
+          setCuError(null)
+        }}
+        onSend={sendCuEmail}
+      />
     </div>
   )
 }

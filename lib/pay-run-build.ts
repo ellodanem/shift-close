@@ -353,7 +353,8 @@ export function attachBankingToLines<
     return {
       ...line,
       bankCode: line.bankCode || payrollBankCode(profile?.bankName, profile?.accountNumber),
-      accountNo: line.accountNo || profile?.accountNumber || null
+      accountNo: line.accountNo || profile?.accountNumber || null,
+      bankName: profile?.bankName ?? null
     }
   })
 }

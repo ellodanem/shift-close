@@ -6,14 +6,27 @@ import { payCycleLabel } from '@/lib/pay-cycle'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
 import { printBankingPack } from '@/lib/pay-run-banking-print'
-import { creditUnionLetters, downloadCreditUnionLetter } from '@/lib/pay-run-cu-letter'
+import {
+  creditUnionLetters,
+  cuLetterEmailBody,
+  cuLetterEmailHtml,
+  cuLetterSubject,
+  defaultCreditUnionLetterText
+} from '@/lib/pay-run-cu-letter'
+import {
+  CreditUnionLetterDialog,
+  type CreditUnionLetterDraft
+} from '@/app/components/CreditUnionLetterDialog'
 import {
   downloadPayrollPreview,
   payrollPreviewStatus,
+  printGlReport,
   printNisReport,
   printPayrollPreview,
+  printPayslips,
   type PayrollPreviewInput,
-  type PayrollPreviewLine
+  type PayrollPreviewLine,
+  type PayslipPrintInput
 } from '@/lib/payroll-print'
 import {
   amountForLabel,
@@ -75,6 +88,7 @@ type PayRunLine = {
   extraDeductionPay?: number
   netPay: number
   bankCode?: string
+  bankName?: string | null
   accountNo?: string | null
   taxCode?: string
 }
@@ -114,6 +128,17 @@ function mdy(ymd: string): string {
 
 function moneyInput(value: number): string {
   return value ? String(value) : ''
+}
+
+function payslipsFromRun(saved: PayRun): PayslipPrintInput {
+  return {
+    startDate: saved.startDate,
+    endDate: saved.endDate,
+    payDate: saved.payDate,
+    status: saved.status,
+    voidReason: saved.voidReason,
+    lines: saved.lines
+  }
 }
 
 function previewFromRun(saved: PayRun): PayrollPreviewInput {
@@ -254,6 +279,9 @@ export default function PayrollRunPage() {
   const [voidReason, setVoidReason] = useState('')
   const [preview, setPreview] = useState<PayrollPreviewInput | null>(null)
   const [openingPreview, setOpeningPreview] = useState(false)
+  const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
+  const [cuError, setCuError] = useState<string | null>(null)
+  const [cuSent, setCuSent] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
@@ -607,6 +635,7 @@ export default function PayrollRunPage() {
           staffName: line.staffName,
           staffNo: line.staffNo,
           bankCode: line.bankCode,
+          bankName: line.bankName,
           accountNo: line.accountNo,
           netPay: line.netPay
         }))
@@ -614,6 +643,38 @@ export default function PayrollRunPage() {
     [run]
   )
   const letters = useMemo(() => creditUnionLetters(banking), [banking])
+
+  const sendCuEmail = async () => {
+    if (!run || !cuDraft) return
+    if (!cuDraft.to.trim()) {
+      setCuError('Enter the credit union email address.')
+      return
+    }
+    setBusy(true)
+    setCuError(null)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${run.id}/cu-letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: cuDraft.to.trim(),
+          code: cuDraft.code,
+          subject: cuDraft.subject,
+          html: cuLetterEmailHtml(cuDraft.message),
+          letterText: cuDraft.letterText
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to email the letter')
+      setCuSent(`Sent the ${cuDraft.code} letter.`)
+      setCuDraft(null)
+    } catch (err) {
+      setCuError(err instanceof Error ? err.message : 'Failed to email the letter')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const sumHours = (lines: PayRunLine[], field: 'basicHours' | 'otHours') =>
     lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.[field] ?? ''), 0)
@@ -1099,13 +1160,24 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!printPayrollPreview(previewFromRun(run))) {
-                    setError('Allow pop-ups to print this payroll.')
+                  if (!printPayslips(payslipsFromRun(run))) {
+                    setError('Allow pop-ups to print these payslips.')
                   }
                 }}
                 className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
               >
-                Print payroll
+                Print Payslips
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!printGlReport(payslipsFromRun(run))) {
+                    setError('Allow pop-ups to print the G/L summary.')
+                  }
+                }}
+                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+              >
+                Print GL
               </button>
               <button type="button" onClick={openNis} className="text-sm font-medium text-violet-700 hover:underline">
                 N.I.S. report
@@ -1128,13 +1200,25 @@ export default function PayrollRunPage() {
                 <button
                   key={letter.code}
                   type="button"
-                  onClick={() => downloadCreditUnionLetter(letter, run.payDate)}
+                  onClick={() => {
+                    setCuError(null)
+                    setCuSent(null)
+                    setCuDraft({
+                      code: letter.code,
+                      to: '',
+                      subject: cuLetterSubject(letter, run.payDate),
+                      message: cuLetterEmailBody(letter),
+                      letterText: defaultCreditUnionLetterText(letter, run.payDate),
+                      summary: `${letter.members.length} ${letter.members.length === 1 ? 'person' : 'people'} · ${formatMoney(letter.total)}`
+                    })
+                  }}
                   className="text-sm font-medium text-violet-700 hover:underline"
                 >
-                  {letter.code} letter
+                  Email {letter.code}
                 </button>
               ))}
             </div>
+            {cuSent ? <p className="mt-3 text-sm text-emerald-800">{cuSent}</p> : null}
             <p className="mt-6 text-sm text-slate-500">
               You can leave and open this payroll again. PAYE stays in Pay+.
             </p>
@@ -1422,6 +1506,18 @@ export default function PayrollRunPage() {
           </div>
         </div>
       ) : null}
+
+      <CreditUnionLetterDialog
+        draft={cuDraft}
+        busy={busy}
+        error={cuError}
+        onChange={setCuDraft}
+        onClose={() => {
+          setCuDraft(null)
+          setCuError(null)
+        }}
+        onSend={sendCuEmail}
+      />
     </div>
   )
 }

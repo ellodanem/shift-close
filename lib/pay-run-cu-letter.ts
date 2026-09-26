@@ -2,7 +2,12 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatDateDisplay } from './pay-period-excel'
 import { formatMoney } from './pay-run'
-import { isCreditUnionBank, type BankingListingRow, type BankingPack } from './pay-run-banking'
+import {
+  creditUnionByCode,
+  isCreditUnionBank,
+  type BankingListingRow,
+  type BankingPack
+} from './pay-run-banking'
 
 export type CreditUnionLetter = {
   code: string
@@ -35,7 +40,7 @@ function round2(n: number): number {
 export function creditUnionLetters(pack: BankingPack): CreditUnionLetter[] {
   const groups = new Map<string, BankingListingRow[]>()
   for (const row of pack.listing) {
-    if (!isCreditUnionBank(row.bankCode)) continue
+    if (!isCreditUnionBank(row.bankCode, row.bankName)) continue
     const code = row.bankCode.toUpperCase()
     const rows = groups.get(code) ?? []
     rows.push(row)
@@ -44,11 +49,13 @@ export function creditUnionLetters(pack: BankingPack): CreditUnionLetter[] {
   return [...groups.entries()]
     .map(([code, members]) => {
       const known = CU_ADDRESSEES[code]
+      const registry = creditUnionByCode(code)
+      const bankName = members.find((row) => row.bankName.trim())?.bankName.trim()
       return {
         code,
-        legalName: known?.legalName ?? code,
+        legalName: known?.legalName ?? bankName ?? registry?.name ?? code,
         street: known?.street ?? '',
-        city: known?.city ?? 'Castries',
+        city: known?.city ?? '',
         settlementBank: known?.settlementBank ?? '',
         settlementAccount: known?.settlementAccount ?? '',
         members,
@@ -69,11 +76,57 @@ export function cuLetterEmailBody(letter: CreditUnionLetter): string {
   return `Please see attached salary allocation for ${letter.legalName}.`
 }
 
+export function cuLetterEmailHtml(message: string): string {
+  const escaped = message
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br/>')
+  return `<p>${escaped}</p>`
+}
+
+/** Default letter prose. Known credit unions start from their address; others start blank for the editor. */
+export function defaultCreditUnionLetterText(letter: CreditUnionLetter, payDate: string): string {
+  const settlement =
+    letter.settlementBank && letter.settlementAccount
+      ? `${letter.settlementBank} account ${letter.settlementAccount}`
+      : 'your institution'
+  const lines = [formatDateDisplay(payDate), '', 'The Manager', letter.legalName]
+  if (letter.street) lines.push(letter.street)
+  if (letter.city) lines.push(letter.city)
+  lines.push('', `Please find below the amounts credited to ${settlement} in respect of salaries.`)
+  return lines.join('\n')
+}
+
 export function cuLetterFilename(letter: CreditUnionLetter, payDate: string): string {
   return `salary-allocation-${letter.code}-${payDate}.pdf`
 }
 
-export function buildCreditUnionLetterPdf(letter: CreditUnionLetter, payDate: string): jsPDF {
+function writeLetterProse(doc: jsPDF, text: string, margin: number, startY: number): number {
+  let y = startY
+  doc.setFont('times', 'normal')
+  doc.setFontSize(11)
+  for (const line of text.split('\n')) {
+    if (y > 10) {
+      doc.addPage()
+      y = margin
+    }
+    if (!line.trim()) {
+      y += 0.16
+      continue
+    }
+    const wrapped = doc.splitTextToSize(line, 7) as string[]
+    doc.text(wrapped, margin, y)
+    y += wrapped.length * 0.2
+  }
+  return y + 0.15
+}
+
+export function buildCreditUnionLetterPdf(
+  letter: CreditUnionLetter,
+  payDate: string,
+  letterText?: string
+): jsPDF {
   const doc = new jsPDF('portrait', 'in', 'letter')
   const margin = 0.75
   let y = margin
@@ -89,30 +142,8 @@ export function buildCreditUnionLetterPdf(letter: CreditUnionLetter, payDate: st
   doc.text('P.O. Box GM 674, Castries, Saint Lucia', 4.25, y, { align: 'center' })
   y += 0.4
 
-  doc.text(formatDateDisplay(payDate), margin, y)
-  y += 0.35
-  doc.text('The Manager', margin, y)
-  y += 0.18
-  doc.text(letter.legalName, margin, y)
-  y += 0.18
-  if (letter.street) {
-    doc.text(letter.street, margin, y)
-    y += 0.18
-  }
-  doc.text(letter.city, margin, y)
-  y += 0.35
-
-  const settlement =
-    letter.settlementBank && letter.settlementAccount
-      ? `${letter.settlementBank} account ${letter.settlementAccount}`
-      : 'your institution'
-  doc.text(
-    `Please find below the amounts credited to ${settlement} in respect of salaries.`,
-    margin,
-    y,
-    { maxWidth: 7 }
-  )
-  y += 0.4
+  const prose = letterText?.trim() || defaultCreditUnionLetterText(letter, payDate)
+  y = writeLetterProse(doc, prose, margin, y)
 
   autoTable(doc, {
     startY: y,
@@ -139,6 +170,8 @@ export function buildCreditUnionLetterPdf(letter: CreditUnionLetter, payDate: st
   })
 
   y = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 0.45
+  doc.setFont('times', 'normal')
+  doc.setFontSize(11)
   doc.text('Yours truly,', margin, y)
   y += 0.55
   doc.setFont('times', 'bold')
@@ -149,11 +182,11 @@ export function buildCreditUnionLetterPdf(letter: CreditUnionLetter, payDate: st
   return doc
 }
 
-export function downloadCreditUnionLetter(letter: CreditUnionLetter, payDate: string) {
-  buildCreditUnionLetterPdf(letter, payDate).save(cuLetterFilename(letter, payDate))
-}
-
-export function creditUnionLetterPdfBuffer(letter: CreditUnionLetter, payDate: string): Buffer {
-  const bytes = buildCreditUnionLetterPdf(letter, payDate).output('arraybuffer')
+export function creditUnionLetterPdfBuffer(
+  letter: CreditUnionLetter,
+  payDate: string,
+  letterText?: string
+): Buffer {
+  const bytes = buildCreditUnionLetterPdf(letter, payDate, letterText).output('arraybuffer')
   return Buffer.from(bytes)
 }
