@@ -95,15 +95,15 @@ function monthLabel(ymd: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long' }).toUpperCase()
 }
 
-export function printNisReport(input: {
+export type NisReportInput = {
   startDate: string
   endDate: string
   cycle: string
   lines: NisPrintLine[]
   voided?: boolean
-}) {
-  const printWin = window.open('', '_blank')
-  if (!printWin) return
+}
+
+export function renderNisHtml(input: NisReportInput): string {
   const rows = input.lines.filter((line) => line.grossPay !== 0 || line.nisEmployee !== 0 || line.nisEmployer !== 0)
   const body = rows
     .map((line) => {
@@ -121,7 +121,7 @@ export function printNisReport(input: {
   const staff = rows.reduce((s, line) => s + line.nisEmployee, 0)
   const employer = rows.reduce((s, line) => s + line.nisEmployer, 0)
   const printed = new Date().toLocaleDateString('en-US')
-  printWin.document.write(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
   <head>
     <title>N.I.S. ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</title>
@@ -169,7 +169,13 @@ export function printNisReport(input: {
     </table>
     <p class="foot">PRINTED: ${escapePayPeriodHtml(printed)}</p>
   </body>
-</html>`)
+</html>`
+}
+
+export function printNisReport(input: NisReportInput) {
+  const printWin = window.open('', '_blank')
+  if (!printWin) return
+  printWin.document.write(renderNisHtml(input))
   printWin.document.close()
   printWin.focus()
   printWin.print()
@@ -1182,7 +1188,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
       th, td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; }
       th:not(:first-child), td.num { text-align: right; }
       th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-      .group td { padding-top: 12px; border-bottom: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #92400e; }
+      .group td { padding-top: 14px; border-bottom: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #c2410c; }
       .subtotal td { font-weight: 700; background: #f5f3ff; }
       .grand td { font-weight: 700; background: #ede9fe; }
       .note { color: #64748b; font-size: 11px; }
@@ -1271,9 +1277,9 @@ function summaryTableBody(lines: PayrollPreviewLine[]): PreviewCell[][] {
         styles: {
           font: 'helvetica',
           fontStyle: 'bold',
-          textColor: [146, 64, 14],
-          fontSize: 9,
-          cellPadding: { top: 10, bottom: 3, left: 2, right: 2 }
+          textColor: [194, 65, 12],
+          fontSize: 11,
+          cellPadding: { top: 12, bottom: 4, left: 2, right: 2 }
         }
       }
     ])
@@ -1478,7 +1484,15 @@ export function buildPayrollPreviewPdf(input: PayrollPreviewInput): jsPDF {
       4: { halign: 'right' }
     },
     margin: { left: PREVIEW_MARGIN, right: PREVIEW_MARGIN, bottom: 48 },
-    showHead: 'everyPage'
+    showHead: 'everyPage',
+    didParseCell: (data) => {
+      const text = Array.isArray(data.cell.text) ? data.cell.text.join(' ') : String(data.cell.text ?? '')
+      if (text !== 'HOURLY EMPLOYEES' && text !== 'SALARIED EMPLOYEES') return
+      data.cell.styles.font = 'helvetica'
+      data.cell.styles.fontStyle = 'bold'
+      data.cell.styles.fontSize = 11
+      data.cell.styles.textColor = [194, 65, 12]
+    }
   })
 
   const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100
