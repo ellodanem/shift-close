@@ -123,6 +123,14 @@ export function isStakeholderPeoplePath(pathname: string): boolean {
   return STAKEHOLDER_PEOPLE_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix))
 }
 
+/** Fuel Comparison report tile, its page, and the read API. Not the rest of Reports. */
+export function isStakeholderFuelComparisonPath(pathname: string): boolean {
+  return (
+    pathMatchesPrefix(pathname, '/reports/fuel-comparison') ||
+    pathMatchesPrefix(pathname, '/api/reports/fuel-comparison')
+  )
+}
+
 export function canEditRoster(role: string): boolean {
   const r = normalizeAppRole(role)
   if (isFullAccessRole(role)) return true

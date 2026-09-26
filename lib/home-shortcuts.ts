@@ -6,6 +6,7 @@ import {
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   isSupervisorLike,
   normalizeAppRole
@@ -375,7 +376,8 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       href.startsWith('/insights/') ||
       href === '/financial/deposit-comparisons' ||
       href === SCANS_MOBILE_PATH ||
-      isStakeholderPeoplePath(href)
+      isStakeholderPeoplePath(href) ||
+      isStakeholderFuelComparisonPath(href)
     )
   }
   if (isSupervisorLike(role)) {
