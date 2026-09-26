@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { DEFAULT_OVERTIME_MULTIPLIER, loadOvertimeMultiplier, loadPayslipCompany } from '@/lib/payroll-settings'
@@ -239,15 +239,60 @@ function deductionLines(line: PayRunLine, draft: Draft, categories: PayrollCateg
   })
 }
 
+type PayrollEntryHeader = {
+  payDate: string
+  startDate: string
+  endDate: string
+  cycleNumber: string
+}
+
+function draftsFromRun(run: PayRun, categories: PayrollCategory[]): Record<string, Draft> {
+  const seeded: Record<string, Draft> = {}
+  for (const line of run.lines) seeded[line.id] = draftFromLine(line, categories)
+  return seeded
+}
+
+function payrollEntryPayload(
+  run: PayRun,
+  drafts: Record<string, Draft>,
+  categories: PayrollCategory[],
+  header: PayrollEntryHeader
+) {
+  return {
+    payDate: header.payDate,
+    startDate: header.startDate,
+    endDate: header.endDate,
+    cycleNumber: Number(header.cycleNumber),
+    lines: run.lines.map((line) => {
+      const draft = drafts[line.id] ?? draftFromLine(line, categories)
+      return {
+        id: line.id,
+        taxCode: line.taxCode || '',
+        basicHours: parseMoney(draft.basicHours),
+        otHours: parseMoney(draft.otHours),
+        hourlyRate: parseMoney(draft.rate),
+        salariedAmount: parseMoney(draft.salary),
+        extraLines: extraLinesFor(line, draft, categories),
+        extraDeductions: deductionLines(line, draft, categories),
+        shortageReady: parseMoney(draft.shortage),
+        staffLoan: parseMoney(draft.loan),
+        medical: parseMoney(draft.medical)
+      }
+    })
+  }
+}
+
 function HoursField({
   value,
   disabled,
   onChange,
+  onBlur,
   label
 }: {
   value: string
   disabled: boolean
   onChange: (value: string) => void
+  onBlur?: () => void
   label: string
 }) {
   return (
@@ -257,6 +302,7 @@ function HoursField({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       className="w-20 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums disabled:opacity-60"
     />
   )
@@ -299,21 +345,46 @@ export default function PayrollRunPage() {
   const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
   const [cuError, setCuError] = useState<string | null>(null)
   const [cuSent, setCuSent] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
+  const draftsRef = useRef(drafts)
+  const runRef = useRef(run)
+  const categoriesRef = useRef(categories)
+  const headerRef = useRef<PayrollEntryHeader>({ payDate, startDate, endDate, cycleNumber })
+  const savedSignature = useRef<string | null>(null)
+  const autosaveReady = useRef(false)
+  const saveEpoch = useRef(0)
+  const holdAutosave = useRef(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveChain = useRef<Promise<unknown>>(Promise.resolve())
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to load payroll')
     const next = data as PayRun
-    setRun(next)
-    setPayDate(next.payDate)
-    setStartDate(next.startDate)
-    setEndDate(next.endDate)
-    setCycleNumber(String(shownCycleNumber(next.cycleNumber, next.endDate)))
-    const seeded: Record<string, Draft> = {}
+    const nextHeader: PayrollEntryHeader = {
+      payDate: next.payDate,
+      startDate: next.startDate,
+      endDate: next.endDate,
+      cycleNumber: String(shownCycleNumber(next.cycleNumber, next.endDate))
+    }
     const savedCategories = loadPayrollCategories()
-    for (const line of next.lines) seeded[line.id] = draftFromLine(line, savedCategories)
+    const seeded = draftsFromRun(next, savedCategories)
+    runRef.current = next
+    draftsRef.current = seeded
+    categoriesRef.current = savedCategories
+    headerRef.current = nextHeader
+    savedSignature.current = JSON.stringify(payrollEntryPayload(next, seeded, savedCategories, nextHeader))
+    autosaveReady.current = true
+    setRun(next)
+    setPayDate(nextHeader.payDate)
+    setStartDate(nextHeader.startDate)
+    setEndDate(nextHeader.endDate)
+    setCycleNumber(nextHeader.cycleNumber)
+    setCategories(savedCategories)
     setDrafts(seeded)
+    setSaveStatus('saved')
+    setError(null)
     if (next.status === 'processed' || next.status === 'void') setStep(3)
     return next
   }, [id])
@@ -326,8 +397,22 @@ export default function PayrollRunPage() {
   }, [load])
 
   useEffect(() => {
-    setCategories(loadPayrollCategories())
+    const next = loadPayrollCategories()
+    categoriesRef.current = next
+    setCategories(next)
   }, [])
+
+  useEffect(() => {
+    runRef.current = run
+  }, [run])
+
+  useEffect(() => {
+    draftsRef.current = drafts
+  }, [drafts])
+
+  useEffect(() => {
+    headerRef.current = { payDate, startDate, endDate, cycleNumber }
+  }, [payDate, startDate, endDate, cycleNumber])
 
   useEffect(() => {
     let cancelled = false
@@ -367,71 +452,144 @@ export default function PayrollRunPage() {
   )
 
   const patchDraft = (lineId: string, patch: Partial<Draft>) => {
-    setDrafts((current) => ({ ...current, [lineId]: { ...current[lineId], ...patch } }))
+    const next = {
+      ...draftsRef.current,
+      [lineId]: { ...draftsRef.current[lineId], ...patch }
+    }
+    draftsRef.current = next
+    setDrafts(next)
   }
 
-  const persist = async (header?: {
-    payDate: string
-    startDate: string
-    endDate: string
-    cycleNumber: string
-  }) => {
-    if (!run) return null
-    const nextPayDate = header?.payDate ?? payDate
-    const nextStart = header?.startDate ?? startDate
-    const nextEnd = header?.endDate ?? endDate
-    const nextCycle = header?.cycleNumber ?? cycleNumber
-    const res = await fetch(`/api/pay-runs/${run.id}`, {
+  const writeEntries = useCallback(async (opts?: { header?: PayrollEntryHeader; reseed?: boolean }) => {
+    if (holdAutosave.current || savedSignature.current === null) return runRef.current
+    const epoch = saveEpoch.current
+    const current = runRef.current
+    if (!current || current.status === 'processed' || current.status === 'void') return current
+    const header = opts?.header ?? headerRef.current
+    const body = payrollEntryPayload(current, draftsRef.current, categoriesRef.current, header)
+    const payload = JSON.stringify(body)
+    if (payload === savedSignature.current) {
+      if (saveEpoch.current === epoch) setSaveStatus('saved')
+      return current
+    }
+    setSaveStatus('saving')
+    const res = await fetch(`/api/pay-runs/${current.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payDate: nextPayDate,
-        startDate: nextStart,
-        endDate: nextEnd,
-        cycleNumber: Number(nextCycle),
-        lines: run.lines.map((line) => {
-          const draft = drafts[line.id] ?? draftFromLine(line, categories)
-          return {
-            id: line.id,
-            basicHours: parseMoney(draft.basicHours),
-            otHours: parseMoney(draft.otHours),
-            hourlyRate: parseMoney(draft.rate),
-            salariedAmount: parseMoney(draft.salary),
-            extraLines: extraLinesFor(line, draft, categories),
-            extraDeductions: deductionLines(line, draft, categories),
-            shortageReady: parseMoney(draft.shortage),
-            staffLoan: parseMoney(draft.loan),
-            medical: parseMoney(draft.medical)
-          }
-        })
-      })
+      keepalive: payload.length < 60_000,
+      body: payload
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to save payroll')
-    setRun(data)
-    if (typeof data.payDate === 'string') setPayDate(data.payDate)
-    if (typeof data.startDate === 'string') setStartDate(data.startDate)
-    if (typeof data.endDate === 'string') setEndDate(data.endDate)
-    if (typeof data.cycleNumber === 'number') {
-      setCycleNumber(String(shownCycleNumber(data.cycleNumber, data.endDate || endDate)))
+    if (saveEpoch.current !== epoch || holdAutosave.current) return runRef.current
+    const saved = data as PayRun
+    const nextHeader: PayrollEntryHeader = {
+      payDate: typeof saved.payDate === 'string' ? saved.payDate : header.payDate,
+      startDate: typeof saved.startDate === 'string' ? saved.startDate : header.startDate,
+      endDate: typeof saved.endDate === 'string' ? saved.endDate : header.endDate,
+      cycleNumber:
+        typeof saved.cycleNumber === 'number'
+          ? String(shownCycleNumber(saved.cycleNumber, saved.endDate || header.endDate))
+          : header.cycleNumber
     }
-    const seeded: Record<string, Draft> = {}
-    for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line, categories)
-    setDrafts(seeded)
-    return data as PayRun
+    headerRef.current = nextHeader
+    setPayDate(nextHeader.payDate)
+    setStartDate(nextHeader.startDate)
+    setEndDate(nextHeader.endDate)
+    setCycleNumber(nextHeader.cycleNumber)
+    runRef.current = saved
+    setRun(saved)
+    // Keep the text in the fields. Replacing it from the server jumps the cursor mid-entry.
+    if (opts?.reseed) {
+      const seeded = draftsFromRun(saved, categoriesRef.current)
+      draftsRef.current = seeded
+      setDrafts(seeded)
+      savedSignature.current = JSON.stringify(
+        payrollEntryPayload(saved, seeded, categoriesRef.current, nextHeader)
+      )
+    } else {
+      savedSignature.current = payload
+    }
+    setSaveStatus('saved')
+    setError(null)
+    return saved
+  }, [])
+
+  const persistNow = useCallback(
+    (opts?: { header?: PayrollEntryHeader; reseed?: boolean }) => {
+      const job = saveChain.current.then(() => writeEntries(opts))
+      saveChain.current = job.then(
+        () => undefined,
+        () => undefined
+      )
+      const epoch = saveEpoch.current
+      return job.catch((err) => {
+        if (!holdAutosave.current && saveEpoch.current === epoch) {
+          setSaveStatus('error')
+          setError(err instanceof Error ? err.message : 'Failed to save payroll')
+        }
+        throw err
+      })
+    },
+    [writeEntries]
+  )
+
+  const flushSave = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    void persistNow().catch(() => undefined)
   }
 
-  const save = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await persist()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save payroll')
-    } finally {
-      setBusy(false)
+  useEffect(() => {
+    if (loading || !runRef.current) return
+    const sig = JSON.stringify(
+      payrollEntryPayload(runRef.current, draftsRef.current, categoriesRef.current, headerRef.current)
+    )
+    if (!autosaveReady.current) {
+      savedSignature.current = sig
+      autosaveReady.current = true
+      return
     }
-  }
+    if (locked || holdAutosave.current) return
+    if (sig === savedSignature.current) {
+      setSaveStatus((status) => (status === 'error' ? status : 'saved'))
+      return
+    }
+    setSaveStatus('saving')
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null
+      void persistNow().catch(() => undefined)
+    }, 500)
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+    }
+  }, [drafts, categories, payDate, startDate, endDate, cycleNumber, loading, locked, persistNow])
+
+  useEffect(() => {
+    const flush = () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+      void persistNow().catch(() => undefined)
+    }
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHide)
+      flush()
+    }
+  }, [persistNow])
 
   const openPeriod = () => {
     if (!run || locked) return
@@ -458,7 +616,7 @@ export default function PayrollRunPage() {
     setBusy(true)
     setError(null)
     try {
-      await persist(periodDraft)
+      await persistNow({ header: periodDraft, reseed: true })
       setPeriodDraft(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save the pay period')
@@ -471,7 +629,7 @@ export default function PayrollRunPage() {
     setBusy(true)
     setError(null)
     try {
-      await persist()
+      await persistNow({ reseed: true })
       setDetails(false)
       setStep(2)
     } catch (err) {
@@ -485,7 +643,7 @@ export default function PayrollRunPage() {
     setBusy(true)
     setError(null)
     try {
-      await persist()
+      await persistNow({ reseed: true })
       const res = await fetch(`/api/pay-runs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -504,14 +662,22 @@ export default function PayrollRunPage() {
 
   const deleteDraft = async () => {
     if (!window.confirm('Delete this draft? This cannot be undone.')) return
+    holdAutosave.current = true
+    saveEpoch.current += 1
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
     setBusy(true)
     setError(null)
     try {
+      await saveChain.current
       const res = await fetch(`/api/pay-runs/${id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to delete draft')
       router.push('/payroll')
     } catch (err) {
+      holdAutosave.current = false
       setError(err instanceof Error ? err.message : 'Failed to delete draft')
       setBusy(false)
     }
@@ -546,9 +712,16 @@ export default function PayrollRunPage() {
 
   const reloadHours = async () => {
     if (!window.confirm('Replace edited hours with the extracted attendance for this period?')) return
+    holdAutosave.current = true
+    saveEpoch.current += 1
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
     setBusy(true)
     setError(null)
     try {
+      await saveChain.current
       const res = await fetch(`/api/pay-runs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -556,32 +729,41 @@ export default function PayrollRunPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to reload hours')
-      setRun(data)
-      const seeded: Record<string, Draft> = {}
-      for (const line of data.lines as PayRunLine[]) seeded[line.id] = draftFromLine(line, categories)
+      const saved = data as PayRun
+      const seeded = draftsFromRun(saved, categoriesRef.current)
+      runRef.current = saved
+      draftsRef.current = seeded
+      savedSignature.current = JSON.stringify(
+        payrollEntryPayload(saved, seeded, categoriesRef.current, headerRef.current)
+      )
+      autosaveReady.current = true
+      setRun(saved)
       setDrafts(seeded)
+      setSaveStatus('saved')
     } catch (err) {
+      setSaveStatus('error')
       setError(err instanceof Error ? err.message : 'Failed to reload hours')
     } finally {
+      holdAutosave.current = false
       setBusy(false)
     }
   }
 
   const clearEntries = () => {
-    setDrafts((current) => {
-      const next = { ...current }
-      for (const line of hourly) {
-        const draft = next[line.id]
-        if (!draft) continue
-        next[line.id] = { ...draft, basicHours: '', otHours: '', extra: '', shortage: '', custom: {} }
-      }
-      for (const line of salaried) {
-        const draft = next[line.id]
-        if (!draft) continue
-        next[line.id] = { ...draft, extra: '', custom: {} }
-      }
-      return next
-    })
+    const next = { ...draftsRef.current }
+    for (const line of hourly) {
+      const draft = next[line.id]
+      if (!draft) continue
+      next[line.id] = { ...draft, basicHours: '', otHours: '', extra: '', shortage: '', custom: {} }
+    }
+    for (const line of salaried) {
+      const draft = next[line.id]
+      if (!draft) continue
+      next[line.id] = { ...draft, extra: '', custom: {} }
+    }
+    draftsRef.current = next
+    setDrafts(next)
+    flushSave()
   }
 
   const openPayInfo = (lineId: string) => {
@@ -618,54 +800,30 @@ export default function PayrollRunPage() {
       ...(salariedLine ? { salary: String(amount) } : { rate: String(amount) }),
       medical: medical ? String(medical) : ''
     })
-    setRun((current) =>
-      current
-        ? {
-            ...current,
-            lines: current.lines.map((item) =>
-              item.id === line.id
-                ? {
-                    ...item,
-                    hourlyRate: salariedLine ? item.hourlyRate : amount,
-                    salariedAmount: salariedLine ? amount : item.salariedAmount,
-                    medical,
-                    taxCode: code
-                  }
-                : item
-            )
-          }
-        : current
-    )
+    const currentRun = runRef.current
+    if (currentRun) {
+      const nextRun = {
+        ...currentRun,
+        lines: currentRun.lines.map((item) =>
+          item.id === line.id
+            ? {
+                ...item,
+                hourlyRate: salariedLine ? item.hourlyRate : amount,
+                salariedAmount: salariedLine ? amount : item.salariedAmount,
+                medical,
+                taxCode: code
+              }
+            : item
+        )
+      }
+      runRef.current = nextRun
+      setRun(nextRun)
+    }
     setRateLineId(null)
     setBusy(true)
     setError(null)
     try {
-      const lineRes = await fetch(`/api/pay-runs/${run.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          line: {
-            id: line.id,
-            taxCode: code,
-            medical,
-            ...(salariedLine ? { salariedAmount: amount } : { hourlyRate: amount })
-          }
-        })
-      })
-      const saved = await lineRes.json().catch(() => ({}))
-      if (!lineRes.ok) {
-        throw new Error(saved.error || 'Failed to save pay information')
-      }
-      const savedLine = Array.isArray(saved.lines)
-        ? saved.lines.find((item: PayRunLine) => item.id === line.id)
-        : null
-      if (savedLine) {
-        setRun((current) =>
-          current
-            ? { ...current, lines: current.lines.map((item) => (item.id === line.id ? savedLine : item)) }
-            : current
-        )
-      }
+      await persistNow()
       if (rateScope === 'future' && line.staffId) {
         const res = await fetch(`/api/staff/${line.staffId}`, {
           method: 'PATCH',
@@ -747,6 +905,7 @@ export default function PayrollRunPage() {
   const salariedColumns = hourlyColumns.filter((category) => category.kind !== 'hours')
 
   const updateCategories = (next: PayrollCategory[]) => {
+    categoriesRef.current = next
     setCategories(next)
     savePayrollCategories(next)
   }
@@ -809,7 +968,10 @@ export default function PayrollRunPage() {
     else if (category.id === 'extra') patchDraft(lineId, { extra: value })
     else if (category.id === 'medical') patchDraft(lineId, { medical: value })
     else if (category.id === 'shortage') patchDraft(lineId, { shortage: value })
-    else patchDraft(lineId, { custom: { ...(draft.custom ?? {}), [category.id]: value } })
+    else {
+      const custom = draftsRef.current[lineId]?.custom ?? draft.custom
+      patchDraft(lineId, { custom: { ...custom, [category.id]: value } })
+    }
   }
 
   const categoryTotal = (lines: PayRunLine[], category: PayrollCategory) => {
@@ -832,7 +994,7 @@ export default function PayrollRunPage() {
     setOpeningPreview(true)
     setError(null)
     try {
-      const saved = locked ? run : await persist()
+      const saved = locked ? run : await persistNow({ reseed: true })
       if (!saved) return
       setPreview(previewFromRun(saved))
     } catch (err) {
@@ -936,6 +1098,7 @@ export default function PayrollRunPage() {
                   type="button"
                   onClick={() => {
                     if (n === 3 && !locked) return
+                    if (!locked && n !== step) flushSave()
                     setStep(n)
                   }}
                   disabled={n === 3 && !locked}
@@ -970,8 +1133,8 @@ export default function PayrollRunPage() {
                   role="tooltip"
                   className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
                 >
-                  Basic and OT hours are filled from extracted attendance. Click a name to change the pay rate, tax code,
-                  and medical. Use Hours & money types to add or remove columns.
+                  Basic and OT hours are filled from extracted attendance. Edits save on their own. Click a name to
+                  change the pay rate, tax code, and medical. Use Hours & money types to add or remove columns.
                 </span>
               </span>
               <button
@@ -1029,7 +1192,8 @@ export default function PayrollRunPage() {
                               <HoursField
                                 label={`${category.label} for ${line.staffName}`}
                                 value={categoryValue(draft, category)}
-                                disabled={Boolean(locked)}
+                                disabled={Boolean(locked) || busy}
+                                onBlur={flushSave}
                                 onChange={(value) => setCategoryValue(line.id, draft, category, value)}
                               />
                             </td>
@@ -1098,8 +1262,11 @@ export default function PayrollRunPage() {
                               <input
                                 type="checkbox"
                                 checked={draft.paySalary}
-                                disabled={locked}
-                                onChange={(e) => patchDraft(line.id, { paySalary: e.target.checked })}
+                                disabled={Boolean(locked) || busy}
+                                onChange={(e) => {
+                                  patchDraft(line.id, { paySalary: e.target.checked })
+                                  flushSave()
+                                }}
                               />
                               Pay salary
                             </label>
@@ -1112,7 +1279,8 @@ export default function PayrollRunPage() {
                               <HoursField
                                 label={`${category.label} for ${line.staffName}`}
                                 value={categoryValue(draft, category)}
-                                disabled={Boolean(locked)}
+                                disabled={Boolean(locked) || busy}
+                                onBlur={flushSave}
                                 onChange={(value) => setCategoryValue(line.id, draft, category, value)}
                               />
                             </td>
@@ -1156,6 +1324,7 @@ export default function PayrollRunPage() {
             drafts={drafts}
             onToggleDetails={() => setDetails((value) => !value)}
             onDraft={patchDraft}
+            onFlush={flushSave}
             onEditName={openPayInfo}
             locked={Boolean(locked)}
           />
@@ -1273,14 +1442,22 @@ export default function PayrollRunPage() {
               >
                 Clear entries
               </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={busy || locked}
-                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+              <span
+                className="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-violet-900"
+                aria-live="polite"
               >
-                Save entries
-              </button>
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Could not save' : 'Saved'}
+              </span>
+              {saveStatus === 'error' ? (
+                <button
+                  type="button"
+                  onClick={flushSave}
+                  disabled={locked}
+                  className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+                >
+                  Save entries
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={reloadHours}
@@ -1305,10 +1482,18 @@ export default function PayrollRunPage() {
       {step === 2 ? (
         <div className="sticky bottom-0 border-t border-violet-100 bg-violet-50 px-6 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <div className="flex gap-4 text-sm">
+            <div className="flex items-center gap-4 text-sm">
               <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
                 Back to employees
               </button>
+              <span className="font-medium text-violet-900" aria-live="polite">
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Could not save' : 'Saved'}
+              </span>
+              {saveStatus === 'error' ? (
+                <button type="button" onClick={flushSave} className="font-medium text-violet-700">
+                  Save entries
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={openPreview}
@@ -1759,6 +1944,7 @@ function ReviewStep({
   drafts,
   onToggleDetails,
   onDraft,
+  onFlush,
   onEditName,
   locked
 }: {
@@ -1767,6 +1953,7 @@ function ReviewStep({
   drafts: Record<string, Draft>
   onToggleDetails: () => void
   onDraft: (lineId: string, patch: Partial<Draft>) => void
+  onFlush: () => void
   onEditName: (lineId: string) => void
   locked: boolean
 }) {
@@ -1896,6 +2083,7 @@ function ReviewStep({
                                   onFocus={() => setOpenDeductions((current) => ({ ...current, [openKey]: true }))}
                                   onBlur={(e) => {
                                     const nextValue = e.currentTarget.value
+                                    onFlush()
                                     if (parseMoney(nextValue) !== 0 || deductionYtd(line, field.key, nextValue) !== 0) return
                                     setOpenDeductions((current) => {
                                       if (!current[openKey]) return current
