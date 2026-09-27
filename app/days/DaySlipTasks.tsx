@@ -27,30 +27,6 @@ const ROW_COPY: Record<
   security: { title: 'Security slip', fallback: 'Pickup receipt for this deposit' }
 }
 
-function bagLine(day: DayReport): string {
-  const seen = new Set<string>()
-  const bags: string[] = []
-  for (const shift of day.shifts) {
-    for (const raw of shift.depositBagNumbers ?? []) {
-      const bag = String(raw).trim()
-      if (!bag || seen.has(bag)) continue
-      seen.add(bag)
-      bags.push(bag)
-    }
-  }
-  if (bags.length === 0) return 'No bag number on the shifts'
-  if (bags.length === 1) return `Bag ${bags[0]}`
-  return `Bags ${bags.join(', ')}`
-}
-
-function rowSubtitle(day: DayReport, id: SlipTaskId): string {
-  if (id === 'deposit') return bagLine(day)
-  if (id === 'debit') {
-    return `Credit ${formatCurrency(day.totals.totalCredit)} · Debit ${formatCurrency(day.totals.totalDebit)}`
-  }
-  return ROW_COPY.security.fallback
-}
-
 function statusLine(day: DayReport, task: SlipTask): { text: string; tone: 'green' | 'amber' | 'muted' } {
   if (task.photoCount > 0) {
     const noun = task.photoCount === 1 ? 'photo' : 'photos'
@@ -86,9 +62,9 @@ function slipIconClass(id: SlipTaskId, tone?: SlipIconTone): string {
   if (tone === 'uploaded') return 'h-7 w-7 text-green-600'
   if (tone === 'noted') return 'h-7 w-7 text-yellow-600'
   if (tone === 'missing') return 'h-7 w-7 text-gray-400'
-  if (id === 'deposit') return 'h-7 w-7 text-blue-700'
-  if (id === 'debit') return 'h-7 w-7 text-violet-700'
-  return 'h-7 w-7 text-emerald-700'
+  if (id === 'deposit') return 'h-7 w-7 text-blue-600'
+  if (id === 'debit') return 'h-7 w-7 text-violet-600'
+  return 'h-7 w-7 text-green-600'
 }
 
 function SlipIcon({ id, tone }: { id: SlipTaskId; tone?: SlipIconTone }) {
@@ -245,87 +221,84 @@ export default function DaySlipTasks({
     setExceptionId(task.id)
   }
 
-  const ordered = [...tasks].sort((a, b) => Number(a.done) - Number(b.done))
-
   return (
-    <div className="space-y-3 px-4 pb-3">
-      {ordered.length === 0 ? (
-        <p className="text-sm text-gray-600">No slips needed for this day.</p>
-      ) : null}
-      <div className="space-y-3">
-        {ordered.map((task) => {
+    <div>
+      {tasks.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-gray-600">No slips needed for this day.</p>
+      ) : (
+      <div className="grid grid-cols-1 divide-y divide-gray-200 border-t border-gray-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+        {tasks.map((task) => {
           const status = statusLine(dayReport, task)
           const showException = exceptionId === task.id && task.id !== 'deposit'
           return (
             <div
               key={task.id}
-              className={`rounded-lg border border-l-4 ${
-                task.done
-                  ? 'border-gray-200 border-l-green-500 bg-white'
-                  : 'border-amber-200 border-l-amber-500 bg-amber-50/70'
-              }`}
+              className={`flex flex-col gap-2 px-4 py-4 ${task.done ? 'bg-white' : 'bg-amber-50/50'}`}
             >
-              <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
-                      <SlipIcon id={task.id} tone={slipIconTone(dayReport, task)} />
-                    </span>
-                    <p className={`font-semibold text-gray-900 ${task.done ? '' : 'text-base'}`}>
-                      {task.done ? ROW_COPY[task.id].title : `${ROW_COPY[task.id].title} still needed`}
-                    </p>
-                  </div>
-                  <p className={`mt-1 pl-9 ${task.id === 'deposit' && task.photoCount > 0 ? 'text-lg font-bold text-gray-900' : 'text-sm text-gray-600'}`}>
-                    {task.id === 'deposit' && task.photoCount > 0
-                      ? formatCurrency(dayReport.totals.totalDeposits)
-                      : rowSubtitle(dayReport, task.id)}
-                  </p>
-                  {status.text ? (
-                    <p
-                      className={`mt-0.5 pl-9 text-sm font-medium ${
-                        status.tone === 'green'
-                          ? 'text-green-700'
-                          : status.tone === 'amber'
-                            ? 'text-amber-800'
-                            : 'text-gray-500'
-                      }`}
-                    >
-                      {status.text}
-                    </p>
-                  ) : null}
-                  {task.photoCount === 0 && task.id === 'deposit' ? (
-                    <button
-                      type="button"
-                      className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
-                      onClick={onMissingDepositSlip}
-                    >
-                      {task.waived || dayReport.missingDepositSlipAlertOpen
-                        ? 'Missing slip'
-                        : "I don't have this slip"}
-                    </button>
-                  ) : null}
-                  {task.photoCount === 0 && task.id !== 'deposit' && !showException ? (
-                    task.waived ? (
-                      <button
-                        type="button"
-                        className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
-                        disabled={savingException}
-                        onClick={() => void saveWaiver(task.id as 'debit' | 'security', false, '')}
-                      >
-                        Undo — I have the slip
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
-                        onClick={() => openException(task)}
-                      >
-                        I don&apos;t have this slip
-                      </button>
-                    )
-                  ) : null}
+              <div className={`h-1 w-12 rounded-full ${task.done ? 'bg-green-500' : 'bg-amber-400'}`} />
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
+                  <SlipIcon id={task.id} />
+                </span>
+                <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
+              </div>
+              {task.id === 'deposit' ? (
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
+              ) : null}
+              {task.id === 'debit' ? (
+                <div className="text-base font-semibold leading-snug text-gray-900">
+                  <p>{formatCurrency(dayReport.totals.totalCredit)} credit</p>
+                  <p>{formatCurrency(dayReport.totals.totalDebit)} debit</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              ) : null}
+              {task.id === 'security' ? (
+                <p className="text-sm text-gray-600">{ROW_COPY.security.fallback}</p>
+              ) : null}
+              {status.text ? (
+                <p
+                  className={`text-sm font-medium ${
+                    status.tone === 'green'
+                      ? 'text-green-700'
+                      : status.tone === 'amber'
+                        ? 'text-amber-800'
+                        : 'text-gray-500'
+                  }`}
+                >
+                  {status.text}
+                </p>
+              ) : null}
+              {task.photoCount === 0 && task.id === 'deposit' ? (
+                <button
+                  type="button"
+                  className="w-fit text-sm font-medium text-blue-700 hover:underline"
+                  onClick={onMissingDepositSlip}
+                >
+                  {task.waived || dayReport.missingDepositSlipAlertOpen
+                    ? 'Missing slip'
+                    : "I don't have this slip"}
+                </button>
+              ) : null}
+              {task.photoCount === 0 && task.id !== 'deposit' && !showException ? (
+                task.waived ? (
+                  <button
+                    type="button"
+                    className="w-fit text-sm font-medium text-blue-700 hover:underline"
+                    disabled={savingException}
+                    onClick={() => void saveWaiver(task.id as 'debit' | 'security', false, '')}
+                  >
+                    Undo — I have the slip
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-fit text-sm font-medium text-blue-700 hover:underline"
+                    onClick={() => openException(task)}
+                  >
+                    I don&apos;t have this slip
+                  </button>
+                )
+              ) : null}
+              <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
                   <input
                     ref={inputFor(task.id) as Ref<HTMLInputElement>}
                     type="file"
@@ -375,10 +348,9 @@ export default function DaySlipTasks({
                     </button>
                   ) : null}
                 </div>
-              </div>
 
               {showException ? (
-                <div className="border-t border-gray-100 px-3 py-3 sm:pl-11">
+                <div className="border-t border-gray-200 pt-3">
                   <label className="block text-xs font-medium text-gray-600" htmlFor={`slip-note-${dayReport.date}-${task.id}`}>
                     Optional note
                   </label>
@@ -418,6 +390,7 @@ export default function DaySlipTasks({
           )
         })}
       </div>
+      )}
       <DayFacts
         dayReport={dayReport}
         reviewHref={reviewHref}
@@ -462,30 +435,38 @@ function DayFacts({
           : 'text-red-600'
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-3 text-sm">
-      <span className={`font-semibold ${shortClass}`}>Short {formatCurrency(short)}</span>
+    <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-t-4 border-slate-400 bg-slate-100 px-5 py-5">
+      <Fact label="Counted" value={formatCurrency(dayReport.totals.countCashTotal)} />
+      <Fact label="System" value={formatCurrency(dayReport.totals.systemCashTotal)} />
+      <Fact label="Short" value={formatCurrency(short)} valueClass={`text-2xl ${shortClass}`} />
       {flagged.length > 0 ? (
         <button
           type="button"
-          className="font-semibold text-red-600 hover:underline"
+          className="rounded-md bg-red-600 px-3 py-2 text-base font-bold tracking-wide text-white hover:bg-red-700"
           onClick={() => onOpenShift(flagged[0].id)}
         >
           RED FLAG
         </button>
       ) : null}
-      <span className="text-gray-500">
-        Counted {formatCurrency(dayReport.totals.countCashTotal)} · System{' '}
-        {formatCurrency(dayReport.totals.systemCashTotal)} · Unleaded {gallons(dayReport.totals.totalUnleaded)} · Diesel{' '}
-        {gallons(dayReport.totals.totalDiesel)}
-      </span>
-      <span className="ml-auto flex items-center gap-4">
-        <Link href={reviewHref} className="text-gray-600 hover:underline">
+      <Fact label="Unleaded" value={gallons(dayReport.totals.totalUnleaded)} />
+      <Fact label="Diesel" value={gallons(dayReport.totals.totalDiesel)} />
+      <span className="ml-auto flex items-center gap-5 pb-1 text-base font-semibold">
+        <Link href={reviewHref} className="text-blue-800 hover:underline">
           Review deposits
         </Link>
-        <button type="button" className="text-gray-600 hover:underline" onClick={onExport}>
+        <button type="button" className="text-gray-950 hover:underline" onClick={onExport}>
           Export
         </button>
       </span>
+    </div>
+  )
+}
+
+function Fact({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`text-xl font-bold leading-tight text-gray-950 ${valueClass ?? ''}`}>{value}</p>
     </div>
   )
 }

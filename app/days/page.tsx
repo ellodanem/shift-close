@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { formatCurrency } from '@/lib/format'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
+import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import { slipsStillNeeded } from '@/lib/day-slip-tasks'
 import { DayReport } from '@/lib/types'
 import {
   businessTodayYmd,
@@ -158,6 +160,9 @@ function DaysPage() {
   const [dayReports, setDayReports] = useState<DayReport[]>([])
   const [loading, setLoading] = useState(true)
   const [rangeLoading, setRangeLoading] = useState(false)
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() =>
+    focusDate ? new Set([focusDate]) : new Set()
+  )
   const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
     if (!focusDate) return 'thisMonth'
     return focusDate.slice(0, 7) === businessTodayYmd().slice(0, 7) ? 'thisMonth' : 'custom'
@@ -194,6 +199,7 @@ function DaysPage() {
 
   useEffect(() => {
     if (!focusDate) return
+    setExpandedDates(new Set([focusDate]))
     const month = focusDate.slice(0, 7)
     if (month === businessTodayYmd().slice(0, 7)) {
       setActiveFilter('thisMonth')
@@ -280,6 +286,15 @@ function DaysPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [activeFilter, customMonth, fetchRange])
   
+  const toggleExpand = (date: string) => {
+    setExpandedDates((current) => {
+      const next = new Set(current)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
+  }
+
   const refreshDayReports = () => {
     const query = daysQueryForFilter(activeFilter, customMonth)
     if (query) loadedRangeKeys.current.delete(query.key)
@@ -662,8 +677,10 @@ function DaysPage() {
         ) : (
           <div className="space-y-4">
             {filteredReports.map((dayReport) => {
+              const isExpanded = expandedDates.has(dayReport.date)
               const dayBags = uniqueDayBagNumbers(dayReport)
               const shiftLine = dayReport.shifts.map((shift) => `${shift.shift} · ${shift.supervisor}`).join(' · ')
+              const slipsLeft = slipsStillNeeded(dayReport)
               
               return (
                 <div
@@ -673,24 +690,81 @@ function DaysPage() {
                     focusDate === dayReport.date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
                   }`}
                 >
-                  <div className="px-4 pb-1 pt-4">
+                  <div
+                    className="cursor-pointer select-none p-4 hover:bg-gray-50"
+                    onClick={() => toggleExpand(dayReport.date)}
+                  >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex-shrink-0 text-lg text-gray-400">{isExpanded ? '▼' : '▶'}</span>
+                        <div className="min-w-0">
                           <div className="flex flex-wrap items-baseline gap-2">
                             <h2 className="text-lg font-bold text-gray-900 sm:text-xl">{dayReport.date}</h2>
                             <BagNumberChips bags={dayBags} />
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-2 items-center sm:gap-3">
-                            {dayReport.status !== 'Complete' ? getStatusBadge(dayReport.status) : null}
+                          <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+                            {dayReport.status === 'Complete' ? (
+                              slipsLeft === 0 ? (
+                                <span className="rounded bg-green-100 px-2 py-1 text-sm text-green-800">Slips filed</span>
+                              ) : (
+                                <span className="rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-950">
+                                  {slipsLeft === 1 ? '1 slip still needed' : `${slipsLeft} slips still needed`}
+                                </span>
+                              )
+                            ) : (
+                              getStatusBadge(dayReport.status)
+                            )}
                             <span className="text-sm text-gray-600">
-                              {shiftLine || `${dayReport.dayType} Day`}
+                              {isExpanded ? shiftLine || `${dayReport.dayType} Day` : `${dayReport.dayType} Day • ${dayReport.shifts.length} shift(s)`}
                             </span>
+                            {!isExpanded ? (
+                              <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
+                                <span>
+                                  O/S:{' '}
+                                  {dayReport.totals.overShortDisclosedTotal === null ? (
+                                    <span className="font-semibold text-gray-500">--</span>
+                                  ) : (
+                                    <span
+                                      className={`font-semibold ${
+                                        Math.abs(dayReport.totals.overShortDisclosedTotal) <= OS_REVIEW_THRESHOLD
+                                          ? 'text-green-600'
+                                          : dayReport.totals.overShortDisclosedTotal > 0
+                                            ? 'text-blue-600'
+                                            : 'text-red-600'
+                                      }`}
+                                    >
+                                      {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
+                                    </span>
+                                  )}
+                                </span>
+                                <span>
+                                  Deposits:{' '}
+                                  <span className="font-semibold text-gray-700">
+                                    {formatCurrency(dayReport.totals.totalDeposits)}
+                                  </span>
+                                </span>
+                                <span>
+                                  Credit:{' '}
+                                  <span className="font-semibold text-gray-700">
+                                    {formatCurrency(dayReport.totals.totalCredit)}
+                                  </span>
+                                </span>
+                                <span>
+                                  Debit:{' '}
+                                  <span className="font-semibold text-gray-700">
+                                    {formatCurrency(dayReport.totals.totalDebit)}
+                                  </span>
+                                </span>
+                              </span>
+                            ) : null}
                           </div>
                         </div>
-                      <CollapsedSlipIcons dayReport={dayReport} />
+                      </div>
+                      {!isExpanded ? <CollapsedSlipIcons dayReport={dayReport} /> : null}
                     </div>
                   </div>
 
+                  {isExpanded ? (
                   <DaySlipTasks
                     dayReport={dayReport}
                     onRefresh={refreshDayReports}
@@ -722,6 +796,7 @@ function DaysPage() {
                     onExport={() => exportToExcel(dayReport)}
                     onOpenShift={(shiftId) => router.push(`/shifts/${shiftId}`)}
                   />
+                  ) : null}
                 </div>
               )
             })}
