@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode, type Ref, type RefObject } from 'react'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
+import { IconDebitCard, IconDepositSlip, IconShield } from '@/app/components/IconDropdown'
 import { slipTasksForDay, type SlipTask, type SlipTaskId } from '@/lib/day-slip-tasks'
 import type { DayReport } from '@/lib/types'
 
@@ -70,6 +71,12 @@ function statusLine(day: DayReport, task: SlipTask): { text: string; tone: 'gree
     }
   }
   return { text: '', tone: 'muted' }
+}
+
+function SlipIcon({ id }: { id: SlipTaskId }) {
+  if (id === 'deposit') return <IconDepositSlip className="h-7 w-7 text-blue-700" />
+  if (id === 'debit') return <IconDebitCard className="h-7 w-7 text-violet-700" />
+  return <IconShield className="h-7 w-7 text-emerald-700" />
 }
 
 function scanUrls(day: DayReport, id: ScanKind): string[] {
@@ -223,7 +230,7 @@ export default function DaySlipTasks({
       </p>
 
       <div className="mt-3 space-y-3">
-        {tasks.map((task, index) => {
+        {tasks.map((task) => {
           const status = statusLine(dayReport, task)
           const showException = exceptionId === task.id && task.id !== 'deposit'
           return (
@@ -236,15 +243,15 @@ export default function DaySlipTasks({
               <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-gray-300 text-xs font-semibold text-gray-700">
-                      {index + 1}
+                    <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
+                      <SlipIcon id={task.id} />
                     </span>
                     <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
                   </div>
-                  <p className="mt-1 pl-8 text-sm text-gray-600">{rowSubtitle(dayReport, task.id)}</p>
+                  <p className="mt-1 pl-9 text-sm text-gray-600">{rowSubtitle(dayReport, task.id)}</p>
                   {status.text ? (
                     <p
-                      className={`mt-0.5 pl-8 text-sm font-medium ${
+                      className={`mt-0.5 pl-9 text-sm font-medium ${
                         status.tone === 'green'
                           ? 'text-green-700'
                           : status.tone === 'amber'
@@ -258,7 +265,7 @@ export default function DaySlipTasks({
                   {task.photoCount === 0 && task.id === 'deposit' ? (
                     <button
                       type="button"
-                      className="mt-1 pl-8 text-sm font-medium text-blue-700 hover:underline"
+                      className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
                       onClick={onMissingDepositSlip}
                     >
                       {task.waived || dayReport.missingDepositSlipAlertOpen
@@ -270,7 +277,7 @@ export default function DaySlipTasks({
                     task.waived ? (
                       <button
                         type="button"
-                        className="mt-1 pl-8 text-sm font-medium text-blue-700 hover:underline"
+                        className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
                         disabled={savingException}
                         onClick={() => void saveWaiver(task.id as 'debit' | 'security', false, '')}
                       >
@@ -279,7 +286,7 @@ export default function DaySlipTasks({
                     ) : (
                       <button
                         type="button"
-                        className="mt-1 pl-8 text-sm font-medium text-blue-700 hover:underline"
+                        className="mt-1 pl-9 text-sm font-medium text-blue-700 hover:underline"
                         onClick={() => openException(task)}
                       >
                         I don&apos;t have this slip
