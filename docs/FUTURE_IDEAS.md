@@ -162,6 +162,16 @@ Patriot’s other reports (screenshot 18) are not part of this run.
 
 ---
 
-## 7. Adding more ideas
+## 7. Hosting option: VPSDime + Coolify
+
+**Status:** Documented only. No migration is planned. Production hosting is unchanged.
+
+**Spec:** [`future-hosting-vpsdime-coolify.md`](./future-hosting-vpsdime-coolify.md)
+
+A dedicated VPSDime VPS with Coolify for application compute, and Raff for the database and object storage. Worth revisiting if Shift Close needs persistent workers, scheduled jobs, or other always-on workloads that fit poorly on serverless hosting.
+
+---
+
+## 8. Adding more ideas
 
 Use short subsections with **Goal**, **Rough behavior**, and **Open decisions**. Link to PRDs or issues when they exist.
