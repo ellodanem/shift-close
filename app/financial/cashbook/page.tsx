@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/app/components/AuthContext'
 
 const PAYMENT_OPTIONS = [
   { value: 'cash', label: 'Cash' },
@@ -134,6 +135,8 @@ const emptyForm: EntryForm = {
 
 export default function CashbookPage() {
   const router = useRouter()
+  const { isStakeholder } = useAuth()
+  const readOnly = isStakeholder
   const [categories, setCategories] = useState<CashbookCategory[]>([])
   const [entries, setEntries] = useState<CashbookApiEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -505,12 +508,14 @@ export default function CashbookPage() {
                   className="min-h-[44px] flex-1 rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:flex-none sm:py-1"
                 />
               </div>
+              {!readOnly ? (
               <button
                 onClick={() => router.push('/reports/financial')}
                 className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
               >
                 Financial Report
               </button>
+              ) : null}
             </div>
           </div>
 
@@ -520,7 +525,7 @@ export default function CashbookPage() {
             </div>
           )}
 
-          {/* Add Income / Add Expense */}
+          {!readOnly ? (
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
             <button
               onClick={() => openAddModal('income')}
@@ -535,9 +540,10 @@ export default function CashbookPage() {
               ➕ Add Expense
             </button>
           </div>
+          ) : null}
         </div>
 
-        {/* Quick add category */}
+        {!readOnly ? (
         <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-2 text-xs font-semibold text-gray-700">Add category</div>
           <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -572,6 +578,7 @@ export default function CashbookPage() {
             </button>
           </div>
         </div>
+        ) : null}
 
         {/* Entries list */}
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -621,7 +628,7 @@ export default function CashbookPage() {
           </div>
           {entries.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              No entries yet. Click &quot;Add Income&quot; or &quot;Add Expense&quot; to start.
+              {readOnly ? 'No entries yet.' : 'No entries yet. Click "Add Income" or "Add Expense" to start.'}
             </div>
           ) : (
             <>
@@ -660,6 +667,7 @@ export default function CashbookPage() {
                       >
                         {type === 'income' ? '+' : '-'}${formatCurrency(amount)}
                       </span>
+                      {!readOnly ? (
                       <div className="flex gap-3">
                         <button
                           onClick={() => openEditModal(entry)}
@@ -674,6 +682,7 @@ export default function CashbookPage() {
                           Delete
                         </button>
                       </div>
+                      ) : null}
                     </div>
                   </div>
                 )
@@ -728,6 +737,8 @@ export default function CashbookPage() {
                       </td>
                       <td className="px-3 py-2 text-gray-600">{payment}</td>
                       <td className="px-3 py-2 text-center">
+                        {!readOnly ? (
+                        <>
                         <button
                           onClick={() => openEditModal(entry)}
                           className="text-blue-600 hover:underline text-xs font-medium mr-2"
@@ -740,6 +751,8 @@ export default function CashbookPage() {
                         >
                           Delete
                         </button>
+                        </>
+                        ) : null}
                       </td>
                     </tr>
                   )

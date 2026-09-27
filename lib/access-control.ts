@@ -7,6 +7,7 @@ import {
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isStakeholderBooksPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   isSupervisorLike,
@@ -78,11 +79,18 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
   if (isFullAccessRole(role)) return true
 
   if (normalizeAppRole(role) === 'stakeholder') {
-    if (isStakeholderPeoplePath(pathname) || isStakeholderFuelComparisonPath(pathname)) return true
+    if (
+      isStakeholderPeoplePath(pathname) ||
+      isStakeholderFuelComparisonPath(pathname) ||
+      isStakeholderBooksPath(pathname)
+    ) {
+      return true
+    }
     if (pathname.startsWith('/api/')) {
       return (
         pathname.startsWith('/api/auth/') ||
         pathname.startsWith('/api/insights/') ||
+        pathname.startsWith('/api/dashboard/bootstrap') ||
         pathname.startsWith('/api/dashboard/month-summary') ||
         pathname.startsWith('/api/dashboard/fuel-mtd-sold') ||
         pathname.startsWith('/api/dashboard/average-deposit') ||

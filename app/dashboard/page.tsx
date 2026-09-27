@@ -14,7 +14,9 @@ import {
   isPinnedTopDashboardWidget
 } from '@/lib/dashboard-layout'
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
+import type { CashbookLatestSnapshot } from '@/lib/cashbook-latest'
 import type { StaleArPayload } from '@/lib/customer-ar-stale-payments'
+import type { FuelGradeGlance, LastClosedDaySnapshot } from '@/lib/last-closed-day'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -286,6 +288,8 @@ export default function DashboardPage() {
   const [arSummary, setArSummary] = useState<CustomerArSummary | null>(null)
   const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
   const [cashbookSummary, setCashbookSummary] = useState<CashbookSummary | null>(null)
+  const [lastClosedDay, setLastClosedDay] = useState<LastClosedDaySnapshot | null>(null)
+  const [cashbookLatest, setCashbookLatest] = useState<CashbookLatestSnapshot | null>(null)
   const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [fuelMtdSold, setFuelMtdSold] = useState<FuelMtdSoldPayload | null>(null)
@@ -484,6 +488,9 @@ export default function DashboardPage() {
         setCashbookSummary(null)
       }
 
+      setLastClosedDay(data.lastClosedDay ?? null)
+      setCashbookLatest(data.cashbookLatest ?? null)
+
       const mtd = data.fuelMtdSold as FuelMtdSoldPayload | null | undefined
       if (mtd && typeof mtd.avgUnleadedPerDay === 'number') setFuelMtdSold(mtd)
       else setFuelMtdSold(null)
@@ -626,18 +633,19 @@ export default function DashboardPage() {
     return true
   })
 
-  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
-  const showRecentFuelPaymentHero = visibleLayout.includes('recent-fuel-payment')
+  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block') && !isStakeholder
+  const showRecentFuelPaymentHero =
+    visibleLayout.includes('recent-fuel-payment') && !isStakeholder
 
   /** Widgets that participate in reorder controls and the scrollable list (excludes pinned top). */
   const reorderableVisibleLayout = useMemo(
     () =>
       visibleLayout.filter((id) => {
-        if (isPinnedTopDashboardWidget(id)) return false
+        if (isPinnedTopDashboardWidget(id) && !isStakeholder) return false
         if (id === 'recent-fuel-payment' && showRecentFuelPaymentHero) return false
         return true
       }),
-    [visibleLayout, showRecentFuelPaymentHero]
+    [visibleLayout, showRecentFuelPaymentHero, isStakeholder]
   )
 
   const dashboardSegments = useMemo(
@@ -730,6 +738,198 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+      </div>
+    )
+  }
+
+  const formatYmd = (ymd: string, withWeekday: boolean) => {
+    const date = new Date(ymd + 'T12:00:00')
+    return date.toLocaleDateString('en-US', {
+      weekday: withWeekday ? 'long' : 'short',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const formatGallons = (n: number) => Math.round(n).toLocaleString('en-US')
+
+  const formatGallonVariance = (n: number) => {
+    const rounded = Math.round(n)
+    const sign = rounded > 0 ? '+' : ''
+    return `${sign}${rounded.toLocaleString('en-US')}`
+  }
+
+  const renderFuelGradeLines = (glance: FuelGradeGlance, prevYear: number) => {
+    const row = (label: string, current: number, prior: number) => (
+      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 py-2 last:border-b-0">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-800">{label}</div>
+          <div className="text-xs text-gray-500">
+            {prevYear} {formatGallons(prior)} gal
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="font-mono text-sm font-semibold text-gray-900">{formatGallons(current)} gal</div>
+          <div className={`text-xs font-medium ${current - prior >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+            {formatGallonVariance(current - prior)}
+          </div>
+        </div>
+      </div>
+    )
+    return (
+      <div>
+        {row('Unleaded', glance.gasGallonsCur, glance.gasGallonsPrev)}
+        {row('Diesel', glance.dieselGallonsCur, glance.dieselGallonsPrev)}
+        {row('Total', glance.totalGallonsCur, glance.totalGallonsPrev)}
+      </div>
+    )
+  }
+
+  const renderLastClosedDayCard = () => (
+    <div className="h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <h2 className="text-base font-semibold text-gray-900">Last closed day</h2>
+      {lastClosedDay ? (
+        <>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {formatYmd(lastClosedDay.date, true)} · {lastClosedDay.shiftLabel}
+          </p>
+          <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200">
+            <div className="min-w-0 pr-2">
+              <div className="text-[11px] text-slate-500">Deposits</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-700">
+                ${formatCurrency(lastClosedDay.deposits)}
+              </div>
+            </div>
+            <div className="min-w-0 px-2">
+              <div className="text-[11px] text-slate-500">Debit</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums text-blue-700">
+                ${formatCurrency(lastClosedDay.debit)}
+              </div>
+            </div>
+            <div className="min-w-0 pl-2">
+              <div className="text-[11px] text-slate-500">Credit</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums text-blue-700">
+                ${formatCurrency(lastClosedDay.credit)}
+              </div>
+            </div>
+          </div>
+          {Math.abs(lastClosedDay.overShort) >= 0.005 ? (
+            <p className={`mt-3 text-sm font-medium ${lastClosedDay.overShort < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+              Over/short {lastClosedDay.overShort > 0 ? '+' : ''}
+              {formatCurrency(lastClosedDay.overShort)}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">No closed shift yet.</p>
+      )}
+    </div>
+  )
+
+  const renderFuelComparisonDayCard = () => {
+    const fuel = lastClosedDay?.fuel
+    const href = fuel ? `/reports/fuel-comparison?year=${fuel.year}&month=${fuel.month}` : '/reports/fuel-comparison'
+    return (
+      <div className="h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Fuel comparison</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {lastClosedDay ? `Gallons vs ${fuel?.prevYear ?? 'last year'}` : 'Through the last closed shift'}
+            </p>
+          </div>
+          <Link href={href} className="shrink-0 text-xs font-medium text-emerald-800 hover:text-emerald-950">
+            Fuel comparison →
+          </Link>
+        </div>
+        {lastClosedDay && fuel ? (
+          <div className="space-y-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {formatYmd(lastClosedDay.date, false)}
+              </div>
+              {renderFuelGradeLines(fuel.day, fuel.prevYear)}
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Through {formatYmd(lastClosedDay.date, false)}
+              </div>
+              {renderFuelGradeLines(fuel.accumulated, fuel.prevYear)}
+            </div>
+            {fuel.hasMissingShiftData ? (
+              <p className="text-xs text-amber-800">Shift fuel data is incomplete for this day.</p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Fuel comparison appears after a shift day is closed.</p>
+        )}
+      </div>
+    )
+  }
+
+  const renderCashbookLatestCard = () => {
+    const bankLabel =
+      cashbookLatest?.lastDeposit?.bankStatus === 'cleared'
+        ? 'Cleared'
+        : cashbookLatest?.lastDeposit?.bankStatus === 'discrepancy'
+          ? 'Discrepancy'
+          : cashbookLatest?.lastDeposit?.bankStatus === 'pending'
+            ? 'Pending'
+            : null
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Cashbook</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Latest deposit and latest expense</p>
+          </div>
+          <Link href="/financial/cashbook" className="shrink-0 text-xs font-medium text-indigo-700 hover:text-indigo-900">
+            Cashbook →
+          </Link>
+        </div>
+        {cashbookLatest?.behindMessage ? (
+          <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {cashbookLatest.behindMessage}
+          </p>
+        ) : null}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last deposit</div>
+            {cashbookLatest?.lastDeposit ? (
+              <>
+                <div className="mt-1 text-sm text-gray-700">{formatYmd(cashbookLatest.lastDeposit.date, true)}</div>
+                <div className="mt-1 font-mono text-lg font-semibold text-emerald-800">
+                  ${formatCurrency(cashbookLatest.lastDeposit.amount)}
+                </div>
+                <div className="text-xs text-gray-600">
+                  {cashbookLatest.lastDeposit.lineCount === 1
+                    ? cashbookLatest.lastDeposit.description
+                    : `${cashbookLatest.lastDeposit.lineCount} deposits`}
+                  {bankLabel ? ` · ${bankLabel}` : ''}
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">No deposit in the cashbook yet.</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last expense</div>
+            {cashbookLatest?.lastExpense ? (
+              <>
+                <div className="mt-1 text-sm text-gray-700">{formatYmd(cashbookLatest.lastExpense.date, true)}</div>
+                <div className="mt-1 font-mono text-lg font-semibold text-gray-900">
+                  ${formatCurrency(cashbookLatest.lastExpense.amount)}
+                </div>
+                <div className="text-xs text-gray-600">
+                  {cashbookLatest.lastExpense.description}
+                  {cashbookLatest.lastExpense.paymentLabel ? ` · ${cashbookLatest.lastExpense.paymentLabel}` : ''}
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">No expense recorded.</p>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
@@ -1035,6 +1235,7 @@ export default function DashboardPage() {
         <div className={contentClassName ?? 'flex-1 min-w-0'}>
           {children}
         </div>
+        {!isStakeholder ? (
         <div className="hidden flex-col gap-0.5 flex-shrink-0 pt-2 lg:flex">
           <button
             onClick={() => handleMoveUp(id)}
@@ -1053,6 +1254,7 @@ export default function DashboardPage() {
             ↓
           </button>
         </div>
+        ) : null}
       </div>
     )
   }
@@ -1400,7 +1602,9 @@ export default function DashboardPage() {
   }
 
   const dashboardScopeHint = summary
-    ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
+    ? isStakeholder
+      ? `Night sheet through the last closed shift · Monthly totals for ${summary.monthName} ${summary.year}`
+      : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
     : 'Select a month to load summary data'
 
   return (
@@ -1489,12 +1693,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {!isStakeholder ? (
         <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
           {renderUpcomingCard()}
         </div>
+        ) : null}
 
         {showRecentFuelPaymentHero ? (
           <div className="mb-6">{renderRecentFuelPaymentCard()}</div>
@@ -1502,21 +1708,31 @@ export default function DashboardPage() {
 
         {/* Moveable widgets */}
         {(() => {
-          let lastSection: 'month' | 'trends' | 'ops' | null = null
+          let lastSection: 'month' | 'trends' | 'ops' | 'night' | 'cashbook' | null = null
           return dashboardSegments.map((segment) => {
           const headId = segment[0]
-          if (headId === 'month-summary' && segment.length === 1) {
+          if (headId === 'month-summary' && segment.length === 1 && !isStakeholder) {
             lastSection = 'month'
             return <Fragment key="month-summary-hero" />
           }
           let sectionLabel: React.ReactNode = null
-          if (headId === 'customer-ar-glance') {
+          if (headId === 'last-closed-day' || headId === 'fuel-comparison-day') {
+            sectionLabel = <DashboardSectionLabel>Last closed day</DashboardSectionLabel>
+            lastSection = 'night'
+          } else if (headId === 'cashbook-latest') {
+            sectionLabel = <DashboardSectionLabel>Cashbook</DashboardSectionLabel>
+            lastSection = 'cashbook'
+          } else if (headId === 'month-summary' && isStakeholder) {
+            sectionLabel = <DashboardSectionLabel>This month</DashboardSectionLabel>
+            lastSection = 'month'
+          } else if (headId === 'customer-ar-glance') {
             sectionLabel = <DashboardSectionLabel>Customer accounts</DashboardSectionLabel>
             lastSection = 'month'
           } else if (headId === 'phase1-status' && lastSection !== 'ops') {
             sectionLabel = <DashboardSectionLabel>Operations</DashboardSectionLabel>
             lastSection = 'ops'
           } else if (
+            !isStakeholder &&
             (TRENDS_WIDGET_IDS as readonly string[]).includes(headId) &&
             lastSection !== 'trends'
           ) {
@@ -1525,6 +1741,11 @@ export default function DashboardPage() {
           }
           const renderOne = (id: DashboardWidgetId) => (
             <>
+            {id === 'last-closed-day' && renderLastClosedDayCard()}
+            {id === 'fuel-comparison-day' && renderFuelComparisonDayCard()}
+            {id === 'cashbook-latest' && renderCashbookLatestCard()}
+            {id === 'month-summary' && isStakeholder && summary ? renderThisMonthCard() : null}
+            {id === 'fuel-mtd-deposit-block' && isStakeholder ? renderFuelMtdDepositBlock() : null}
             {id === 'customer-ar-glance' && summary && (
           <div className="w-full min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
@@ -1694,6 +1915,17 @@ export default function DashboardPage() {
                       </div>
                     )}
 
+                    {isStakeholder ? (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => router.push(accountsHref)}
+                          className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0"
+                        >
+                          Open Customer Accounts
+                        </button>
+                      </div>
+                    ) : null}
                     {!isStakeholder && !isSupervisorLike && (
                       <div className="grid grid-cols-1 gap-2 pt-1 sm:flex sm:flex-wrap">
                         <button
@@ -1721,7 +1953,7 @@ export default function DashboardPage() {
                   </div>
                 )
               })()
-            ) : !isStakeholder && !isSupervisorLike ? (
+            ) : isStakeholder || !isSupervisorLike ? (
               <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/40 px-4 py-6 text-center">
                 <p className="text-sm text-gray-600">
                   No customer A/R data for {summary.monthName} {summary.year}.

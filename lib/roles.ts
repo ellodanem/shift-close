@@ -123,6 +123,16 @@ export function isStakeholderPeoplePath(pathname: string): boolean {
   return STAKEHOLDER_PEOPLE_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix))
 }
 
+/** Read-only cashbook and customer accounts for the stakeholder night sheet. */
+export function isStakeholderBooksPath(pathname: string): boolean {
+  return (
+    pathMatchesPrefix(pathname, '/financial/cashbook') ||
+    pathMatchesPrefix(pathname, '/api/financial/cashbook') ||
+    pathMatchesPrefix(pathname, '/customer-accounts') ||
+    pathMatchesPrefix(pathname, '/api/customer-accounts')
+  )
+}
+
 /** Fuel Comparison report tile, its page, and the read API. Not the rest of Reports. */
 export function isStakeholderFuelComparisonPath(pathname: string): boolean {
   return (
@@ -201,13 +211,16 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'phase1-status'
 ]
 
-/** Stakeholder: high-level totals + fuel/deposit + last-5-day volume + recent fuel payment; no ops status row. */
+/** Stakeholder: last closed night, cashbook, customer accounts, then the month. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
+  'last-closed-day',
+  'fuel-comparison-day',
+  'cashbook-latest',
+  'customer-ar-glance',
+  'fuel-expectancy',
   'month-summary',
   'fuel-mtd-deposit-block',
-  'fuel-expectancy',
   'average-deposit',
-  'fuel-volume',
   'recent-fuel-payment'
 ]
 

@@ -11,6 +11,7 @@ import {
 import {
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isStakeholderBooksPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   normalizeAppRole
@@ -257,7 +258,8 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       href.startsWith('/insights/') ||
       href === '/financial/deposit-comparisons' ||
       isStakeholderPeoplePath(href) ||
-      isStakeholderFuelComparisonPath(href)
+      isStakeholderFuelComparisonPath(href) ||
+      isStakeholderBooksPath(href)
     )
   }
   if (r === 'supervisor' || r === 'senior_supervisor') {

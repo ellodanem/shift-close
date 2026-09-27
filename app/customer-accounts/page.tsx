@@ -11,6 +11,7 @@ import {
   type ChangeEvent
 } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/app/components/AuthContext'
 import { formatAmount } from '@/lib/fuelPayments'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
@@ -90,6 +91,8 @@ function MonthParamSync({
 }
 
 export default function CustomerAccountsPage() {
+  const { isStakeholder } = useAuth()
+  const readOnly = isStakeholder
   const today = new Date()
   const defaultMonth = `${today.getFullYear()}-${String(
     today.getMonth() + 1
@@ -638,6 +641,7 @@ export default function CustomerAccountsPage() {
                 className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:w-auto"
               />
             </div>
+            {!readOnly ? (
             <button
               type="button"
               onClick={() => openRecordPayment()}
@@ -645,12 +649,14 @@ export default function CustomerAccountsPage() {
             >
               Record payment
             </button>
+            ) : null}
             <Link
               href="/customer-accounts/statement"
               className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0 md:self-end"
             >
               Account Statement
             </Link>
+            {!readOnly ? (
             <button
               type="button"
               onClick={() => excelInputRef.current?.click()}
@@ -659,6 +665,7 @@ export default function CustomerAccountsPage() {
             >
               {importing ? 'Importing…' : 'Import Excel'}
             </button>
+            ) : null}
           </div>
         </div>
 
@@ -687,6 +694,7 @@ export default function CustomerAccountsPage() {
               </span>
             )}
           </div>
+          {!readOnly ? (
           <button
             type="button"
             onClick={() => setDirectoryOpen((v) => !v)}
@@ -696,9 +704,10 @@ export default function CustomerAccountsPage() {
               ? 'Hide customer list'
               : `Manage ${activeCustomerCount} customers`}
           </button>
+          ) : null}
         </div>
 
-        {directoryOpen && (
+        {directoryOpen && !readOnly && (
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <p className="mb-4 text-xs text-gray-500">
             Harvest jobs use this list, not the Cstore dropdown order.
@@ -891,15 +900,21 @@ export default function CustomerAccountsPage() {
             <p className="text-gray-600 text-sm">Loading accounts…</p>
           ) : accounts.length === 0 ? (
             <p className="text-gray-500 text-sm">
-              No customers in the Shift Close list yet. Open{' '}
-              <button
-                type="button"
-                onClick={() => setDirectoryOpen(true)}
-                className="text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                Customer list
-              </button>{' '}
-              to add names. Excel import can still add people when you confirm a POS file.
+              {readOnly
+                ? 'No customer accounts for this month.'
+                : (
+                  <>
+                    No customers in the Shift Close list yet. Open{' '}
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryOpen(true)}
+                      className="text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      Customer list
+                    </button>{' '}
+                    to add names. Excel import can still add people when you confirm a POS file.
+                  </>
+                )}
             </p>
           ) : filteredAccounts.length === 0 ? (
             <p className="text-gray-500 text-sm">No accounts match your search.</p>
@@ -1407,7 +1422,7 @@ export default function CustomerAccountsPage() {
           </div>
         )}
 
-        {/* Manual entry — collapsed */}
+        {!readOnly ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2 list-none">
@@ -1497,11 +1512,13 @@ export default function CustomerAccountsPage() {
             </div>
           </details>
         </div>
+        ) : null}
 
         {selectedLedgerAccount && (
           <CustomerAccountLedgerPanel
             account={selectedLedgerAccount}
             monthKey={workingMonth}
+            readOnly={readOnly}
             onClose={() => setSelectedLedgerAccount(null)}
             onMonthChange={(monthKey) => {
               applyWorkingMonth(monthKey)
@@ -1515,7 +1532,7 @@ export default function CustomerAccountsPage() {
         )}
       </div>
 
-      {!paymentFormOpen && !selectedLedgerAccount ? (
+      {!readOnly && !paymentFormOpen && !selectedLedgerAccount ? (
         <div className="fixed bottom-[4.75rem] left-4 right-4 z-40 md:hidden">
           <button
             type="button"

@@ -143,6 +143,14 @@ export default function FuelComparisonPage() {
   }, [year, month, view])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const nextYear = Number(params.get('year'))
+    const nextMonth = Number(params.get('month'))
+    if (Number.isFinite(nextYear) && nextYear >= 2000 && nextYear <= 2100) setYear(nextYear)
+    if (Number.isFinite(nextMonth) && nextMonth >= 1 && nextMonth <= 12) setMonth(nextMonth)
+  }, [])
+
+  useEffect(() => {
     fetchData()
   }, [fetchData])
 

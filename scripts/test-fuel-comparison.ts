@@ -5,6 +5,7 @@ import {
   buildDaysForMonth,
   buildFuelVolumeMaps,
   buildMonthsForYear,
+  fuelComparisonThroughDate,
   totalsFromRows
 } from '../lib/fuel-comparison'
 
@@ -61,5 +62,29 @@ describe('fuel comparison monthly view', () => {
     const { months } = buildMonthsForYear(2026, maps, { year: 2026, month: 3 })
     assert.equal(months[2].hasMissingShiftData, true)
     assert.match(months[2].missingShiftInfo ?? '', /1 day/)
+  })
+
+  it('accumulated gallons stop on the closed day and leave later prior-year volume out', () => {
+    const maps = buildFuelVolumeMaps(
+      [
+        { date: '2026-09-01', unleadedLitres: 1000, dieselLitres: 0 },
+        { date: '2026-09-02', unleadedLitres: 500, dieselLitres: 200 }
+      ],
+      [
+        { date: '2025-09-01', unleadedLitres: 800, dieselLitres: 0 },
+        { date: '2025-09-02', unleadedLitres: 400, dieselLitres: 100 },
+        { date: '2025-09-03', unleadedLitres: 9000, dieselLitres: 0 }
+      ],
+      [],
+      []
+    )
+    const days = buildDaysForMonth(2026, 9, maps)
+    const through = fuelComparisonThroughDate(days, '2026-09-02')
+    assert.equal(through.day?.date, '2026-09-02')
+    assert.equal(through.accumulated.gasLitresCur, 1500)
+    assert.equal(through.accumulated.gasLitresPrev, 1200)
+    assert.equal(through.accumulated.dieselLitresCur, 200)
+    const fullMonth = totalsFromRows(days)
+    assert.ok(fullMonth.gasLitresPrev > through.accumulated.gasLitresPrev)
   })
 })

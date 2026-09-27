@@ -123,6 +123,18 @@ export function buildFuelVolumeMaps(
   }
 }
 
+/** Day row plus month-to-date through that date. Later calendar days stay out of the total. */
+export function fuelComparisonThroughDate(
+  days: FuelComparisonDay[],
+  date: string
+): { day: FuelComparisonDay | null; accumulated: FuelComparisonTotals } {
+  const day = days.find((row) => row.date === date) ?? null
+  return {
+    day,
+    accumulated: totalsFromRows(days.filter((row) => row.date <= date))
+  }
+}
+
 export function totalsFromRows(rows: FuelComparisonTotals[]): FuelComparisonTotals {
   const totals = rows.reduce(
     (acc, row) => ({

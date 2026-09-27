@@ -1,4 +1,20 @@
 import { toYmdInBusinessTz, businessTodayYmd, ymdToUtcNoonDate, addCalendarDaysYmd } from '@/lib/datetime-policy'
+import { fuelComparisonThroughDate, getFuelComparisonByDay } from '@/lib/fuel-comparison'
+import {
+  cashbookBehindMessage,
+  summarizeDepositsOnLatestDate,
+  summarizeLatestExpense,
+  type CashbookLatestSnapshot
+} from '@/lib/cashbook-latest'
+import {
+  findLastClosedShiftDate,
+  shiftDayLabel,
+  sumClosedDayMoney,
+  weekdayNameFromYmd,
+  type ClosedDayMoneyShift,
+  type FuelGradeGlance,
+  type LastClosedDaySnapshot
+} from '@/lib/last-closed-day'
 import { getDashboardDisclosedOverShort, getShiftListOkKind } from '@/lib/calculations'
 import { formatAmount, groupBatchesForMonth } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
@@ -653,11 +669,151 @@ export async function fetchCashbookSummary(startDate: string, endDate: string) {
   }
 }
 
+function toFuelGradeGlance(row: {
+  gasGallonsCur: number
+  gasGallonsPrev: number
+  dieselGallonsCur: number
+  dieselGallonsPrev: number
+  totalGallonsCur: number
+  totalGallonsPrev: number
+  variance: number
+}): FuelGradeGlance {
+  return {
+    gasGallonsCur: row.gasGallonsCur,
+    gasGallonsPrev: row.gasGallonsPrev,
+    dieselGallonsCur: row.dieselGallonsCur,
+    dieselGallonsPrev: row.dieselGallonsPrev,
+    totalGallonsCur: row.totalGallonsCur,
+    totalGallonsPrev: row.totalGallonsPrev,
+    variance: row.variance
+  }
+}
+
+async function depositBankStatusForDate(
+  date: string
+): Promise<'pending' | 'cleared' | 'discrepancy' | null> {
+  const shifts = await prisma.shiftClose.findMany({
+    where: { date },
+    select: { id: true, deposits: true }
+  })
+  if (shifts.length === 0) return null
+  let expected = 0
+  for (const shift of shifts) {
+    expected += sumDepositLineCount(shift.deposits)
+  }
+  if (expected === 0) return null
+  const records = await prisma.depositRecord.findMany({
+    where: { shiftId: { in: shifts.map((shift) => shift.id) }, recordKind: 'deposit' },
+    select: { bankStatus: true }
+  })
+  if (records.some((record) => record.bankStatus === 'discrepancy')) return 'discrepancy'
+  if (records.length >= expected && records.every((record) => record.bankStatus === 'cleared')) {
+    return 'cleared'
+  }
+  return 'pending'
+}
+
+function sumDepositLineCount(deposits: unknown): number {
+  let amounts: unknown[] = []
+  if (typeof deposits === 'string') {
+    try {
+      const parsed = JSON.parse(deposits || '[]')
+      amounts = Array.isArray(parsed) ? parsed : []
+    } catch {
+      amounts = []
+    }
+  } else if (Array.isArray(deposits)) {
+    amounts = deposits
+  }
+  return amounts.map((value) => Number(value)).filter((value) => !Number.isNaN(value) && value > 0).length
+}
+
+export async function fetchLastClosedDaySnapshot(): Promise<LastClosedDaySnapshot | null> {
+  const asOf = businessTodayYmd()
+  const start = addCalendarDaysYmd(asOf, -120)
+  const shifts = await prisma.shiftClose.findMany({
+    where: { date: { gte: start, lte: asOf } },
+    select: {
+      date: true,
+      shift: true,
+      status: true,
+      deposits: true,
+      systemDebit: true,
+      otherCredit: true,
+      overShortTotal: true,
+      osReviewed: true,
+      osLegitAsIs: true
+    }
+  })
+  const date = findLastClosedShiftDate(shifts, asOf)
+  if (!date) return null
+  const dayShifts = shifts.filter((shift) => shift.date === date) as ClosedDayMoneyShift[]
+  const money = sumClosedDayMoney(dayShifts)
+  const [year, month] = date.split('-').map(Number)
+  let fuel: LastClosedDaySnapshot['fuel'] = null
+  try {
+    const comparison = await getFuelComparisonByDay(year, month)
+    const through = fuelComparisonThroughDate(comparison.days, date)
+    if (through.day) {
+      fuel = {
+        year,
+        month,
+        prevYear: comparison.prevYear,
+        hasMissingShiftData: through.day.hasMissingShiftData === true,
+        day: toFuelGradeGlance(through.day),
+        accumulated: toFuelGradeGlance(through.accumulated)
+      }
+    }
+  } catch (error) {
+    console.error('last closed day fuel comparison', error)
+  }
+  return {
+    date,
+    weekdayName: weekdayNameFromYmd(date),
+    shiftLabel: shiftDayLabel(dayShifts),
+    ...money,
+    fuel
+  }
+}
+
+export async function fetchCashbookLatest(
+  closedDate: string | null
+): Promise<CashbookLatestSnapshot> {
+  const depositWhere = {
+    allocations: {
+      some: { category: { type: 'income', name: { equals: 'Deposit', mode: 'insensitive' as const } } }
+    }
+  }
+  const latestDeposit = await prisma.cashbookEntry.findFirst({
+    where: depositWhere,
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    select: { date: true }
+  })
+  const depositRows = latestDeposit
+    ? await prisma.cashbookEntry.findMany({
+        where: { date: latestDeposit.date, ...depositWhere },
+        include: { allocations: { include: { category: true } } }
+      })
+    : []
+  const latestExpense = await prisma.cashbookEntry.findFirst({
+    where: { allocations: { some: { category: { type: 'expense' } } } },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    include: { allocations: { include: { category: true } } }
+  })
+  const lastDeposit = summarizeDepositsOnLatestDate(depositRows)
+  const bankStatus = lastDeposit ? await depositBankStatusForDate(lastDeposit.date) : null
+  return {
+    lastDeposit: lastDeposit ? { ...lastDeposit, bankStatus } : null,
+    lastExpense: latestExpense ? summarizeLatestExpense([latestExpense]) : null,
+    behindMessage: cashbookBehindMessage(lastDeposit?.date ?? null, closedDate)
+  }
+}
+
 export async function buildDashboardBootstrap(role: string, year: number, month: number) {
   const norm = normalizeAppRole(role)
   const stakeholder = norm === 'stakeholder'
   const supervisorLike = isSupervisorLike(role)
-  const skipFinancial = stakeholder || supervisorLike
+  const skipFinancial = supervisorLike
   const skipFuelCharts = supervisorLike
 
   const monthKey = `${year}-${String(month).padStart(2, '0')}`
@@ -666,6 +822,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
 
   const fullFinancialAccess = isFullAccessRole(role)
+  const skipCashbookMtd = stakeholder || supervisorLike
 
   const [
     summary,
@@ -678,7 +835,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     cashbookSummary,
     fuelMtdSold,
     staleArAccounts,
-    fuelExpectancy
+    fuelExpectancy,
+    nightSheet
   ] = await Promise.all([
     fetchDashboardMonthSummary({ year, month }),
     fetchDashboardUpcoming(),
@@ -687,7 +845,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     skipFuelCharts ? Promise.resolve([]) : fetchDashboardFuelComparison(),
     skipFuelCharts ? Promise.resolve(null) : fetchDashboardAverageDeposit(),
     skipFinancial ? Promise.resolve(null) : fetchCustomerArSummaryFirst(year, month),
-    skipFinancial ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
+    skipCashbookMtd ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
     fetchDashboardFuelMtdSold(year, month),
     fullFinancialAccess ? fetchStaleArAccounts() : Promise.resolve(null),
     loadFuelExpectancy({ canManage: isFullAccessRole(role) })
@@ -695,7 +853,13 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
       .catch((err) => {
         console.error('fuel expectancy bootstrap', err)
         return null
-      })
+      }),
+    stakeholder
+      ? fetchLastClosedDaySnapshot().then(async (lastClosedDay) => ({
+          lastClosedDay,
+          cashbookLatest: await fetchCashbookLatest(lastClosedDay?.date ?? null)
+        }))
+      : Promise.resolve({ lastClosedDay: null, cashbookLatest: null })
   ])
 
   let fuelExpense: number | null = null
@@ -719,6 +883,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     cashbookSummary,
     fuelMtdSold,
     staleArAccounts,
-    fuelExpectancy
+    fuelExpectancy,
+    lastClosedDay: nightSheet.lastClosedDay,
+    cashbookLatest: nightSheet.cashbookLatest
   }
 }

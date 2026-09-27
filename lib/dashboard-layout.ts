@@ -10,7 +10,10 @@ export const DASHBOARD_WIDGET_IDS = [
   'fuel-volume',
   'average-deposit',
   'recent-fuel-payment',
-  'phase1-status'
+  'phase1-status',
+  'last-closed-day',
+  'fuel-comparison-day',
+  'cashbook-latest'
 ] as const
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number]
@@ -18,7 +21,16 @@ export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number]
 /** Rendered fixed under month filters (not reorderable). Kept in layout for role gating only. */
 export const DASHBOARD_PINNED_TOP_WIDGET_IDS: readonly DashboardWidgetId[] = ['fuel-mtd-deposit-block']
 
-const DEFAULT_LAYOUT: DashboardWidgetId[] = [...DASHBOARD_WIDGET_IDS]
+const DEFAULT_LAYOUT: DashboardWidgetId[] = [
+  'month-summary',
+  'fuel-mtd-deposit-block',
+  'customer-ar-glance',
+  'fuel-expectancy',
+  'fuel-volume',
+  'average-deposit',
+  'recent-fuel-payment',
+  'phase1-status'
+]
 
 export function isPinnedTopDashboardWidget(id: DashboardWidgetId): boolean {
   return (DASHBOARD_PINNED_TOP_WIDGET_IDS as readonly string[]).includes(id)
@@ -67,6 +79,21 @@ export function buildDashboardSegments(layout: DashboardWidgetId[]): DashboardWi
 
   for (const id of layout) {
     if (used.has(id)) continue
+    if (id === 'last-closed-day' && layout.includes('fuel-comparison-day')) {
+      out.push(['last-closed-day', 'fuel-comparison-day'])
+      used.add('last-closed-day')
+      used.add('fuel-comparison-day')
+      continue
+    }
+    if (id === 'fuel-comparison-day' && used.has('last-closed-day')) {
+      continue
+    }
+    if (id === 'fuel-comparison-day' && layout.includes('last-closed-day')) {
+      out.push(['last-closed-day', 'fuel-comparison-day'])
+      used.add('last-closed-day')
+      used.add('fuel-comparison-day')
+      continue
+    }
     if (
       id === 'average-deposit' &&
       layout.includes('recent-fuel-payment')

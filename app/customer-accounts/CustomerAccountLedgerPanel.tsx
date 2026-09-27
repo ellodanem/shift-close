@@ -59,6 +59,7 @@ type Props = {
   onClose: () => void
   onImported?: (monthKey?: string) => void
   onMonthChange?: (monthKey: string) => void
+  readOnly?: boolean
 }
 
 export default function CustomerAccountLedgerPanel({
@@ -66,7 +67,8 @@ export default function CustomerAccountLedgerPanel({
   monthKey,
   onClose,
   onImported,
-  onMonthChange
+  onMonthChange,
+  readOnly = false
 }: Props) {
   const { start: monthStart, end: monthEnd, year, month } = monthRange(monthKey)
   const [startDate, setStartDate] = useState(monthStart)
@@ -322,9 +324,12 @@ export default function CustomerAccountLedgerPanel({
             step="0.01"
             value={openingInput}
             onChange={(e) => setOpeningInput(e.target.value)}
+            readOnly={readOnly}
             className="min-h-[44px] w-full rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:w-32 sm:py-1"
           />
         </div>
+        {!readOnly ? (
+        <>
         <button
           type="button"
           onClick={() => loadLedger(openingInput)}
@@ -357,8 +362,11 @@ export default function CustomerAccountLedgerPanel({
             onChange={handleCstoreUpload}
           />
         </label>
+        </>
+        ) : null}
       </div>
 
+      {!readOnly ? (
       <div className="mb-4 rounded border border-gray-200 bg-white p-3">
         <p className="mb-2 text-xs font-semibold text-gray-700">Add line manually</p>
         <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-end">
@@ -411,6 +419,7 @@ export default function CustomerAccountLedgerPanel({
           </button>
         </div>
       </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading ledger…</p>
@@ -464,6 +473,11 @@ export default function CustomerAccountLedgerPanel({
                     {row.memo || '—'}
                     {row.lineType === 'payment' && (
                       <span className="mt-1 block sm:ml-2 sm:mt-0 sm:inline">
+                        {readOnly ? (
+                          <span className="text-xs text-gray-500">
+                            {formatPaymentTypeLabel(row.paymentMethod)}
+                          </span>
+                        ) : (
                         <select
                           className="mt-1 rounded border bg-white px-1 py-1 text-xs sm:mt-0"
                           value={row.paymentMethod || ''}
@@ -482,7 +496,8 @@ export default function CustomerAccountLedgerPanel({
                           <option value="check">Check</option>
                           <option value="eft">EFT</option>
                         </select>
-                        {row.source === 'payment_record' && (
+                        )}
+                        {row.source === 'payment_record' && !readOnly && (
                           <span className="ml-1 text-xs text-gray-400">
                             ({formatPaymentTypeLabel(row.paymentMethod)})
                           </span>
@@ -490,7 +505,7 @@ export default function CustomerAccountLedgerPanel({
                       </span>
                     )}
                   </div>
-                  {row.source !== 'payment_record' && (
+                  {!readOnly && row.source !== 'payment_record' && (
                     <div className="mt-2 border-t border-gray-100 pt-2">
                       <button
                         type="button"
@@ -586,6 +601,12 @@ export default function CustomerAccountLedgerPanel({
                         {row.memo || '—'}
                         {row.lineType === 'payment' && (
                           <span className="ml-2">
+                            {readOnly ? (
+                              <span className="text-xs text-gray-500">
+                                {formatPaymentTypeLabel(row.paymentMethod)}
+                              </span>
+                            ) : (
+                            <>
                             <select
                               className="text-xs border rounded px-1 py-0.5 bg-white"
                               value={row.paymentMethod || ''}
@@ -609,11 +630,13 @@ export default function CustomerAccountLedgerPanel({
                                 ({formatPaymentTypeLabel(row.paymentMethod)})
                               </span>
                             )}
+                            </>
+                            )}
                           </span>
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {row.source !== 'payment_record' && (
+                        {!readOnly && row.source !== 'payment_record' && (
                           <button
                             type="button"
                             onClick={() => handleDeleteLine(row.id)}

@@ -12,6 +12,7 @@ import {
 } from '@/lib/customer-statement'
 import { monthParamForFilter } from '@/lib/monthFilter'
 import ShareStatementModal from './ShareStatementModal'
+import { useAuth } from '@/app/components/AuthContext'
 
 type RangePreset = 'current' | 'previous' | 'custom'
 
@@ -60,6 +61,7 @@ function StatementParamSync({
 }
 
 export default function AccountStatementPage() {
+  const { isStakeholder } = useAuth()
   const router = useRouter()
   const [accounts, setAccounts] = useState<string[]>([])
   const [account, setAccount] = useState('')
@@ -233,6 +235,7 @@ export default function AccountStatementPage() {
                 >
                   Export Excel
                 </button>
+                {!isStakeholder ? (
                 <button
                   type="button"
                   onClick={() => setShowShare(true)}
@@ -240,6 +243,7 @@ export default function AccountStatementPage() {
                 >
                   Send to {account}
                 </button>
+                ) : null}
               </>
             )}
           </div>
