@@ -1,4 +1,5 @@
 import { deviceUserIdsMatch } from '@/lib/device-user-id'
+import { staffDisplayName } from '@/lib/roster-week-client'
 import { prisma } from '@/lib/prisma'
 import {
   inactiveStaffIdsWithVacationOverlap,
@@ -223,7 +224,7 @@ export async function buildAttendanceSummaryData(
 
     rows.push({
       staffId: s.id,
-      staffName: s.name.trim(),
+      staffName: staffDisplayName(s),
       hoursToday: staffHoursFromMap(s.id, s.deviceUserId, dayHours),
       hoursPeriodToDate: staffHoursFromMap(s.id, s.deviceUserId, periodHours),
       punchesToday

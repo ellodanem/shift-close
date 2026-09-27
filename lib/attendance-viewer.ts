@@ -14,6 +14,7 @@ import {
   type PresenceStatus
 } from '@/lib/present-absence'
 import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
+import { staffDisplayName } from '@/lib/roster-week-client'
 
 /** Canonical route for the read-only mobile attendance dashboard. */
 export const ATTENDANCE_VIEWER_PATH = '/attendance/viewer'
@@ -139,7 +140,7 @@ async function loadPunchesForDay(
     staffIds.length > 0
       ? await prisma.staff.findMany({
           where: { id: { in: staffIds } },
-          select: { id: true, name: true, deviceUserId: true }
+          select: { id: true, name: true, firstName: true, displayName: true, deviceUserId: true }
         })
       : []
 
@@ -161,12 +162,12 @@ async function loadPunchesForDay(
       punchTime: { gte: windowStart, lt: windowEndExclusive },
       OR: orClause
     },
-    include: { staff: { select: { id: true, name: true } } },
+    include: { staff: { select: { id: true, name: true, firstName: true, displayName: true } } },
     orderBy: { punchTime: 'desc' }
   })
 
   const deviceToStaff = new Map<string, string>()
-  const nameByStaffId = new Map(staffRows.map((s) => [s.id, s.name]))
+  const nameByStaffId = new Map(staffRows.map((s) => [s.id, staffDisplayName(s)]))
   for (const s of staffRows) {
     if (!s.deviceUserId?.trim()) continue
     for (const k of deviceUserIdLookupKeys(s.deviceUserId.trim())) {
@@ -192,7 +193,7 @@ async function loadPunchesForDay(
     }
 
     const staffName =
-      log.staff?.name ??
+      (log.staff ? staffDisplayName(log.staff) : null) ??
       (sid ? nameByStaffId.get(sid) : null) ??
       log.deviceUserName?.trim() ??
       'Unknown'

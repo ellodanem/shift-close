@@ -9,6 +9,7 @@ import {
 } from '@/lib/datetime-policy'
 import { deviceUserIdLookupKeys, expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
+import { staffDisplayName } from '@/lib/roster-week-client'
 import {
   clampLateAbsentMinutes,
   computePresenceStatus,
@@ -86,6 +87,7 @@ export async function buildLateAbsentReport(params: {
           id: true,
           name: true,
           firstName: true,
+          displayName: true,
           deviceUserId: true,
           punchExempt: true,
           vacationStart: true,
@@ -100,6 +102,7 @@ export async function buildLateAbsentReport(params: {
     string,
     {
       name: string
+      label: string
       deviceUserId: string | null
       punchExempt: boolean
     }
@@ -108,6 +111,7 @@ export async function buildLateAbsentReport(params: {
     if (!staffById.has(e.staff.id)) {
       staffById.set(e.staff.id, {
         name: e.staff.name,
+        label: staffDisplayName(e.staff),
         deviceUserId: e.staff.deviceUserId,
         punchExempt: e.staff.punchExempt
       })
@@ -303,7 +307,7 @@ export async function buildLateAbsentReport(params: {
     const last = incidents[incidents.length - 1]
     rows.push({
       staffId,
-      staffName: staffById.get(staffId)?.name ?? staffId,
+      staffName: staffById.get(staffId)?.label ?? staffId,
       lateCount: lateDays.length,
       absentCount: absentDays.length,
       total: lateDays.length + absentDays.length,

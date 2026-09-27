@@ -19,7 +19,7 @@ import {
   readStationTimeZone
 } from '@/lib/present-absence'
 import { ROSTER_WEEK_TARGET_HOURS } from '@/lib/roster-pay-period-hours'
-import { displayStaffForWeek, type RosterStaffClient } from '@/lib/roster-week-client'
+import { displayStaffForWeek, staffDisplayName, type RosterStaffClient } from '@/lib/roster-week-client'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -79,8 +79,12 @@ function isShiftRequestDayOff(reason: string | null | undefined): boolean {
   return (reason ?? '').trim().startsWith('SHIFT_REQUEST:')
 }
 
-function firstNameOf(s: { name: string; firstName: string | null }): string {
-  return (s.firstName && s.firstName.trim()) || s.name.split(' ')[0] || s.name
+function attendanceLabel(s: {
+  name: string
+  firstName: string | null
+  displayName?: string | null
+}): string {
+  return staffDisplayName(s)
 }
 
 export async function buildAttendanceWeekView(weekStartRaw: string): Promise<AttendanceWeekViewPayload> {
@@ -117,6 +121,7 @@ export async function buildAttendanceWeekView(weekStartRaw: string): Promise<Att
         id: true,
         name: true,
         firstName: true,
+        displayName: true,
         status: true,
         role: true,
         startDate: true,
@@ -167,6 +172,7 @@ export async function buildAttendanceWeekView(weekStartRaw: string): Promise<Att
     id: s.id,
     name: s.name,
     firstName: s.firstName ?? undefined,
+    displayName: s.displayName,
     status: s.status,
     role: s.role,
     startDate: s.startDate,
@@ -363,7 +369,7 @@ export async function buildAttendanceWeekView(weekStartRaw: string): Promise<Att
     staffOut.push({
       staffId: s.id,
       staffName: src?.name ?? s.name,
-      staffFirstName: src ? firstNameOf(src) : s.firstName || s.name,
+      staffFirstName: src ? attendanceLabel(src) : staffDisplayName(s),
       role: src?.role ?? s.role,
       status: src?.status ?? s.status,
       cells,

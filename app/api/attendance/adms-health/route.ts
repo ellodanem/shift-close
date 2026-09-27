@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { staffDisplayName } from '@/lib/roster-week-client'
 import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       prisma.attendanceLog.findFirst({
         where: { source: { startsWith: 'adms:' } },
         orderBy: { createdAt: 'desc' },
-        include: { staff: { select: { name: true } } }
+        include: { staff: { select: { name: true, firstName: true, displayName: true } } }
       })
     ])
 
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
           deviceUserId: latest.deviceUserId,
           punchType: latest.punchType,
           source: latest.source,
-          staffName: latest.staff?.name ?? latest.deviceUserName ?? null,
+          staffName: latest.staff ? staffDisplayName(latest.staff) : latest.deviceUserName ?? null,
           staffId: latest.staffId
         }
       : null

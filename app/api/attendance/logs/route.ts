@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         punchType: pt,
         source: 'manual'
       },
-      include: { staff: { select: { id: true, name: true } } }
+      include: { staff: { select: { id: true, name: true, firstName: true, displayName: true } } }
     })
 
     return NextResponse.json(log)
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
 
     const logs = await prisma.attendanceLog.findMany({
       where,
-      include: { staff: { select: { id: true, name: true } } },
+      include: { staff: { select: { id: true, name: true, firstName: true, displayName: true } } },
       orderBy: { punchTime: 'asc' },
       ...(rawMode ? {} : { take: DEFAULT_LOGS_TAKE })
     })

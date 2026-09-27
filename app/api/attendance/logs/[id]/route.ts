@@ -54,7 +54,7 @@ export async function PATCH(
     const log = await prisma.attendanceLog.update({
       where: { id },
       data,
-      include: { staff: { select: { id: true, name: true } } }
+      include: { staff: { select: { id: true, name: true, firstName: true, displayName: true } } }
     })
 
     return NextResponse.json(log)

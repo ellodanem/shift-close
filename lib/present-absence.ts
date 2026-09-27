@@ -3,6 +3,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { addCalendarDaysYmd, BUSINESS_TIME_ZONE, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { deviceUserIdLookupKeys, expandDeviceUserIdsForDbMatch } from '@/lib/device-user-id'
 import { prisma } from '@/lib/prisma'
+import { staffDisplayName } from '@/lib/roster-week-client'
 
 export const PRESENT_ABSENCE_ENABLED_KEY = 'attendance_present_absence_enabled'
 /** @deprecated Use late/absent minute keys. Kept so old settings rows still load. */
@@ -200,8 +201,8 @@ export async function loadRosterForCalendarYmd(
 }> {
   const weekStart = mondayOfWeekYmd(ymd, tz)
 
-  const firstName = (s: { name: string; firstName: string | null }) =>
-    (s.firstName && s.firstName.trim()) || s.name.split(' ')[0] || s.name
+  const rosterLabel = (s: { name: string; firstName: string | null; displayName?: string | null }) =>
+    staffDisplayName(s)
 
   const [week, vacationStaff, sickLeaveStaff, dayOffs] = await Promise.all([
     prisma.rosterWeek.findFirst({
@@ -210,7 +211,7 @@ export async function loadRosterForCalendarYmd(
         entries: {
           where: { date: ymd, staff: { status: 'active' } },
           include: {
-            staff: { select: { id: true, name: true, firstName: true } },
+            staff: { select: { id: true, name: true, firstName: true, displayName: true } },
             shiftTemplate: { select: { id: true, name: true, color: true, startTime: true } }
           }
         }
@@ -223,7 +224,7 @@ export async function loadRosterForCalendarYmd(
         vacationEnd: { not: null },
         AND: [{ vacationStart: { lte: ymd } }, { vacationEnd: { gte: ymd } }]
       },
-      select: { id: true, name: true, firstName: true }
+      select: { id: true, name: true, firstName: true, displayName: true }
     }),
     prisma.staffSickLeave.findMany({
       where: {
@@ -233,7 +234,7 @@ export async function loadRosterForCalendarYmd(
         staff: { status: 'active' }
       },
       select: {
-        staff: { select: { id: true, name: true, firstName: true } }
+        staff: { select: { id: true, name: true, firstName: true, displayName: true } }
       }
     }),
     prisma.staffDayOff.findMany({
@@ -241,7 +242,7 @@ export async function loadRosterForCalendarYmd(
       select: {
         staffId: true,
         reason: true,
-        staff: { select: { id: true, name: true, firstName: true } }
+        staff: { select: { id: true, name: true, firstName: true, displayName: true } }
       }
     })
   ])
@@ -258,7 +259,7 @@ export async function loadRosterForCalendarYmd(
     .map((e) => ({
       staffId: e.staff.id,
       staffName: e.staff.name,
-      staffFirstName: firstName(e.staff),
+      staffFirstName: rosterLabel(e.staff),
       shiftName: e.shiftTemplate?.name ?? 'Shift',
       shiftColor: e.shiftTemplate?.color ?? null,
       shiftStartTime: e.shiftTemplate?.startTime ?? '06:00'
@@ -266,21 +267,21 @@ export async function loadRosterForCalendarYmd(
 
   const rosterOffToday = entries
     .filter((e) => e.shiftTemplateId == null)
-    .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name, staffFirstName: firstName(e.staff) }))
+    .map((e) => ({ staffId: e.staff.id, staffName: e.staff.name, staffFirstName: rosterLabel(e.staff) }))
 
   const offMap = new Map<string, { staffName: string; staffFirstName: string }>()
   rosterOffToday.forEach((s) => offMap.set(s.staffId, { staffName: s.staffName, staffFirstName: s.staffFirstName }))
-  vacationStaff.forEach((s) => offMap.set(s.id, { staffName: s.name, staffFirstName: firstName(s) }))
+  vacationStaff.forEach((s) => offMap.set(s.id, { staffName: s.name, staffFirstName: rosterLabel(s) }))
   sickLeaveStaff.forEach((s) =>
     offMap.set(s.staff.id, {
       staffName: s.staff.name,
-      staffFirstName: firstName(s.staff)
+      staffFirstName: rosterLabel(s.staff)
     })
   )
   for (const d of offDayRequests) {
     offMap.set(d.staffId, {
       staffName: d.staff.name,
-      staffFirstName: firstName(d.staff)
+      staffFirstName: rosterLabel(d.staff)
     })
   }
 
@@ -293,7 +294,7 @@ export async function loadRosterForCalendarYmd(
   const onVacation = vacationStaff.map((s) => ({
     staffId: s.id,
     staffName: s.name,
-    staffFirstName: firstName(s)
+    staffFirstName: rosterLabel(s)
   }))
 
   return { weekStart, scheduled, off, onVacation }

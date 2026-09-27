@@ -260,7 +260,9 @@ export default function AttendanceWeekView() {
             </div>
             {staff.map((row) => (
               <div key={row.staffId} className="flex items-center justify-between gap-2 py-1.5">
-                <span className="truncate text-sm text-slate-800">{row.staffName}</span>
+                <span className="truncate text-sm text-slate-800" title={row.staffName}>
+                  {row.staffFirstName}
+                </span>
                 {row.irregularDayCount > 0 ? (
                   <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
                     {row.irregularDayCount}

@@ -14,6 +14,7 @@ import {
 } from '@/lib/attendance-irregularity'
 import { deviceUserIdsMatch } from '@/lib/device-user-id'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
+import { staffDisplayName } from '@/lib/roster-week-client'
 
 type PunchDayStatus = 'full' | 'short_ok' | 'irregular'
 
@@ -32,14 +33,36 @@ interface AttendanceLog {
   punchDayStatus?: PunchDayStatus
   /** Not sent by API; UI derives status from punches + settings. */
   hasIrregularity?: boolean
-  staff: { id: string; name: string } | null
+  staff: { id: string; name: string; firstName?: string | null; displayName?: string | null } | null
 }
 
 interface Staff {
   id: string
   name: string
+  firstName?: string | null
+  displayName?: string | null
   deviceUserId: string | null
   status?: string
+}
+
+function attendanceLabel(s: {
+  name: string
+  firstName?: string | null
+  displayName?: string | null
+}): string {
+  return staffDisplayName(s)
+}
+
+function punchStaffLabel(log: AttendanceLog, staffList: Staff[]): string {
+  const linked = log.staffId ? staffList.find((s) => s.id === log.staffId) : undefined
+  if (linked) return attendanceLabel(linked)
+  if (log.staff) return attendanceLabel(log.staff)
+  return log.deviceUserName?.trim() || `Device ${log.deviceUserId}`
+}
+
+function attendanceLabelById(id: string, staffList: Staff[], fallback?: Staff | null): string {
+  const s = staffList.find((x) => x.id === id) ?? fallback ?? null
+  return s ? attendanceLabel(s) : ''
 }
 
 /** One row in the bulk-add modal (12-hour clock + AM/PM). */
@@ -80,7 +103,12 @@ function resolveStaffForManualPunch(input: string, staffWithDevice: Staff[]): St
   const byId = staffWithDevice.find((s) => s.id === t)
   if (byId) return byId
   const lower = t.toLowerCase()
-  const byName = staffWithDevice.find((s) => s.name.toLowerCase() === lower)
+  const byName = staffWithDevice.find(
+    (s) =>
+      s.name.toLowerCase() === lower ||
+      (s.displayName ?? '').trim().toLowerCase() === lower ||
+      (s.firstName ?? '').trim().toLowerCase() === lower
+  )
   if (byName) return byName
   return null
 }
@@ -882,7 +910,9 @@ export default function AttendancePage() {
   const staffListFiltered = useMemo(() => {
     const q = staffSearch.trim().toLowerCase()
     if (!q) return activeStaffWithDevice
-    return activeStaffWithDevice.filter((s) => s.name.toLowerCase().includes(q))
+    return activeStaffWithDevice.filter((s) =>
+      [s.displayName, s.firstName, s.name].some((part) => (part ?? '').toLowerCase().includes(q))
+    )
   }, [activeStaffWithDevice, staffSearch])
 
   /** Same “day” as the Date column: local calendar date; matches expected punches setting. */
@@ -1472,6 +1502,8 @@ export default function AttendancePage() {
   const hoursInRangeSummary = useMemo(() => {
     const title =
       'Sum of in→out durations from paired punches in this view (chronological order). Unpaired ins/outs add no time. Decimal hours use two places (payroll-style).'
+    const filtered = staffWithDevice.find((x) => x.id === staffFilter)
+    const filteredLabel = filtered ? attendanceLabel(filtered) : 'staff'
     if (loading) {
       return { displayHm: '—' as const, displayDecimal: '—' as const, caption: 'Hours this pay period', title }
     }
@@ -1479,18 +1511,15 @@ export default function AttendancePage() {
       return {
         displayHm: formatWorkedDuration(0),
         displayDecimal: formatDecimalHours(0),
-        caption: staffFilter
-          ? `Hours — ${staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'staff'}`
-          : 'Total hours — all staff',
+        caption: staffFilter ? `Hours — ${filteredLabel}` : 'Total hours — all staff',
         title,
       }
     }
     const ms = staffFilter ? workedMsFromPunchLogs(displayedLogs) : totalWorkedMsAllStaff(displayedLogs)
-    const name = staffWithDevice.find((x) => x.id === staffFilter)?.name
     return {
       displayHm: formatWorkedDuration(ms),
       displayDecimal: formatDecimalHours(ms),
-      caption: staffFilter ? `Hours — ${name ?? 'staff'}` : 'Total hours — all staff',
+      caption: staffFilter ? `Hours — ${filteredLabel}` : 'Total hours — all staff',
       title,
     }
   }, [displayedLogs, staffFilter, staffWithDevice, loading])
@@ -1906,7 +1935,7 @@ export default function AttendancePage() {
                               {log.punchType === 'in' ? 'In' : 'Out'}
                             </span>
                           </td>
-                          <td className="px-3 py-2">{log.staff?.name ?? log.deviceUserName ?? `Device ${log.deviceUserId}`}</td>
+                          <td className="px-3 py-2">{punchStaffLabel(log, allStaff)}</td>
                           <td className="px-3 py-2 text-xs text-gray-400">{log.source}</td>
                           <td className="px-3 py-2 text-right">
                             {isExtracted ? (
@@ -1989,7 +2018,7 @@ export default function AttendancePage() {
                         <p className="mt-2 text-xs text-gray-600">
                           Showing logs for{' '}
                           <span className="font-semibold text-gray-900">
-                            {staffWithDevice.find((x) => x.id === staffFilter)?.name ?? 'Staff'}
+                            {attendanceLabelById(staffFilter, staffWithDevice) || 'Staff'}
                           </span>
                           .{' '}
                           <button
@@ -2030,7 +2059,7 @@ export default function AttendancePage() {
                                   selected ? 'bg-blue-50 font-medium text-blue-900' : 'text-gray-900'
                                 }`}
                               >
-                                <span className="min-w-0 break-words">{s.name}</span>
+                                <span className="min-w-0 break-words">{attendanceLabel(s)}</span>
                                 <span
                                   className={`h-2.5 w-2.5 shrink-0 rounded-[2px] ${
                                     pill === 'red' ? 'bg-red-500' : pill === 'blue' ? 'bg-sky-500' : 'bg-emerald-500'
@@ -2209,11 +2238,7 @@ export default function AttendancePage() {
                           id="bulk-add-staff"
                           type="text"
                           readOnly
-                          value={
-                            staffWithDevice.find((s) => s.id === staffFilter)?.name ??
-                            bulkAddResolvedStaff?.name ??
-                            ''
-                          }
+                          value={attendanceLabelById(staffFilter, staffWithDevice, bulkAddResolvedStaff)}
                           disabled={bulkAddSaving}
                           className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-900 disabled:opacity-70"
                         />
@@ -2233,7 +2258,7 @@ export default function AttendancePage() {
                           </option>
                           {activeStaffWithDevice.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.name}
+                              {attendanceLabel(s)}
                               {s.deviceUserId ? ` (device ${s.deviceUserId})` : ''}
                             </option>
                           ))}
@@ -2465,11 +2490,7 @@ export default function AttendancePage() {
                           id="add-punch-staff"
                           type="text"
                           readOnly
-                          value={
-                            staffWithDevice.find((s) => s.id === staffFilter)?.name ??
-                            addPunchResolvedStaff?.name ??
-                            ''
-                          }
+                          value={attendanceLabelById(staffFilter, staffWithDevice, addPunchResolvedStaff)}
                           className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-900"
                         />
                       ) : (
@@ -2488,7 +2509,7 @@ export default function AttendancePage() {
                           </option>
                           {activeStaffWithDevice.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.name}
+                              {attendanceLabel(s)}
                               {s.deviceUserId ? ` (device ${s.deviceUserId})` : ''}
                             </option>
                           ))}
@@ -2633,7 +2654,7 @@ export default function AttendancePage() {
                 <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-md w-full p-5">
                   <h2 id="edit-punch-title" className="text-lg font-semibold text-gray-900 mb-1">Correct punch</h2>
                   <p className="text-sm text-gray-600 mb-4">
-                    {editingLog.staff?.name ?? editingLog.deviceUserName ?? `Device ${editingLog.deviceUserId}`}
+                    {punchStaffLabel(editingLog, allStaff)}
                   </p>
                   {editError && (
                     <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{editError}</div>
@@ -2791,7 +2812,7 @@ export default function AttendancePage() {
                       .slice(0, 12)
                       .map((l) => (
                         <li key={l.id} className="px-3 py-2 flex flex-wrap gap-x-2 gap-y-0.5">
-                          <span className="font-medium">{l.staff?.name ?? l.deviceUserName ?? `Device ${l.deviceUserId}`}</span>
+                          <span className="font-medium">{punchStaffLabel(l, allStaff)}</span>
                           <span className="text-gray-600">
                             {formatDateDisplay(l.punchTime)} · {formatTime(l.punchTime)} ·{' '}
                             {l.punchType === 'in' ? 'In' : 'Out'}
@@ -3278,7 +3299,7 @@ export default function AttendancePage() {
                 <tbody>
                   {allStaff.filter(s => s).map((s) => (
                     <tr key={s.id} className="border-t border-gray-100">
-                      <td className="px-3 py-2 font-medium text-gray-900">{s.name}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900" title={s.name}>{attendanceLabel(s)}</td>
                       <td className="px-3 py-2 text-gray-600 font-mono">{s.deviceUserId || '—'}</td>
                       <td className="px-3 py-2">
                         {s.deviceUserId ? (

@@ -49,6 +49,7 @@ export type PayPeriodStaffRow = {
   id: string
   name: string
   firstName: string
+  displayName: string
   deviceUserId: string | null
   vacationStart: string | null
   vacationEnd: string | null
@@ -61,6 +62,7 @@ const payPeriodStaffSelect = {
   id: true,
   name: true,
   firstName: true,
+  displayName: true,
   deviceUserId: true,
   vacationStart: true,
   vacationEnd: true,
