@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import type { DayReport } from '@/lib/types'
@@ -21,17 +22,20 @@ export default function OtherItemsBreakdownModal({
   dayReport,
   debitScanUrls,
   onClose,
+  onSaved,
   startWithScans = false
 }: {
   date: string
   dayReport: DayReport
   debitScanUrls: string[]
   onClose: () => void
+  onSaved: () => void
   /** Open the scan side immediately (from Compare on the slip row). */
   startWithScans?: boolean
 }) {
   const [compareScansOpen, setCompareScansOpen] = useState(startWithScans)
   const [activeScanIndex, setActiveScanIndex] = useState(0)
+  const [deletingScan, setDeletingScan] = useState(false)
 
   const scans = useMemo(
     () => debitScanUrls.map((u) => (typeof u === 'string' ? u.trim() : '')).filter(Boolean),
@@ -72,6 +76,20 @@ export default function OtherItemsBreakdownModal({
 
   const activeScanUrl = scans[activeScanIndex] ?? null
   const activeScanTitle = activeScanUrl ? scanLabelFromUrl(activeScanUrl, activeScanIndex) : ''
+
+  const removeActiveScan = async () => {
+    if (!activeScanUrl || deletingScan) return
+    if (!confirmDeleteDayScan()) return
+    setDeletingScan(true)
+    try {
+      await deleteDayScan(date, activeScanUrl, 'debit')
+      onSaved()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Delete failed')
+    } finally {
+      setDeletingScan(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-3 sm:p-4">
@@ -217,14 +235,24 @@ export default function OtherItemsBreakdownModal({
                     <span className="text-xs font-medium text-slate-800 truncate pr-2" title={activeScanTitle}>
                       {activeScanTitle}
                     </span>
-                    <a
-                      href={activeScanUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs font-semibold text-blue-600 hover:underline"
-                    >
-                      Open in new tab
-                    </a>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <a
+                        href={activeScanUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        Open in new tab
+                      </a>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                        disabled={deletingScan}
+                        onClick={() => void removeActiveScan()}
+                      >
+                        {deletingScan ? 'Removing…' : 'Remove'}
+                      </button>
+                    </span>
                   </div>
                   <div className="flex-1 min-h-[50vh] bg-slate-200/80">
                     <iframe

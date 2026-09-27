@@ -836,6 +836,7 @@ function DaysPage() {
               setShowOtherItemsBreakdown(null)
               setOtherItemsScansOpen(false)
             }}
+            onSaved={refreshDayReports}
             startWithScans={otherItemsScansOpen}
           />
         )

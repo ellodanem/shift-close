@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import type { DayReport } from '@/lib/types'
@@ -91,6 +92,7 @@ export default function DepositBreakdownModal({
   /** Side-by-side deposit slip preview (same calendar day). */
   const [compareScansOpen, setCompareScansOpen] = useState(startWithScans)
   const [activeScanIndex, setActiveScanIndex] = useState(0)
+  const [deletingScan, setDeletingScan] = useState(false)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [, setTick] = useState(0)
@@ -289,6 +291,20 @@ export default function DepositBreakdownModal({
 
   const activeScanUrl = depositScans[activeScanIndex] ?? null
   const activeScanTitle = activeScanUrl ? scanLabelFromUrl(activeScanUrl, activeScanIndex) : ''
+
+  const removeActiveScan = async () => {
+    if (!activeScanUrl || deletingScan) return
+    if (!confirmDeleteDayScan()) return
+    setDeletingScan(true)
+    try {
+      await deleteDayScan(date, activeScanUrl, 'deposit')
+      onSaved()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Delete failed')
+    } finally {
+      setDeletingScan(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-3 sm:p-4">
@@ -581,14 +597,24 @@ export default function DepositBreakdownModal({
                     <span className="text-xs font-medium text-slate-800 truncate pr-2" title={activeScanTitle}>
                       {activeScanTitle}
                     </span>
-                    <a
-                      href={activeScanUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs font-semibold text-blue-600 hover:underline"
-                    >
-                      Open in new tab
-                    </a>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <a
+                        href={activeScanUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        Open in new tab
+                      </a>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                        disabled={deletingScan}
+                        onClick={() => void removeActiveScan()}
+                      >
+                        {deletingScan ? 'Removing…' : 'Remove'}
+                      </button>
+                    </span>
                   </div>
                   <div className="flex-1 min-h-[50vh] bg-slate-200/80">
                     <iframe

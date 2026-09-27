@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRef, useState, type Ref, type RefObject } from 'react'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { IconDebitCard, IconDepositSlip, IconShield } from '@/app/components/IconDropdown'
@@ -132,6 +133,7 @@ export default function DaySlipTasks({
   const tasks = slipTasksForDay(dayReport)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [uploading, setUploading] = useState<ScanKind | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [exceptionId, setExceptionId] = useState<ScanKind | null>(null)
   const [exceptionNote, setExceptionNote] = useState('')
   const [savingException, setSavingException] = useState(false)
@@ -170,21 +172,15 @@ export default function DaySlipTasks({
   }
 
   const deleteUrl = async (url: string, type: ScanKind) => {
-    if (!window.confirm('Delete this file? This cannot be undone.')) return
+    if (!confirmDeleteDayScan()) return
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/days/${dayReport.date}/upload`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type })
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        alert(typeof err.error === 'string' ? err.error : 'Delete failed')
-        return
-      }
+      await deleteDayScan(dayReport.date, url, type)
       onRefresh()
-    } catch {
-      alert('Delete failed')
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Delete failed')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -317,7 +313,7 @@ export default function DaySlipTasks({
                     <button
                       type="button"
                       className="px-1 text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
-                      disabled={uploading !== null}
+                      disabled={uploading !== null || deleting}
                       onClick={() => inputFor(task.id).current?.click()}
                     >
                       {uploading === task.id ? 'Uploading…' : 'Add photo'}
@@ -332,6 +328,19 @@ export default function DaySlipTasks({
                       {uploading === task.id ? 'Uploading…' : 'Take photo'}
                     </button>
                   )}
+                  {task.photoCount === 1 ? (
+                    <button
+                      type="button"
+                      className="px-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                      disabled={deleting || uploading !== null}
+                      onClick={() => {
+                        const url = scanUrls(dayReport, task.id)[0]
+                        if (url) void deleteUrl(url, task.id)
+                      }}
+                    >
+                      {deleting ? 'Removing…' : 'Remove photo'}
+                    </button>
+                  ) : null}
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
@@ -408,6 +417,7 @@ export default function DaySlipTasks({
           urls={scanUrls(dayReport, 'security')}
           onClose={() => setSecurityOpen(false)}
           onDelete={(url) => void deleteUrl(url, 'security')}
+          deleting={deleting}
         />
       ) : null}
     </div>
@@ -500,11 +510,13 @@ function Fact({ label, value, valueClass }: { label: string; value: string; valu
 function SecurityScanModal({
   urls,
   onClose,
-  onDelete
+  onDelete,
+  deleting
 }: {
   urls: string[]
   onClose: () => void
   onDelete: (url: string) => void
+  deleting: boolean
 }) {
   const [index, setIndex] = useState(0)
   const safeIndex = urls.length === 0 ? 0 : Math.min(index, urls.length - 1)
@@ -571,10 +583,11 @@ function SecurityScanModal({
                 </a>
                 <button
                   type="button"
-                  className="text-xs font-semibold text-red-700 hover:underline"
+                  className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                  disabled={deleting}
                   onClick={() => onDelete(url)}
                 >
-                  Remove
+                  {deleting ? 'Removing…' : 'Remove'}
                 </button>
               </span>
             </div>
