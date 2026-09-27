@@ -79,19 +79,18 @@ export function buildDashboardSegments(layout: DashboardWidgetId[]): DashboardWi
 
   for (const id of layout) {
     if (used.has(id)) continue
-    if (id === 'last-closed-day' && layout.includes('fuel-comparison-day')) {
-      out.push(['last-closed-day', 'fuel-comparison-day'])
+    if (
+      (id === 'last-closed-day' && layout.includes('fuel-comparison-day')) ||
+      (id === 'fuel-comparison-day' && layout.includes('last-closed-day'))
+    ) {
+      const night: DashboardWidgetId[] = ['last-closed-day', 'fuel-comparison-day']
       used.add('last-closed-day')
       used.add('fuel-comparison-day')
-      continue
-    }
-    if (id === 'fuel-comparison-day' && used.has('last-closed-day')) {
-      continue
-    }
-    if (id === 'fuel-comparison-day' && layout.includes('last-closed-day')) {
-      out.push(['last-closed-day', 'fuel-comparison-day'])
-      used.add('last-closed-day')
-      used.add('fuel-comparison-day')
+      if (layout.includes('cashbook-latest')) {
+        night.push('cashbook-latest')
+        used.add('cashbook-latest')
+      }
+      out.push(night)
       continue
     }
     if (

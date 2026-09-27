@@ -786,7 +786,7 @@ export default function DashboardPage() {
   }
 
   const renderLastClosedDayCard = () => (
-    <div className="h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <h2 className="text-base font-semibold text-gray-900">Last closed day</h2>
       {lastClosedDay ? (
         <>
@@ -867,7 +867,7 @@ export default function DashboardPage() {
     )
   }
 
-  const renderCashbookLatestCard = () => {
+  const renderCashbookLatestCard = (stacked = false) => {
     const bankLabel =
       cashbookLatest?.lastDeposit?.bankStatus === 'cleared'
         ? 'Cleared'
@@ -892,7 +892,7 @@ export default function DashboardPage() {
             {cashbookLatest.behindMessage}
           </p>
         ) : null}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={`grid grid-cols-1 gap-3 ${stacked ? '' : 'sm:grid-cols-2'}`}>
           <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last deposit</div>
             {cashbookLatest?.lastDeposit ? (
@@ -2301,6 +2301,25 @@ export default function DashboardPage() {
             )}
             </>
           )
+          if (
+            segment.length === 3 &&
+            segment[0] === 'last-closed-day' &&
+            segment[1] === 'fuel-comparison-day' &&
+            segment[2] === 'cashbook-latest'
+          ) {
+            return (
+              <Fragment key="dashboard-night-sheet">
+                {sectionLabel}
+                <div className="mb-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                  <div className="contents lg:block lg:space-y-4">
+                    <div className="order-1">{renderLastClosedDayCard()}</div>
+                    <div className="order-3 lg:order-none">{renderCashbookLatestCard(true)}</div>
+                  </div>
+                  <div className="order-2 min-w-0 lg:order-none">{renderFuelComparisonDayCard()}</div>
+                </div>
+              </Fragment>
+            )
+          }
           if (segment.length === 2) {
             return (
               <Fragment key={`dashboard-pair-${segment[0]}-${segment[1]}`}>
