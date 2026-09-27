@@ -63,6 +63,7 @@ export function dayOffRequestFormHtml(): string {
     }
     td { height: 42px; }
     .section { margin: 0 0 26px; }
+    .reason { margin-bottom: 56px; }
     .rule {
       height: 36px;
       border-bottom: 1px solid #000;
@@ -78,7 +79,7 @@ export function dayOffRequestFormHtml(): string {
       display: flex;
       align-items: center;
       gap: 22px;
-      margin: 12px 0 32px;
+      margin: 12px 0 64px;
     }
     .choice { display: inline-flex; align-items: center; gap: 12px; }
     .check {
@@ -102,7 +103,7 @@ export function dayOffRequestFormHtml(): string {
     </thead>
     <tbody>${dateRows}</tbody>
   </table>
-  <div class="section">
+  <div class="section reason">
     <div>Reason for request:</div>
     ${reasonLines}
   </div>
