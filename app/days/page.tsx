@@ -3,19 +3,18 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/format'
-import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
 import { DayReport } from '@/lib/types'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
-import { isDebitScanComplete } from '@/lib/day-scan-status'
+import { slipsStillNeeded } from '@/lib/day-slip-tasks'
 import {
   businessTodayYmd,
   toYmdInBusinessTz,
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
-import DayScanStrip from './DayScanStrip'
+import DaySlipTasks, { DayDetailsSection } from './DaySlipTasks'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
@@ -174,13 +173,13 @@ function DaysPage() {
   const loadedRangeKeys = useRef(new Set<string>())
   const fetchSeq = useRef(0)
   const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
+  const [depositMissingSlipOpen, setDepositMissingSlipOpen] = useState(false)
   const [showOtherItemsBreakdown, setShowOtherItemsBreakdown] = useState<string | null>(null)
   const [emailModal, setEmailModal] = useState<{ subject: string; body: string; urls: string[] } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
   const [emailToId, setEmailToId] = useState('')
   const [emailOther, setEmailOther] = useState('')
   const [emailSending, setEmailSending] = useState(false)
-  const [scanPreview, setScanPreview] = useState<{ url: string; title: string } | null>(null)
 
   const clearFocusDate = useCallback(() => {
     if (!searchParams.get('date')) return
@@ -263,20 +262,6 @@ function DaysPage() {
   useEffect(() => {
     fetchRange(activeFilter, customMonth)
   }, [activeFilter, customMonth, fetchRange])
-
-  useEffect(() => {
-    if (!scanPreview) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setScanPreview(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = prev
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [scanPreview])
 
   const tabHiddenAtRef = useRef<number | null>(null)
 
@@ -554,51 +539,6 @@ function DaysPage() {
           </div>
         </div>
       )}
-      {/* Scan preview (same pattern as bank deposit comparisons) */}
-      {scanPreview && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="eod-scan-preview-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
-            onClick={() => setScanPreview(null)}
-            aria-label="Close preview"
-          />
-          <div className="relative z-10 flex w-full max-w-4xl max-h-[min(92vh,900px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-              <h3 id="eod-scan-preview-title" className="text-sm font-semibold text-slate-900 truncate pr-2" title={scanPreview.title}>
-                {scanPreview.title}
-              </h3>
-              <a
-                href={scanPreview.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-blue-600 hover:underline shrink-0"
-              >
-                Open in new tab
-              </a>
-              <button
-                type="button"
-                onClick={() => setScanPreview(null)}
-                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </div>
-            <div className="min-h-[50vh] flex-1 bg-slate-100">
-              <iframe
-                src={pdfIframeSrc(scanPreview.url)}
-                className="h-[min(75vh,720px)] w-full border-0"
-                title={scanPreview.title}
-              />
-            </div>
-          </div>
-        </div>
-      )}
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day</h1>
@@ -767,7 +707,19 @@ function DaysPage() {
                             <BagNumberChips bags={dayBags} />
                           </div>
                           <div className="mt-1 flex flex-wrap gap-2 items-center sm:gap-3">
-                            {getStatusBadge(dayReport.status)}
+                            {dayReport.status === 'Complete' ? (
+                              slipsStillNeeded(dayReport) === 0 ? (
+                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">Slips filed</span>
+                              ) : (
+                                <span className="px-2 py-1 bg-amber-100 text-amber-950 rounded text-sm font-medium">
+                                  {slipsStillNeeded(dayReport) === 1
+                                    ? '1 slip still needed'
+                                    : `${slipsStillNeeded(dayReport)} slips still needed`}
+                                </span>
+                              )
+                            ) : (
+                              getStatusBadge(dayReport.status)
+                            )}
                             <span className="text-sm text-gray-600">
                               {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
                             </span>
@@ -815,144 +767,44 @@ function DaysPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end sm:gap-3">
-                        {/* Deposit & Debit slip upload indicators — collapsed only */}
-                        {!isExpanded && (
-                          <div className="flex items-center gap-2">
-                            {dayReport.missingDepositSlipAlertOpen && (
-                              <span
-                                className="text-amber-600 text-lg leading-none"
-                                title="Open missing deposit slip scan alert for this day"
-                                aria-label="Missing deposit slip alert open"
-                              >
-                                ⚑
-                              </span>
-                            )}
-                            <div
-                              className="relative"
-                              title={
-                                dayReport.depositScans.length > 0
-                                  ? `${dayReport.depositScans.length} deposit slip(s) uploaded`
-                                  : 'No deposit slips uploaded'
-                              }
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="w-7 h-7 text-blue-600"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.5}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                              </svg>
-                              <span
-                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${dayReport.depositScans.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                              >
-                                {dayReport.depositScans.length > 0 ? '✓' : '✕'}
-                              </span>
-                            </div>
-                            <div
-                              className="relative"
-                              title={(() => {
-                                if (dayReport.debitScans.length > 0) return `${dayReport.debitScans.length} debit slip(s) uploaded`
-                                if (dayReport.debitScanWaived) {
-                                  const note = (dayReport.debitScanWaiverNote ?? '').trim()
-                                  return note
-                                    ? `No debit scan — missing/misprinted debit slip (${note})`
-                                    : 'No debit scan — missing/misprinted debit slip (marked complete)'
-                                }
-                                return 'No debit slips uploaded'
-                              })()}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="w-7 h-7 text-violet-600"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.5}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                                />
-                              </svg>
-                              <span
-                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${
-                                  isDebitScanComplete(dayReport) ? 'bg-green-500' : 'bg-red-500'
-                                }`}
-                              >
-                                {isDebitScanComplete(dayReport) ? '✓' : '✕'}
-                              </span>
-                            </div>
-                            <div
-                              className="relative"
-                              title={(() => {
-                                const n = (dayReport.securityScans ?? []).length
-                                if (n > 0) return `${n} security slip(s) uploaded`
-                                if (dayReport.securityScanWaived) {
-                                  const note = (dayReport.securityScanWaiverNote ?? '').trim()
-                                  return note
-                                    ? `No security scan — marked without pickup (${note})`
-                                    : 'No security scan — marked without pickup'
-                                }
-                                return 'No security slips uploaded'
-                              })()}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="w-7 h-7 text-emerald-700"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.5}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                                />
-                              </svg>
-                              <span
-                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold leading-none ${
-                                  (dayReport.securityScans ?? []).length > 0
-                                    ? 'bg-green-500'
-                                    : dayReport.securityScanWaived
-                                      ? 'bg-amber-500'
-                                      : 'bg-red-500'
-                                }`}
-                              >
-                                {(dayReport.securityScans ?? []).length > 0 || dayReport.securityScanWaived ? '✓' : '✕'}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                        <Link
-                          href={depositComparisonsPath(dayReport.date)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full rounded border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100 sm:w-auto"
-                        >
-                          Review deposits
-                        </Link>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); exportToExcel(dayReport) }}
-                          className="w-full rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto"
-                        >
-                          Export Excel
-                        </button>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Collapsible body */}
                   {isExpanded && (
                     <>
+                  <DaySlipTasks
+                    dayReport={dayReport}
+                    onRefresh={refreshDayReports}
+                    onEmail={(kind) => {
+                      const urls =
+                        kind === 'deposit'
+                          ? dayReport.depositScans
+                          : kind === 'debit'
+                            ? dayReport.debitScans
+                            : dayReport.securityScans ?? []
+                      openEmailModal(dayReport.date, kind, urls)
+                    }}
+                    onMissingDepositSlip={() => {
+                      setDepositMissingSlipOpen(true)
+                      setShowDepositBreakdown(dayReport.date)
+                    }}
+                  />
+                  <DayDetailsSection>
+                  <div className="flex flex-wrap gap-2 px-4 pt-4">
+                    <Link
+                      href={depositComparisonsPath(dayReport.date)}
+                      className="rounded border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                    >
+                      Review deposits
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => exportToExcel(dayReport)}
+                      className="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                    >
+                      Export Excel
+                    </button>
+                  </div>
                   {/* Money Summary */}
                   <div className="p-4 border-t border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900 mb-3">Money Summary</h3>
@@ -979,7 +831,10 @@ function DaysPage() {
                             </span>
                           )}
                           <button
-                            onClick={() => setShowDepositBreakdown(dayReport.date)}
+                            onClick={() => {
+                              setDepositMissingSlipOpen(false)
+                              setShowDepositBreakdown(dayReport.date)
+                            }}
                             className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
                             title="View deposit breakdown"
                           >
@@ -1044,59 +899,6 @@ function DaysPage() {
                         <p className="text-sm text-gray-600">Total Diesel</p>
                         <p className="text-lg font-bold text-gray-900">{dayReport.totals.totalDiesel.toFixed(2)}</p>
                       </div>
-                    </div>
-                  </div>
-                  
-                  {/* Document scans — bank comparisons–style strip + preview modal */}
-                  <div className="border-b border-gray-200 bg-white">
-                    <div className="px-4 pt-3">
-                      <h3 className="font-semibold text-gray-900">Document scans</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Deposits, Other Items, and security — click an icon to list, preview, upload, or remove files.
-                      </p>
-                    </div>
-                    <DayScanStrip
-                      date={dayReport.date}
-                      depositScans={dayReport.depositScans}
-                      debitScans={dayReport.debitScans}
-                      securityScans={dayReport.securityScans ?? []}
-                      securityScanWaived={dayReport.securityScanWaived ?? false}
-                      securityScanWaiverNote={dayReport.securityScanWaiverNote ?? ''}
-                      debitScanWaived={dayReport.debitScanWaived ?? false}
-                      debitScanWaiverNote={dayReport.debitScanWaiverNote ?? ''}
-                      onRefresh={refreshDayReports}
-                      onOpenPreview={(url, title) => setScanPreview({ url, title })}
-                    />
-                    <div className="flex flex-wrap gap-x-4 gap-y-2 px-4 pb-3 text-sm">
-                      {dayReport.depositScans.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openEmailModal(dayReport.date, 'deposit', dayReport.depositScans)}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Email all deposit scans
-                        </button>
-                      )}
-                      {dayReport.debitScans.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openEmailModal(dayReport.date, 'debit', dayReport.debitScans)}
-                          className="text-violet-700 hover:text-violet-900 font-medium"
-                        >
-                          Email all debit scans
-                        </button>
-                      )}
-                      {(dayReport.securityScans ?? []).length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openEmailModal(dayReport.date, 'security', dayReport.securityScans ?? [])
-                          }
-                          className="text-emerald-800 hover:text-emerald-950 font-medium"
-                        >
-                          Email all security scans
-                        </button>
-                      )}
                     </div>
                   </div>
                   
@@ -1176,6 +978,7 @@ function DaysPage() {
                       })}
                     </div>
                   </div>
+                  </DayDetailsSection>
                   </>
                   )}
                 </div>
@@ -1194,8 +997,12 @@ function DaysPage() {
             date={dayReport.date}
             dayReport={dayReport}
             depositScanUrls={dayReport.depositScans}
-            onClose={() => setShowDepositBreakdown(null)}
+            onClose={() => {
+              setShowDepositBreakdown(null)
+              setDepositMissingSlipOpen(false)
+            }}
             onSaved={refreshDayReports}
+            startWithMissingSlip={depositMissingSlipOpen}
           />
         )
       })()}

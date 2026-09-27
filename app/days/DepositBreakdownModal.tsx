@@ -62,13 +62,16 @@ export default function DepositBreakdownModal({
   dayReport,
   depositScanUrls,
   onClose,
-  onSaved
+  onSaved,
+  startWithMissingSlip = false
 }: {
   date: string
   dayReport: DayReport
   depositScanUrls: string[]
   onClose: () => void
   onSaved: () => void
+  /** Open the missing-slip panel immediately (from “I don't have this slip”). */
+  startWithMissingSlip?: boolean
 }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -81,7 +84,7 @@ export default function DepositBreakdownModal({
   const [notifyQueuedUntil, setNotifyQueuedUntil] = useState<number | null>(null)
   const [notifySending, setNotifySending] = useState(false)
   /** Collapsible “missing slip” panel — collapsed by default for a cleaner modal. */
-  const [missingSlipPanelExpanded, setMissingSlipPanelExpanded] = useState(false)
+  const [missingSlipPanelExpanded, setMissingSlipPanelExpanded] = useState(startWithMissingSlip)
   /** Side-by-side deposit slip preview (same calendar day). */
   const [compareScansOpen, setCompareScansOpen] = useState(false)
   const [activeScanIndex, setActiveScanIndex] = useState(0)
