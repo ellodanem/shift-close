@@ -553,7 +553,7 @@ export default function DepositBreakdownModal({
           </div>
 
           {compareScansOpen && (
-            <div className="min-h-0 flex flex-1 flex-col bg-slate-100 border-t-2 border-gray-300 lg:border-t-0">
+            <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden bg-slate-100 border-t-2 border-gray-300 lg:border-t-0">
               <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-2 sm:px-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit scans (this day)</p>
                 {depositScans.length === 0 ? (
@@ -562,7 +562,7 @@ export default function DepositBreakdownModal({
                   </p>
                 ) : (
                   <>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {depositScans.map((url, i) => {
                         const label = scanLabelFromUrl(url, i)
                         const active = i === activeScanIndex
@@ -582,6 +582,14 @@ export default function DepositBreakdownModal({
                           </button>
                         )
                       })}
+                      <button
+                        type="button"
+                        className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        disabled={deletingScan || !activeScanUrl}
+                        onClick={() => void removeActiveScan()}
+                      >
+                        {deletingScan ? 'Removing…' : 'Remove'}
+                      </button>
                     </div>
                     {depositScans.length > 1 && (
                       <p className="text-[11px] text-slate-500 mt-1.5 hidden sm:block">
@@ -593,8 +601,8 @@ export default function DepositBreakdownModal({
               </div>
               {depositScans.length > 0 && activeScanUrl && (
                 <div className="flex-1 min-h-0 flex flex-col min-w-0">
-                  <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 bg-white/80 border-b border-slate-200 sm:px-4">
-                    <span className="text-xs font-medium text-slate-800 truncate pr-2" title={activeScanTitle}>
+                  <div className="shrink-0 flex min-w-0 items-center justify-between gap-2 px-3 py-2 bg-white/80 border-b border-slate-200 sm:px-4">
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800 pr-2" title={activeScanTitle}>
                       {activeScanTitle}
                     </span>
                     <span className="flex shrink-0 items-center gap-3">

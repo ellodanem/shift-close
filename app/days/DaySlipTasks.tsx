@@ -546,7 +546,7 @@ function SecurityScanModal({
         <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Security scans</p>
           {urls.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {urls.map((scanUrl, scanIndex) => (
                 <button
                   key={`${scanUrl}-${scanIndex}`}
@@ -561,6 +561,16 @@ function SecurityScanModal({
                   {urls.length > 1 ? `Scan ${scanIndex + 1}` : 'Scan'}
                 </button>
               ))}
+              {url ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  disabled={deleting}
+                  onClick={() => onDelete(url)}
+                >
+                  {deleting ? 'Removing…' : 'Remove'}
+                </button>
+              ) : null}
             </div>
           ) : (
             <p className="mt-1 text-sm text-slate-600">No photos yet.</p>
