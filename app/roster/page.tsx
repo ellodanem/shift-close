@@ -12,6 +12,7 @@ import {
   buildPayPeriodHoursByStaff,
   rosterHoursEntryKey
 } from '@/lib/roster-pay-period-hours'
+import { printDayOffRequestForm } from '@/lib/day-off-request-form-print'
 import {
   countOffDaysForStaffInWeek,
   ROSTER_MIN_OFF_DAYS_PER_WEEK_DEFAULT,
@@ -1771,6 +1772,18 @@ export default function RosterPage() {
                   )
                 : null}
             </div>
+            <button
+              type="button"
+              className={rosterOutlineBtn}
+              title="Print a blank day off request form"
+              onClick={() => {
+                if (!printDayOffRequestForm()) {
+                  alert('Could not open the print dialog.')
+                }
+              }}
+            >
+              Day off form
+            </button>
             <a href="/roster/templates" className={rosterOutlineBtn}>
               Shift presets
             </a>
