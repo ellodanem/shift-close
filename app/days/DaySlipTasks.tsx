@@ -233,7 +233,7 @@ export default function DaySlipTasks({
           return (
             <div
               key={task.id}
-              className={`flex flex-col gap-2 px-4 py-4 ${task.done ? 'bg-white' : 'bg-amber-50/50'}`}
+              className={`flex flex-col gap-3 px-5 py-5 ${task.done ? 'bg-white' : 'bg-amber-50/50'}`}
             >
               <div className={`h-1 w-12 rounded-full ${task.done ? 'bg-green-500' : 'bg-amber-400'}`} />
               <div className="flex items-center gap-2">
@@ -246,9 +246,15 @@ export default function DaySlipTasks({
                 <p className="text-2xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
               ) : null}
               {task.id === 'debit' ? (
-                <div className="text-base font-semibold leading-snug text-gray-900">
-                  <p>{formatCurrency(dayReport.totals.totalCredit)} credit</p>
-                  <p>{formatCurrency(dayReport.totals.totalDebit)} debit</p>
+                <div className="flex gap-8">
+                  <div>
+                    <p className="text-sm text-gray-500">Credit</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Debit</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
+                  </div>
                 </div>
               ) : null}
               {task.id === 'security' ? (
@@ -442,23 +448,43 @@ function DayFacts({
       {flagged.length > 0 ? (
         <button
           type="button"
-          className="rounded-md bg-red-600 px-3 py-2 text-base font-bold tracking-wide text-white hover:bg-red-700"
+          className="mb-0.5 text-red-600 hover:text-red-700"
+          aria-label="Red flag"
+          title="Red flag"
           onClick={() => onOpenShift(flagged[0].id)}
         >
-          RED FLAG
+          <RedFlagIcon />
         </button>
       ) : null}
-      <Fact label="Unleaded" value={gallons(dayReport.totals.totalUnleaded)} />
-      <Fact label="Diesel" value={gallons(dayReport.totals.totalDiesel)} />
-      <span className="ml-auto flex items-center gap-5 pb-1 text-base font-semibold">
-        <Link href={reviewHref} className="text-blue-800 hover:underline">
+      <div className={`flex items-end gap-x-6 ${flagged.length > 0 ? 'ml-10' : ''}`}>
+        <Fact label="Unleaded" value={gallons(dayReport.totals.totalUnleaded)} />
+        <Fact label="Diesel" value={gallons(dayReport.totals.totalDiesel)} />
+      </div>
+      <span className="ml-auto flex items-center gap-2">
+        <Link
+          href={reviewHref}
+          className="rounded border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100"
+        >
           Review deposits
         </Link>
-        <button type="button" className="text-gray-950 hover:underline" onClick={onExport}>
-          Export
+        <button
+          type="button"
+          onClick={onExport}
+          className="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+        >
+          Export Excel
         </button>
       </span>
     </div>
+  )
+}
+
+function RedFlagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden>
+      <path d="M6 2.75v18.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M6 3.5h12.2L14.4 8.2 18.2 13H6V3.5z" fill="currentColor" />
+    </svg>
   )
 }
 

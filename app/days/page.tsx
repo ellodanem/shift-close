@@ -686,7 +686,7 @@ function DaysPage() {
                 <div
                   id={`eod-day-${dayReport.date}`}
                   key={dayReport.date}
-                  className={`bg-white shadow-sm border rounded ${
+                  className={`bg-white shadow-sm border rounded ${isExpanded ? 'mb-8' : ''} ${
                     focusDate === dayReport.date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
                   }`}
                 >
