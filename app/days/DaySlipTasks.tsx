@@ -100,15 +100,17 @@ export default function DaySlipTasks({
   dayReport,
   onRefresh,
   onEmail,
-  onMissingDepositSlip
+  onMissingDepositSlip,
+  onCompare
 }: {
   dayReport: DayReport
   onRefresh: () => void
   onEmail: (kind: ScanKind) => void
   onMissingDepositSlip: () => void
+  onCompare: (kind: 'deposit' | 'debit') => void
 }) {
   const tasks = slipTasksForDay(dayReport)
-  const [compareId, setCompareId] = useState<ScanKind | null>(null)
+  const [securityOpen, setSecurityOpen] = useState(false)
   const [uploading, setUploading] = useState<ScanKind | null>(null)
   const [exceptionId, setExceptionId] = useState<ScanKind | null>(null)
   const [exceptionNote, setExceptionNote] = useState('')
@@ -223,7 +225,6 @@ export default function DaySlipTasks({
       <div className="mt-3 space-y-3">
         {tasks.map((task, index) => {
           const status = statusLine(dayReport, task)
-          const compareOpen = compareId === task.id
           const showException = exceptionId === task.id && task.id !== 'deposit'
           return (
             <div
@@ -317,13 +318,11 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className={`rounded-md px-4 py-2 text-sm font-semibold ${
-                        compareOpen
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'border border-blue-600 text-blue-700 hover:bg-blue-50'
-                      }`}
-                      aria-pressed={compareOpen}
-                      onClick={() => setCompareId(compareOpen ? null : task.id)}
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                      onClick={() => {
+                        if (task.id === 'security') setSecurityOpen(true)
+                        else onCompare(task.id)
+                      }}
                     >
                       {task.id === 'security' ? 'View' : 'Compare'}
                     </button>
@@ -377,151 +376,28 @@ export default function DaySlipTasks({
                 </div>
               ) : null}
 
-              {compareOpen && task.id === 'deposit' ? (
-                <DepositCompare
-                  dayReport={dayReport}
-                  urls={scanUrls(dayReport, 'deposit')}
-                  onDelete={(url) => void deleteUrl(url, 'deposit')}
-                  onMissingDepositSlip={onMissingDepositSlip}
-                />
-              ) : null}
-              {compareOpen && task.id === 'debit' ? (
-                <CardCompare
-                  dayReport={dayReport}
-                  urls={scanUrls(dayReport, 'debit')}
-                  onDelete={(url) => void deleteUrl(url, 'debit')}
-                />
-              ) : null}
-              {compareOpen && task.id === 'security' ? (
-                <div className="border-t border-gray-100">
-                  <ScanPane
-                    heading="Security scans"
-                    urls={scanUrls(dayReport, 'security')}
-                    onDelete={(url) => void deleteUrl(url, 'security')}
-                  />
-                </div>
-              ) : null}
             </div>
           )
         })}
       </div>
+      {securityOpen ? (
+        <SecurityScanModal
+          urls={scanUrls(dayReport, 'security')}
+          onClose={() => setSecurityOpen(false)}
+          onDelete={(url) => void deleteUrl(url, 'security')}
+        />
+      ) : null}
     </div>
   )
 }
 
-function DepositCompare({
-  dayReport,
+function SecurityScanModal({
   urls,
-  onDelete,
-  onMissingDepositSlip
-}: {
-  dayReport: DayReport
-  urls: string[]
-  onDelete: (url: string) => void
-  onMissingDepositSlip: () => void
-}) {
-  return (
-    <div className="grid border-t border-gray-100 md:grid-cols-2">
-      <div className="space-y-4 p-3 sm:p-4">
-        {dayReport.shifts.map((shift) => {
-          const deposits = Array.isArray(shift.deposits) ? shift.deposits : []
-          const lines = deposits
-            .map((amount, index) => ({ amount, index }))
-            .filter((line) => line.amount > 0)
-          if (lines.length === 0) return null
-          const bags = (shift.depositBagNumbers ?? []).map((bag) => String(bag).trim()).filter(Boolean)
-          return (
-            <div key={shift.id}>
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="font-semibold text-gray-900">
-                  {shift.shift} · {shift.supervisor}
-                </p>
-              </div>
-              {bags.length > 0 ? (
-                <p className="font-mono text-xs text-gray-500">Bag {bags.join(', ')}</p>
-              ) : null}
-              <div className="mt-1 space-y-1">
-                {lines.map((line) => (
-                  <div key={line.index} className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="text-gray-600">Deposit {line.index + 1}</span>
-                    <span className="font-medium tabular-nums text-gray-900">{formatCurrency(line.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-        <div className="flex items-baseline justify-between gap-3 border-t border-gray-200 pt-2">
-          <span className="font-semibold text-gray-900">Grand total</span>
-          <span className="font-bold tabular-nums text-gray-900">
-            {formatCurrency(dayReport.totals.totalDeposits)}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="text-sm font-medium text-blue-700 hover:underline"
-          onClick={onMissingDepositSlip}
-        >
-          Missing slip
-        </button>
-      </div>
-      <ScanPane heading="Deposit scans" urls={urls} onDelete={onDelete} />
-    </div>
-  )
-}
-
-function CardCompare({
-  dayReport,
-  urls,
+  onClose,
   onDelete
 }: {
-  dayReport: DayReport
   urls: string[]
-  onDelete: (url: string) => void
-}) {
-  return (
-    <div className="grid border-t border-gray-100 md:grid-cols-2">
-      <div className="space-y-4 p-3 sm:p-4">
-        {dayReport.shifts.map((shift) => (
-          <div key={shift.id}>
-            <p className="font-semibold text-gray-900">
-              {shift.shift} · {shift.supervisor}
-            </p>
-            <div className="mt-1 space-y-1 text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="text-gray-600">Credit</span>
-                <span className="font-medium tabular-nums">{formatCurrency(shift.otherCredit)}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-gray-600">Debit</span>
-                <span className="font-medium tabular-nums">{formatCurrency(shift.systemDebit)}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-        <div className="space-y-1 border-t border-gray-200 pt-2 text-sm">
-          <div className="flex justify-between gap-3 font-semibold">
-            <span>Day total — Credit</span>
-            <span className="tabular-nums">{formatCurrency(dayReport.totals.totalCredit)}</span>
-          </div>
-          <div className="flex justify-between gap-3 font-semibold">
-            <span>Day total — Debit</span>
-            <span className="tabular-nums">{formatCurrency(dayReport.totals.totalDebit)}</span>
-          </div>
-        </div>
-      </div>
-      <ScanPane heading="Card machine scans" urls={urls} onDelete={onDelete} />
-    </div>
-  )
-}
-
-function ScanPane({
-  heading,
-  urls,
-  onDelete
-}: {
-  heading: string
-  urls: string[]
+  onClose: () => void
   onDelete: (url: string) => void
 }) {
   const [index, setIndex] = useState(0)
@@ -529,59 +405,83 @@ function ScanPane({
   const url = urls[safeIndex] ?? null
 
   return (
-    <div className="border-t border-gray-100 bg-slate-50 md:border-l md:border-t-0">
-      <div className="px-3 py-2 sm:px-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{heading}</p>
-        {urls.length === 0 ? (
-          <p className="mt-1 text-sm text-slate-600">No photos yet.</p>
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {urls.map((scanUrl, scanIndex) => (
-              <button
-                key={`${scanUrl}-${scanIndex}`}
-                type="button"
-                onClick={() => setIndex(scanIndex)}
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                  scanIndex === safeIndex
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {urls.length > 1 ? `Scan ${scanIndex + 1}` : 'Scan'}
-              </button>
-            ))}
-          </div>
-        )}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-3 sm:p-4">
+      <div
+        className="flex h-[94vh] w-full max-w-[min(96vw,1200px)] flex-col overflow-hidden rounded-lg border-2 border-gray-300 bg-gray-50 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="security-scan-modal-title"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-gray-300 px-4 py-3 sm:px-6">
+          <h3 id="security-scan-modal-title" className="text-base font-semibold text-gray-900 sm:text-lg">
+            Security slip
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-1 text-2xl font-bold leading-none text-gray-400 hover:text-gray-600"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Security scans</p>
+          {urls.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {urls.map((scanUrl, scanIndex) => (
+                <button
+                  key={`${scanUrl}-${scanIndex}`}
+                  type="button"
+                  onClick={() => setIndex(scanIndex)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                    scanIndex === safeIndex
+                      ? 'border-emerald-700 bg-emerald-700 text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {urls.length > 1 ? `Scan ${scanIndex + 1}` : 'Scan'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-slate-600">No photos yet.</p>
+          )}
+        </div>
+        {url ? (
+          <>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2">
+              <span className="text-xs text-slate-600">
+                Scan {safeIndex + 1} of {urls.length}
+              </span>
+              <span className="flex items-center gap-3">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-blue-700 hover:underline"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-red-700 hover:underline"
+                  onClick={() => onDelete(url)}
+                >
+                  Remove
+                </button>
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 bg-slate-200/80">
+              <iframe
+                src={pdfIframeSrc(url)}
+                className="h-full min-h-[50vh] w-full border-0"
+                title={`Security scan ${safeIndex + 1}`}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
-      {url ? (
-        <>
-          <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:px-4">
-            <span className="text-xs text-slate-600">
-              Scan {safeIndex + 1} of {urls.length}
-            </span>
-            <span className="flex items-center gap-3">
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-blue-700 hover:underline"
-              >
-                Open in new tab
-              </a>
-              <button
-                type="button"
-                className="text-xs font-semibold text-red-700 hover:underline"
-                onClick={() => onDelete(url)}
-              >
-                Remove
-              </button>
-            </span>
-          </div>
-          <div className="min-h-[240px] bg-slate-200/80">
-            <iframe src={pdfIframeSrc(url)} className="h-72 w-full border-0" title={`${heading} scan ${safeIndex + 1}`} />
-          </div>
-        </>
-      ) : null}
     </div>
   )
 }

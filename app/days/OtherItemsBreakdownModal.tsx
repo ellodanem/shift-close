@@ -20,14 +20,17 @@ export default function OtherItemsBreakdownModal({
   date,
   dayReport,
   debitScanUrls,
-  onClose
+  onClose,
+  startWithScans = false
 }: {
   date: string
   dayReport: DayReport
   debitScanUrls: string[]
   onClose: () => void
+  /** Open the scan side immediately (from Compare on the slip row). */
+  startWithScans?: boolean
 }) {
-  const [compareScansOpen, setCompareScansOpen] = useState(false)
+  const [compareScansOpen, setCompareScansOpen] = useState(startWithScans)
   const [activeScanIndex, setActiveScanIndex] = useState(0)
 
   const scans = useMemo(
@@ -73,8 +76,8 @@ export default function OtherItemsBreakdownModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-3 sm:p-4">
       <div
-        className={`bg-gray-50 rounded-lg shadow-xl w-full max-h-[min(92vh,900px)] border-2 border-gray-300 flex flex-col overflow-hidden ${
-          compareScansOpen ? 'max-w-[min(96vw,1400px)]' : 'max-w-2xl'
+        className={`bg-gray-50 rounded-lg shadow-xl w-full border-2 border-gray-300 flex flex-col overflow-hidden ${
+          compareScansOpen ? 'h-[94vh] max-w-[min(96vw,1600px)]' : 'max-h-[min(92vh,900px)] max-w-2xl'
         }`}
         role="dialog"
         aria-modal="true"
@@ -117,7 +120,7 @@ export default function OtherItemsBreakdownModal({
         <div
           className={`flex-1 min-h-0 grid ${compareScansOpen ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-gray-300' : 'grid-cols-1'}`}
         >
-          <div className={`min-h-0 overflow-y-auto p-4 sm:p-6 ${compareScansOpen ? 'lg:max-h-[min(85vh,820px)]' : ''}`}>
+          <div className={`min-h-0 overflow-y-auto p-4 sm:p-6 ${compareScansOpen ? 'lg:max-h-full' : ''}`}>
             <div className="space-y-6">
               {dayReport.shifts.map((shift) => {
                 const credit = Number.isFinite(shift.otherCredit) ? shift.otherCredit : 0
@@ -168,15 +171,14 @@ export default function OtherItemsBreakdownModal({
           </div>
 
           {compareScansOpen && (
-            <div className="min-h-0 flex flex-col bg-slate-100 border-t-2 border-gray-300 lg:border-t-0 lg:max-h-[min(85vh,820px)]">
+            <div className="min-h-0 flex flex-1 flex-col bg-slate-100 border-t-2 border-gray-300 lg:border-t-0">
               <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-2 sm:px-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-800">
                   Credit &amp; debit scans (this day)
                 </p>
                 {scans.length === 0 ? (
                   <p className="text-sm text-slate-600 mt-1">
-                    No scans uploaded for this date. Add them under Document scans → Credit &amp; debit on the End of Day
-                    card.
+                    No card-machine photos yet. Add one with Take photo on the End of Day card.
                   </p>
                 ) : (
                   <>
@@ -210,7 +212,7 @@ export default function OtherItemsBreakdownModal({
                 )}
               </div>
               {scans.length > 0 && activeScanUrl && (
-                <div className="flex-1 min-h-[min(50vh,480px)] flex flex-col min-w-0">
+                <div className="flex-1 min-h-0 flex flex-col min-w-0">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 bg-white/80 border-b border-slate-200 sm:px-4">
                     <span className="text-xs font-medium text-slate-800 truncate pr-2" title={activeScanTitle}>
                       {activeScanTitle}
@@ -224,10 +226,10 @@ export default function OtherItemsBreakdownModal({
                       Open in new tab
                     </a>
                   </div>
-                  <div className="flex-1 min-h-[280px] bg-slate-200/80">
+                  <div className="flex-1 min-h-[50vh] bg-slate-200/80">
                     <iframe
                       src={pdfIframeSrc(activeScanUrl)}
-                      className="h-full w-full min-h-[280px] border-0"
+                      className="h-full w-full min-h-[50vh] border-0"
                       title={activeScanTitle}
                     />
                   </div>

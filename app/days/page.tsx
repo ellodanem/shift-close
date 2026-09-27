@@ -174,7 +174,9 @@ function DaysPage() {
   const fetchSeq = useRef(0)
   const [showDepositBreakdown, setShowDepositBreakdown] = useState<string | null>(null)
   const [depositMissingSlipOpen, setDepositMissingSlipOpen] = useState(false)
+  const [depositScansOpen, setDepositScansOpen] = useState(false)
   const [showOtherItemsBreakdown, setShowOtherItemsBreakdown] = useState<string | null>(null)
+  const [otherItemsScansOpen, setOtherItemsScansOpen] = useState(false)
   const [emailModal, setEmailModal] = useState<{ subject: string; body: string; urls: string[] } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; label: string; email: string }[]>([])
   const [emailToId, setEmailToId] = useState('')
@@ -786,7 +788,18 @@ function DaysPage() {
                     }}
                     onMissingDepositSlip={() => {
                       setDepositMissingSlipOpen(true)
+                      setDepositScansOpen(false)
                       setShowDepositBreakdown(dayReport.date)
+                    }}
+                    onCompare={(kind) => {
+                      if (kind === 'deposit') {
+                        setDepositMissingSlipOpen(false)
+                        setDepositScansOpen(true)
+                        setShowDepositBreakdown(dayReport.date)
+                        return
+                      }
+                      setOtherItemsScansOpen(true)
+                      setShowOtherItemsBreakdown(dayReport.date)
                     }}
                   />
                   <DayDetailsSection>
@@ -833,6 +846,7 @@ function DaysPage() {
                           <button
                             onClick={() => {
                               setDepositMissingSlipOpen(false)
+                              setDepositScansOpen(false)
                               setShowDepositBreakdown(dayReport.date)
                             }}
                             className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
@@ -848,7 +862,10 @@ function DaysPage() {
                           <p className="text-sm font-medium text-gray-800">Other items — credit &amp; debit</p>
                           <button
                             type="button"
-                            onClick={() => setShowOtherItemsBreakdown(dayReport.date)}
+                            onClick={() => {
+                              setOtherItemsScansOpen(false)
+                              setShowOtherItemsBreakdown(dayReport.date)
+                            }}
                             className="text-violet-700 hover:text-violet-900 text-sm font-semibold"
                             title="View other items breakdown and compare scans"
                           >
@@ -1000,9 +1017,11 @@ function DaysPage() {
             onClose={() => {
               setShowDepositBreakdown(null)
               setDepositMissingSlipOpen(false)
+              setDepositScansOpen(false)
             }}
             onSaved={refreshDayReports}
             startWithMissingSlip={depositMissingSlipOpen}
+            startWithScans={depositScansOpen}
           />
         )
       })()}
@@ -1014,7 +1033,11 @@ function DaysPage() {
             date={dayReport.date}
             dayReport={dayReport}
             debitScanUrls={dayReport.debitScans}
-            onClose={() => setShowOtherItemsBreakdown(null)}
+            onClose={() => {
+              setShowOtherItemsBreakdown(null)
+              setOtherItemsScansOpen(false)
+            }}
+            startWithScans={otherItemsScansOpen}
           />
         )
       })()}
