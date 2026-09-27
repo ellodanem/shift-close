@@ -66,3 +66,19 @@ export function slipTasksForDay(day: DayReport): SlipTask[] {
 export function slipsStillNeeded(day: DayReport): number {
   return slipTasksForDay(day).filter((task) => !task.done).length
 }
+
+export type SlipIconTone = 'uploaded' | 'noted' | 'missing'
+
+/** The written exception, when staff marked the slip done without a photo. */
+export function slipWaiverNote(day: DayReport, id: SlipTaskId): string {
+  if (id === 'debit') return (day.debitScanWaiverNote ?? '').trim()
+  if (id === 'security') return (day.securityScanWaiverNote ?? '').trim()
+  return ''
+}
+
+/** Green when a photo is in. Yellow when there is no photo but a note. Grey when it is missing. */
+export function slipIconTone(day: DayReport, task: SlipTask): SlipIconTone {
+  if (task.photoCount > 0) return 'uploaded'
+  if (task.waived && slipWaiverNote(day, task.id)) return 'noted'
+  return 'missing'
+}

@@ -4,7 +4,14 @@ import { useRef, useState, type ReactNode, type Ref, type RefObject } from 'reac
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { IconDebitCard, IconDepositSlip, IconShield } from '@/app/components/IconDropdown'
-import { slipTasksForDay, type SlipTask, type SlipTaskId } from '@/lib/day-slip-tasks'
+import {
+  slipIconTone,
+  slipTasksForDay,
+  slipWaiverNote,
+  type SlipIconTone,
+  type SlipTask,
+  type SlipTaskId
+} from '@/lib/day-slip-tasks'
 import type { DayReport } from '@/lib/types'
 
 type ScanKind = SlipTaskId
@@ -73,10 +80,50 @@ function statusLine(day: DayReport, task: SlipTask): { text: string; tone: 'gree
   return { text: '', tone: 'muted' }
 }
 
-function SlipIcon({ id }: { id: SlipTaskId }) {
-  if (id === 'deposit') return <IconDepositSlip className="h-7 w-7 text-blue-700" />
-  if (id === 'debit') return <IconDebitCard className="h-7 w-7 text-violet-700" />
-  return <IconShield className="h-7 w-7 text-emerald-700" />
+function slipIconClass(id: SlipTaskId, tone?: SlipIconTone): string {
+  if (tone === 'uploaded') return 'h-7 w-7 text-green-600'
+  if (tone === 'noted') return 'h-7 w-7 text-yellow-600'
+  if (tone === 'missing') return 'h-7 w-7 text-gray-400'
+  if (id === 'deposit') return 'h-7 w-7 text-blue-700'
+  if (id === 'debit') return 'h-7 w-7 text-violet-700'
+  return 'h-7 w-7 text-emerald-700'
+}
+
+function SlipIcon({ id, tone }: { id: SlipTaskId; tone?: SlipIconTone }) {
+  const className = slipIconClass(id, tone)
+  if (id === 'deposit') return <IconDepositSlip className={className} />
+  if (id === 'debit') return <IconDebitCard className={className} />
+  return <IconShield className={className} />
+}
+
+function slipIconTitle(day: DayReport, task: SlipTask, tone: SlipIconTone): string {
+  const name = task.id === 'deposit' ? 'Deposit slip' : task.id === 'debit' ? 'Card machine slip' : 'Security slip'
+  if (tone === 'uploaded') {
+    const noun = task.photoCount === 1 ? 'photo' : 'photos'
+    return `${name} — ${task.photoCount} ${noun}`
+  }
+  if (tone === 'noted') return `${name} — ${slipWaiverNote(day, task.id)}`
+  if (task.id === 'deposit' && (day.missingDepositSlipAlertOpen || day.depositSlipUnavailableReason === 'missing')) {
+    return `${name} — missing`
+  }
+  return `${name} — not uploaded`
+}
+
+export function CollapsedSlipIcons({ dayReport }: { dayReport: DayReport }) {
+  const tasks = slipTasksForDay(dayReport)
+  if (tasks.length === 0) return null
+  return (
+    <div className="flex items-center gap-2">
+      {tasks.map((task) => {
+        const tone = slipIconTone(dayReport, task)
+        return (
+          <span key={task.id} title={slipIconTitle(dayReport, task, tone)} className="inline-flex">
+            <SlipIcon id={task.id} tone={tone} />
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 function scanUrls(day: DayReport, id: ScanKind): string[] {

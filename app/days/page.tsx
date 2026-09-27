@@ -14,7 +14,7 @@ import {
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
-import DaySlipTasks, { DayDetailsSection } from './DaySlipTasks'
+import DaySlipTasks, { CollapsedSlipIcons, DayDetailsSection } from './DaySlipTasks'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
@@ -769,6 +769,7 @@ function DaysPage() {
                           </div>
                         </div>
                       </div>
+                      {!isExpanded ? <CollapsedSlipIcons dayReport={dayReport} /> : null}
                     </div>
                   </div>
 

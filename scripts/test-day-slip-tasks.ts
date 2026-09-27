@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { slipTasksForDay, slipsStillNeeded } from '../lib/day-slip-tasks'
+import { slipIconTone, slipTasksForDay, slipsStillNeeded } from '../lib/day-slip-tasks'
 import type { DayReport } from '../lib/types'
 
 function day(partial: Partial<DayReport> = {}): DayReport {
@@ -102,5 +102,18 @@ describe('slip tasks for an end of day', () => {
     })
     assert.equal(slipTasksForDay(quiet).length, 0)
     assert.equal(slipsStillNeeded(quiet), 0)
+  })
+
+  it('colors an icon green when uploaded, yellow with a note, and grey when missing', () => {
+    const report = day({
+      depositScans: ['/dep.pdf'],
+      debitScanWaived: true,
+      debitScanWaiverNote: 'paper jam',
+      securityScanWaived: true
+    })
+    const tasks = slipTasksForDay(report)
+    assert.equal(slipIconTone(report, tasks[0]), 'uploaded')
+    assert.equal(slipIconTone(report, tasks[1]), 'noted')
+    assert.equal(slipIconTone(report, tasks[2]), 'missing')
   })
 })
