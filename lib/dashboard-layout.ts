@@ -13,7 +13,8 @@ export const DASHBOARD_WIDGET_IDS = [
   'phase1-status',
   'last-closed-day',
   'fuel-comparison-day',
-  'cashbook-latest'
+  'cashbook-latest',
+  'attendance-glance'
 ] as const
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number]

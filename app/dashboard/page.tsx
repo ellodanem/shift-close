@@ -1593,6 +1593,94 @@ export default function DashboardPage() {
     </div>
   )
 
+  const renderAttendanceGlance = () => {
+    const scheduled = todayRoster?.scheduled ?? []
+    const counts = { present: 0, late: 0, absent: 0, pending: 0 }
+    for (const row of scheduled) {
+      const status = row.presence?.status
+      if (status === 'present') counts.present += 1
+      else if (status === 'late') counts.late += 1
+      else if (status === 'absent') counts.absent += 1
+      else if (todayRoster?.presentAbsenceEnabled) counts.pending += 1
+    }
+    const shiftGroups = todayRoster
+      ? groupScheduledByShift(todayRoster.scheduled).sort((a, b) => {
+          const da = rosterShiftGroupSortMinutes(a.shiftName, todayRoster.scheduled)
+          const db = rosterShiftGroupSortMinutes(b.shiftName, todayRoster.scheduled)
+          if (da !== db) return da - db
+          return a.shiftName.localeCompare(b.shiftName)
+        })
+      : []
+    const offNames = (todayRoster?.off ?? []).map((s) => s.staffFirstName ?? s.staffName)
+    const vacationNames = (todayRoster?.onVacation ?? []).map((s) => s.staffFirstName ?? s.staffName)
+    const summaryBits = [`${scheduled.length} scheduled`]
+    if (todayRoster?.presentAbsenceEnabled) {
+      summaryBits.push(`${counts.present} present`, `${counts.late} late`, `${counts.absent} absent`)
+      if (counts.pending > 0) summaryBits.push(`${counts.pending} not in yet`)
+    }
+
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-gray-900">Attendance</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {todayRoster ? formatTodayDisplay(todayRoster.date) : 'Today'}
+              {' · '}
+              {summaryBits.join(' · ')}
+            </p>
+          </div>
+          <Link href="/attendance" className="shrink-0 text-xs font-medium text-indigo-700 hover:text-indigo-900">
+            Attendance →
+          </Link>
+        </div>
+        {shiftGroups.length > 0 ? (
+          <div className="mt-3 flex flex-col gap-2">
+            {shiftGroups.map((group) => {
+              const rowForHeader =
+                todayRoster?.scheduled.find((s) => s.shiftName === group.shiftName && s.shiftStartTime) ??
+                todayRoster?.scheduled.find((s) => s.shiftName === group.shiftName)
+              return (
+                <div key={group.shiftName} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-xs font-medium text-slate-500">
+                    {formatShiftTimeLabel(rowForHeader?.shiftStartTime, group.shiftName)}
+                  </span>
+                  {group.entries.map((entry) => {
+                    const glyph = entry.presence ? presenceStatusGlyph(entry.presence.status) : null
+                    return (
+                      <span
+                        key={`${group.shiftName}-${entry.staffId}`}
+                        className="inline-flex items-center gap-1 text-sm text-gray-800"
+                      >
+                        {glyph ? (
+                          <span className={`text-[11px] font-bold leading-none ${glyph.className}`} title={glyph.title}>
+                            {glyph.char}
+                          </span>
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+                        )}
+                        {entry.displayName}
+                      </span>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-400">No one scheduled today.</p>
+        )}
+        {offNames.length > 0 || vacationNames.length > 0 ? (
+          <p className="mt-3 text-xs text-slate-500">
+            {offNames.length > 0 ? <span>Off: {offNames.join(' · ')}</span> : null}
+            {offNames.length > 0 && vacationNames.length > 0 ? <span> · </span> : null}
+            {vacationNames.length > 0 ? <span>Vacation: {vacationNames.join(' · ')}</span> : null}
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
@@ -1708,7 +1796,7 @@ export default function DashboardPage() {
 
         {/* Moveable widgets */}
         {(() => {
-          let lastSection: 'month' | 'trends' | 'ops' | 'night' | 'cashbook' | null = null
+          let lastSection: 'month' | 'trends' | 'ops' | 'night' | 'cashbook' | 'attendance' | null = null
           return dashboardSegments.map((segment) => {
           const headId = segment[0]
           if (headId === 'month-summary' && segment.length === 1 && !isStakeholder) {
@@ -1728,6 +1816,9 @@ export default function DashboardPage() {
           } else if (headId === 'customer-ar-glance') {
             sectionLabel = <DashboardSectionLabel>Customer accounts</DashboardSectionLabel>
             lastSection = 'month'
+          } else if (headId === 'attendance-glance') {
+            sectionLabel = <DashboardSectionLabel>Attendance</DashboardSectionLabel>
+            lastSection = 'attendance'
           } else if (headId === 'phase1-status' && lastSection !== 'ops') {
             sectionLabel = <DashboardSectionLabel>Operations</DashboardSectionLabel>
             lastSection = 'ops'
@@ -1744,6 +1835,7 @@ export default function DashboardPage() {
             {id === 'last-closed-day' && renderLastClosedDayCard()}
             {id === 'fuel-comparison-day' && renderFuelComparisonDayCard()}
             {id === 'cashbook-latest' && renderCashbookLatestCard()}
+            {id === 'attendance-glance' && renderAttendanceGlance()}
             {id === 'month-summary' && isStakeholder && summary ? renderThisMonthCard() : null}
             {id === 'fuel-mtd-deposit-block' && isStakeholder ? renderFuelMtdDepositBlock() : null}
             {id === 'customer-ar-glance' && summary && (

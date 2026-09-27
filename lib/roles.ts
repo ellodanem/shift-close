@@ -211,12 +211,13 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'phase1-status'
 ]
 
-/** Stakeholder: last closed night, cashbook, customer accounts, then the month. */
+/** Stakeholder: last closed night, then a short attendance glance, then the month. */
 export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'last-closed-day',
   'fuel-comparison-day',
   'cashbook-latest',
   'customer-ar-glance',
+  'attendance-glance',
   'fuel-expectancy',
   'month-summary',
   'fuel-mtd-deposit-block',
