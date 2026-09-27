@@ -1,6 +1,8 @@
 'use client'
 
-import { useRef, useState, type ReactNode, type Ref, type RefObject } from 'react'
+import Link from 'next/link'
+import { useRef, useState, type Ref, type RefObject } from 'react'
+import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { IconDebitCard, IconDepositSlip, IconShield } from '@/app/components/IconDropdown'
@@ -52,7 +54,7 @@ function rowSubtitle(day: DayReport, id: SlipTaskId): string {
 function statusLine(day: DayReport, task: SlipTask): { text: string; tone: 'green' | 'amber' | 'muted' } {
   if (task.photoCount > 0) {
     const noun = task.photoCount === 1 ? 'photo' : 'photos'
-    return { text: `${task.photoCount} ${noun} added`, tone: 'green' }
+    return { text: `${task.photoCount} ${noun}`, tone: 'green' }
   }
   if (task.id === 'deposit' && day.missingDepositSlipAlertOpen) {
     return { text: 'Missing slip flagged', tone: 'amber' }
@@ -132,36 +134,24 @@ function scanUrls(day: DayReport, id: ScanKind): string[] {
   return day.securityScans ?? []
 }
 
-export function DayDetailsSection({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border-t border-gray-200">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-gray-600 hover:bg-gray-50"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-      >
-        <span aria-hidden>{open ? '▼' : '▶'}</span>
-        Details — money, fuel, shifts, review deposits, export
-      </button>
-      {open ? <div className="border-t border-gray-100">{children}</div> : null}
-    </div>
-  )
-}
-
 export default function DaySlipTasks({
   dayReport,
   onRefresh,
   onEmail,
   onMissingDepositSlip,
-  onCompare
+  onCompare,
+  reviewHref,
+  onExport,
+  onOpenShift
 }: {
   dayReport: DayReport
   onRefresh: () => void
   onEmail: (kind: ScanKind) => void
   onMissingDepositSlip: () => void
   onCompare: (kind: 'deposit' | 'debit') => void
+  reviewHref: string
+  onExport: () => void
+  onOpenShift: (shiftId: string) => void
 }) {
   const tasks = slipTasksForDay(dayReport)
   const [securityOpen, setSecurityOpen] = useState(false)
@@ -255,47 +245,41 @@ export default function DaySlipTasks({
     setExceptionId(task.id)
   }
 
-  if (tasks.length === 0) {
-    return (
-      <div className="border-t border-gray-200 px-4 py-4">
-        <p className="text-sm text-gray-600">No slips needed for this day.</p>
-      </div>
-    )
-  }
-
-  const remaining = tasks.filter((task) => !task.done).length
+  const ordered = [...tasks].sort((a, b) => Number(a.done) - Number(b.done))
 
   return (
-    <div className="border-t border-gray-200 px-4 py-4">
-      <h3 className="font-semibold text-gray-900">
-        {remaining === 0 ? 'Slips filed' : 'Take a photo of each slip'}
-      </h3>
-      <p className="mt-0.5 text-sm text-gray-500">
-        {remaining === 0
-          ? 'Compare or email a pile if you need to.'
-          : 'Match the paper in your hand, then take the photo.'}
-      </p>
-
-      <div className="mt-3 space-y-3">
-        {tasks.map((task) => {
+    <div className="space-y-3 px-4 pb-3">
+      {ordered.length === 0 ? (
+        <p className="text-sm text-gray-600">No slips needed for this day.</p>
+      ) : null}
+      <div className="space-y-3">
+        {ordered.map((task) => {
           const status = statusLine(dayReport, task)
           const showException = exceptionId === task.id && task.id !== 'deposit'
           return (
             <div
               key={task.id}
-              className={`rounded-lg border border-gray-200 border-l-4 bg-white ${
-                task.done ? 'border-l-green-500' : 'border-l-amber-400'
+              className={`rounded-lg border border-l-4 ${
+                task.done
+                  ? 'border-gray-200 border-l-green-500 bg-white'
+                  : 'border-amber-200 border-l-amber-500 bg-amber-50/70'
               }`}
             >
               <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
-                      <SlipIcon id={task.id} />
+                      <SlipIcon id={task.id} tone={slipIconTone(dayReport, task)} />
                     </span>
-                    <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
+                    <p className={`font-semibold text-gray-900 ${task.done ? '' : 'text-base'}`}>
+                      {task.done ? ROW_COPY[task.id].title : `${ROW_COPY[task.id].title} still needed`}
+                    </p>
                   </div>
-                  <p className="mt-1 pl-9 text-sm text-gray-600">{rowSubtitle(dayReport, task.id)}</p>
+                  <p className={`mt-1 pl-9 ${task.id === 'deposit' && task.photoCount > 0 ? 'text-lg font-bold text-gray-900' : 'text-sm text-gray-600'}`}>
+                    {task.id === 'deposit' && task.photoCount > 0
+                      ? formatCurrency(dayReport.totals.totalDeposits)
+                      : rowSubtitle(dayReport, task.id)}
+                  </p>
                   {status.text ? (
                     <p
                       className={`mt-0.5 pl-9 text-sm font-medium ${
@@ -353,7 +337,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="rounded-md border border-blue-600 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                      className="px-1 text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
                       disabled={uploading !== null}
                       onClick={() => inputFor(task.id).current?.click()}
                     >
@@ -372,7 +356,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                      className="rounded-md border border-blue-600 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
                       onClick={() => {
                         if (task.id === 'security') setSecurityOpen(true)
                         else onCompare(task.id)
@@ -434,6 +418,12 @@ export default function DaySlipTasks({
           )
         })}
       </div>
+      <DayFacts
+        dayReport={dayReport}
+        reviewHref={reviewHref}
+        onExport={onExport}
+        onOpenShift={onOpenShift}
+      />
       {securityOpen ? (
         <SecurityScanModal
           urls={scanUrls(dayReport, 'security')}
@@ -441,6 +431,61 @@ export default function DaySlipTasks({
           onDelete={(url) => void deleteUrl(url, 'security')}
         />
       ) : null}
+    </div>
+  )
+}
+
+function gallons(value: number): string {
+  return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function DayFacts({
+  dayReport,
+  reviewHref,
+  onExport,
+  onOpenShift
+}: {
+  dayReport: DayReport
+  reviewHref: string
+  onExport: () => void
+  onOpenShift: (shiftId: string) => void
+}) {
+  const flagged = dayReport.shifts.filter((shift) => shift.hasRedFlag)
+  const short = dayReport.totals.overShortTotal
+  const shortClass =
+    flagged.length > 0
+      ? 'text-red-600'
+      : Math.abs(short) <= OS_REVIEW_THRESHOLD
+        ? 'text-green-700'
+        : short > 0
+          ? 'text-blue-700'
+          : 'text-red-600'
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-3 text-sm">
+      <span className={`font-semibold ${shortClass}`}>Short {formatCurrency(short)}</span>
+      {flagged.length > 0 ? (
+        <button
+          type="button"
+          className="font-semibold text-red-600 hover:underline"
+          onClick={() => onOpenShift(flagged[0].id)}
+        >
+          RED FLAG
+        </button>
+      ) : null}
+      <span className="text-gray-500">
+        Counted {formatCurrency(dayReport.totals.countCashTotal)} · System{' '}
+        {formatCurrency(dayReport.totals.systemCashTotal)} · Unleaded {gallons(dayReport.totals.totalUnleaded)} · Diesel{' '}
+        {gallons(dayReport.totals.totalDiesel)}
+      </span>
+      <span className="ml-auto flex items-center gap-4">
+        <Link href={reviewHref} className="text-gray-600 hover:underline">
+          Review deposits
+        </Link>
+        <button type="button" className="text-gray-600 hover:underline" onClick={onExport}>
+          Export
+        </button>
+      </span>
     </div>
   )
 }

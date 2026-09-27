@@ -6,15 +6,13 @@ import { formatCurrency } from '@/lib/format'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
 import { DayReport } from '@/lib/types'
-import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
-import { slipsStillNeeded } from '@/lib/day-slip-tasks'
 import {
   businessTodayYmd,
   toYmdInBusinessTz,
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
-import DaySlipTasks, { CollapsedSlipIcons, DayDetailsSection } from './DaySlipTasks'
+import DaySlipTasks, { CollapsedSlipIcons } from './DaySlipTasks'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
@@ -160,9 +158,6 @@ function DaysPage() {
   const [dayReports, setDayReports] = useState<DayReport[]>([])
   const [loading, setLoading] = useState(true)
   const [rangeLoading, setRangeLoading] = useState(false)
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(() =>
-    focusDate ? new Set([focusDate]) : new Set()
-  )
   const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
     if (!focusDate) return 'thisMonth'
     return focusDate.slice(0, 7) === businessTodayYmd().slice(0, 7) ? 'thisMonth' : 'custom'
@@ -199,7 +194,6 @@ function DaysPage() {
 
   useEffect(() => {
     if (!focusDate) return
-    setExpandedDates(new Set([focusDate]))
     const month = focusDate.slice(0, 7)
     if (month === businessTodayYmd().slice(0, 7)) {
       setActiveFilter('thisMonth')
@@ -286,16 +280,6 @@ function DaysPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [activeFilter, customMonth, fetchRange])
   
-  const toggleExpand = (date: string) => {
-    const newExpanded = new Set(expandedDates)
-    if (newExpanded.has(date)) {
-      newExpanded.delete(date)
-    } else {
-      newExpanded.add(date)
-    }
-    setExpandedDates(newExpanded)
-  }
-
   const refreshDayReports = () => {
     const query = daysQueryForFilter(activeFilter, customMonth)
     if (query) loadedRangeKeys.current.delete(query.key)
@@ -390,12 +374,6 @@ function DaysPage() {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [focusDate, loading, rangeLoading, filteredReports.length])
   
-  const getOsColor = (amount: number) => {
-    if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
-    if (amount > 0) return 'text-blue-600'
-    return 'text-red-600'
-  }
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Complete':
@@ -684,8 +662,8 @@ function DaysPage() {
         ) : (
           <div className="space-y-4">
             {filteredReports.map((dayReport) => {
-              const isExpanded = expandedDates.has(dayReport.date)
               const dayBags = uniqueDayBagNumbers(dayReport)
+              const shiftLine = dayReport.shifts.map((shift) => `${shift.shift} · ${shift.supervisor}`).join(' · ')
               
               return (
                 <div
@@ -695,86 +673,24 @@ function DaysPage() {
                     focusDate === dayReport.date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
                   }`}
                 >
-                  {/* Clickable Header */}
-                  <div
-                    className="p-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
-                    onClick={() => toggleExpand(dayReport.date)}
-                  >
+                  <div className="px-4 pb-1 pt-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <span className="text-gray-400 text-lg flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
-                        <div className="min-w-0">
+                      <div className="min-w-0">
                           <div className="flex flex-wrap items-baseline gap-2">
                             <h2 className="text-lg font-bold text-gray-900 sm:text-xl">{dayReport.date}</h2>
                             <BagNumberChips bags={dayBags} />
                           </div>
                           <div className="mt-1 flex flex-wrap gap-2 items-center sm:gap-3">
-                            {dayReport.status === 'Complete' ? (
-                              slipsStillNeeded(dayReport) === 0 ? (
-                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">Slips filed</span>
-                              ) : (
-                                <span className="px-2 py-1 bg-amber-100 text-amber-950 rounded text-sm font-medium">
-                                  {slipsStillNeeded(dayReport) === 1
-                                    ? '1 slip still needed'
-                                    : `${slipsStillNeeded(dayReport)} slips still needed`}
-                                </span>
-                              )
-                            ) : (
-                              getStatusBadge(dayReport.status)
-                            )}
+                            {dayReport.status !== 'Complete' ? getStatusBadge(dayReport.status) : null}
                             <span className="text-sm text-gray-600">
-                              {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
+                              {shiftLine || `${dayReport.dayType} Day`}
                             </span>
-                            {!isExpanded && (
-                              <>
-                                <span className="flex w-full flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500 sm:hidden">
-                                  <span>
-                                    O/S:&nbsp;
-                                    {dayReport.totals.overShortDisclosedTotal === null ? (
-                                      <span className="font-semibold text-gray-500">--</span>
-                                    ) : (
-                                      <span
-                                        className={`font-semibold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}
-                                      >
-                                        {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span>
-                                    Dep:{' '}
-                                    <span className="font-semibold text-gray-700">
-                                      {formatCurrency(dayReport.totals.totalDeposits)}
-                                    </span>
-                                  </span>
-                                </span>
-                                <span className="hidden sm:flex text-sm text-gray-500 flex-wrap gap-x-3 gap-y-1 items-center">
-                                <span>
-                                  O/S:&nbsp;
-                                  {dayReport.totals.overShortDisclosedTotal === null ? (
-                                    <span className="font-semibold text-gray-500">--</span>
-                                  ) : (
-                                    <span
-                                      className={`font-semibold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}
-                                    >
-                                      {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
-                                    </span>
-                                  )}
-                                </span>
-                                <span>Deposits: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDeposits)}</span></span>
-                                <span>Credit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalCredit)}</span></span>
-                                <span>Debit: <span className="font-semibold text-gray-700">{formatCurrency(dayReport.totals.totalDebit)}</span></span>
-                              </span>
-                              </>
-                            )}
                           </div>
                         </div>
-                      </div>
-                      {!isExpanded ? <CollapsedSlipIcons dayReport={dayReport} /> : null}
+                      <CollapsedSlipIcons dayReport={dayReport} />
                     </div>
                   </div>
 
-                  {isExpanded && (
-                    <>
                   <DaySlipTasks
                     dayReport={dayReport}
                     onRefresh={refreshDayReports}
@@ -802,203 +718,10 @@ function DaysPage() {
                       setOtherItemsScansOpen(true)
                       setShowOtherItemsBreakdown(dayReport.date)
                     }}
+                    reviewHref={depositComparisonsPath(dayReport.date)}
+                    onExport={() => exportToExcel(dayReport)}
+                    onOpenShift={(shiftId) => router.push(`/shifts/${shiftId}`)}
                   />
-                  <DayDetailsSection>
-                  <div className="flex flex-wrap gap-2 px-4 pt-4">
-                    <Link
-                      href={depositComparisonsPath(dayReport.date)}
-                      className="rounded border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                    >
-                      Review deposits
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => exportToExcel(dayReport)}
-                      className="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
-                    >
-                      Export Excel
-                    </button>
-                  </div>
-                  {/* Money Summary */}
-                  <div className="p-4 border-t border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-3">Money Summary</h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Total Over/Short (disclosed)</p>
-                        {dayReport.totals.overShortDisclosedTotal === null ? (
-                          <p className="text-lg font-bold text-gray-500">--</p>
-                        ) : (
-                          <p className={`text-lg font-bold ${getOsColor(dayReport.totals.overShortDisclosedTotal)}`}>
-                            {formatCurrency(dayReport.totals.overShortDisclosedTotal)}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm text-gray-600">Total Deposits</p>
-                          {dayReport.missingDepositSlipAlertOpen && (
-                            <span
-                              className="text-amber-600 text-sm"
-                              title="Open missing deposit slip scan alert"
-                            >
-                              ⚑
-                            </span>
-                          )}
-                          <button
-                            onClick={() => {
-                              setDepositMissingSlipOpen(false)
-                              setDepositScansOpen(false)
-                              setShowDepositBreakdown(dayReport.date)
-                            }}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
-                            title="View deposit breakdown"
-                          >
-                            ℹ️
-                          </button>
-                        </div>
-                        <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
-                      </div>
-                      <div className="sm:col-span-2 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <p className="text-sm font-medium text-gray-800">Other items — credit &amp; debit</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOtherItemsScansOpen(false)
-                              setShowOtherItemsBreakdown(dayReport.date)
-                            }}
-                            className="text-violet-700 hover:text-violet-900 text-sm font-semibold"
-                            title="View other items breakdown and compare scans"
-                          >
-                            ℹ️
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                          <div>
-                            <p className="text-xs text-gray-600">Total Credit</p>
-                            <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600">Total Debit</p>
-                            <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">System Cash + Check</p>
-                        <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.systemCashTotal)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Counted Cash + Check</p>
-                        <p className="text-lg font-bold text-gray-900">{formatCurrency(dayReport.totals.countCashTotal)}</p>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <p className="text-sm text-gray-600">Night deposit bags</p>
-                        {dayBags.length > 0 ? (
-                          <p className="text-lg font-bold font-mono text-gray-900 tracking-wide break-all">
-                            {dayBags.join(', ')}
-                          </p>
-                        ) : (
-                          <p className="text-lg font-bold text-gray-400">—</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Fuel Summary */}
-                  <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-3">Fuel Summary</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Total Unleaded</p>
-                        <p className="text-lg font-bold text-gray-900">{dayReport.totals.totalUnleaded.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Total Diesel</p>
-                        <p className="text-lg font-bold text-gray-900">{dayReport.totals.totalDiesel.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Shift Breakdown */}
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Shift Breakdown</h3>
-                    <div className="space-y-3">
-                      {dayReport.shifts.map((shift) => {
-                        const hasRedFlag = shift.hasRedFlag
-                        return (
-                          <div
-                            key={shift.id}
-                            className={`border rounded p-4 ${hasRedFlag ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
-                          >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <span className="font-semibold text-gray-900">{shift.shift}</span>
-                                <span className="ml-2 text-sm text-gray-600">• {shift.supervisor}</span>
-                              </div>
-                              <button
-                                onClick={() => router.push(`/shifts/${shift.id}`)}
-                                className="text-left text-sm text-blue-600 hover:underline sm:text-right"
-                              >
-                                View Details
-                              </button>
-                            </div>
-                            <div className="mt-2 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-4 md:gap-4">
-                              <div className="space-y-1 sm:col-span-2">
-                                <div>
-                                  <span className="text-gray-600">Count vs system: </span>
-                                  <span className={`font-semibold ${getOsColor(shift.overShortTotal)}`}>
-                                    {formatCurrency(shift.overShortTotal)}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">O/S reviewed: </span>
-                                  <span className="font-semibold text-gray-900">
-                                    {shift.osReviewed != null
-                                      ? formatCurrency(shift.osReviewed)
-                                      : shift.osLegitAsIs
-                                        ? '— (legit as-is)'
-                                        : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="min-w-0">
-                                <span className="text-gray-600">Deposits: </span>
-                                <span className="font-semibold">{shift.totalDeposits.toFixed(2)}</span>
-                                <div className="mt-1">
-                                  <span className="text-gray-600">Bags: </span>
-                                  {Array.isArray(shift.depositBagNumbers) && shift.depositBagNumbers.length > 0 ? (
-                                    <span className="font-mono font-semibold text-slate-800">
-                                      {shift.depositBagNumbers.join(', ')}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">—</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div>
-                                  <span className="text-gray-600">Notes: </span>
-                                  <span className="font-semibold">{shift.notes.trim() ? '✓' : '✗'}</span>
-                                </div>
-                                {hasRedFlag && (
-                                  <div className="font-semibold text-red-600">🚨 RED FLAG</div>
-                                )}
-                              </div>
-                            </div>
-                            {shift.notes.trim() && (
-                              <div className="mt-2 text-sm text-gray-600 bg-white p-2 rounded border border-gray-200">
-                                {shift.notes}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  </DayDetailsSection>
-                  </>
-                  )}
                 </div>
               )
             })}
