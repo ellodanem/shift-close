@@ -288,7 +288,7 @@ function formatPrettyDate(isoDate: string): string {
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const rosterOutlineBtn =
-  'min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 inline-flex items-center justify-center'
+  'min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg border border-sky-200 bg-sky-100 text-sm font-medium text-slate-800 hover:bg-sky-200 disabled:opacity-60 inline-flex items-center justify-center'
 
 const isMobileDevice = () =>
   /Android|iPhone|iPad|iPod/i.test(
