@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRef, useState, type Ref, type RefObject } from 'react'
-import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
+import { isOsReviewedSet, OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
@@ -412,6 +412,7 @@ export default function DaySlipTasks({
         onExport={onExport}
         onOpenShift={onOpenShift}
       />
+      <ShiftRows dayReport={dayReport} onOpenShift={onOpenShift} />
       {securityOpen ? (
         <SecurityScanModal
           urls={scanUrls(dayReport, 'security')}
@@ -489,9 +490,101 @@ function DayFacts({
   )
 }
 
-function RedFlagIcon() {
+function osColor(amount: number): string {
+  if (Math.abs(amount) <= OS_REVIEW_THRESHOLD) return 'text-green-600'
+  if (amount > 0) return 'text-blue-600'
+  return 'text-red-600'
+}
+
+function shiftNeedsDetail(shift: DayReport['shifts'][number]): boolean {
+  if (shift.hasRedFlag) return true
+  if (Math.abs(shift.overShortTotal) > OS_REVIEW_THRESHOLD) return true
+  return !shift.osLegitAsIs && !isOsReviewedSet(shift.osReviewed)
+}
+
+function reviewedLabel(shift: DayReport['shifts'][number]): string {
+  if (isOsReviewedSet(shift.osReviewed)) return formatCurrency(shift.osReviewed as number)
+  if (shift.osLegitAsIs) return 'Legit as-is'
+  return '—'
+}
+
+function ShiftRows({
+  dayReport,
+  onOpenShift
+}: {
+  dayReport: DayReport
+  onOpenShift: (shiftId: string) => void
+}) {
+  if (dayReport.shifts.length === 0) return null
   return (
-    <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden>
+    <div className="divide-y divide-gray-200 border-t border-gray-200">
+      {dayReport.shifts.map((shift) => {
+        const detail = shiftNeedsDetail(shift)
+        const bags = (shift.depositBagNumbers ?? []).map((bag) => String(bag).trim()).filter(Boolean)
+        const hasNotes = (shift.notes ?? '').trim().length > 0
+        return (
+          <div key={shift.id} className={`px-5 py-3 ${shift.hasRedFlag ? 'border-l-4 border-l-red-500 bg-red-50' : 'bg-white'}`}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <button
+                type="button"
+                className="font-semibold text-blue-800 hover:underline"
+                onClick={() => onOpenShift(shift.id)}
+              >
+                {shift.shift} · {shift.supervisor}
+              </button>
+              <span className="text-gray-600">
+                Count vs system{' '}
+                <span className={`font-semibold ${osColor(shift.overShortTotal)}`}>
+                  {formatCurrency(shift.overShortTotal)}
+                </span>
+              </span>
+              {detail ? (
+                <>
+                  <span className="text-gray-600">
+                    O/S reviewed <span className="font-semibold text-gray-900">{reviewedLabel(shift)}</span>
+                  </span>
+                  <span className="text-gray-600">
+                    Deposits <span className="font-semibold text-gray-900">{formatCurrency(shift.totalDeposits)}</span>
+                  </span>
+                  <span className="text-gray-600">
+                    Bags{' '}
+                    <span className={bags.length > 0 ? 'font-mono font-semibold text-gray-900' : 'text-gray-400'}>
+                      {bags.length > 0 ? bags.join(', ') : '—'}
+                    </span>
+                  </span>
+                  <span className="text-gray-600">
+                    Notes{' '}
+                    {hasNotes ? (
+                      <span className="font-semibold text-green-700">✓</span>
+                    ) : (
+                      <span className="font-semibold text-red-600">✕</span>
+                    )}
+                  </span>
+                  {shift.hasRedFlag ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-bold text-red-600 hover:text-red-700"
+                      aria-label="Red flag"
+                      title="Red flag"
+                      onClick={() => onOpenShift(shift.id)}
+                    >
+                      <RedFlagIcon className="h-4 w-4" />
+                      Red flag
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function RedFlagIcon({ className = 'h-8 w-8' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
       <path d="M6 2.75v18.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M6 3.5h12.2L14.4 8.2 18.2 13H6V3.5z" fill="currentColor" />
     </svg>
