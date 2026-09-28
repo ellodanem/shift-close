@@ -821,8 +821,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
   const lastDay = new Date(year, month, 0)
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
 
-  const fullFinancialAccess = isFullAccessRole(role)
-  const skipCashbookMtd = stakeholder || supervisorLike
+  const fullFinancialAccess = isFullAccessRole(role) || stakeholder
+  const skipCashbookMtd = supervisorLike
 
   const [
     summary,
@@ -854,12 +854,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
         console.error('fuel expectancy bootstrap', err)
         return null
       }),
-    stakeholder
-      ? fetchLastClosedDaySnapshot().then(async (lastClosedDay) => ({
-          lastClosedDay,
-          cashbookLatest: await fetchCashbookLatest(lastClosedDay?.date ?? null)
-        }))
-      : Promise.resolve({ lastClosedDay: null, cashbookLatest: null })
+    Promise.resolve({ lastClosedDay: null, cashbookLatest: null })
   ])
 
   let fuelExpense: number | null = null

@@ -633,19 +633,18 @@ export default function DashboardPage() {
     return true
   })
 
-  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block') && !isStakeholder
-  const showRecentFuelPaymentHero =
-    visibleLayout.includes('recent-fuel-payment') && !isStakeholder
+  const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
+  const showRecentFuelPaymentHero = visibleLayout.includes('recent-fuel-payment')
 
   /** Widgets that participate in reorder controls and the scrollable list (excludes pinned top). */
   const reorderableVisibleLayout = useMemo(
     () =>
       visibleLayout.filter((id) => {
-        if (isPinnedTopDashboardWidget(id) && !isStakeholder) return false
+        if (isPinnedTopDashboardWidget(id)) return false
         if (id === 'recent-fuel-payment' && showRecentFuelPaymentHero) return false
         return true
       }),
-    [visibleLayout, showRecentFuelPaymentHero, isStakeholder]
+    [visibleLayout, showRecentFuelPaymentHero]
   )
 
   const dashboardSegments = useMemo(
@@ -989,15 +988,13 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-        {!isStakeholder ? (
-          <button
-            type="button"
-            onClick={() => router.push('/fuel-payments/invoices')}
-            className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left"
-          >
-            View all payments →
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => router.push('/fuel-payments/invoices')}
+          className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left"
+        >
+          View all payments →
+        </button>
       </div>
     )
   }
@@ -1235,7 +1232,6 @@ export default function DashboardPage() {
         <div className={contentClassName ?? 'flex-1 min-w-0'}>
           {children}
         </div>
-        {!isStakeholder ? (
         <div className="hidden flex-col gap-0.5 flex-shrink-0 pt-2 lg:flex">
           <button
             onClick={() => handleMoveUp(id)}
@@ -1254,7 +1250,6 @@ export default function DashboardPage() {
             ↓
           </button>
         </div>
-        ) : null}
       </div>
     )
   }
@@ -1690,9 +1685,7 @@ export default function DashboardPage() {
   }
 
   const dashboardScopeHint = summary
-    ? isStakeholder
-      ? `Night sheet through the last closed shift · Monthly totals for ${summary.monthName} ${summary.year}`
-      : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
+    ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
     : 'Select a month to load summary data'
 
   return (
@@ -1781,14 +1774,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {!isStakeholder ? (
         <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
           {renderUpcomingCard()}
         </div>
-        ) : null}
 
         {showRecentFuelPaymentHero ? (
           <div className="mb-6">{renderRecentFuelPaymentCard()}</div>
@@ -1799,7 +1790,7 @@ export default function DashboardPage() {
           let lastSection: 'month' | 'trends' | 'ops' | 'night' | 'cashbook' | 'attendance' | null = null
           return dashboardSegments.map((segment) => {
           const headId = segment[0]
-          if (headId === 'month-summary' && segment.length === 1 && !isStakeholder) {
+          if (headId === 'month-summary' && segment.length === 1) {
             lastSection = 'month'
             return <Fragment key="month-summary-hero" />
           }
@@ -1810,9 +1801,6 @@ export default function DashboardPage() {
           } else if (headId === 'cashbook-latest') {
             sectionLabel = <DashboardSectionLabel>Cashbook</DashboardSectionLabel>
             lastSection = 'cashbook'
-          } else if (headId === 'month-summary' && isStakeholder) {
-            sectionLabel = <DashboardSectionLabel>This month</DashboardSectionLabel>
-            lastSection = 'month'
           } else if (headId === 'customer-ar-glance') {
             sectionLabel = <DashboardSectionLabel>Customer accounts</DashboardSectionLabel>
             lastSection = 'month'
@@ -1823,7 +1811,6 @@ export default function DashboardPage() {
             sectionLabel = <DashboardSectionLabel>Operations</DashboardSectionLabel>
             lastSection = 'ops'
           } else if (
-            !isStakeholder &&
             (TRENDS_WIDGET_IDS as readonly string[]).includes(headId) &&
             lastSection !== 'trends'
           ) {
@@ -1836,8 +1823,6 @@ export default function DashboardPage() {
             {id === 'fuel-comparison-day' && renderFuelComparisonDayCard()}
             {id === 'cashbook-latest' && renderCashbookLatestCard()}
             {id === 'attendance-glance' && renderAttendanceGlance()}
-            {id === 'month-summary' && isStakeholder && summary ? renderThisMonthCard() : null}
-            {id === 'fuel-mtd-deposit-block' && isStakeholder ? renderFuelMtdDepositBlock() : null}
             {id === 'customer-ar-glance' && summary && (
           <div className="w-full min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
@@ -1948,7 +1933,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {isFullAccess && staleArAccounts && trackedWithBalance > 0 && (
+                    {(isFullAccess || isStakeholder) && staleArAccounts && trackedWithBalance > 0 && (
                       <div>
                         {staleCount === 0 ? (
                           <p className="text-sm font-medium text-green-800">
@@ -2007,18 +1992,7 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    {isStakeholder ? (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => router.push(accountsHref)}
-                          className="min-h-[44px] rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:min-h-0"
-                        >
-                          Open Customer Accounts
-                        </button>
-                      </div>
-                    ) : null}
-                    {!isStakeholder && !isSupervisorLike && (
+                    {!isSupervisorLike && (
                       <div className="grid grid-cols-1 gap-2 pt-1 sm:flex sm:flex-wrap">
                         <button
                           type="button"
@@ -2381,7 +2355,7 @@ export default function DashboardPage() {
             ) : (
               <p className="text-sm text-gray-400 italic">No recent fuel payment recorded</p>
             )}
-            {recentPayment && !isStakeholder && (
+            {recentPayment && (
               <button
                 onClick={() => router.push('/fuel-payments/invoices')}
                 className="mt-2.5 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left"

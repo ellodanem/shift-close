@@ -211,20 +211,6 @@ export const SUPERVISOR_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
   'phase1-status'
 ]
 
-/** Stakeholder: last closed night, then a short attendance glance, then the month. */
-export const STAKEHOLDER_DASHBOARD_WIDGETS: DashboardWidgetId[] = [
-  'last-closed-day',
-  'fuel-comparison-day',
-  'cashbook-latest',
-  'customer-ar-glance',
-  'attendance-glance',
-  'fuel-expectancy',
-  'month-summary',
-  'fuel-mtd-deposit-block',
-  'average-deposit',
-  'recent-fuel-payment'
-]
-
 /** Display name for nav/header: "First Last" when present, else username. */
 export function formatAppUserDisplayName(u: {
   username: string
@@ -239,8 +225,8 @@ export function formatAppUserDisplayName(u: {
 
 export function getDashboardWidgetIdsForRole(role: string | undefined): DashboardWidgetId[] | 'all' {
   if (!role || isFullAccessRole(role) || isOperationsManagerRole(role)) return 'all'
-  const r = normalizeAppRole(role)
-  if (r === 'stakeholder') return [...STAKEHOLDER_DASHBOARD_WIDGETS]
+  // Stakeholder uses the same home dashboard as admin until it is narrowed by hand.
+  if (normalizeAppRole(role) === 'stakeholder') return 'all'
   if (isSupervisorLike(role)) return [...SUPERVISOR_DASHBOARD_WIDGETS]
   return 'all'
 }
