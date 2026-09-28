@@ -225,8 +225,11 @@ export default function PayrollStartPage() {
   return (
     <div className="min-h-full">
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold text-slate-900">Payroll</h1>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Payroll</h1>
+            <p className="mt-1 text-sm text-slate-500">Westline Enterprise Ltd · Main · Saint Lucia</p>
+          </div>
           <div className="flex items-center gap-2">
             <PayrollSettingsButton labeled />
             <button
