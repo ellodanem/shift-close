@@ -287,12 +287,7 @@ function DaysPage() {
   }, [activeFilter, customMonth, fetchRange])
   
   const toggleExpand = (date: string) => {
-    setExpandedDates((current) => {
-      const next = new Set(current)
-      if (next.has(date)) next.delete(date)
-      else next.add(date)
-      return next
-    })
+    setExpandedDates((current) => (current.has(date) ? new Set() : new Set([date])))
   }
 
   const refreshDayReports = () => {
@@ -675,18 +670,33 @@ function DaysPage() {
               : 'No end of day records found for the selected filter.'}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className={expandedDates.size > 0 ? 'space-y-2' : 'space-y-4'}>
             {filteredReports.map((dayReport) => {
               const isExpanded = expandedDates.has(dayReport.date)
+              const quiet = expandedDates.size > 0 && !isExpanded
               const dayBags = uniqueDayBagNumbers(dayReport)
               const shiftLine = dayReport.shifts.map((shift) => `${shift.shift} · ${shift.supervisor}`).join(' · ')
               const slipsLeft = slipsStillNeeded(dayReport)
+              const statusBadge =
+                dayReport.status === 'Complete' ? (
+                  slipsLeft === 0 ? (
+                    <span className="rounded bg-green-100 px-2 py-1 text-sm text-green-800">Slips filed</span>
+                  ) : (
+                    <span className="rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-950">
+                      {slipsLeft === 1 ? '1 slip still needed' : `${slipsLeft} slips still needed`}
+                    </span>
+                  )
+                ) : (
+                  getStatusBadge(dayReport.status)
+                )
               
               return (
                 <div
                   id={`eod-day-${dayReport.date}`}
                   key={dayReport.date}
-                  className={`bg-white shadow-sm border rounded ${isExpanded ? 'mb-8' : ''} ${
+                  className={`border bg-white shadow-sm rounded transition-opacity ${isExpanded ? 'mb-8' : ''} ${
+                    quiet ? 'opacity-50 hover:opacity-100' : ''
+                  } ${
                     focusDate === dayReport.date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'
                   }`}
                 >
@@ -695,25 +705,16 @@ function DaysPage() {
                     onClick={() => toggleExpand(dayReport.date)}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
+                      <div className={`flex min-w-0 gap-3 ${quiet ? 'items-center' : 'items-start'}`}>
                         <span className="flex-shrink-0 text-lg text-gray-400">{isExpanded ? '▼' : '▶'}</span>
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-baseline gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-lg font-bold text-gray-900 sm:text-xl">{dayReport.date}</h2>
-                            <BagNumberChips bags={dayBags} />
+                            {quiet ? statusBadge : <BagNumberChips bags={dayBags} />}
                           </div>
+                          {quiet ? null : (
                           <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
-                            {dayReport.status === 'Complete' ? (
-                              slipsLeft === 0 ? (
-                                <span className="rounded bg-green-100 px-2 py-1 text-sm text-green-800">Slips filed</span>
-                              ) : (
-                                <span className="rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-950">
-                                  {slipsLeft === 1 ? '1 slip still needed' : `${slipsLeft} slips still needed`}
-                                </span>
-                              )
-                            ) : (
-                              getStatusBadge(dayReport.status)
-                            )}
+                            {statusBadge}
                             <span className="text-sm text-gray-600">
                               {isExpanded ? shiftLine || `${dayReport.dayType} Day` : `${dayReport.dayType} Day • ${dayReport.shifts.length} shift(s)`}
                             </span>
@@ -758,9 +759,10 @@ function DaysPage() {
                               </span>
                             ) : null}
                           </div>
+                          )}
                         </div>
                       </div>
-                      {!isExpanded ? <CollapsedSlipIcons dayReport={dayReport} /> : null}
+                      {!isExpanded && !quiet ? <CollapsedSlipIcons dayReport={dayReport} /> : null}
                     </div>
                   </div>
 
