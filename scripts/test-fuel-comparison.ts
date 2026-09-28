@@ -143,6 +143,13 @@ describe('fuel comparison monthly view', () => {
     assert.equal(earlier?.dayBasis, 'month-end')
     assert.equal(earlier?.day.gasLitresCur, 0)
     assert.equal(earlier?.day.gasLitresPrev, 5000)
+    const augustTotal = fuelComparisonThroughDate(august, earlier!.day.date).accumulated
+    assert.equal(augustTotal.gasLitresCur, 4000)
+    assert.equal(augustTotal.gasLitresPrev, 5000)
+
+    const septemberTotal = fuelComparisonThroughDate(september, current!.day.date).accumulated
+    assert.equal(septemberTotal.gasLitresCur, 3262)
+    assert.equal(septemberTotal.gasLitresPrev, 0)
 
     assert.equal(fuelComparisonWidgetDay(september, { year: 2026, month: 10 }, '2026-09-27'), null)
   })

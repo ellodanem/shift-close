@@ -832,7 +832,8 @@ function toRecordedFuelDay(
   year: number,
   month: number,
   prevYear: number,
-  dayBasis: FuelComparisonRecordedDay['dayBasis']
+  dayBasis: FuelComparisonRecordedDay['dayBasis'],
+  cumulative: FuelComparisonRecordedDay['cumulative']
 ): FuelComparisonRecordedDay {
   return {
     date: day.date,
@@ -851,7 +852,8 @@ function toRecordedFuelDay(
     totalGallonsPrev: day.totalGallonsPrev,
     variance: day.variance,
     hasMissingShiftData: day.hasMissingShiftData === true,
-    dayBasis
+    dayBasis,
+    cumulative
   }
 }
 
@@ -863,7 +865,19 @@ export async function fetchFuelComparisonWidgetDay(
   const comparison = await getFuelComparisonByDay(year, month)
   const picked = fuelComparisonWidgetDay(comparison.days, { year, month }, businessTodayYmd())
   if (!picked) return null
-  return toRecordedFuelDay(picked.day, comparison.year, comparison.month, comparison.prevYear, picked.dayBasis)
+  const through = fuelComparisonThroughDate(comparison.days, picked.day.date)
+  return toRecordedFuelDay(
+    picked.day,
+    comparison.year,
+    comparison.month,
+    comparison.prevYear,
+    picked.dayBasis,
+    {
+      totalGallonsCur: through.accumulated.totalGallonsCur,
+      totalGallonsPrev: through.accumulated.totalGallonsPrev,
+      variance: through.accumulated.variance
+    }
+  )
 }
 
 export async function buildDashboardBootstrap(role: string, year: number, month: number) {

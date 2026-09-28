@@ -54,6 +54,12 @@ export type FuelComparisonRecordedDay = {
   hasMissingShiftData: boolean
   /** Current month uses the last recorded day. Earlier months use the last calendar day. */
   dayBasis: 'recorded' | 'month-end'
+  /** Through the shown day. A finished month is the full month; the current month stops on the last recorded day. */
+  cumulative: {
+    totalGallonsCur: number
+    totalGallonsPrev: number
+    variance: number
+  }
 }
 
 export type FuelGradeGlance = {
