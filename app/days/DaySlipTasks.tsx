@@ -451,10 +451,10 @@ function DayFacts({
           : 'text-red-600'
 
   return (
-    <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-t-4 border-slate-400 bg-slate-100 px-5 py-5">
+    <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-t-2 border-slate-300 bg-slate-100 px-5 py-3">
       <Fact label="Counted" value={formatCurrency(dayReport.totals.countCashTotal)} />
       <Fact label="System" value={formatCurrency(dayReport.totals.systemCashTotal)} />
-      <Fact label="Short" value={formatCurrency(short)} valueClass={`text-2xl ${shortClass}`} />
+      <Fact label="Short" value={formatCurrency(short)} valueClass={`text-xl ${shortClass}`} />
       {flagged.length > 0 ? (
         <button
           type="button"
@@ -463,7 +463,7 @@ function DayFacts({
           title="Red flag"
           onClick={() => onOpenShift(flagged[0].id)}
         >
-          <RedFlagIcon />
+          <RedFlagIcon className="h-5 w-5" />
         </button>
       ) : null}
       <div className={`flex items-end gap-x-6 ${flagged.length > 0 ? 'ml-10' : ''}`}>
@@ -502,7 +502,7 @@ function Fact({ label, value, valueClass }: { label: string; value: string; valu
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`text-xl font-bold leading-tight text-gray-950 ${valueClass ?? ''}`}>{value}</p>
+      <p className={`font-bold leading-tight text-gray-950 ${valueClass ?? 'text-lg'}`}>{value}</p>
     </div>
   )
 }
