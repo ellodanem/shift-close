@@ -675,7 +675,6 @@ function DaysPage() {
               const isExpanded = expandedDates.has(dayReport.date)
               const quiet = expandedDates.size > 0 && !isExpanded
               const dayBags = uniqueDayBagNumbers(dayReport)
-              const shiftLine = dayReport.shifts.map((shift) => `${shift.shift} · ${shift.supervisor}`).join(' · ')
               const slipsLeft = slipsStillNeeded(dayReport)
               const statusBadge =
                 dayReport.status === 'Complete' ? (
@@ -715,9 +714,33 @@ function DaysPage() {
                           {quiet ? null : (
                           <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
                             {statusBadge}
-                            <span className="text-sm text-gray-600">
-                              {isExpanded ? shiftLine || `${dayReport.dayType} Day` : `${dayReport.dayType} Day • ${dayReport.shifts.length} shift(s)`}
-                            </span>
+                            {isExpanded ? (
+                              dayReport.shifts.length > 0 ? (
+                                <span className="flex flex-wrap items-center gap-x-2 text-sm">
+                                  {dayReport.shifts.map((shift, index) => (
+                                    <span key={shift.id} className="inline-flex items-center gap-2">
+                                      {index > 0 ? <span className="text-gray-300">·</span> : null}
+                                      <button
+                                        type="button"
+                                        className="font-medium text-blue-800 hover:underline"
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          router.push(`/shifts/${shift.id}`)
+                                        }}
+                                      >
+                                        {shift.shift} · {shift.supervisor}
+                                      </button>
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-600">{dayReport.dayType} Day</span>
+                              )
+                            ) : (
+                              <span className="text-sm text-gray-600">
+                                {dayReport.dayType} Day • {dayReport.shifts.length} shift(s)
+                              </span>
+                            )}
                             {!isExpanded ? (
                               <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
                                 <span>
