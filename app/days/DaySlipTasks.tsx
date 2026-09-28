@@ -667,7 +667,7 @@ function DayFacts({
     <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-t-2 border-slate-300 bg-slate-100 px-5 py-3">
       <Fact label="Counted" value={formatCurrency(dayReport.totals.countCashTotal)} />
       <Fact label="System" value={formatCurrency(dayReport.totals.systemCashTotal)} />
-      <Fact label="Short" value={formatCurrency(short)} valueClass={`text-xl ${shortClass}`} />
+      <Fact label="Short" value={formatCurrency(short)} valueClass={`text-lg ${shortClass}`} />
       {flagged.length > 0 ? (
         <button
           type="button"
@@ -715,7 +715,7 @@ function Fact({ label, value, valueClass }: { label: string; value: string; valu
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`font-bold leading-tight text-gray-950 ${valueClass ?? 'text-lg'}`}>{value}</p>
+      <p className={`font-bold leading-tight text-gray-950 ${valueClass ?? 'text-base'}`}>{value}</p>
     </div>
   )
 }
