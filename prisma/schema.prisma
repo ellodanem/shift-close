@@ -758,8 +758,11 @@ model CustomerArPayment {
   ref            String?  // Cheque #, reference
   notes          String?  @default("")
   createdAt      DateTime @default(now()) @map("created_at")
+  /// True after a cashbook deposit row has been created. Stays true if that row is later deleted.
+  cashbookSynced Boolean  @default(false) @map("cashbook_synced")
 
   ledgerLine CustomerArLedgerLine?
+  cashbookEntry CashbookEntry?
 
   @@index([date])
   @@index([account])
@@ -958,12 +961,14 @@ model CashbookEntry {
   depositLineIndex     Int?     @map("deposit_line_index") // Index in ShiftClose.deposits JSON when auto-synced
   paymentBatchId       String?  // If related to a fuel PaymentBatch
   vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
+  customerArPaymentId  String?  @unique @map("customer_ar_payment_id") // Customer A/R payment booked as a deposit
   clearedAt            DateTime? @map("cleared_at") // When a check expense was cashed at the bank
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   allocations CashbookAllocation[]
+  customerArPayment CustomerArPayment? @relation(fields: [customerArPaymentId], references: [id], onDelete: Cascade)
 
   @@unique([shiftId, depositLineIndex], name: "cashbook_entries_shift_deposit_line")
   @@index([date])

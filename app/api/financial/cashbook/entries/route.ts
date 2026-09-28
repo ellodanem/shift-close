@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     const type = searchParams.get('type') // 'income' | 'expense'
     const categoryId = searchParams.get('categoryId')
+
+    await ensureCustomerPaymentsInCashbook()
 
     const where: Record<string, unknown> = {}
     if (startDate && endDate) {

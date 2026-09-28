@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { syncPaymentToLedger } from '@/lib/customer-ar-ledger'
+import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
 
 // GET /api/customer-accounts/payments
 // Query params: startDate?, endDate?, account?
@@ -84,6 +85,8 @@ export async function POST(request: NextRequest) {
       ref: payment.ref,
       notes: payment.notes
     })
+
+    await ensureCustomerPaymentsInCashbook()
 
     return NextResponse.json(payment, { status: 201 })
   } catch (error) {

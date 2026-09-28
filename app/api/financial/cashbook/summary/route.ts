@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,8 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    await ensureCustomerPaymentsInCashbook()
 
     const entries = await prisma.cashbookEntry.findMany({
       where: {

@@ -639,7 +639,12 @@ export default function CashbookPage() {
                 const alloc = entry.allocations[0]
                 const catName = alloc?.category.name ?? '—'
                 const amount = inferAmount(entry)
-                const payment = type === 'expense' ? formatPaymentLabel(inferPaymentMethod(entry)) : null
+                const payment =
+                  type === 'expense'
+                    ? formatPaymentLabel(inferPaymentMethod(entry))
+                    : entry.paymentMethod
+                      ? formatPaymentLabel(entry.paymentMethod)
+                      : null
                 return (
                   <div key={entry.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -717,7 +722,12 @@ export default function CashbookPage() {
                   const alloc = entry.allocations[0]
                   const catName = alloc?.category.name ?? '—'
                   const amount = inferAmount(entry)
-                  const payment = type === 'expense' ? formatPaymentLabel(inferPaymentMethod(entry)) : '—'
+                  const payment =
+                    type === 'expense'
+                      ? formatPaymentLabel(inferPaymentMethod(entry))
+                      : entry.paymentMethod
+                        ? formatPaymentLabel(entry.paymentMethod)
+                        : '—'
                   return (
                     <tr key={entry.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-3 py-2">{entry.date}</td>

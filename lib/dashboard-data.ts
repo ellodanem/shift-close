@@ -30,6 +30,7 @@ import { fetchStaleArAccounts } from '@/lib/customer-ar-stale-payments'
 import { isFullAccessRole, isSupervisorLike, normalizeAppRole } from '@/lib/roles'
 import { getOccurrenceDates } from '@/lib/reminderRecurrence'
 import { prisma } from '@/lib/prisma'
+import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
 import { loadFuelExpectancy, toFuelExpectancyGlance } from '@/lib/fuel-inventory-data'
 
 export type DashboardMonthSummary = {
@@ -646,6 +647,7 @@ export async function fetchCustomerArSummaryFirst(year: number, month: number) {
 }
 
 export async function fetchCashbookSummary(startDate: string, endDate: string) {
+  await ensureCustomerPaymentsInCashbook()
   const entries = await prisma.cashbookEntry.findMany({
     where: { date: { gte: startDate, lte: endDate } },
     include: { allocations: { include: { category: true } } },
@@ -781,6 +783,7 @@ export async function fetchCashbookLatest(
   closedDate: string | null
 ): Promise<CashbookLatestSnapshot> {
   const depositWhere = {
+    customerArPaymentId: null,
     allocations: {
       some: { category: { type: 'income', name: { equals: 'Deposit', mode: 'insensitive' as const } } }
     }

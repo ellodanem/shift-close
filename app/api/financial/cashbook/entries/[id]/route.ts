@@ -99,8 +99,12 @@ export async function PATCH(
 
     const existing = await prisma.cashbookEntry.findUnique({
       where: { id },
-      select: { shiftId: true, depositLineIndex: true }
+      select: { shiftId: true, depositLineIndex: true, customerArPaymentId: true }
     })
+
+    if (existing?.customerArPaymentId) {
+      data.paymentMethod = 'deposit'
+    }
 
     const entry = await prisma.cashbookEntry.update({
       where: { id },

@@ -20,7 +20,7 @@ export function parseDepositsJson(deposits: string | unknown): number[] {
   return []
 }
 
-async function getOrCreateDepositCategory() {
+export async function getOrCreateDepositCategory() {
   let cat = await prisma.cashbookCategory.findFirst({
     where: { name: { equals: 'Deposit', mode: 'insensitive' }, type: 'income' }
   })
