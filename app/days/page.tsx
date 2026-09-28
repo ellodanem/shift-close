@@ -14,6 +14,7 @@ import {
   ymdToUtcNoonDate
 } from '@/lib/datetime-policy'
 import * as XLSX from 'xlsx'
+import { BagNumberChips, uniqueDayBagNumbers } from './BagNumberChips'
 import DaySlipTasks, { CollapsedSlipIcons } from './DaySlipTasks'
 import DepositBreakdownModal from './DepositBreakdownModal'
 import OtherItemsBreakdownModal from './OtherItemsBreakdownModal'
@@ -119,38 +120,6 @@ function daysQueryForFilter(
     return { key: `week:${from}`, url: `/api/days?from=${from}&to=${to}`, from, to }
   }
   return null
-}
-
-function uniqueDayBagNumbers(dayReport: DayReport): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const shift of dayReport.shifts) {
-    for (const raw of shift.depositBagNumbers ?? []) {
-      const bag = String(raw).trim()
-      if (!bag || seen.has(bag)) continue
-      seen.add(bag)
-      out.push(bag)
-    }
-  }
-  return out
-}
-
-function BagNumberChips({ bags }: { bags: string[] }) {
-  if (bags.length === 0) return null
-  return (
-    <span className="inline-flex items-center gap-1 min-w-0 flex-wrap">
-      <span className="text-[11px] font-medium text-slate-400">Bags</span>
-      {bags.map((bag) => (
-        <span
-          key={bag}
-          className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-700"
-          title={`Night deposit bag ${bag}`}
-        >
-          {bag}
-        </span>
-      ))}
-    </span>
-  )
 }
 
 function DaysPage() {
@@ -709,7 +678,7 @@ function DaysPage() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-lg font-bold text-gray-900 sm:text-xl">{dayReport.date}</h2>
-                            {quiet ? statusBadge : <BagNumberChips bags={dayBags} />}
+                            {quiet ? statusBadge : isExpanded ? null : <BagNumberChips bags={dayBags} />}
                           </div>
                           {quiet ? null : (
                           <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">

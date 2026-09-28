@@ -7,6 +7,7 @@ import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
 import { IconDebitCard, IconDepositSlip, IconShield } from '@/app/components/IconDropdown'
+import { BagNumberChips, uniqueDayBagNumbers } from './BagNumberChips'
 import {
   slipIconTone,
   slipTasksForDay,
@@ -227,6 +228,7 @@ export default function DaySlipTasks({
         {tasks.map((task) => {
           const status = statusLine(dayReport, task)
           const showException = exceptionId === task.id && task.id !== 'deposit'
+          const depositBags = task.id === 'deposit' ? uniqueDayBagNumbers(dayReport) : []
           return (
             <div
               key={task.id}
@@ -271,6 +273,11 @@ export default function DaySlipTasks({
                     >
                       {status.text}
                     </p>
+                  ) : null}
+                  {depositBags.length > 0 ? (
+                    <div className="mt-2">
+                      <BagNumberChips bags={depositBags} />
+                    </div>
                   ) : null}
                   {task.photoCount === 0 && task.id === 'deposit' ? (
                     <button
