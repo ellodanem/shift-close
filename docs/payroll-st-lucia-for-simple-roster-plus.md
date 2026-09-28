@@ -120,9 +120,11 @@ Money is rounded to cents at each step (`round half away from zero` via `Math.ro
 
 ### Hourly
 
-Standard hours before overtime (40 × 52 / pays per year):
+Shift Close uses one overtime rule: a fixed hour cap for the pay period, then a company-wide multiplier. **The 86.67 semi-monthly cap belongs to Shift Close only.** Do not make it SRP’s overtime rule.
 
-| Frequency | Cap |
+Shift Close caps (40 × 52 / pays per year):
+
+| Frequency | Shift Close cap |
 |---|---|
 | Weekly | 40 |
 | Bi-weekly | 80 |
@@ -137,9 +139,18 @@ overtime pay = overtime hours × hourly rate × overtime multiplier
 gross = basic pay + overtime pay + extra earnings
 ```
 
-The overtime multiplier defaults to **1.5** (time and a half). A payroll setting can set it from **1** to **3**, with up to two decimal places. 1 is straight time. 2 is double time. The setting is company-wide, not per person.
+The Shift Close multiplier defaults to **1.5** (time and a half). A payroll setting can set it from **1** to **3**, with up to two decimal places. 1 is straight time. 2 is double time. That setting is company-wide, not per person.
 
 The user can type basic and overtime hours after the split. The grid does not re-split while they type.
+
+**SRP overtime rule.** SRP needs its own overtime setting, with several common choices, so an employer can pick the rule that matches how they pay. Keep 86.67 out of that list. Offer at least:
+
+- **No automatic split.** All clocked hours stay basic. Overtime hours are typed.
+- **Daily.** Hours after 8 in a day are overtime.
+- **Weekly.** Hours after 40 in a week are overtime.
+- **Multiplier.** Straight time (1), time and a half (1.5), or double time (2). A custom multiplier from 1 to 3 is allowed.
+
+The chosen rule decides which hours are overtime. The multiplier decides how those hours are paid. Both are company settings. People can still edit the resulting basic and overtime hours on the run.
 
 ### Salaried
 
@@ -316,6 +327,8 @@ Carry these forward as known gaps, not as bugs to silently “fix” into differ
 
 ## 11. Worked example
 
+This example uses **Shift Close’s** semi-monthly cap of 86.67. SRP should run the same NIC math after whatever overtime rule that company selected.
+
 Semi-monthly, cap 86.67, rate $10, multiplier 1.5, no prior NIC this month, no loan, medical $20, shortage $0.
 
 Hours worked: 90.
@@ -339,7 +352,8 @@ A second run the same pay-date month, same gross, still has $204.17 of the $250 
 
 Keep:
 
-- The pay frequencies, hour caps, 5% NIC, and $250 monthly cap.
+- The pay frequencies, 5% NIC, and $250 monthly cap.
+- An overtime setting with the common choices in §6. The 86.67 cap stays a Shift Close fact, not an SRP default.
 - Hourly versus salaried gross.
 - Loan remaining balance and the last-pay leftover.
 - Approve / void, and the rule that voided money stays visible and stops counting.
