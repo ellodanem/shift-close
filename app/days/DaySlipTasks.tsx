@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState, type Ref, type RefObject } from 'react'
+import { useEffect, useRef, useState, type Ref, type RefObject } from 'react'
 import { OS_REVIEW_THRESHOLD } from '@/lib/calculations'
 import { confirmDeleteDayScan, deleteDayScan } from '@/lib/delete-day-scan'
 import { formatCurrency } from '@/lib/format'
@@ -135,6 +135,7 @@ export default function DaySlipTasks({
   const [uploading, setUploading] = useState<ScanKind | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [exceptionId, setExceptionId] = useState<ScanKind | null>(null)
+  const [removeKind, setRemoveKind] = useState<ScanKind | null>(null)
   const [exceptionNote, setExceptionNote] = useState('')
   const [savingException, setSavingException] = useState(false)
   const depositInput = useRef<HTMLInputElement>(null)
@@ -313,14 +314,17 @@ export default function DaySlipTasks({
                     onChange={(event) => void uploadFiles(event.target.files, task.id)}
                   />
                   {task.photoCount > 0 ? (
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-blue-700 hover:underline disabled:opacity-50"
-                      disabled={uploading !== null || deleting}
-                      onClick={() => inputFor(task.id).current?.click()}
-                    >
-                      {uploading === task.id ? 'Uploading…' : 'Add photo'}
-                    </button>
+                    <PhotoMenu
+                      busy={uploading === task.id}
+                      compareLabel={task.id === 'security' ? 'View' : 'Compare'}
+                      onAdd={() => inputFor(task.id).current?.click()}
+                      onCompare={() => {
+                        if (task.id === 'security') setSecurityOpen(true)
+                        else onCompare(task.id)
+                      }}
+                      onEmail={() => onEmail(task.id)}
+                      onRemove={() => setRemoveKind(task.id)}
+                    />
                   ) : (
                     <button
                       type="button"
@@ -331,40 +335,6 @@ export default function DaySlipTasks({
                       {uploading === task.id ? 'Uploading…' : 'Take photo'}
                     </button>
                   )}
-                  {task.photoCount > 0 ? (
-                    <button
-                      type="button"
-                      className="rounded-md border border-blue-600 bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                      onClick={() => {
-                        if (task.id === 'security') setSecurityOpen(true)
-                        else onCompare(task.id)
-                      }}
-                    >
-                      {task.id === 'security' ? 'View' : 'Compare'}
-                    </button>
-                  ) : null}
-                  {task.photoCount > 0 ? (
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-blue-700 hover:underline"
-                      onClick={() => onEmail(task.id)}
-                    >
-                      Email
-                    </button>
-                  ) : null}
-                  {task.photoCount === 1 ? (
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-red-700 hover:underline disabled:opacity-50"
-                      disabled={deleting || uploading !== null}
-                      onClick={() => {
-                        const url = scanUrls(dayReport, task.id)[0]
-                        if (url) void deleteUrl(url, task.id)
-                      }}
-                    >
-                      {deleting ? 'Removing…' : 'Remove photo'}
-                    </button>
-                  ) : null}
                 </div>
               </div>
 
@@ -416,6 +386,15 @@ export default function DaySlipTasks({
         onExport={onExport}
         onOpenShift={onOpenShift}
       />
+      {removeKind ? (
+        <RemovePhotosModal
+          title={ROW_COPY[removeKind].title}
+          urls={scanUrls(dayReport, removeKind)}
+          deleting={deleting}
+          onClose={() => setRemoveKind(null)}
+          onDelete={(url) => void deleteUrl(url, removeKind)}
+        />
+      ) : null}
       {securityOpen ? (
         <SecurityScanModal
           urls={scanUrls(dayReport, 'security')}
@@ -424,6 +403,173 @@ export default function DaySlipTasks({
           deleting={deleting}
         />
       ) : null}
+    </div>
+  )
+}
+
+function scanFileLabel(url: string): string {
+  try {
+    const path = new URL(url, 'http://local.invalid').pathname
+    const name = path.split('/').filter(Boolean).pop()
+    if (name) return decodeURIComponent(name)
+  } catch {
+    /* ignore */
+  }
+  return 'Photo'
+}
+
+function PhotoMenu({
+  busy,
+  compareLabel,
+  onAdd,
+  onCompare,
+  onEmail,
+  onRemove
+}: {
+  busy: boolean
+  compareLabel: string
+  onAdd: () => void
+  onCompare: () => void
+  onEmail: () => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const choose = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-md border border-blue-600 bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+        disabled={busy}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {busy ? 'Uploading…' : 'Photos'}
+        <svg viewBox="0 0 20 20" className="h-3 w-3" aria-hidden>
+          <path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open ? (
+        <div role="menu" className="absolute left-0 z-30 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg sm:left-auto sm:right-0">
+          <MenuItem onClick={() => choose(onAdd)}>Add photo</MenuItem>
+          <MenuItem onClick={() => choose(onCompare)}>{compareLabel}</MenuItem>
+          <MenuItem onClick={() => choose(onEmail)}>Email</MenuItem>
+          <MenuItem danger onClick={() => choose(onRemove)}>
+            Remove photos
+          </MenuItem>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MenuItem({
+  children,
+  onClick,
+  danger = false
+}: {
+  children: string
+  onClick: () => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={`block w-full px-3 py-1.5 text-left text-xs font-medium hover:bg-gray-50 ${
+        danger ? 'text-red-700' : 'text-gray-800'
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
+function RemovePhotosModal({
+  title,
+  urls,
+  deleting,
+  onClose,
+  onDelete
+}: {
+  title: string
+  urls: string[]
+  deleting: boolean
+  onClose: () => void
+  onDelete: (url: string) => void
+}) {
+  useEffect(() => {
+    if (urls.length === 0) onClose()
+  }, [urls.length, onClose])
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+      <div
+        className="w-full max-w-md rounded-lg border border-gray-300 bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="remove-photos-title"
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <h3 id="remove-photos-title" className="text-base font-semibold text-gray-900">
+            Remove photos
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-1 text-2xl font-bold leading-none text-gray-400 hover:text-gray-600"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p className="px-4 pt-3 text-sm text-gray-600">{title}</p>
+        <ul className="space-y-2 px-4 py-3">
+          {urls.map((url, index) => (
+            <li
+              key={`${url}-${index}`}
+              className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-900">Scan {index + 1}</span>
+                <span className="block truncate text-xs text-gray-500">{scanFileLabel(url)}</span>
+              </span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                disabled={deleting}
+                onClick={() => onDelete(url)}
+              >
+                {deleting ? 'Removing…' : 'Remove'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
