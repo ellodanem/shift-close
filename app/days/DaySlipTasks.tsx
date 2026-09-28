@@ -186,6 +186,25 @@ export default function DaySlipTasks({
     }
   }
 
+  const deleteAll = async (type: ScanKind) => {
+    const urls = scanUrls(dayReport, type)
+    if (urls.length === 0) return
+    const label = urls.length === 1 ? 'this photo' : `all ${urls.length} photos`
+    if (!window.confirm(`Remove ${label}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      for (const url of urls) {
+        await deleteDayScan(dayReport.date, url, type)
+      }
+      onRefresh()
+    } catch (error) {
+      onRefresh()
+      alert(error instanceof Error ? error.message : 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const saveWaiver = async (kind: 'debit' | 'security', waived: boolean, note: string) => {
     setSavingException(true)
     try {
@@ -398,6 +417,7 @@ export default function DaySlipTasks({
           deleting={deleting}
           onClose={() => setRemoveKind(null)}
           onDelete={(url) => void deleteUrl(url, removeKind)}
+          onDeleteAll={() => void deleteAll(removeKind)}
         />
       ) : null}
       {securityOpen ? (
@@ -577,13 +597,15 @@ function RemovePhotosModal({
   urls,
   deleting,
   onClose,
-  onDelete
+  onDelete,
+  onDeleteAll
 }: {
   title: string
   urls: string[]
   deleting: boolean
   onClose: () => void
   onDelete: (url: string) => void
+  onDeleteAll: () => void
 }) {
   useEffect(() => {
     if (urls.length === 0) onClose()
@@ -610,7 +632,17 @@ function RemovePhotosModal({
             ×
           </button>
         </div>
-        <p className="px-4 pt-3 text-sm text-gray-600">{title}</p>
+        <div className="flex items-center justify-between gap-3 px-4 pt-3">
+          <p className="text-sm text-gray-600">{title}</p>
+          <button
+            type="button"
+            className="shrink-0 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+            disabled={deleting || urls.length === 0}
+            onClick={onDeleteAll}
+          >
+            {deleting ? 'Removing…' : 'Remove all'}
+          </button>
+        </div>
         <ul className="space-y-2 px-4 py-3">
           {urls.map((url, index) => (
             <li
