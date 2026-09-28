@@ -23,8 +23,8 @@ const ROW_COPY: Record<
   SlipTaskId,
   { title: string; fallback: string }
 > = {
-  deposit: { title: 'Deposit slip', fallback: 'Night deposit slip' },
-  debit: { title: 'Card machine slip', fallback: 'Credit and debit batch slip' },
+  deposit: { title: 'Deposits', fallback: 'Night deposit slip' },
+  debit: { title: 'Credits/Debits', fallback: 'Credit and debit batch slip' },
   security: { title: 'Security slip', fallback: 'Pickup receipt for this deposit' }
 }
 
@@ -76,7 +76,7 @@ function SlipIcon({ id, tone }: { id: SlipTaskId; tone?: SlipIconTone }) {
 }
 
 function slipIconTitle(day: DayReport, task: SlipTask, tone: SlipIconTone): string {
-  const name = task.id === 'deposit' ? 'Deposit slip' : task.id === 'debit' ? 'Card machine slip' : 'Security slip'
+  const name = task.id === 'deposit' ? 'Deposits' : task.id === 'debit' ? 'Credits/Debits' : 'Security slip'
   if (tone === 'uploaded') {
     const noun = task.photoCount === 1 ? 'photo' : 'photos'
     return `${name} — ${task.photoCount} ${noun}`
@@ -232,75 +232,78 @@ export default function DaySlipTasks({
               className={`flex flex-col gap-3 px-5 py-5 ${task.done ? 'bg-white' : 'bg-amber-50/50'}`}
             >
               <div className={`h-1 w-12 rounded-full ${task.done ? 'bg-green-500' : 'bg-amber-400'}`} />
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
-                  <SlipIcon id={task.id} />
-                </span>
-                <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
-              </div>
-              {task.id === 'deposit' ? (
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
-              ) : null}
-              {task.id === 'debit' ? (
-                <div className="flex gap-8">
-                  <div>
-                    <p className="text-sm text-gray-500">Credit</p>
-                    <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
+                      <SlipIcon id={task.id} />
+                    </span>
+                    <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Debit</p>
-                    <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
-                  </div>
+                  {task.id === 'deposit' ? (
+                    <p className="mt-2 text-2xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
+                  ) : null}
+                  {task.id === 'debit' ? (
+                    <div className="mt-2 flex gap-8">
+                      <div>
+                        <p className="text-sm text-gray-500">Credit</p>
+                        <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalCredit)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Debit</p>
+                        <p className="text-xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDebit)}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {task.id === 'security' ? (
+                    <p className="mt-2 text-sm text-gray-600">{ROW_COPY.security.fallback}</p>
+                  ) : null}
+                  {status.text ? (
+                    <p
+                      className={`mt-2 text-sm font-medium ${
+                        status.tone === 'green'
+                          ? 'text-green-700'
+                          : status.tone === 'amber'
+                            ? 'text-amber-800'
+                            : 'text-gray-500'
+                      }`}
+                    >
+                      {status.text}
+                    </p>
+                  ) : null}
+                  {task.photoCount === 0 && task.id === 'deposit' ? (
+                    <button
+                      type="button"
+                      className="mt-2 w-fit text-sm font-medium text-blue-700 hover:underline"
+                      onClick={onMissingDepositSlip}
+                    >
+                      {task.waived || dayReport.missingDepositSlipAlertOpen
+                        ? 'Missing slip'
+                        : "I don't have this slip"}
+                    </button>
+                  ) : null}
+                  {task.photoCount === 0 && task.id !== 'deposit' && !showException ? (
+                    task.waived ? (
+                      <button
+                        type="button"
+                        className="mt-2 w-fit text-sm font-medium text-blue-700 hover:underline"
+                        disabled={savingException}
+                        onClick={() => void saveWaiver(task.id as 'debit' | 'security', false, '')}
+                      >
+                        Undo — I have the slip
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="mt-2 w-fit text-sm font-medium text-blue-700 hover:underline"
+                        onClick={() => openException(task)}
+                      >
+                        I don&apos;t have this slip
+                      </button>
+                    )
+                  ) : null}
                 </div>
-              ) : null}
-              {task.id === 'security' ? (
-                <p className="text-sm text-gray-600">{ROW_COPY.security.fallback}</p>
-              ) : null}
-              {status.text ? (
-                <p
-                  className={`text-sm font-medium ${
-                    status.tone === 'green'
-                      ? 'text-green-700'
-                      : status.tone === 'amber'
-                        ? 'text-amber-800'
-                        : 'text-gray-500'
-                  }`}
-                >
-                  {status.text}
-                </p>
-              ) : null}
-              {task.photoCount === 0 && task.id === 'deposit' ? (
-                <button
-                  type="button"
-                  className="w-fit text-sm font-medium text-blue-700 hover:underline"
-                  onClick={onMissingDepositSlip}
-                >
-                  {task.waived || dayReport.missingDepositSlipAlertOpen
-                    ? 'Missing slip'
-                    : "I don't have this slip"}
-                </button>
-              ) : null}
-              {task.photoCount === 0 && task.id !== 'deposit' && !showException ? (
-                task.waived ? (
-                  <button
-                    type="button"
-                    className="w-fit text-sm font-medium text-blue-700 hover:underline"
-                    disabled={savingException}
-                    onClick={() => void saveWaiver(task.id as 'debit' | 'security', false, '')}
-                  >
-                    Undo — I have the slip
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-fit text-sm font-medium text-blue-700 hover:underline"
-                    onClick={() => openException(task)}
-                  >
-                    I don&apos;t have this slip
-                  </button>
-                )
-              ) : null}
-              <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+                <div className="flex flex-col items-start gap-2 sm:items-end">
                   <input
                     ref={inputFor(task.id) as Ref<HTMLInputElement>}
                     type="file"
@@ -312,7 +315,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="px-1 text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
+                      className="text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
                       disabled={uploading !== null || deleting}
                       onClick={() => inputFor(task.id).current?.click()}
                     >
@@ -328,19 +331,6 @@ export default function DaySlipTasks({
                       {uploading === task.id ? 'Uploading…' : 'Take photo'}
                     </button>
                   )}
-                  {task.photoCount === 1 ? (
-                    <button
-                      type="button"
-                      className="px-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
-                      disabled={deleting || uploading !== null}
-                      onClick={() => {
-                        const url = scanUrls(dayReport, task.id)[0]
-                        if (url) void deleteUrl(url, task.id)
-                      }}
-                    >
-                      {deleting ? 'Removing…' : 'Remove photo'}
-                    </button>
-                  ) : null}
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
@@ -356,13 +346,27 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="px-1 text-sm font-medium text-blue-700 hover:underline"
+                      className="text-sm font-medium text-blue-700 hover:underline"
                       onClick={() => onEmail(task.id)}
                     >
                       Email
                     </button>
                   ) : null}
+                  {task.photoCount === 1 ? (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                      disabled={deleting || uploading !== null}
+                      onClick={() => {
+                        const url = scanUrls(dayReport, task.id)[0]
+                        if (url) void deleteUrl(url, task.id)
+                      }}
+                    >
+                      {deleting ? 'Removing…' : 'Remove photo'}
+                    </button>
+                  ) : null}
                 </div>
+              </div>
 
               {showException ? (
                 <div className="border-t border-gray-200 pt-3">
