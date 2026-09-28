@@ -276,6 +276,8 @@ Earning labels fold into Basic, Overtime, Commission, Add duties, or the extraâ€
 
 ### Banking list
 
+Full picker groups, code order, and bucket rules: `docs/banking-list-for-simple-roster-plus.md`. Summary below.
+
 One row per person, sorted by bank code then name. Net pay only. Also a print and an Excel download.
 
 Bank code comes from the bank name:
