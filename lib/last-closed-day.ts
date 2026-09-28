@@ -52,6 +52,8 @@ export type FuelComparisonRecordedDay = {
   totalGallonsPrev: number
   variance: number
   hasMissingShiftData: boolean
+  /** Current month uses the last recorded day. Earlier months use the last calendar day. */
+  dayBasis: 'recorded' | 'month-end'
 }
 
 export type FuelGradeGlance = {

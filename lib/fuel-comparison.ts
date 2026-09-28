@@ -134,6 +134,29 @@ export function lastRecordedFuelDay(days: FuelComparisonDay[], asOfYmd: string):
   return best
 }
 
+/**
+ * Current month: last recorded day. Earlier months: the last calendar day.
+ * A future month has no row yet.
+ */
+export function fuelComparisonWidgetDay(
+  days: FuelComparisonDay[],
+  selected: { year: number; month: number },
+  asOfYmd: string
+): { day: FuelComparisonDay; dayBasis: 'recorded' | 'month-end' } | null {
+  const [asOfYear, asOfMonth] = asOfYmd.split('-').map(Number)
+  const { year, month } = selected
+  if (!asOfYear || !asOfMonth || month < 1 || month > 12) return null
+  if (year === asOfYear && month === asOfMonth) {
+    const day = lastRecordedFuelDay(days, asOfYmd)
+    return day ? { day, dayBasis: 'recorded' } : null
+  }
+  if (year > asOfYear || (year === asOfYear && month > asOfMonth)) return null
+  const endDay = daysInMonth(year, month)
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
+  const day = days.find((row) => row.date === end) ?? null
+  return day ? { day, dayBasis: 'month-end' } : null
+}
+
 /** Day row plus month-to-date through that date. Later calendar days stay out of the total. */
 export function fuelComparisonThroughDate(
   days: FuelComparisonDay[],

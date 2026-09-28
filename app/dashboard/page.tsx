@@ -1337,7 +1337,9 @@ export default function DashboardPage() {
           <div>
             <h2 className="text-base font-semibold text-gray-900">Fuel comparison</h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              {day ? `${formatRecordedDayLabel(day.date)} · last recorded day` : 'Last recorded day'}
+              {day
+                ? `${formatRecordedDayLabel(day.date)} · ${day.dayBasis === 'month-end' ? 'last day of the month' : 'last recorded day'}`
+                : 'Last recorded day'}
             </p>
           </div>
           <Link href={href} className="shrink-0 text-sm font-medium text-emerald-700 hover:text-emerald-900">
@@ -1778,9 +1780,15 @@ export default function DashboardPage() {
     )
   }
 
+  const todayParts = businessTodayYmd().split('-').map(Number)
+  const selectedMonthIsPast = summary
+    ? summary.year < todayParts[0] || (summary.year === todayParts[0] && summary.month < todayParts[1])
+    : false
   const dashboardScopeHint = summary
     ? isStakeholder
-      ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster = today · Fuel comparison = last recorded day`
+      ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster = today · Fuel comparison = ${
+          selectedMonthIsPast ? 'last day of the month' : 'last recorded day'
+        }`
       : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
     : 'Select a month to load summary data'
 

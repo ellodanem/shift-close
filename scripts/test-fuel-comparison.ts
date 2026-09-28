@@ -6,6 +6,7 @@ import {
   buildFuelVolumeMaps,
   buildMonthsForYear,
   fuelComparisonThroughDate,
+  fuelComparisonWidgetDay,
   lastRecordedFuelDay,
   totalsFromRows
 } from '../lib/fuel-comparison'
@@ -107,5 +108,42 @@ describe('fuel comparison monthly view', () => {
     assert.equal(recorded?.date, '2026-09-25')
     assert.equal(recorded?.gasLitresCur, 3262)
     assert.equal(lastRecordedFuelDay(days, '2026-09-24'), null)
+  })
+
+  it('uses the last recorded day in the current month and the last calendar day in an earlier month', () => {
+    const september = buildDaysForMonth(
+      2026,
+      9,
+      buildFuelVolumeMaps(
+        [
+          { date: '2026-09-25', unleadedLitres: 3262, dieselLitres: 1154 },
+          { date: '2026-09-26', unleadedLitres: 0, dieselLitres: 0 }
+        ],
+        [{ date: '2025-09-27', unleadedLitres: 9000, dieselLitres: 1000 }],
+        [],
+        []
+      )
+    )
+    const current = fuelComparisonWidgetDay(september, { year: 2026, month: 9 }, '2026-09-27')
+    assert.equal(current?.day.date, '2026-09-25')
+    assert.equal(current?.dayBasis, 'recorded')
+
+    const august = buildDaysForMonth(
+      2026,
+      8,
+      buildFuelVolumeMaps(
+        [{ date: '2026-08-30', unleadedLitres: 4000, dieselLitres: 800 }],
+        [{ date: '2025-08-31', unleadedLitres: 5000, dieselLitres: 900 }],
+        [],
+        []
+      )
+    )
+    const earlier = fuelComparisonWidgetDay(august, { year: 2026, month: 8 }, '2026-09-27')
+    assert.equal(earlier?.day.date, '2026-08-31')
+    assert.equal(earlier?.dayBasis, 'month-end')
+    assert.equal(earlier?.day.gasLitresCur, 0)
+    assert.equal(earlier?.day.gasLitresPrev, 5000)
+
+    assert.equal(fuelComparisonWidgetDay(september, { year: 2026, month: 10 }, '2026-09-27'), null)
   })
 })

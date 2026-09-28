@@ -1,5 +1,5 @@
 import { toYmdInBusinessTz, businessTodayYmd, ymdToUtcNoonDate, addCalendarDaysYmd } from '@/lib/datetime-policy'
-import { daysInMonth, fuelComparisonThroughDate, getFuelComparisonByDay, lastRecordedFuelDay } from '@/lib/fuel-comparison'
+import { fuelComparisonThroughDate, fuelComparisonWidgetDay, getFuelComparisonByDay } from '@/lib/fuel-comparison'
 import {
   cashbookBehindMessage,
   summarizeDepositsOnLatestDate,
@@ -828,7 +828,8 @@ function toRecordedFuelDay(
   },
   year: number,
   month: number,
-  prevYear: number
+  prevYear: number,
+  dayBasis: FuelComparisonRecordedDay['dayBasis']
 ): FuelComparisonRecordedDay {
   return {
     date: day.date,
@@ -846,25 +847,20 @@ function toRecordedFuelDay(
     totalGallonsCur: day.totalGallonsCur,
     totalGallonsPrev: day.totalGallonsPrev,
     variance: day.variance,
-    hasMissingShiftData: day.hasMissingShiftData === true
+    hasMissingShiftData: day.hasMissingShiftData === true,
+    dayBasis
   }
 }
 
-/** Latest fuel-comparison row with this year's volume, on or before today. */
-export async function fetchLastRecordedFuelComparison(): Promise<FuelComparisonRecordedDay | null> {
-  const asOf = businessTodayYmd()
-  const [year, month] = asOf.split('-').map(Number)
-  const current = await getFuelComparisonByDay(year, month)
-  const day = lastRecordedFuelDay(current.days, asOf)
-  if (day) return toRecordedFuelDay(day, current.year, current.month, current.prevYear)
-
-  const prevMonth = month === 1 ? 12 : month - 1
-  const prevYear = month === 1 ? year - 1 : year
-  const previous = await getFuelComparisonByDay(prevYear, prevMonth)
-  const end = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(daysInMonth(prevYear, prevMonth)).padStart(2, '0')}`
-  const prevDay = lastRecordedFuelDay(previous.days, end)
-  if (!prevDay) return null
-  return toRecordedFuelDay(prevDay, previous.year, previous.month, previous.prevYear)
+/** Current month: last recorded day. Earlier months: that month's last calendar day. */
+export async function fetchFuelComparisonWidgetDay(
+  year: number,
+  month: number
+): Promise<FuelComparisonRecordedDay | null> {
+  const comparison = await getFuelComparisonByDay(year, month)
+  const picked = fuelComparisonWidgetDay(comparison.days, { year, month }, businessTodayYmd())
+  if (!picked) return null
+  return toRecordedFuelDay(picked.day, comparison.year, comparison.month, comparison.prevYear, picked.dayBasis)
 }
 
 export async function buildDashboardBootstrap(role: string, year: number, month: number) {
@@ -915,8 +911,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
       }),
     Promise.resolve({ lastClosedDay: null, cashbookLatest: null }),
     stakeholder
-      ? fetchLastRecordedFuelComparison().catch((err) => {
-          console.error('fuel comparison recorded day', err)
+      ? fetchFuelComparisonWidgetDay(year, month).catch((err) => {
+          console.error('fuel comparison widget day', err)
           return null
         })
       : Promise.resolve(null)
