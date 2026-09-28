@@ -16,7 +16,7 @@ import {
   type PayslipCompany
 } from '@/lib/payroll-settings'
 
-export function PayrollSettingsButton() {
+export function PayrollSettingsButton({ labeled = false }: { labeled?: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -26,7 +26,11 @@ export function PayrollSettingsButton() {
         aria-label="Payroll settings"
         title="Payroll settings"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        className={
+          labeled
+            ? 'inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50'
+            : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -44,6 +48,7 @@ export function PayrollSettingsButton() {
           />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
+        {labeled ? 'Settings' : null}
       </button>
       {open ? <PayrollSettingsDialog onClose={() => setOpen(false)} /> : null}
     </>

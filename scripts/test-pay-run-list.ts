@@ -3,7 +3,11 @@ import { describe, it } from 'node:test'
 import {
   activePayrollYear,
   filterPayRuns,
+  payRunListTitle,
+  payRunRangeLabel,
+  payRunTotals,
   payrollCycleOptions,
+  payrollStatusCounts,
   payrollYears,
   type PayRunListItem
 } from '../lib/pay-run-list'
@@ -98,6 +102,26 @@ describe('payroll run list', () => {
     assert.deepEqual(payrollYears(runs, new Date(2026, 8, 26)), [2026, 2025])
     assert.deepEqual(payrollYears([], new Date(2026, 8, 26)), [2026])
     assert.deepEqual(payrollCycleOptions(runs, 2026, 9), [17, 18])
+  })
+
+  it('names a run by cycle and a short date range', () => {
+    assert.equal(payRunRangeLabel('2026-03-01', '2026-03-15'), 'Mar 1–15')
+    assert.equal(payRunRangeLabel('2026-02-16', '2026-03-15'), 'Feb 16–Mar 15')
+    assert.equal(payRunRangeLabel('2025-12-16', '2026-01-15'), 'Dec 16, 2025–Jan 15, 2026')
+    assert.equal(payRunListTitle(5, '2026-03-01', '2026-03-15'), 'Cycle 5 · Mar 1–15')
+    assert.equal(payRunListTitle(0, '2026-09-15', '2026-09-15'), 'Cycle 17 · Sep 15')
+  })
+
+  it('sums gross and net across the run lines', () => {
+    assert.deepEqual(payRunTotals([{ grossPay: 10.1, netPay: 8 }, { grossPay: '1.20', netPay: 1 }]), {
+      gross: 11.3,
+      net: 9
+    })
+    assert.deepEqual(payRunTotals(undefined), { gross: 0, net: 0 })
+  })
+
+  it('counts draft, approved, and voided runs', () => {
+    assert.deepEqual(payrollStatusCounts(runs), { draft: 1, processed: 3, void: 1 })
   })
 
   it('derives a missing cycle number from the period end', () => {

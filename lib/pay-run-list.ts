@@ -1,5 +1,20 @@
 import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 
+export const PAYROLL_MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+] as const
+
 export const PAYROLL_MONTHS = [
   'January',
   'February',
@@ -109,4 +124,77 @@ export function filterPayRuns<T extends PayRunListItem>(
     if (endDiff) return endDiff
     return cmpText(a.payDate, b.payDate)
   })
+}
+
+export type PayrollStatusCounts = {
+  draft: number
+  processed: number
+  void: number
+}
+
+export function payrollStatusCounts(runs: Array<{ status: string }>): PayrollStatusCounts {
+  const counts: PayrollStatusCounts = { draft: 0, processed: 0, void: 0 }
+  for (const run of runs) {
+    if (run.status === 'draft' || run.status === 'processed' || run.status === 'void') {
+      counts[run.status] += 1
+    }
+  }
+  return counts
+}
+
+function ymdParts(ymd: string): { y: number; m: number; d: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!match) return null
+  const y = Number(match[1])
+  const m = Number(match[2])
+  const d = Number(match[3])
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null
+  return { y, m, d }
+}
+
+function shortMonthDay(parts: { m: number; d: number }): string {
+  return `${PAYROLL_MONTHS_SHORT[parts.m - 1]} ${parts.d}`
+}
+
+/** Calendar range for a run title, without a timezone shift. */
+export function payRunRangeLabel(startDate: string, endDate: string): string {
+  const start = ymdParts(startDate)
+  const end = ymdParts(endDate)
+  if (!start || !end) return `${startDate}–${endDate}`
+  if (start.y === end.y && start.m === end.m && start.d === end.d) return shortMonthDay(start)
+  if (start.y === end.y && start.m === end.m) return `${shortMonthDay(start)}–${end.d}`
+  if (start.y === end.y) return `${shortMonthDay(start)}–${shortMonthDay(end)}`
+  return `${shortMonthDay(start)}, ${start.y}–${shortMonthDay(end)}, ${end.y}`
+}
+
+export function payRunListTitle(cycleNumber: number, startDate: string, endDate: string): string {
+  const range = payRunRangeLabel(startDate, endDate)
+  const cycle = shownCycleNumber(cycleNumber, endDate)
+  return cycle > 0 ? `Cycle ${cycle} · ${range}` : range
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function parseMoney(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return round2(value)
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value)
+    if (Number.isFinite(n)) return round2(n)
+  }
+  return 0
+}
+
+export function payRunTotals(lines: Array<{ grossPay?: unknown; netPay?: unknown }> | undefined): {
+  gross: number
+  net: number
+} {
+  let gross = 0
+  let net = 0
+  for (const line of lines ?? []) {
+    gross += parseMoney(line.grossPay)
+    net += parseMoney(line.netPay)
+  }
+  return { gross: round2(gross), net: round2(net) }
 }
