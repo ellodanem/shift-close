@@ -1,5 +1,5 @@
 import { toYmdInBusinessTz, businessTodayYmd, ymdToUtcNoonDate, addCalendarDaysYmd } from '@/lib/datetime-policy'
-import { fuelComparisonThroughDate, getFuelComparisonByDay } from '@/lib/fuel-comparison'
+import { daysInMonth, fuelComparisonThroughDate, getFuelComparisonByDay, lastRecordedFuelDay } from '@/lib/fuel-comparison'
 import {
   cashbookBehindMessage,
   summarizeDepositsOnLatestDate,
@@ -12,6 +12,7 @@ import {
   sumClosedDayMoney,
   weekdayNameFromYmd,
   type ClosedDayMoneyShift,
+  type FuelComparisonRecordedDay,
   type FuelGradeGlance,
   type LastClosedDaySnapshot
 } from '@/lib/last-closed-day'
@@ -809,6 +810,63 @@ export async function fetchCashbookLatest(
   }
 }
 
+function toRecordedFuelDay(
+  day: {
+    date: string
+    gasLitresCur: number
+    gasLitresPrev: number
+    dieselLitresCur: number
+    dieselLitresPrev: number
+    gasGallonsCur: number
+    gasGallonsPrev: number
+    dieselGallonsCur: number
+    dieselGallonsPrev: number
+    totalGallonsCur: number
+    totalGallonsPrev: number
+    variance: number
+    hasMissingShiftData?: boolean
+  },
+  year: number,
+  month: number,
+  prevYear: number
+): FuelComparisonRecordedDay {
+  return {
+    date: day.date,
+    year,
+    month,
+    prevYear,
+    gasLitresCur: day.gasLitresCur,
+    gasLitresPrev: day.gasLitresPrev,
+    dieselLitresCur: day.dieselLitresCur,
+    dieselLitresPrev: day.dieselLitresPrev,
+    gasGallonsCur: day.gasGallonsCur,
+    gasGallonsPrev: day.gasGallonsPrev,
+    dieselGallonsCur: day.dieselGallonsCur,
+    dieselGallonsPrev: day.dieselGallonsPrev,
+    totalGallonsCur: day.totalGallonsCur,
+    totalGallonsPrev: day.totalGallonsPrev,
+    variance: day.variance,
+    hasMissingShiftData: day.hasMissingShiftData === true
+  }
+}
+
+/** Latest fuel-comparison row with this year's volume, on or before today. */
+export async function fetchLastRecordedFuelComparison(): Promise<FuelComparisonRecordedDay | null> {
+  const asOf = businessTodayYmd()
+  const [year, month] = asOf.split('-').map(Number)
+  const current = await getFuelComparisonByDay(year, month)
+  const day = lastRecordedFuelDay(current.days, asOf)
+  if (day) return toRecordedFuelDay(day, current.year, current.month, current.prevYear)
+
+  const prevMonth = month === 1 ? 12 : month - 1
+  const prevYear = month === 1 ? year - 1 : year
+  const previous = await getFuelComparisonByDay(prevYear, prevMonth)
+  const end = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(daysInMonth(prevYear, prevMonth)).padStart(2, '0')}`
+  const prevDay = lastRecordedFuelDay(previous.days, end)
+  if (!prevDay) return null
+  return toRecordedFuelDay(prevDay, previous.year, previous.month, previous.prevYear)
+}
+
 export async function buildDashboardBootstrap(role: string, year: number, month: number) {
   const norm = normalizeAppRole(role)
   const stakeholder = norm === 'stakeholder'
@@ -836,7 +894,8 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     fuelMtdSold,
     staleArAccounts,
     fuelExpectancy,
-    nightSheet
+    nightSheet,
+    fuelComparisonRecordedDay
   ] = await Promise.all([
     fetchDashboardMonthSummary({ year, month }),
     fetchDashboardUpcoming(),
@@ -854,7 +913,13 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
         console.error('fuel expectancy bootstrap', err)
         return null
       }),
-    Promise.resolve({ lastClosedDay: null, cashbookLatest: null })
+    Promise.resolve({ lastClosedDay: null, cashbookLatest: null }),
+    stakeholder
+      ? fetchLastRecordedFuelComparison().catch((err) => {
+          console.error('fuel comparison recorded day', err)
+          return null
+        })
+      : Promise.resolve(null)
   ])
 
   let fuelExpense: number | null = null
@@ -880,6 +945,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     staleArAccounts,
     fuelExpectancy,
     lastClosedDay: nightSheet.lastClosedDay,
-    cashbookLatest: nightSheet.cashbookLatest
+    cashbookLatest: nightSheet.cashbookLatest,
+    fuelComparisonRecordedDay
   }
 }

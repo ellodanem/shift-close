@@ -123,6 +123,17 @@ export function buildFuelVolumeMaps(
   }
 }
 
+/** Latest day on or before asOf that has this year's fuel recorded. Prior-year-only rows do not count. */
+export function lastRecordedFuelDay(days: FuelComparisonDay[], asOfYmd: string): FuelComparisonDay | null {
+  let best: FuelComparisonDay | null = null
+  for (const day of days) {
+    if (day.date > asOfYmd) continue
+    if (day.gasLitresCur <= 0 && day.dieselLitresCur <= 0) continue
+    if (!best || day.date > best.date) best = day
+  }
+  return best
+}
+
 /** Day row plus month-to-date through that date. Later calendar days stay out of the total. */
 export function fuelComparisonThroughDate(
   days: FuelComparisonDay[],

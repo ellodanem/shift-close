@@ -16,7 +16,7 @@ import {
 import { getDashboardWidgetIdsForRole } from '@/lib/roles'
 import type { CashbookLatestSnapshot } from '@/lib/cashbook-latest'
 import type { StaleArPayload } from '@/lib/customer-ar-stale-payments'
-import type { FuelGradeGlance, LastClosedDaySnapshot } from '@/lib/last-closed-day'
+import type { FuelComparisonRecordedDay, FuelGradeGlance, LastClosedDaySnapshot } from '@/lib/last-closed-day'
 import { useAuth } from '@/app/components/AuthContext'
 import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
@@ -289,6 +289,7 @@ export default function DashboardPage() {
   const [todayRoster, setTodayRoster] = useState<TodayRoster | null>(null)
   const [cashbookSummary, setCashbookSummary] = useState<CashbookSummary | null>(null)
   const [lastClosedDay, setLastClosedDay] = useState<LastClosedDaySnapshot | null>(null)
+  const [fuelComparisonRecordedDay, setFuelComparisonRecordedDay] = useState<FuelComparisonRecordedDay | null>(null)
   const [cashbookLatest, setCashbookLatest] = useState<CashbookLatestSnapshot | null>(null)
   const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
@@ -490,6 +491,7 @@ export default function DashboardPage() {
 
       setLastClosedDay(data.lastClosedDay ?? null)
       setCashbookLatest(data.cashbookLatest ?? null)
+      setFuelComparisonRecordedDay(data.fuelComparisonRecordedDay ?? null)
 
       const mtd = data.fuelMtdSold as FuelMtdSoldPayload | null | undefined
       if (mtd && typeof mtd.avgUnleadedPerDay === 'number') setFuelMtdSold(mtd)
@@ -751,6 +753,13 @@ export default function DashboardPage() {
   }
 
   const formatGallons = (n: number) => Math.round(n).toLocaleString('en-US')
+
+  const formatRecordedDayLabel = (ymd: string) => {
+    const date = new Date(ymd + 'T12:00:00')
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' })
+    const month = date.toLocaleDateString('en-US', { month: 'short' })
+    return `${weekday} ${date.getDate()} ${month}`
+  }
 
   const formatGallonVariance = (n: number) => {
     const rounded = Math.round(n)
@@ -1276,6 +1285,91 @@ export default function DashboardPage() {
     }
   }
 
+  const renderFuelComparisonBarsCard = () => {
+    const day = fuelComparisonRecordedDay
+    const href = day
+      ? `/reports/fuel-comparison?year=${day.year}&month=${day.month}`
+      : '/reports/fuel-comparison'
+    const varianceClass = (n: number) =>
+      n < 0 ? 'text-red-600' : n > 0 ? 'text-emerald-700' : 'text-gray-600'
+    const grade = (
+      label: string,
+      litresCur: number,
+      litresPrev: number,
+      gallonsCur: number,
+      gallonsPrev: number,
+      currentBar: string
+    ) => {
+      const scale = Math.max(gallonsCur, gallonsPrev, 0)
+      const width = (value: number) => (scale === 0 ? 0 : (value / scale) * 100)
+      const delta = gallonsCur - gallonsPrev
+      const barRow = (value: number, yearLabel: number, fill: string) => (
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div
+              className={`h-3 rounded-sm ${fill}`}
+              style={{ width: `${width(value)}%` }}
+            />
+          </div>
+          <div className="w-[4.75rem] shrink-0 text-right leading-tight">
+            <div className="text-sm font-semibold tabular-nums text-gray-900">{formatGallons(value)} gal</div>
+            <div className="text-[11px] text-gray-500">{yearLabel}</div>
+          </div>
+        </div>
+      )
+      return (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+          <div className="mt-2 space-y-1.5">
+            {barRow(gallonsCur, day!.year, currentBar)}
+            {barRow(gallonsPrev, day!.prevYear, 'bg-emerald-100 ring-1 ring-inset ring-emerald-300')}
+          </div>
+          <p className="mt-1.5 text-xs text-gray-500">
+            {formatLitres(litresCur)} L this year · {formatLitres(litresPrev)} L last year{' '}
+            <span className={`font-medium ${varianceClass(delta)}`}>{formatGallonVariance(delta)} gal</span>
+          </p>
+        </div>
+      )
+    }
+    return (
+      <div className={insightCardClass}>
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Fuel comparison</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {day ? `${formatRecordedDayLabel(day.date)} · last recorded day` : 'Last recorded day'}
+            </p>
+          </div>
+          <Link href={href} className="shrink-0 text-sm font-medium text-emerald-700 hover:text-emerald-900">
+            Fuel comparison →
+          </Link>
+        </div>
+        {day ? (
+          <>
+            <div className="space-y-4">
+              {grade('Unleaded', day.gasLitresCur, day.gasLitresPrev, day.gasGallonsCur, day.gasGallonsPrev, 'bg-emerald-500')}
+              {grade('Diesel', day.dieselLitresCur, day.dieselLitresPrev, day.dieselGallonsCur, day.dieselGallonsPrev, 'bg-emerald-800')}
+            </div>
+            <div className="mt-4 flex items-end justify-between gap-3 rounded-md bg-gray-50 px-3 py-2.5">
+              <div>
+                <div className="text-sm font-semibold text-gray-900">Total {formatGallons(day.totalGallonsCur)} gal</div>
+                <div className="text-xs text-gray-500">vs {formatGallons(day.totalGallonsPrev)} gal in {day.prevYear}</div>
+              </div>
+              <div className={`text-lg font-semibold tabular-nums ${varianceClass(day.variance)}`}>
+                {formatGallonVariance(day.variance)} gal
+              </div>
+            </div>
+            {day.hasMissingShiftData ? (
+              <p className="mt-2 text-xs text-amber-800">Shift fuel data is incomplete for this day.</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">No fuel recorded for a recent day.</p>
+        )}
+      </div>
+    )
+  }
+
   const renderUpcomingCard = () => (
     <div className={insightCardClass}>
       <div className="mb-3 flex items-center justify-between gap-2 shrink-0">
@@ -1685,7 +1779,9 @@ export default function DashboardPage() {
   }
 
   const dashboardScopeHint = summary
-    ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
+    ? isStakeholder
+      ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster = today · Fuel comparison = last recorded day`
+      : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
     : 'Select a month to load summary data'
 
   return (
@@ -1778,7 +1874,7 @@ export default function DashboardPage() {
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
-          {renderUpcomingCard()}
+          {isStakeholder ? renderFuelComparisonBarsCard() : renderUpcomingCard()}
         </div>
 
         {showRecentFuelPaymentHero ? (

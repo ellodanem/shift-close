@@ -34,6 +34,26 @@ export type LastClosedDayMoney = {
   overShort: number
 }
 
+/** One fuel-comparison day: the latest date with this year's volume recorded. */
+export type FuelComparisonRecordedDay = {
+  date: string
+  year: number
+  month: number
+  prevYear: number
+  gasLitresCur: number
+  gasLitresPrev: number
+  dieselLitresCur: number
+  dieselLitresPrev: number
+  gasGallonsCur: number
+  gasGallonsPrev: number
+  dieselGallonsCur: number
+  dieselGallonsPrev: number
+  totalGallonsCur: number
+  totalGallonsPrev: number
+  variance: number
+  hasMissingShiftData: boolean
+}
+
 export type FuelGradeGlance = {
   gasGallonsCur: number
   gasGallonsPrev: number

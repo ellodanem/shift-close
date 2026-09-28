@@ -6,6 +6,7 @@ import {
   buildFuelVolumeMaps,
   buildMonthsForYear,
   fuelComparisonThroughDate,
+  lastRecordedFuelDay,
   totalsFromRows
 } from '../lib/fuel-comparison'
 
@@ -86,5 +87,25 @@ describe('fuel comparison monthly view', () => {
     assert.equal(through.accumulated.dieselLitresCur, 200)
     const fullMonth = totalsFromRows(days)
     assert.ok(fullMonth.gasLitresPrev > through.accumulated.gasLitresPrev)
+  })
+
+  it('picks the latest day with this year volume and skips later prior-year-only rows', () => {
+    const maps = buildFuelVolumeMaps(
+      [
+        { date: '2026-09-25', unleadedLitres: 3262, dieselLitres: 1154 },
+        { date: '2026-09-26', unleadedLitres: 0, dieselLitres: 0 }
+      ],
+      [
+        { date: '2025-09-25', unleadedLitres: 8576, dieselLitres: 3062 },
+        { date: '2025-09-27', unleadedLitres: 9000, dieselLitres: 1000 }
+      ],
+      [],
+      []
+    )
+    const days = buildDaysForMonth(2026, 9, maps)
+    const recorded = lastRecordedFuelDay(days, '2026-09-27')
+    assert.equal(recorded?.date, '2026-09-25')
+    assert.equal(recorded?.gasLitresCur, 3262)
+    assert.equal(lastRecordedFuelDay(days, '2026-09-24'), null)
   })
 })
