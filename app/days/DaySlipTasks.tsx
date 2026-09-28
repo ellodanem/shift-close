@@ -243,9 +243,7 @@ export default function DaySlipTasks({
                     </span>
                     <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
                   </div>
-                  {task.id === 'deposit' ? (
-                    <p className="mt-2 text-2xl font-bold text-gray-900">{formatCurrency(dayReport.totals.totalDeposits)}</p>
-                  ) : null}
+                  {task.id === 'deposit' ? <DepositTotal dayReport={dayReport} /> : null}
                   {task.id === 'debit' ? (
                     <div className="mt-2 flex gap-8">
                       <div>
@@ -410,6 +408,64 @@ export default function DaySlipTasks({
           deleting={deleting}
         />
       ) : null}
+    </div>
+  )
+}
+
+function depositLines(day: DayReport): number[] {
+  return day.shifts.flatMap((shift) =>
+    (Array.isArray(shift.deposits) ? shift.deposits : []).filter((amount) => amount > 0)
+  )
+}
+
+function DepositTotal({ dayReport }: { dayReport: DayReport }) {
+  const lines = depositLines(dayReport)
+  const total = formatCurrency(dayReport.totals.totalDeposits)
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open || lines.length <= 1) return
+    const onPointer = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, lines.length])
+
+  if (lines.length <= 1) {
+    return <p className="mt-2 text-2xl font-bold text-gray-900">{total}</p>
+  }
+
+  return (
+    <div ref={rootRef} className="group relative mt-2 w-fit">
+      <button
+        type="button"
+        className="text-2xl font-bold text-gray-900 underline decoration-dotted decoration-gray-400 underline-offset-4"
+        aria-expanded={open}
+        aria-label="Deposit amounts"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {total}
+      </button>
+      <ul
+        className={`absolute left-0 z-30 mt-1 min-w-[9rem] rounded-md border border-gray-200 bg-white px-3 py-2 shadow-lg ${
+          open ? 'block' : 'hidden group-hover:block'
+        }`}
+      >
+        {lines.map((amount, index) => (
+          <li key={`${amount}-${index}`} className="py-0.5 text-sm font-semibold text-gray-900">
+            {formatCurrency(amount)}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
