@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncCashbookEntryToShiftDeposit } from '@/lib/cashbook-deposit-sync'
+import { syncCashbookEntryToShiftCardIncome } from '@/lib/cashbook-shift-income'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,7 +100,7 @@ export async function PATCH(
 
     const existing = await prisma.cashbookEntry.findUnique({
       where: { id },
-      select: { shiftId: true, depositLineIndex: true, customerArPaymentId: true }
+      select: { shiftId: true, depositLineIndex: true, customerArPaymentId: true, shiftIncomeKind: true }
     })
 
     if (existing?.customerArPaymentId) {
@@ -137,6 +138,18 @@ export async function PATCH(
         await syncCashbookEntryToShiftDeposit(id, amt)
       } catch (syncErr) {
         console.error('Failed to sync cashbook deposit to shift:', syncErr)
+      }
+    }
+
+    if (
+      existing?.shiftIncomeKind &&
+      typeof amt === 'number' &&
+      amt >= 0
+    ) {
+      try {
+        await syncCashbookEntryToShiftCardIncome(id, amt)
+      } catch (syncErr) {
+        console.error('Failed to sync cashbook credit or debit to shift:', syncErr)
       }
     }
 

@@ -5,6 +5,10 @@ import {
   shouldSyncDepositsAfterShiftUpdate,
   syncShiftDepositsToCashbook
 } from '@/lib/cashbook-deposit-sync'
+import {
+  shouldSyncCardIncomeAfterShiftUpdate,
+  syncShiftCardIncomeToCashbook
+} from '@/lib/cashbook-shift-income'
 import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
 
 export async function GET(
@@ -382,6 +386,12 @@ export async function PATCH(
       nextStatus,
       depositsChanged || 'deposits' in updateData
     )
+    const cardIncomeChanged = changes.some((c) => c.field === 'otherCredit' || c.field === 'systemDebit')
+    const willSyncCardIncome = shouldSyncCardIncomeAfterShiftUpdate(
+      existingShift.status,
+      nextStatus,
+      cardIncomeChanged || 'otherCredit' in updateData || 'systemDebit' in updateData
+    )
 
     const shift = await prisma.shiftClose.update({
       where: { id },
@@ -413,6 +423,14 @@ export async function PATCH(
         await syncShiftDepositsToCashbook(shift.id)
       } catch (cashbookErr) {
         console.error('Failed to sync shift deposits to cashbook:', cashbookErr)
+      }
+    }
+
+    if (willSyncCardIncome) {
+      try {
+        await syncShiftCardIncomeToCashbook(shift.id)
+      } catch (cashbookErr) {
+        console.error('Failed to sync shift credit and debit to cashbook:', cashbookErr)
       }
     }
     

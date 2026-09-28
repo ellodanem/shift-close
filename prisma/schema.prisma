@@ -959,6 +959,7 @@ model CashbookEntry {
   // Optional links into other modules for reconciliation (not required)
   shiftId              String?  // If this row is related to a ShiftClose
   depositLineIndex     Int?     @map("deposit_line_index") // Index in ShiftClose.deposits JSON when auto-synced
+  shiftIncomeKind      String?  @map("shift_income_kind") // credit | debit from a closed shift
   paymentBatchId       String?  // If related to a fuel PaymentBatch
   vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
   customerArPaymentId  String?  @unique @map("customer_ar_payment_id") // Customer A/R payment booked as a deposit
@@ -971,6 +972,7 @@ model CashbookEntry {
   customerArPayment CustomerArPayment? @relation(fields: [customerArPaymentId], references: [id], onDelete: Cascade)
 
   @@unique([shiftId, depositLineIndex], name: "cashbook_entries_shift_deposit_line")
+  @@unique([shiftId, shiftIncomeKind], name: "cashbook_entries_shift_income_kind")
   @@index([date])
   @@map("cashbook_entries")
 }

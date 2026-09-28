@@ -4,6 +4,7 @@ import { calculateShiftClose } from '@/lib/calculations'
 import { addCalendarDaysYmd, businessTodayYmd, isYmd } from '@/lib/datetime-policy'
 import { buildShiftsList } from '@/lib/shifts-list'
 import { syncShiftDepositsToCashbook } from '@/lib/cashbook-deposit-sync'
+import { syncShiftCardIncomeToCashbook } from '@/lib/cashbook-shift-income'
 import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
@@ -232,6 +233,11 @@ export async function POST(request: NextRequest) {
         await syncShiftDepositsToCashbook(updatedShift.id)
       } catch (cashbookErr) {
         console.error('Failed to sync shift deposits to cashbook:', cashbookErr)
+      }
+      try {
+        await syncShiftCardIncomeToCashbook(updatedShift.id)
+      } catch (cashbookErr) {
+        console.error('Failed to sync shift credit and debit to cashbook:', cashbookErr)
       }
     }
     
