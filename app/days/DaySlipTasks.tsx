@@ -241,7 +241,7 @@ export default function DaySlipTasks({
                     <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center">
                       <SlipIcon id={task.id} />
                     </span>
-                    <p className="font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
+                    <p className="text-sm font-semibold text-gray-900">{ROW_COPY[task.id].title}</p>
                   </div>
                   {task.id === 'deposit' ? <DepositTotal dayReport={dayReport} /> : null}
                   {task.id === 'debit' ? (
