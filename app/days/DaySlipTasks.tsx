@@ -715,7 +715,7 @@ function Fact({ label, value, valueClass }: { label: string; value: string; valu
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`text-[10px] font-bold leading-tight text-gray-950 ${valueClass ?? ''}`}>{value}</p>
+      <p className={`text-xs font-bold leading-tight text-gray-950 ${valueClass ?? ''}`}>{value}</p>
     </div>
   )
 }
