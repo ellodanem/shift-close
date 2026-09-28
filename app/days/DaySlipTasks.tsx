@@ -303,7 +303,7 @@ export default function DaySlipTasks({
                     )
                   ) : null}
                 </div>
-                <div className="flex flex-col items-start gap-2 sm:items-end">
+                <div className="flex flex-col items-start gap-1.5 sm:items-end">
                   <input
                     ref={inputFor(task.id) as Ref<HTMLInputElement>}
                     type="file"
@@ -315,7 +315,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
+                      className="text-xs font-medium text-blue-700 hover:underline disabled:opacity-50"
                       disabled={uploading !== null || deleting}
                       onClick={() => inputFor(task.id).current?.click()}
                     >
@@ -324,7 +324,7 @@ export default function DaySlipTasks({
                   ) : (
                     <button
                       type="button"
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                       disabled={uploading !== null}
                       onClick={() => inputFor(task.id).current?.click()}
                     >
@@ -334,7 +334,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="rounded-md border border-blue-600 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                      className="rounded-md border border-blue-600 bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                       onClick={() => {
                         if (task.id === 'security') setSecurityOpen(true)
                         else onCompare(task.id)
@@ -346,7 +346,7 @@ export default function DaySlipTasks({
                   {task.photoCount > 0 ? (
                     <button
                       type="button"
-                      className="text-sm font-medium text-blue-700 hover:underline"
+                      className="text-xs font-medium text-blue-700 hover:underline"
                       onClick={() => onEmail(task.id)}
                     >
                       Email
@@ -355,7 +355,7 @@ export default function DaySlipTasks({
                   {task.photoCount === 1 ? (
                     <button
                       type="button"
-                      className="text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                      className="text-xs font-medium text-red-700 hover:underline disabled:opacity-50"
                       disabled={deleting || uploading !== null}
                       onClick={() => {
                         const url = scanUrls(dayReport, task.id)[0]
