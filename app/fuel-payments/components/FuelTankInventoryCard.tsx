@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { businessTodayYmd, formatDateOnlyForDisplay } from '@/lib/datetime-policy'
-import { DIESEL_UNUSABLE_LITRES, UNLEADED_UNUSABLE_LITRES, formatLitres } from '@/lib/fuel-inventory'
+import { formatLitres } from '@/lib/fuel-inventory'
 
 type GradeState = {
   enough: boolean
@@ -63,53 +63,43 @@ export function FuelTankInventoryCard() {
   const todayLabel = data ? `${data.weekdayName} ${data.asOfDate}` : ''
 
   return (
-    <div className="mb-6 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            On hand while you pay. Update readings on Fuel expectancy. Forecasts use usable litres
-            (unleaded − {formatLitres(UNLEADED_UNUSABLE_LITRES)} L, diesel −{' '}
-            {formatLitres(DIESEL_UNUSABLE_LITRES)} L).
-          </p>
-        </div>
-        <Link
-          href="/insights/fuel-expectancy"
-          className="text-sm font-medium text-emerald-800 hover:text-emerald-950"
-        >
-          Update tanks →
-        </Link>
-      </div>
-
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Tanks</span>
       {loading ? (
-        <p className="mt-4 text-sm text-gray-500">Loading tank levels…</p>
+        <span className="text-gray-500">Loading tank levels…</span>
       ) : error ? (
-        <p className="mt-4 text-sm text-red-700">{error}</p>
+        <span className="text-red-700">{error}</span>
       ) : !data?.book ? (
-        <p className="mt-4 text-sm text-amber-800">
-          No opening reading yet. Set one on Fuel expectancy.
-        </p>
+        <span className="text-amber-800">No opening reading yet.</span>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <GradeCard
+        <>
+          <GradeStatus
             label="Unleaded"
             onHand={data.book.onHand.unleaded}
-            usable={data.book.usable.unleaded}
             enough={rest?.typical.unleaded.enough ?? false}
             shortBy={rest?.typical.unleaded.shortBy ?? 0}
             todayLabel={todayLabel}
+            known={Boolean(rest)}
           />
-          <GradeCard
+          <span className="hidden text-gray-300 sm:inline" aria-hidden>
+            |
+          </span>
+          <GradeStatus
             label="Diesel"
             onHand={data.book.onHand.diesel}
-            usable={data.book.usable.diesel}
             enough={rest?.typical.diesel.enough ?? false}
             shortBy={rest?.typical.diesel.shortBy ?? 0}
             todayLabel={todayLabel}
+            known={Boolean(rest)}
           />
-        </div>
+        </>
       )}
-
+      <Link
+        href="/insights/fuel-expectancy"
+        className="ml-auto text-sm font-medium text-emerald-800 hover:text-emerald-950"
+      >
+        Update
+      </Link>
     </div>
   )
 }
@@ -373,31 +363,48 @@ function BaselineConflictNotice({
   )
 }
 
-function GradeCard({
+function GradeStatus({
   label,
   onHand,
-  usable,
   enough,
   shortBy,
-  todayLabel
+  todayLabel,
+  known
 }: {
   label: string
   onHand: number
-  usable: number
   enough: boolean
   shortBy: number
   todayLabel: string
+  known: boolean
 }) {
+  const status = !known
+    ? null
+    : enough
+      ? 'Enough'
+      : `Short ${formatLitres(shortBy)} L`
+  const detail = !known
+    ? undefined
+    : enough
+      ? `Enough for a typical ${todayLabel}`
+      : `Short ${formatLitres(shortBy)} L vs a typical ${todayLabel}`
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="mt-1 font-mono text-xl font-semibold text-gray-900">{formatLitres(onHand)} L</div>
-      <div className="text-sm text-gray-600">Usable {formatLitres(usable)} L</div>
-      <div className={`mt-2 text-sm font-medium ${enough ? 'text-emerald-800' : 'text-red-700'}`}>
-        {enough
-          ? `Enough for a typical ${todayLabel}`
-          : `Short ${formatLitres(shortBy)} L vs a typical ${todayLabel}`}
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-1.5" title={detail}>
+      <span className="text-gray-900">
+        {label} {formatLitres(onHand)} L
+      </span>
+      {status ? (
+        <span
+          className={`rounded-full border px-1.5 py-0.5 text-xs font-medium ${
+            enough
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {status}
+        </span>
+      ) : null}
+    </span>
   )
 }
