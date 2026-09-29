@@ -28,8 +28,8 @@ export function PayrollSettingsButton({ labeled = false }: { labeled?: boolean }
         onClick={() => setOpen(true)}
         className={
           labeled
-            ? 'inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50'
-            : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ? 'inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:h-10 sm:min-h-0 sm:w-auto'
+            : 'inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0'
         }
       >
         <svg
@@ -145,12 +145,12 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
+        className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
       >
         <h2 id={titleId} className="text-lg font-semibold text-slate-900">
           Payroll settings
@@ -164,7 +164,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             disabled={loading || saving}
             autoFocus
             onChange={(e) => field('companyName', e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
           />
         </label>
         <label className="mt-4 block text-sm">
@@ -174,7 +174,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             maxLength={PAYSLIP_COMPANY_ADDRESS_MAX}
             disabled={loading || saving}
             onChange={(e) => field('address', e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
           />
         </label>
         <label className="mt-4 block text-sm">
@@ -184,7 +184,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             maxLength={PAYSLIP_COMPANY_PHONE_MAX}
             disabled={loading || saving}
             onChange={(e) => field('phone', e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
           />
         </label>
         <div className="mt-6 border-t border-slate-200 pt-4">
@@ -198,7 +198,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
               value={overtimeRate}
               disabled={loading || saving}
               onChange={(e) => setOvertimeRate(e.target.value)}
-              className="mt-1 w-32 rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0 sm:w-32"
             />
           </label>
           <p className="mt-2 text-sm text-slate-600">
@@ -210,12 +210,12 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
         {error ? (
           <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         ) : null}
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50 sm:min-h-0 sm:w-auto"
           >
             Cancel
           </button>
@@ -223,7 +223,7 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={() => void save()}
             disabled={loading || saving || !ready}
-            className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+            className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

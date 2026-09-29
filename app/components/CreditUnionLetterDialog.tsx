@@ -28,8 +28,8 @@ export function CreditUnionLetterDialog({
   const patch = (next: Partial<CreditUnionLetterDraft>) => onChange({ ...draft, ...next })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+      <div className="my-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
         <h2 className="text-lg font-semibold text-slate-900">Email {draft.code} letter</h2>
         <p className="mt-1 text-sm text-slate-600">
           To is empty on purpose — fill the credit union address. Edit the letter, then send. The salary list
@@ -44,7 +44,7 @@ export function CreditUnionLetterDialog({
             type="email"
             value={draft.to}
             onChange={(e) => patch({ to: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-[44px] w-full rounded border border-slate-300 px-3 py-2 text-sm sm:min-h-0"
             placeholder="credit-union@example.com"
           />
         </label>
@@ -54,7 +54,7 @@ export function CreditUnionLetterDialog({
             type="text"
             value={draft.subject}
             onChange={(e) => patch({ subject: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-[44px] w-full rounded border border-slate-300 px-3 py-2 text-sm sm:min-h-0"
           />
         </label>
         <label className="mt-3 block text-sm font-medium text-slate-700">
@@ -63,7 +63,7 @@ export function CreditUnionLetterDialog({
             value={draft.message}
             onChange={(e) => patch({ message: e.target.value })}
             rows={3}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-[44px] w-full rounded border border-slate-300 px-3 py-2 text-sm sm:min-h-0"
           />
         </label>
         <label className="mt-3 block text-sm font-medium text-slate-700">
@@ -75,11 +75,11 @@ export function CreditUnionLetterDialog({
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-serif text-sm"
           />
         </label>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-800"
+            className="min-h-[44px] w-full rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-800 sm:min-h-0 sm:w-auto"
           >
             Cancel
           </button>
@@ -87,7 +87,7 @@ export function CreditUnionLetterDialog({
             type="button"
             disabled={busy}
             onClick={onSend}
-            className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+            className="min-h-[44px] w-full rounded-md bg-violet-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60 sm:min-h-0 sm:w-auto"
           >
             {busy ? 'Sending…' : 'Send'}
           </button>

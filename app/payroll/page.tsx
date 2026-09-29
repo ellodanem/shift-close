@@ -229,13 +229,13 @@ export default function PayrollStartPage() {
 
   return (
     <div className="min-h-full">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex items-start justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-4 pb-10 sm:px-6 sm:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Payroll</h1>
             <p className="mt-1 text-sm text-slate-500">Westline Enterprise Ltd · Main · Saint Lucia</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <PayrollSettingsButton labeled />
             <button
               type="button"
@@ -243,7 +243,7 @@ export default function PayrollStartPage() {
                 setError(null)
                 setCreateOpen(true)
               }}
-              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800"
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800 sm:h-10 sm:min-h-0 sm:w-auto"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
                 <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
@@ -253,7 +253,7 @@ export default function PayrollStartPage() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             {STATUS_CHIPS.map((chip) => {
               const selected = statusFilter === chip.id
@@ -263,8 +263,8 @@ export default function PayrollStartPage() {
                   type="button"
                   aria-pressed={selected}
                   onClick={() => toggleStatus(chip.id)}
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium ${
-                    chip.id === 'void' ? 'ml-1' : ''
+                  className={`inline-flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium sm:min-h-0 ${
+                    chip.id === 'void' ? 'sm:ml-1' : ''
                   } ${selected ? chip.active : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
                   <span className={`h-2 w-2 rounded-full ${chip.dot}`} aria-hidden="true" />
@@ -273,12 +273,12 @@ export default function PayrollStartPage() {
               )
             })}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <button
               type="button"
               aria-expanded={filtersOpen}
               onClick={() => setFiltersOpen((open) => !open)}
-              className={`inline-flex h-10 items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium ${
+              className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border bg-white px-3 text-sm font-medium sm:h-10 sm:min-h-0 ${
                 filtersActive
                   ? 'border-violet-200 text-violet-800'
                   : 'border-slate-300 text-slate-700 hover:bg-slate-50'
@@ -287,12 +287,12 @@ export default function PayrollStartPage() {
               Filters
               {filtersActive ? <span className="h-2 w-2 rounded-full bg-violet-600" aria-hidden="true" /> : null}
             </button>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-600 sm:min-h-0">
               Year
               <select
                 value={year === 'all' ? 'all' : String(year)}
                 onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900"
+                className="h-10 min-h-[44px] w-full rounded-md border border-slate-300 bg-white px-3 text-slate-900 sm:min-h-0 sm:w-auto"
               >
                 {yearOptions.map((option) => (
                   <option key={option} value={option}>
@@ -306,13 +306,13 @@ export default function PayrollStartPage() {
         </div>
 
         {filtersOpen ? (
-          <div className="mt-3 flex flex-wrap items-end gap-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="block text-sm">
               <span className="font-medium text-slate-800">Month</span>
               <select
                 value={month === 'all' ? 'all' : String(month)}
                 onChange={(e) => setMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                className="mt-1 block min-h-[44px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:min-h-0 sm:w-auto"
               >
                 <option value="all">All months</option>
                 {PAYROLL_MONTHS.map((name, index) => (
@@ -327,7 +327,7 @@ export default function PayrollStartPage() {
               <select
                 value={cycle === 'all' ? 'all' : String(cycle)}
                 onChange={(e) => setCycle(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                className="mt-1 block min-h-[44px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:min-h-0 sm:w-auto"
               >
                 <option value="all">All cycles</option>
                 {cycleOptions.map((option) => (
@@ -342,7 +342,7 @@ export default function PayrollStartPage() {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value === 'earliest' ? 'earliest' : 'latest')}
-                className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2"
+                className="mt-1 block min-h-[44px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:min-h-0 sm:w-auto"
               >
                 <option value="latest">Latest cycle</option>
                 <option value="earliest">Earliest cycle</option>
@@ -360,7 +360,67 @@ export default function PayrollStartPage() {
         ) : visibleRuns.length === 0 ? (
           <p className="mt-6 text-sm text-slate-500">{listMessage}</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {visibleRuns.map((run) => {
+              const totals = payRunTotals(run.lines)
+              const cycleNo = shownCycleNumber(run.cycleNumber, run.endDate)
+              const draft = run.status !== 'processed' && run.status !== 'void'
+              return (
+                <article key={run.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <button
+                    type="button"
+                    onClick={() => openRun(run.id)}
+                    className={`min-h-[44px] text-left text-base font-medium ${
+                      run.status === 'void' ? 'text-slate-500' : 'text-slate-900'
+                    }`}
+                  >
+                    {payRunListTitle(run.cycleNumber, run.startDate, run.endDate)}
+                  </button>
+                  <p className="text-sm text-slate-600">
+                    {cycleNo > 0 ? `Cycle ${cycleNo}` : 'Cycle —'} · {mdy(run.payDate)}
+                  </p>
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <dt className="text-slate-500">Gross</dt>
+                      <dd className="tabular-nums text-slate-800">{formatCurrency(totals.gross)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Net</dt>
+                      <dd className="font-medium tabular-nums text-slate-900">{formatCurrency(totals.net)}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-3 flex items-center gap-2">
+                    {draft ? (
+                      <button
+                        type="button"
+                        onClick={() => openRun(run.id)}
+                        className="min-h-[44px] flex-1 rounded-md bg-violet-700 px-3 text-sm font-semibold text-white hover:bg-violet-800"
+                      >
+                        Continue
+                      </button>
+                    ) : (
+                      <span
+                        className={`inline-flex min-h-[44px] flex-1 items-center rounded-md px-2.5 text-sm font-semibold ${
+                          run.status === 'void' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+                        }`}
+                      >
+                        {statusLabel(run.status)}
+                      </span>
+                    )}
+                    <RunMenu
+                      touch
+                      disabled={busy}
+                      canDelete={run.status === 'draft'}
+                      onOpen={() => openRun(run.id)}
+                      onDelete={() => void deleteDraft(run.id)}
+                    />
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-slate-500">
                 <tr>
@@ -446,6 +506,7 @@ export default function PayrollStartPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -482,12 +543,14 @@ function RunMenu({
   disabled,
   canDelete,
   onOpen,
-  onDelete
+  onDelete,
+  touch = false
 }: {
   disabled: boolean
   canDelete: boolean
   onOpen: () => void
   onDelete: () => void
+  touch?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
@@ -535,7 +598,11 @@ function RunMenu({
           setPosition({ top: rect.bottom + 4, left: rect.right })
           setOpen(true)
         }}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40"
+        className={
+          touch
+            ? 'inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40'
+            : 'inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40'
+        }
       >
         ···
       </button>
@@ -553,7 +620,9 @@ function RunMenu({
               setOpen(false)
               onOpen()
             }}
-            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            className={`w-full px-3 text-left text-sm text-slate-700 hover:bg-slate-50 ${
+              touch ? 'flex min-h-[44px] items-center' : 'block py-2'
+            }`}
           >
             Open
           </button>
@@ -565,7 +634,9 @@ function RunMenu({
                 setOpen(false)
                 onDelete()
               }}
-              className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+              className={`w-full px-3 text-left text-sm text-red-700 hover:bg-red-50 ${
+                touch ? 'flex min-h-[44px] items-center' : 'block py-2'
+              }`}
             >
               Delete
             </button>
@@ -622,12 +693,12 @@ function CreatePayRunDialog({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl"
+        className="my-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
       >
         <h2 id={titleId} className="text-lg font-semibold text-slate-900">
           Create pay run
@@ -649,7 +720,7 @@ function CreatePayRunDialog({
                 value={periodId}
                 onChange={(e) => onChoosePeriod(e.target.value)}
                 autoFocus
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:min-h-0"
               >
                 {periods.length === 0 ? <option value="">No extracted period yet</option> : null}
                 {periods.map((period, index) => (
@@ -666,7 +737,7 @@ function CreatePayRunDialog({
                 type="date"
                 value={startDate}
                 onChange={(e) => onStartDate(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
               />
             </label>
             <label className="block text-sm">
@@ -675,7 +746,7 @@ function CreatePayRunDialog({
                 type="date"
                 value={endDate}
                 onChange={(e) => onEndDate(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
               />
             </label>
             <label className="block text-sm">
@@ -686,7 +757,7 @@ function CreatePayRunDialog({
                 max={53}
                 value={cycleNumber}
                 onChange={(e) => onCycleNumber(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
               />
             </label>
             <label className="block text-sm">
@@ -695,7 +766,7 @@ function CreatePayRunDialog({
                 type="date"
                 value={payDate}
                 onChange={(e) => onPayDate(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
               />
             </label>
           </div>
@@ -706,19 +777,19 @@ function CreatePayRunDialog({
           {error ? (
             <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           ) : null}
-          <div className="mt-6 flex justify-end gap-3">
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+              className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busy || loading || !periodId}
-              className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               {busy ? 'Opening…' : 'Enter payroll'}
             </button>

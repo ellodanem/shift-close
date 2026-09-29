@@ -55,25 +55,29 @@ export function PrintDocumentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="print-document-title"
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl"
+        className="my-4 flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
           <div>
             <h2 id="print-document-title" className="text-lg font-semibold text-slate-900">
               {preview.title}
             </h2>
             <p className="mt-1 text-sm text-slate-600">{preview.subtitle}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-sm font-medium text-slate-600 hover:text-slate-900">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-[44px] items-center text-sm font-medium text-slate-600 hover:text-slate-900 sm:min-h-0"
+          >
             Close
           </button>
         </div>
-        <div className="overflow-auto bg-slate-100 px-6 py-5">
+        <div className="overflow-auto bg-slate-100 px-4 py-4 sm:px-6 sm:py-5">
           <iframe
             ref={frameRef}
             title={preview.title}
@@ -83,19 +87,19 @@ export function PrintDocumentModal({
             style={{ height: frameHeight }}
           />
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-          {error ? <p className="mr-auto text-sm text-red-700">{error}</p> : null}
+        <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          {error ? <p className="text-sm text-red-700 sm:mr-auto">{error}</p> : null}
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:w-auto"
           >
             Close
           </button>
           <button
             type="button"
             onClick={print}
-            className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+            className="min-h-[44px] w-full rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 sm:min-h-0 sm:w-auto"
           >
             Print
           </button>
@@ -103,7 +107,7 @@ export function PrintDocumentModal({
             <button
               type="button"
               onClick={preview.onExcel}
-              className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+              className="min-h-[44px] w-full rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 sm:min-h-0 sm:w-auto"
             >
               Excel
             </button>
@@ -114,7 +118,7 @@ export function PrintDocumentModal({
               void download()
             }}
             disabled={downloading}
-            className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+            className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
           >
             {downloading ? 'Preparing…' : 'Download'}
           </button>

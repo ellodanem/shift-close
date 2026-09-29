@@ -292,7 +292,8 @@ function HoursField({
   readOnly,
   onChange,
   onBlur,
-  label
+  label,
+  roomy = false
 }: {
   value: string
   disabled?: boolean
@@ -300,6 +301,7 @@ function HoursField({
   onChange: (value: string) => void
   onBlur?: () => void
   label: string
+  roomy?: boolean
 }) {
   return (
     <input
@@ -310,8 +312,225 @@ function HoursField({
       readOnly={readOnly}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
-      className="w-20 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums read-only:cursor-default disabled:opacity-60"
+      className={
+        roomy
+          ? 'min-h-[44px] w-full rounded border border-slate-200 bg-slate-50 px-3 py-2 text-right text-base tabular-nums read-only:cursor-default disabled:opacity-60'
+          : 'w-20 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums read-only:cursor-default disabled:opacity-60'
+      }
     />
+  )
+}
+
+function HelpTip({ label, children }: { label: string; children: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: MouseEvent) => {
+      if (ref.current?.contains(event.target as Node)) return
+      setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <span ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 sm:h-5 sm:min-h-0 sm:w-5 sm:min-w-0"
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        ?
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white shadow-lg"
+        >
+          {children}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function CategoryControl({
+  line,
+  draft,
+  category,
+  locked,
+  busy,
+  roomy,
+  attendanceText,
+  categoryValue,
+  onChange,
+  onBlur
+}: {
+  line: PayRunLine
+  draft: Draft
+  category: PayrollCategory
+  locked: boolean
+  busy: boolean
+  roomy?: boolean
+  attendanceText: (line: PayRunLine, category: PayrollCategory) => string
+  categoryValue: (draft: Draft, category: PayrollCategory) => string
+  onChange: (value: string) => void
+  onBlur: () => void
+}) {
+  if (category.id === 'sickDays') {
+    return (
+      <HoursField
+        label={`SICK for ${line.staffName}`}
+        value={attendanceText(line, category)}
+        readOnly
+        roomy={roomy}
+        onChange={() => {}}
+      />
+    )
+  }
+  if (category.kind === 'attendance') {
+    return (
+      <span
+        className={
+          roomy
+            ? 'flex min-h-[44px] items-center text-base tabular-nums text-slate-800'
+            : 'inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800'
+        }
+      >
+        {attendanceText(line, category)}
+      </span>
+    )
+  }
+  return (
+    <HoursField
+      label={`${category.label} for ${line.staffName}`}
+      value={categoryValue(draft, category)}
+      disabled={locked || busy}
+      roomy={roomy}
+      onBlur={onBlur}
+      onChange={onChange}
+    />
+  )
+}
+
+function HoursEntryCards({
+  title,
+  empty,
+  rateLabel,
+  lines,
+  columns,
+  drafts,
+  locked,
+  busy,
+  attendanceText,
+  categoryValue,
+  setCategoryValue,
+  grossFor,
+  categoryTotal,
+  groupGross,
+  onEdit,
+  onFlush
+}: {
+  title: string
+  empty: string
+  rateLabel: string
+  lines: PayRunLine[]
+  columns: PayrollCategory[]
+  drafts: Record<string, Draft>
+  locked: boolean
+  busy: boolean
+  attendanceText: (line: PayRunLine, category: PayrollCategory) => string
+  categoryValue: (draft: Draft, category: PayrollCategory) => string
+  setCategoryValue: (lineId: string, draft: Draft, category: PayrollCategory, value: string) => void
+  grossFor: (line: PayRunLine) => number
+  categoryTotal: (lines: PayRunLine[], category: PayrollCategory) => string
+  groupGross: number
+  onEdit: (lineId: string) => void
+  onFlush: () => void
+}) {
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      {lines.length === 0 ? (
+        <p className="text-sm text-slate-500">{empty}</p>
+      ) : (
+        lines.map((line) => {
+          const draft = drafts[line.id]
+          if (!draft) return null
+          const rate = rateLabel === 'Salary' ? parseMoney(draft.salary) : parseMoney(draft.rate)
+          return (
+            <article key={line.id} className="rounded-lg border border-slate-200 bg-white p-4">
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => onEdit(line.id)}
+                className="min-h-[44px] text-left text-base font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 disabled:cursor-default disabled:text-slate-800 disabled:no-underline"
+              >
+                {line.staffName}
+              </button>
+              {line.taxCode ? <p className="text-xs text-slate-500">Tax code {line.taxCode}</p> : null}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{rateLabel}</p>
+                  <p className="mt-1 flex min-h-[44px] items-center text-base tabular-nums text-slate-800">
+                    {formatMoney(rate)}
+                  </p>
+                </div>
+                {columns.map((category) => (
+                  <label key={category.id} className="block">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{category.label}</span>
+                    <span className="mt-1 block">
+                      <CategoryControl
+                        line={line}
+                        draft={draft}
+                        category={category}
+                        locked={locked}
+                        busy={busy}
+                        roomy
+                        attendanceText={attendanceText}
+                        categoryValue={categoryValue}
+                        onBlur={onFlush}
+                        onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                      />
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                <span className="text-sm font-medium text-slate-600">Total</span>
+                <span className="text-base font-semibold tabular-nums text-slate-900">{formatMoney(grossFor(line))}</span>
+              </div>
+            </article>
+          )
+        })
+      )}
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <p className="font-semibold">{title} totals</p>
+        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+          {columns.map((category) => (
+            <div key={category.id} className="flex items-baseline justify-between gap-2">
+              <dt>{category.label}</dt>
+              <dd className="font-semibold tabular-nums">{categoryTotal(lines, category) || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-2 flex items-baseline justify-between border-t border-emerald-200 pt-2 font-semibold">
+          <span>Total</span>
+          <span className="tabular-nums">{formatMoney(groupGross)}</span>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -1115,16 +1334,16 @@ export default function PayrollRunPage() {
   const rateLine = run?.lines.find((line) => line.id === rateLineId) ?? null
 
   if (loading) {
-    return <p className="p-8 text-sm text-slate-500">Loading payroll…</p>
+    return <p className="px-4 py-4 text-sm text-slate-500 sm:p-8">Loading payroll…</p>
   }
   if (!run) {
-    return <p className="p-8 text-sm text-red-700">{error || 'Payroll not found.'}</p>
+    return <p className="px-4 py-4 text-sm text-red-700 sm:p-8">{error || 'Payroll not found.'}</p>
   }
 
   return (
     <div className="min-h-full bg-white">
-      <div className="mx-auto max-w-6xl px-6 py-8 pb-28">
-        <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-4 pb-28 sm:px-6 sm:py-8 sm:pb-28">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Pay employees</h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
@@ -1136,21 +1355,21 @@ export default function PayrollRunPage() {
                 <button
                   type="button"
                   onClick={openPeriod}
-                  className="font-medium text-violet-700 hover:text-violet-900"
+                  className="inline-flex min-h-[44px] items-center font-medium text-violet-700 hover:text-violet-900 sm:min-h-0"
                 >
                   Edit
                 </button>
               )}
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
             <PayrollSettingsButton />
             {run.status === 'draft' ? (
               <button
                 type="button"
                 onClick={deleteDraft}
                 disabled={busy}
-                className="text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40"
+                className="inline-flex min-h-[44px] items-center justify-center text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40 sm:min-h-0 sm:justify-start"
               >
                 Delete draft
               </button>
@@ -1163,7 +1382,7 @@ export default function PayrollRunPage() {
                   setVoidOpen(true)
                 }}
                 disabled={busy}
-                className="text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40"
+                className="inline-flex min-h-[44px] items-center justify-center text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40 sm:min-h-0 sm:justify-start"
               >
                 Void payroll
               </button>
@@ -1171,7 +1390,7 @@ export default function PayrollRunPage() {
             <button
               type="button"
               onClick={() => router.push('/payroll')}
-              className="text-sm font-medium text-violet-700 hover:text-violet-900"
+              className="inline-flex min-h-[44px] items-center justify-center text-sm font-medium text-violet-700 hover:text-violet-900 sm:min-h-0 sm:justify-start"
             >
               All payroll
             </button>
@@ -1179,11 +1398,17 @@ export default function PayrollRunPage() {
         </div>
 
         <ol className="mb-8 grid grid-cols-3 border-b border-slate-200">
-          {(['Enter payroll', 'Approve payroll', 'Print'] as const).map((label, index) => {
+          {(
+            [
+              { full: 'Enter payroll', short: 'Enter' },
+              { full: 'Approve payroll', short: 'Approve' },
+              { full: 'Print', short: 'Print' }
+            ] as const
+          ).map((label, index) => {
             const n = (index + 1) as 1 | 2 | 3
             const active = step === n
             return (
-              <li key={label}>
+              <li key={label.full}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1192,11 +1417,16 @@ export default function PayrollRunPage() {
                     setStep(n)
                   }}
                   disabled={n === 3 && !locked}
-                  className={`w-full pb-3 text-left text-sm disabled:cursor-default ${
+                  className={`flex min-h-[44px] w-full items-end pb-3 text-left text-sm disabled:cursor-default sm:min-h-0 ${
                     active ? 'border-b-2 border-violet-700 font-semibold text-slate-900' : 'text-slate-400'
                   }`}
                 >
-                  {n}. {label}
+                  <span className="sm:hidden">
+                    {n}. {label.short}
+                  </span>
+                  <span className="hidden sm:inline">
+                    {n}. {label.full}
+                  </span>
                 </button>
               </li>
             )
@@ -1209,35 +1439,73 @@ export default function PayrollRunPage() {
 
         {step === 1 ? (
           <>
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
-              <span className="group relative inline-flex">
-                <button
-                  type="button"
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
-                  aria-label="About hours and money"
-                >
-                  ?
-                </button>
-                <span
-                  role="tooltip"
-                  className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-                >
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">Enter hours and money</h2>
+                <HelpTip label="About hours and money">
                   Basic and OT hours are filled from extracted attendance. Vacation and SICK match the attendance
                   report. SICK is locked. Edits save on their own. Click a name to change the pay rate, tax code, and
                   medical. Use Hours & money types to add or remove columns.
-                </span>
-              </span>
+                </HelpTip>
+              </div>
               <button
                 type="button"
                 onClick={() => setTypesOpen(true)}
-                className="rounded-md border border-violet-200 bg-violet-50 px-3 py-1 text-sm font-medium text-violet-800 hover:bg-violet-100"
+                className="min-h-[44px] rounded-md border border-violet-200 bg-violet-50 px-3 py-1 text-sm font-medium text-violet-800 hover:bg-violet-100 sm:min-h-0"
               >
                 Hours & money types
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="space-y-8 md:hidden">
+              <HoursEntryCards
+                title="Hourly employees"
+                empty="No hourly staff for this pay period."
+                rateLabel="Hourly rate"
+                lines={hourly}
+                columns={hourlyColumns}
+                drafts={drafts}
+                locked={Boolean(locked)}
+                busy={busy}
+                attendanceText={attendanceText}
+                categoryValue={categoryValue}
+                setCategoryValue={setCategoryValue}
+                grossFor={grossFor}
+                categoryTotal={categoryTotal}
+                groupGross={sumGross(hourly)}
+                onEdit={openPayInfo}
+                onFlush={flushSave}
+              />
+              <HoursEntryCards
+                title="Salaried employees"
+                empty="No salaried staff for this pay period."
+                rateLabel="Salary"
+                lines={salaried}
+                columns={salariedColumns}
+                drafts={drafts}
+                locked={Boolean(locked)}
+                busy={busy}
+                attendanceText={attendanceText}
+                categoryValue={categoryValue}
+                setCategoryValue={setCategoryValue}
+                grossFor={grossFor}
+                categoryTotal={categoryTotal}
+                groupGross={sumGross(salaried)}
+                onEdit={openPayInfo}
+                onFlush={flushSave}
+              />
+              <div className="flex items-center justify-between gap-4 border-t-2 border-emerald-700 pt-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">Gross pay</p>
+                  <p className="text-xs text-slate-500">Hourly and salaried staff</p>
+                </div>
+                <p className="text-sm font-semibold tabular-nums text-emerald-800">
+                  {formatMoney(sumGross(hourly) + sumGross(salaried))}
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-wide text-slate-900">
@@ -1286,26 +1554,17 @@ export default function PayrollRunPage() {
                               key={category.id}
                               className={`py-3 pr-3 ${categoryAlign(category)}`}
                             >
-                              {category.id === 'sickDays' ? (
-                                <HoursField
-                                  label={`SICK for ${line.staffName}`}
-                                  value={attendanceText(line, category)}
-                                  readOnly
-                                  onChange={() => {}}
-                                />
-                              ) : category.kind === 'attendance' ? (
-                                <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
-                                  {attendanceText(line, category)}
-                                </span>
-                              ) : (
-                                <HoursField
-                                  label={`${category.label} for ${line.staffName}`}
-                                  value={categoryValue(draft, category)}
-                                  disabled={Boolean(locked) || busy}
-                                  onBlur={flushSave}
-                                  onChange={(value) => setCategoryValue(line.id, draft, category, value)}
-                                />
-                              )}
+                              <CategoryControl
+                                line={line}
+                                draft={draft}
+                                category={category}
+                                locked={Boolean(locked)}
+                                busy={busy}
+                                attendanceText={attendanceText}
+                                categoryValue={categoryValue}
+                                onBlur={flushSave}
+                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                              />
                             </td>
                           ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
@@ -1382,26 +1641,17 @@ export default function PayrollRunPage() {
                               key={category.id}
                               className={`py-3 pr-3 ${categoryAlign(category)}`}
                             >
-                              {category.id === 'sickDays' ? (
-                                <HoursField
-                                  label={`SICK for ${line.staffName}`}
-                                  value={attendanceText(line, category)}
-                                  readOnly
-                                  onChange={() => {}}
-                                />
-                              ) : category.kind === 'attendance' ? (
-                                <span className="inline-block min-w-20 px-2 py-1 text-sm tabular-nums text-slate-800">
-                                  {attendanceText(line, category)}
-                                </span>
-                              ) : (
-                                <HoursField
-                                  label={`${category.label} for ${line.staffName}`}
-                                  value={categoryValue(draft, category)}
-                                  disabled={Boolean(locked) || busy}
-                                  onBlur={flushSave}
-                                  onChange={(value) => setCategoryValue(line.id, draft, category, value)}
-                                />
-                              )}
+                              <CategoryControl
+                                line={line}
+                                draft={draft}
+                                category={category}
+                                locked={Boolean(locked)}
+                                busy={busy}
+                                attendanceText={attendanceText}
+                                categoryValue={categoryValue}
+                                onBlur={flushSave}
+                                onChange={(value) => setCategoryValue(line.id, draft, category, value)}
+                              />
                             </td>
                           ))}
                           <td className="py-3 text-right font-medium tabular-nums">{formatMoney(grossFor(line))}</td>
@@ -1474,28 +1724,28 @@ export default function PayrollRunPage() {
               </div>
             )}
             <h2 className="mt-8 text-lg font-semibold text-slate-900">What would you like to do next?</h2>
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               <button
                 type="button"
                 onClick={() => {
                   void openPayslipPreview()
                 }}
                 disabled={openingDoc === 'payslips'}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50"
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50 sm:min-h-0"
               >
                 {openingDoc === 'payslips' ? 'Preparing…' : 'Print Payslips'}
               </button>
               <button
                 type="button"
                 onClick={openGlPreview}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
               >
                 Print GL
               </button>
               <button
                 type="button"
                 onClick={openNisPreview}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
               >
                 Print NIC
               </button>
@@ -1503,7 +1753,7 @@ export default function PayrollRunPage() {
                 type="button"
                 disabled
                 title="Coming soon"
-                className="cursor-not-allowed rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:border-violet-700 disabled:text-violet-700"
+                className="min-h-[44px] cursor-not-allowed rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:border-violet-700 disabled:text-violet-700 sm:min-h-0"
               >
                 Print PAYE
               </button>
@@ -1511,20 +1761,20 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={openPreview}
                 disabled={openingPreview}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50"
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50 sm:min-h-0"
               >
                 {openingPreview ? 'Preparing…' : 'Print Payroll Summary'}
               </button>
               <button
                 type="button"
                 onClick={openBankingPreview}
-                className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700"
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
               >
                 Print Banking List
               </button>
             </div>
             {letters.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-3">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 {letters.map((letter) => (
                   <button
                     key={letter.code}
@@ -1541,7 +1791,7 @@ export default function PayrollRunPage() {
                         summary: `${letter.members.length} ${letter.members.length === 1 ? 'person' : 'people'} · ${formatMoney(letter.total)}`
                       })
                     }}
-                    className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800"
+                    className="min-h-[44px] rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 sm:min-h-0"
                   >
                     Email {letter.code}
                   </button>
@@ -1557,19 +1807,19 @@ export default function PayrollRunPage() {
       </div>
 
       {step === 1 ? (
-        <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-3">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
+        <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={clearEntries}
                 disabled={locked}
-                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+                className="min-h-[44px] rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40 sm:min-h-0"
               >
                 Clear entries
               </button>
               <span
-                className="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-violet-900"
+                className="inline-flex min-h-[44px] items-center px-2.5 py-1.5 text-sm font-medium text-violet-900 sm:min-h-0"
                 aria-live="polite"
               >
                 {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Could not save' : 'Saved'}
@@ -1579,7 +1829,7 @@ export default function PayrollRunPage() {
                   type="button"
                   onClick={flushSave}
                   disabled={locked}
-                  className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+                  className="min-h-[44px] rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40 sm:min-h-0"
                 >
                   Save entries
                 </button>
@@ -1588,7 +1838,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={reloadHours}
                 disabled={busy || locked}
-                className="rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40"
+                className="col-span-2 min-h-[44px] rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-sm font-medium text-violet-900 hover:border-violet-300 hover:bg-violet-100 disabled:opacity-40 sm:col-auto sm:min-h-0"
               >
                 Reload hours from attendance
               </button>
@@ -1597,7 +1847,7 @@ export default function PayrollRunPage() {
               type="button"
               onClick={continueToReview}
               disabled={busy}
-              className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               {busy ? 'Saving…' : 'Continue'}
             </button>
@@ -1606,17 +1856,28 @@ export default function PayrollRunPage() {
       ) : null}
 
       {step === 2 ? (
-        <div className="sticky bottom-0 border-t border-violet-100 bg-violet-50 px-6 py-3">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <div className="flex items-center gap-4 text-sm">
-              <button type="button" onClick={() => setStep(1)} className="font-medium text-violet-700">
+        <div className="sticky bottom-0 border-t border-violet-100 bg-violet-50 px-4 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="inline-flex min-h-[44px] items-center justify-center font-medium text-violet-700 sm:min-h-0 sm:justify-start"
+              >
                 Back to employees
               </button>
-              <span className="font-medium text-violet-900" aria-live="polite">
+              <span
+                className="inline-flex min-h-[44px] items-center justify-center font-medium text-violet-900 sm:min-h-0 sm:justify-start"
+                aria-live="polite"
+              >
                 {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Could not save' : 'Saved'}
               </span>
               {saveStatus === 'error' ? (
-                <button type="button" onClick={flushSave} className="font-medium text-violet-700">
+                <button
+                  type="button"
+                  onClick={flushSave}
+                  className="inline-flex min-h-[44px] items-center justify-center font-medium text-violet-700 sm:min-h-0"
+                >
                   Save entries
                 </button>
               ) : null}
@@ -1624,7 +1885,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={openPreview}
                 disabled={busy}
-                className="font-medium text-violet-700 disabled:opacity-50"
+                className="col-span-2 inline-flex min-h-[44px] items-center justify-center font-medium text-violet-700 disabled:opacity-50 sm:col-auto sm:min-h-0 sm:justify-start"
               >
                 {openingPreview ? 'Preparing…' : 'Download preview'}
               </button>
@@ -1634,7 +1895,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={approve}
                 disabled={busy}
-                className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
                 {busy ? 'Approving…' : 'Approve payroll'}
               </button>
@@ -1644,8 +1905,8 @@ export default function PayrollRunPage() {
       ) : null}
 
       {periodDraft ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+          <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Pay period</h2>
             <p className="mt-1 text-sm text-slate-500">
               Cycle, range, and pay date for this draft. A 1st–15th or 16th–end range pays semi-monthly staff.
@@ -1659,7 +1920,7 @@ export default function PayrollRunPage() {
                   onChange={(e) =>
                     setPeriodDraft((current) => (current ? { ...current, startDate: e.target.value } : current))
                   }
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                 />
               </label>
               <label className="block text-sm">
@@ -1681,7 +1942,7 @@ export default function PayrollRunPage() {
                       }
                     })
                   }}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                 />
               </label>
               <label className="block text-sm">
@@ -1694,7 +1955,7 @@ export default function PayrollRunPage() {
                   onChange={(e) =>
                     setPeriodDraft((current) => (current ? { ...current, cycleNumber: e.target.value } : current))
                   }
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                 />
               </label>
               <label className="block text-sm">
@@ -1705,12 +1966,12 @@ export default function PayrollRunPage() {
                   onChange={(e) =>
                     setPeriodDraft((current) => (current ? { ...current, payDate: e.target.value } : current))
                   }
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                 />
               </label>
             </div>
             {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -1718,7 +1979,7 @@ export default function PayrollRunPage() {
                   setPeriodDraft(null)
                 }}
                 disabled={busy}
-                className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                className="min-h-[44px] w-full rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 sm:min-h-0 sm:w-auto"
               >
                 Cancel
               </button>
@@ -1726,7 +1987,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={savePeriod}
                 disabled={busy}
-                className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
                 {busy ? 'Saving…' : 'Save'}
               </button>
@@ -1736,8 +1997,8 @@ export default function PayrollRunPage() {
       ) : null}
 
       {typesOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+          <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Hours and money types</h2>
             <p className="mt-2 text-sm text-slate-600">
               Choose which columns are on this payroll. Basic stays. Vacation and SICK match the attendance
@@ -1746,8 +2007,8 @@ export default function PayrollRunPage() {
             </p>
             <ul className="mt-4 divide-y divide-slate-100">
               {listedPayrollCategories(categories).map((category) => (
-                <li key={category.id} className="flex items-center justify-between gap-3 py-2">
-                  <label className="flex items-center gap-2 text-sm text-slate-800">
+                <li key={category.id} className="flex min-h-[44px] items-center justify-between gap-3 py-2 sm:min-h-0">
+                  <label className="flex min-h-[44px] flex-1 items-center gap-2 text-sm text-slate-800 sm:min-h-0">
                     <input
                       type="checkbox"
                       checked={category.enabled}
@@ -1761,7 +2022,7 @@ export default function PayrollRunPage() {
                     <button
                       type="button"
                       onClick={() => removeCategory(category.id)}
-                      className="text-sm font-medium text-red-700 hover:text-red-900"
+                      className="inline-flex min-h-[44px] items-center text-sm font-medium text-red-700 hover:text-red-900 sm:min-h-0"
                     >
                       Remove
                     </button>
@@ -1769,13 +2030,13 @@ export default function PayrollRunPage() {
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex flex-wrap items-end gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end">
               <label className="block text-sm">
                 <span className="font-medium text-slate-800">New type</span>
                 <input
                   value={newTypeName}
                   onChange={(e) => setNewTypeName(e.target.value)}
-                  className="mt-1 w-48 rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0 sm:w-48"
                   placeholder="Commission"
                 />
               </label>
@@ -1784,7 +2045,7 @@ export default function PayrollRunPage() {
                 <select
                   value={newTypeKind}
                   onChange={(e) => setNewTypeKind(e.target.value as CategoryKind)}
-                  className="mt-1 rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0 sm:w-auto"
                 >
                   <option value="hours">Hours</option>
                   <option value="money">Money</option>
@@ -1795,7 +2056,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={addCategory}
                 disabled={!newTypeName.trim()}
-                className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                className="min-h-[44px] w-full rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
                 Add
               </button>
@@ -1804,7 +2065,7 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 onClick={() => setTypesOpen(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 sm:min-h-0 sm:w-auto"
               >
                 Done
               </button>
@@ -1814,8 +2075,8 @@ export default function PayrollRunPage() {
       ) : null}
 
       {voidOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+          <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Void this payroll</h2>
             <p className="mt-2 text-sm text-slate-600">
               The paycheck amounts stay on file. They stop counting toward N.I.C., and you can run this period again. A
@@ -1827,14 +2088,14 @@ export default function PayrollRunPage() {
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
                 rows={4}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
               />
             </label>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setVoidOpen(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 sm:min-h-0 sm:w-auto"
               >
                 Cancel
               </button>
@@ -1842,7 +2103,7 @@ export default function PayrollRunPage() {
                 type="button"
                 onClick={voidPayroll}
                 disabled={busy || voidReason.trim().length < 3}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                className="min-h-[44px] w-full rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
                 {busy ? 'Voiding…' : 'Void payroll'}
               </button>
@@ -1855,8 +2116,8 @@ export default function PayrollRunPage() {
       {printDoc ? <PrintDocumentModal preview={printDoc} onClose={() => setPrintDoc(null)} /> : null}
 
       {rateLine && !locked ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+          <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Edit pay information for {rateLine.staffName}</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm">
@@ -1866,7 +2127,7 @@ export default function PayrollRunPage() {
                 <input
                   value={rateValue}
                   onChange={(e) => setRateValue(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                 />
               </label>
               <label className="block text-sm">
@@ -1874,7 +2135,7 @@ export default function PayrollRunPage() {
                 <input
                   value={taxCode}
                   onChange={(e) => setTaxCode(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                   placeholder="Pay+ tax code"
                 />
               </label>
@@ -1883,14 +2144,14 @@ export default function PayrollRunPage() {
                 <input
                   value={medicalValue}
                   onChange={(e) => setMedicalValue(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0"
                   placeholder="Medical insurance"
                 />
               </label>
             </div>
             <fieldset className="mt-4 text-sm">
               <legend className="font-medium text-slate-800">Apply to</legend>
-              <label className="mt-2 flex items-center gap-2">
+              <label className="mt-2 flex min-h-[44px] items-center gap-2 sm:min-h-0">
                 <input
                   type="radio"
                   name="rate-scope"
@@ -1899,7 +2160,7 @@ export default function PayrollRunPage() {
                 />
                 Only this payroll
               </label>
-              <label className="mt-2 flex items-center gap-2">
+              <label className="mt-2 flex min-h-[44px] items-center gap-2 sm:min-h-0">
                 <input
                   type="radio"
                   name="rate-scope"
@@ -1909,15 +2170,19 @@ export default function PayrollRunPage() {
                 This payroll and future payrolls
               </label>
             </fieldset>
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={saveRate}
-                className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white"
+                className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white sm:min-h-0 sm:w-auto"
               >
                 Save pay information
               </button>
-              <button type="button" onClick={() => setRateLineId(null)} className="text-sm text-slate-600">
+              <button
+                type="button"
+                onClick={() => setRateLineId(null)}
+                className="min-h-[44px] w-full rounded-md text-sm text-slate-600 sm:min-h-0 sm:w-auto"
+              >
                 Cancel
               </button>
             </div>
@@ -1965,14 +2230,14 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="payroll-preview-title"
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
+        className="my-4 flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
           <div>
             <h2 id="payroll-preview-title" className="text-lg font-semibold text-slate-900">
               Payroll preview
@@ -1981,12 +2246,16 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
               Pay period {mdy(preview.startDate)} – {mdy(preview.endDate)} · Pay date {mdy(preview.payDate)}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-sm font-medium text-slate-600 hover:text-slate-900">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-[44px] shrink-0 items-center text-sm font-medium text-slate-600 hover:text-slate-900 sm:min-h-0"
+          >
             Close
           </button>
         </div>
-        <div className="overflow-auto bg-slate-100 px-6 py-5">
-          <div className="rounded-md border border-slate-200 bg-white px-6 py-5 shadow-sm">
+        <div className="overflow-auto bg-slate-100 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="rounded-md border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 sm:py-5">
             <p className="rounded-md bg-violet-50 px-4 py-3 text-sm text-slate-800">{payrollPreviewStatus(preview)}</p>
             <PreviewSection title="Hourly employees" lines={hourly} />
             <PreviewSection title="Salaried employees" lines={salaried} />
@@ -1999,26 +2268,26 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
             <p className="mt-2 text-sm text-slate-500">PAYE is still calculated in Pay+.</p>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-          {printError ? <p className="mr-auto text-sm text-red-700">{printError}</p> : null}
+        <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          {printError ? <p className="text-sm text-red-700 sm:mr-auto">{printError}</p> : null}
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="min-h-[44px] w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:w-auto"
           >
             Close
           </button>
           <button
             type="button"
             onClick={print}
-            className="rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+            className="min-h-[44px] w-full rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 sm:min-h-0 sm:w-auto"
           >
             Print
           </button>
           <button
             type="button"
             onClick={() => downloadPayrollPreview(preview)}
-            className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800"
+            className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 sm:min-h-0 sm:w-auto"
           >
             Download
           </button>
@@ -2037,7 +2306,41 @@ function PreviewSection({ title, lines }: { title: string; lines: PayrollPreview
   return (
     <section className="mt-5">
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <table className="mt-2 w-full text-sm">
+      <div className="mt-2 space-y-3 md:hidden">
+        {lines.map((line, index) => (
+          <article key={`${line.staffName}-${index}`} className="rounded-lg border border-slate-200 p-3 text-sm">
+            <p className="font-semibold text-slate-900">{line.staffName}</p>
+            <dl className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <dt className="text-slate-500">Hours</dt>
+                <dd className="tabular-nums">
+                  {parsePayType(line.payType) === 'salaried' ? '—' : line.hours.toFixed(2)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Gross</dt>
+                <dd className="tabular-nums">{formatMoney(line.grossPay)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Deductions</dt>
+                <dd className="tabular-nums">{formatMoney(line.totalDeductions)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-700">Net</dt>
+                <dd className="font-semibold tabular-nums">{formatMoney(line.netPay)}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+        <div className="rounded-lg bg-violet-50 p-3 text-sm font-semibold">
+          <p>Subtotal</p>
+          <p className="mt-1 font-medium">
+            Hours {hours ? hours.toFixed(2) : '—'} · Gross {formatMoney(gross)} · Deductions {formatMoney(deductions)} ·
+            Net {formatMoney(net)}
+          </p>
+        </div>
+      </div>
+      <table className="mt-2 hidden w-full text-sm md:table">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="py-2 font-semibold">Name</th>
@@ -2101,28 +2404,18 @@ function ReviewStep({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-slate-900">{details ? 'Payroll details' : 'Payroll summary'}</h2>
-          <span className="group relative inline-flex">
-            <button
-              type="button"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
-              aria-label="About this payroll"
-            >
-              ?
-            </button>
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-80 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-            >
-              Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}. Net is gross minus
-              employee NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+.
-              YTD is approved pay in {run.payDate.slice(0, 4)} through this pay date, including this payroll.
-            </span>
-          </span>
+          <HelpTip label="About this payroll">
+            {`Pay period ${mdy(run.startDate)} – ${mdy(run.endDate)} · Pay date ${mdy(run.payDate)}. Net is gross minus employee NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+. YTD is approved pay in ${run.payDate.slice(0, 4)} through this pay date, including this payroll.`}
+          </HelpTip>
         </div>
-        <button type="button" onClick={onToggleDetails} className="text-sm font-medium text-violet-700 hover:underline">
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          className="inline-flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline sm:min-h-0"
+        >
           {details ? 'View summary' : 'View details'}
         </button>
       </div>
@@ -2141,13 +2434,13 @@ function ReviewStep({
                 })
             return (
               <article key={line.id} className="border-b border-slate-200 pb-8">
-                <header className="flex items-baseline justify-between gap-3">
+                <header className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
                   <div>
                     <button
                       type="button"
                       disabled={locked}
                       onClick={() => onEditName(line.id)}
-                      className="text-left text-base font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700 disabled:cursor-default disabled:text-slate-900 disabled:no-underline"
+                      className="min-h-[44px] text-left text-base font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2 hover:decoration-violet-700 disabled:cursor-default disabled:text-slate-900 disabled:no-underline sm:min-h-0"
                     >
                       {line.staffName}
                     </button>
@@ -2243,7 +2536,7 @@ function ReviewStep({
                                     })
                                   }}
                                   onChange={(e) => onDraft(line.id, { [field.key]: e.target.value })}
-                                  className="w-28 rounded border border-slate-200 px-2 py-1 text-right"
+                                  className="min-h-[44px] w-full rounded border border-slate-200 px-2 py-1 text-right sm:min-h-0 sm:w-28"
                                 />
                               </td>
                               <td className="py-1 text-right tabular-nums">{formatMoney(ytd)}</td>
@@ -2271,7 +2564,7 @@ function ReviewStep({
                             key={field.key}
                             type="button"
                             onClick={() => setOpenDeductions((current) => ({ ...current, [`${line.id}:${field.key}`]: true }))}
-                            className="font-medium text-violet-700 hover:underline"
+                            className="inline-flex min-h-[44px] items-center font-medium text-violet-700 hover:underline sm:min-h-0"
                           >
                             Add {field.label.toLowerCase()}
                           </button>
@@ -2286,16 +2579,146 @@ function ReviewStep({
           })}
         </div>
       ) : (
-        <SummaryTable
-          hourly={hourly}
-          salaried={salaried}
-          hours={hours}
-          gross={gross}
-          deductions={deductions}
-          net={net}
-          onEditName={locked ? undefined : onEditName}
-        />
+        <>
+          <SummaryCards
+            hourly={hourly}
+            salaried={salaried}
+            hours={hours}
+            gross={gross}
+            deductions={deductions}
+            net={net}
+            onEditName={locked ? undefined : onEditName}
+          />
+          <div className="hidden md:block">
+            <SummaryTable
+              hourly={hourly}
+              salaried={salaried}
+              hours={hours}
+              gross={gross}
+              deductions={deductions}
+              net={net}
+              onEditName={locked ? undefined : onEditName}
+            />
+          </div>
+        </>
       )}
+    </div>
+  )
+}
+
+function SummaryCards({
+  hourly,
+  salaried,
+  hours,
+  gross,
+  deductions,
+  net,
+  onEditName
+}: {
+  hourly: PayRunLine[]
+  salaried: PayRunLine[]
+  hours: number
+  gross: number
+  deductions: number
+  net: number
+  onEditName?: (lineId: string) => void
+}) {
+  const block = (title: string, lines: PayRunLine[]) => {
+    const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
+    const blockGross = lines.reduce((sum, line) => sum + line.grossPay, 0)
+    const blockDeductions = lines.reduce((sum, line) => sum + line.totalDeductions, 0)
+    const blockNet = lines.reduce((sum, line) => sum + line.netPay, 0)
+    return (
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+        <div className="mt-2 space-y-3">
+          {lines.map((line) => (
+            <article key={line.id} className="rounded-lg border border-slate-200 p-4">
+              {onEditName ? (
+                <button
+                  type="button"
+                  onClick={() => onEditName(line.id)}
+                  className="min-h-[44px] text-left text-base font-semibold text-violet-700 underline decoration-violet-200 underline-offset-2"
+                >
+                  {line.staffName}
+                </button>
+              ) : (
+                <p className="text-base font-semibold text-slate-900">{line.staffName}</p>
+              )}
+              {line.taxCode ? <p className="text-xs text-slate-500">Tax code {line.taxCode}</p> : null}
+              <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <dt className="text-slate-500">Hours</dt>
+                  <dd className="tabular-nums">
+                    {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours).toFixed(2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Gross</dt>
+                  <dd className="tabular-nums">{formatMoney(line.grossPay)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Deductions</dt>
+                  <dd className="tabular-nums">{formatMoney(line.totalDeductions)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-slate-700">Net</dt>
+                  <dd className="font-semibold tabular-nums text-slate-900">{formatMoney(line.netPay)}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+          <div className="rounded-lg bg-violet-50 p-3 text-sm font-semibold">
+            <p>Subtotal</p>
+            <dl className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <dt className="font-medium text-slate-600">Hours</dt>
+                <dd className="tabular-nums">{blockHours ? blockHours.toFixed(2) : '—'}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-600">Gross</dt>
+                <dd className="tabular-nums">{formatMoney(blockGross)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-600">Deductions</dt>
+                <dd className="tabular-nums">{formatMoney(blockDeductions)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-600">Net</dt>
+                <dd className="tabular-nums">{formatMoney(blockNet)}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <div className="space-y-6 md:hidden">
+      {block('Hourly employees', hourly)}
+      {block('Salaried employees', salaried)}
+      <div className="rounded-lg bg-violet-100 p-4 text-sm font-semibold">
+        <p>Total</p>
+        <dl className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <dt className="font-medium text-slate-700">Hours</dt>
+            <dd className="tabular-nums">{hours.toFixed(2)}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-slate-700">Gross</dt>
+            <dd className="tabular-nums">{formatMoney(gross)}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-slate-700">Deductions</dt>
+            <dd className="tabular-nums">{formatMoney(deductions)}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-slate-700">Net</dt>
+            <dd className="tabular-nums">{formatMoney(net)}</dd>
+          </div>
+        </dl>
+      </div>
     </div>
   )
 }
