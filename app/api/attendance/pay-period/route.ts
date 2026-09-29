@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { markPunchesExtractedForPayPeriod } from '@/lib/attendance-extraction'
 import { attendanceRawLogsEnv } from '@/lib/attendance-raw-mode'
-import { blankReportOnlyStaffSaveError, withoutPayPeriodShortages } from '@/lib/pay-period-rows'
+import { blankReportOnlyStaffSaveError } from '@/lib/pay-period-rows'
 import { prisma } from '@/lib/prisma'
 import { readStationTimeZone } from '@/lib/present-absence'
 
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
           endDate,
           reportDate: reportDate || businessTodayYmd(),
           entityName: entityName || 'Total Auto Service Station',
-          rows: JSON.stringify(withoutPayPeriodShortages(rows)),
+          rows: JSON.stringify(rows),
           notes: typeof notes === 'string' ? notes : ''
         }
       })

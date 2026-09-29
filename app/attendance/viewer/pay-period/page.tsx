@@ -46,6 +46,10 @@ interface SavedPayPeriod {
 
 type PayPeriodData = PayPeriodExcelData & { id: string }
 
+function formatShortage(n: number): string {
+  return n > 0 ? `$${n.toFixed(2)}` : ''
+}
+
 const pprActionBtn =
   'min-h-[44px] w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-colors active:scale-[0.98]'
 
@@ -287,6 +291,7 @@ export default function MobilePayPeriodPage() {
               const data = withFullStaffNames(toPayPeriodData(p))
               const expanded = expandedId === p.id
               const totalTrans = data.rows.reduce((s, r) => s + r.transTtl, 0)
+              const totalShort = data.rows.reduce((s, r) => s + r.shortage, 0)
               return (
                 <li
                   key={p.id}
@@ -381,6 +386,7 @@ export default function MobilePayPeriodPage() {
                               <th className="text-center py-1 px-2 font-medium">Vac</th>
                               <th className="text-center py-1 px-3 font-medium min-w-[3rem]">Sick</th>
                               <th className="text-left py-1 pl-3 pr-1 font-medium min-w-[5rem]">Leave</th>
+                              <th className="text-right py-1 pl-2 font-medium">Short</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -404,6 +410,9 @@ export default function MobilePayPeriodPage() {
                                 <td className="py-1.5 pl-3 pr-1 text-slate-400 max-w-[6rem] truncate">
                                   {r.sickLeaveRanges || '—'}
                                 </td>
+                                <td className="py-1.5 text-right tabular-nums">
+                                  {formatShortage(r.shortage) || '—'}
+                                </td>
                               </tr>
                               )
                             })}
@@ -425,6 +434,9 @@ export default function MobilePayPeriodPage() {
                                 {data.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}
                               </td>
                               <td className="py-2" />
+                              <td className="py-2 text-right tabular-nums">
+                                {formatShortage(totalShort) || '—'}
+                              </td>
                             </tr>
                           </tbody>
                         </table>

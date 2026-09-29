@@ -56,6 +56,7 @@ export function buildPayPeriodEmailHtml(data: PayPeriodExcelData): string {
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
   const totalBasic = splits.reduce((s, split) => s + split.basicHours, 0)
   const totalOt = splits.reduce((s, split) => s + split.otHours, 0)
+  const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
   return `
         <h2>Summary Report</h2>
         <p><strong>Report Date:</strong> ${formatDateDisplay(data.reportDate)}</p>
@@ -71,14 +72,15 @@ export function buildPayPeriodEmailHtml(data: PayPeriodExcelData): string {
             <th style="text-align: center; padding: 8px 12px;">Vacation</th>
             <th style="text-align: center; padding: 8px 16px;">Sick Days</th>
             <th style="text-align: left; padding: 8px 8px 8px 16px;">Sick Leave</th>
+            <th style="text-align: right; padding: 8px 8px 8px 12px;">Shortage</th>
           </tr>
           ${rows
             .map((r, i) => {
               const split = splits[i]!
-              return `<tr><td style="padding: 8px 12px 8px 8px;">${r.staffName}</td><td style="text-align: right; padding: 8px 12px;">${r.transTtl.toFixed(2)}</td><td style="text-align: right; padding: 8px 12px;">${split.basicHours.toFixed(2)}</td><td style="text-align: right; padding: 8px 12px;">${split.otHours.toFixed(2)}</td><td style="text-align: center; padding: 8px 12px;">${r.vacation}</td><td style="text-align: center; padding: 8px 16px;">${r.sickLeaveDays ?? 0}</td><td style="text-align: left; padding: 8px 8px 8px 16px;">${r.sickLeaveRanges ?? ''}</td></tr>`
+              return `<tr><td style="padding: 8px 12px 8px 8px;">${r.staffName}</td><td style="text-align: right; padding: 8px 12px;">${r.transTtl.toFixed(2)}</td><td style="text-align: right; padding: 8px 12px;">${split.basicHours.toFixed(2)}</td><td style="text-align: right; padding: 8px 12px;">${split.otHours.toFixed(2)}</td><td style="text-align: center; padding: 8px 12px;">${r.vacation}</td><td style="text-align: center; padding: 8px 16px;">${r.sickLeaveDays ?? 0}</td><td style="text-align: left; padding: 8px 8px 8px 16px;">${r.sickLeaveRanges ?? ''}</td><td style="text-align: right; padding: 8px 8px 8px 12px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td></tr>`
             })
             .join('')}
-          <tr><td style="padding: 8px 12px 8px 8px;"><strong>Total</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalTrans.toFixed(1)}</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalBasic.toFixed(2)}</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalOt.toFixed(2)}</strong></td><td style="padding: 8px 12px;"></td><td style="text-align: center; padding: 8px 16px;"><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td style="padding: 8px 8px 8px 16px;"></td></tr>
+          <tr><td style="padding: 8px 12px 8px 8px;"><strong>Total</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalTrans.toFixed(1)}</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalBasic.toFixed(2)}</strong></td><td style="text-align: right; padding: 8px 12px;"><strong>${totalOt.toFixed(2)}</strong></td><td style="padding: 8px 12px;"></td><td style="text-align: center; padding: 8px 16px;"><strong>${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</strong></td><td style="padding: 8px 8px 8px 16px;"></td><td style="text-align: right; padding: 8px 8px 8px 12px;"><strong>${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</strong></td></tr>
         </table>
       `
 }

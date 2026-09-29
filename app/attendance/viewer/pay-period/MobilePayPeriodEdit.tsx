@@ -296,6 +296,27 @@ export default function MobilePayPeriodEdit({
                   />
                 </div>
 
+                <div>
+                  <label className={fieldLabel} htmlFor="ppr-short">
+                    Shortage ($)
+                  </label>
+                  <input
+                    id="ppr-short"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={row.shortage || ''}
+                    placeholder="0"
+                    onChange={(e) =>
+                      updateRow(safeIndex, 'shortage', parseFloat(e.target.value) || 0)
+                    }
+                    className={fieldInput}
+                  />
+                  <PreviousHint
+                    show={!!prevRow && prevRow.shortage !== row.shortage}
+                    text={prevRow!.shortage > 0 ? `$${prevRow!.shortage.toFixed(2)}` : '0'}
+                  />
+                </div>
               </div>
             </div>
           )

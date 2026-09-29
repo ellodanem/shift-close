@@ -88,6 +88,10 @@ function resolvePreviousRow(
   return prevRows.find((r) => r.staffId === staffId) ?? prevRows[index]
 }
 
+function formatShortageDisplay(n: number): string {
+  return n > 0 ? `$${n.toFixed(2)}` : ''
+}
+
 function CopyStaffPayrollButton({
   staffId,
   staffPayrollById,
@@ -629,8 +633,10 @@ export default function PayPeriodPage() {
               0
             )
             const totalSick = viewData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)
+            const totalShort = viewData.rows.reduce((s, r) => s + r.shortage, 0)
             const prevTotalTrans = prevRows ? prevRows.reduce((s, r) => s + r.transTtl, 0) : null
             const prevTotalSick = prevRows ? prevRows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0) : null
+            const prevTotalShort = prevRows ? prevRows.reduce((s, r) => s + r.shortage, 0) : null
 
             return (
             <div className="mt-6 overflow-visible p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -663,6 +669,7 @@ export default function PayPeriodPage() {
                     <th className="text-center py-2 px-3">Vacation</th>
                     <th className="text-center py-2 px-4 min-w-[5.5rem]">Sick Days</th>
                     <th className="text-left py-2 pl-4 pr-3 min-w-[9rem]">Sick Leave</th>
+                    <th className="text-right py-2 pl-3">Shortage</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -727,6 +734,13 @@ export default function PayPeriodPage() {
                           justify="start"
                         />
                       </td>
+                      <td className="text-right align-top">
+                        <HoverPreviousValue
+                          currentDisplay={formatShortageDisplay(r.shortage)}
+                          previousDisplay={prev ? formatShortageDisplay(prev.shortage) : null}
+                          justify="end"
+                        />
+                      </td>
                     </tr>
                   )})}
                   <tr className="font-bold border-t-2 border-gray-300">
@@ -749,6 +763,13 @@ export default function PayPeriodPage() {
                       />
                     </td>
                     <td></td>
+                    <td className="text-right align-top">
+                      <HoverPreviousValue
+                        currentDisplay={formatShortageDisplay(totalShort)}
+                        previousDisplay={prevTotalShort !== null ? formatShortageDisplay(prevTotalShort) : null}
+                        justify="end"
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -783,6 +804,7 @@ export default function PayPeriodPage() {
                     <th className="text-center py-2 px-3 w-24">Vacation</th>
                     <th className="text-center py-2 px-4 w-24">Sick Days</th>
                     <th className="text-left py-2 pl-4 pr-3 min-w-[140px]">Sick Leave</th>
+                    <th className="text-right py-2 pl-3 w-28">Shortage</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -881,6 +903,16 @@ export default function PayPeriodPage() {
                           className="w-full border border-gray-300 rounded px-2 py-1 text-gray-600"
                         />
                       </td>
+                      <td className="text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={r.shortage || ''}
+                          onChange={(e) => updateRow(i, 'shortage', parseFloat(e.target.value) || 0)}
+                          className="w-full text-right border border-gray-300 rounded px-2 py-1"
+                          placeholder="0"
+                        />
+                      </td>
                     </tr>
                   )})}
                   <tr className="font-bold border-t-2 border-gray-300">
@@ -924,6 +956,11 @@ export default function PayPeriodPage() {
                     <td></td>
                     <td className="text-center px-4">{reportData.rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                     <td></td>
+                    <td className="text-right">
+                      {reportData.rows.reduce((s, r) => s + r.shortage, 0) > 0
+                        ? `$${reportData.rows.reduce((s, r) => s + r.shortage, 0).toFixed(2)}`
+                        : ''}
+                    </td>
                   </tr>
                 </tbody>
               </table>

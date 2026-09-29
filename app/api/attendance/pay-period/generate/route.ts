@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 /** POST /api/attendance/pay-period/generate
  * Body: { startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD" }
  * Generates pay period summary from attendance logs + vacation.
- * Shortage is never calculated. Shift over/short stays on the shift and is not copied onto staff.
+ * Shortage starts at 0. It is entered by hand and is never calculated from shift over/short.
  */
 export async function POST(request: NextRequest) {
   try {

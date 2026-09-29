@@ -39,11 +39,6 @@ export function blankReportOnlyStaffSaveError(rows: unknown): string | null {
     : `Name or delete the ${count} blank staff rows before saving.`
 }
 
-/** Extracted pay-period reports never carry a shortage. Shift over/short is not a payroll deduction. */
-export function withoutPayPeriodShortages<T extends { shortage?: number }>(rows: T[]): T[] {
-  return rows.map((row) => ({ ...row, shortage: 0 }))
-}
-
 export function createReportOnlyPayPeriodRow(): PayPeriodRow {
   const id =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
