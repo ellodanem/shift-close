@@ -8,6 +8,7 @@ import { formatAmount } from '@/lib/fuelPayments'
 import { VendorAddInvoiceModal } from '../components/VendorAddInvoiceModal'
 import { VendorMakePaymentModal } from '../components/VendorMakePaymentModal'
 import { DEFAULT_VAT_RATE } from '@/lib/vendorVat'
+import { OperatingBalanceCard } from '@/app/components/OperatingBalanceCard'
 
 interface VendorRef {
   id: string
@@ -97,6 +98,8 @@ function VendorInvoicesPageInner() {
     availableFunds: number
     balanceAfter: number
     planned: number
+    uncashedChecksTotal?: number
+    phantom?: number
   } | null>(null)
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',
@@ -232,8 +235,7 @@ function VendorInvoicesPageInner() {
         })
       })
       if (res.ok) {
-        const data = await res.json()
-        setBalance(data)
+        await fetchBalance()
         setShowBalanceModal(false)
         alert('Balance updated successfully!')
       } else {
@@ -379,26 +381,7 @@ function VendorInvoicesPageInner() {
         </div>
 
         {balance && (
-          <div className="mb-4 inline-flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
-            <span className="font-semibold">Available:</span>
-            <span>{formatAmount(balance.availableFunds)}</span>
-            <span className="text-gray-400">|</span>
-            <span className="font-semibold">Planned:</span>
-            <span>{formatAmount(balance.planned)}</span>
-            <span className="text-gray-400">|</span>
-            <span className="font-semibold">After:</span>
-            <span
-              className={
-                balance.balanceAfter >= 0
-                  ? 'font-semibold text-green-600'
-                  : 'font-semibold text-red-600'
-              }
-            >
-              {formatAmount(balance.balanceAfter)}
-            </span>
-            <span className="text-gray-400">|</span>
-            <span className="text-xs text-gray-500">(shared with Fuel Payments)</span>
-          </div>
+          <OperatingBalanceCard balance={balance} note="Shared with Fuel Payments" />
         )}
 
         <div className="mb-4 flex flex-col gap-3">

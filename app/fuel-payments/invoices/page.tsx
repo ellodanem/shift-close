@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
@@ -10,6 +9,7 @@ import { FuelMakePaymentModal } from '../components/FuelMakePaymentModal'
 import { FuelRevertPaymentModal } from '../components/FuelRevertPaymentModal'
 import { FuelTankInventoryCard } from '../components/FuelTankInventoryCard'
 import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
+import { OperatingBalanceCard } from '@/app/components/OperatingBalanceCard'
 
 interface Invoice {
   id: string
@@ -95,6 +95,7 @@ export default function InvoicesPage() {
   // Balance modal state
   const [showBalanceModal, setShowBalanceModal] = useState(false)
   const [balance, setBalance] = useState<{
+    currentBalance: number
     availableFunds: number
     balanceAfter: number
     planned: number
@@ -310,8 +311,7 @@ export default function InvoicesPage() {
       })
 
       if (res.ok) {
-        const data = await res.json()
-        setBalance(data)
+        await fetchBalance()
         setShowBalanceModal(false)
         alert('Balance updated successfully!')
       } else {
@@ -491,63 +491,7 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        {/* At-a-glance balance summary */}
-        {balance && (
-          <>
-            <div className="inline-flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
-              <span className="font-semibold">Available:</span>
-              <span>{formatAmount(balance.availableFunds)}</span>
-              <span className="text-gray-400">|</span>
-              <span className="font-semibold">Planned:</span>
-              <span>{formatAmount(balance.planned)}</span>
-              <span className="text-gray-400">|</span>
-              <span className="font-semibold">After:</span>
-              <span
-                className={
-                  balance.balanceAfter >= 0
-                    ? 'text-green-600 font-semibold'
-                    : 'text-red-600 font-semibold'
-                }
-              >
-                {formatAmount(balance.balanceAfter)}
-              </span>
-            </div>
-            {balance.uncashedChecksTotal > 0 && (
-              <div className="mt-1 mb-4 inline-flex flex-wrap items-baseline gap-3 px-3 text-sm text-gray-700">
-                <Link
-                  href="/vendor-payments/uncashed-checks"
-                  className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
-                  title="Total of vendor checks issued but not yet cleared by the bank"
-                >
-                  Uncashed:
-                </Link>
-                <Link
-                  href="/vendor-payments/uncashed-checks"
-                  className="text-amber-700 hover:underline"
-                >
-                  {formatAmount(balance.uncashedChecksTotal)}
-                </Link>
-                <span className="text-gray-400">|</span>
-                <span
-                  className="font-semibold"
-                  title="Phantom = Available − Uncashed checks. A heads-up of actual spendable funds."
-                >
-                  Phantom:
-                </span>
-                <span
-                  className={
-                    balance.phantom >= 0
-                      ? 'text-green-600 font-semibold'
-                      : 'text-red-600 font-semibold'
-                  }
-                >
-                  {formatAmount(balance.phantom)}
-                </span>
-              </div>
-            )}
-            {!balance.uncashedChecksTotal && <div className="mb-4" />}
-          </>
-        )}
+        {balance && <OperatingBalanceCard balance={balance} />}
 
         {/* Quick links to C-Store Essentials & Republic Bank */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
