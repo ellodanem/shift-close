@@ -33,6 +33,86 @@ interface Simulation {
 const isMobileDevice = () =>
   /Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
 
+function ProposedBalanceCards({
+  balance
+}: {
+  balance: ReturnType<typeof proposedPaymentBalances>
+}) {
+  const westlineAfterColor = balance.westlineAfter >= 0 ? '#15803d' : '#dc2626'
+  const rowStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginTop: '6px',
+    fontSize: '13px',
+    color: '#1f2937'
+  } as const
+
+  return (
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+      <div
+        style={{
+          flex: 1,
+          backgroundColor: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderLeft: '4px solid #2563eb',
+          borderRadius: '8px',
+          padding: '12px 14px'
+        }}
+      >
+        <div style={{ fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.04em', color: '#1d4ed8' }}>
+          WESTLINE
+        </div>
+        <div style={{ fontSize: '12px', color: '#1e40af', marginTop: '2px' }}>Used for payment</div>
+        <div style={rowStyle}>
+          <span>Balance before</span>
+          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.westlineBefore)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span>Balance after</span>
+          <span style={{ fontWeight: 'bold', color: westlineAfterColor }}>
+            {formatAmount(balance.westlineAfter)}
+          </span>
+        </div>
+        <div style={{ fontSize: '11px', color: '#1e3a8a', marginTop: '10px' }}>
+          This is the calculation that counts.
+        </div>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          backgroundColor: '#fffbeb',
+          border: '1px dashed #d97706',
+          borderRadius: '8px',
+          padding: '12px 14px'
+        }}
+      >
+        <div style={{ fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.04em', color: '#92400e' }}>
+          SUGGESTION ONLY
+        </div>
+        <div style={{ fontSize: '12px', color: '#92400e', marginTop: '2px' }}>
+          Combined · Westline + Total Auto
+        </div>
+        <div style={rowStyle}>
+          <span>Total Auto</span>
+          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.totalAutoAvailable)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span>Balance before</span>
+          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.combinedBefore)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span>Balance after</span>
+          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.combinedAfter)}</span>
+        </div>
+        <div style={{ fontSize: '11px', color: '#92400e', marginTop: '10px' }}>
+          Fuel is still paid from Westline.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function calculateDaysPastDue(dueDate: string): number {
   const due = new Date(dueDate)
   const now = new Date()
@@ -515,48 +595,8 @@ export function FuelMakePaymentModal({
         </div>
 
         {balance && simulation && (
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-blue-800">
-                Proposed — Westline
-              </div>
-              <div className="mt-2 flex justify-between text-sm text-gray-800">
-                <span>Balance before</span>
-                <span className="font-semibold">{formatAmount(balance.westlineBefore)}</span>
-              </div>
-              <div className="mt-1 flex justify-between text-sm text-gray-800">
-                <span>Balance after</span>
-                <span
-                  className={
-                    balance.westlineAfter >= 0
-                      ? 'font-semibold text-green-700'
-                      : 'font-semibold text-red-600'
-                  }
-                >
-                  {formatAmount(balance.westlineAfter)}
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-blue-900">This is the calculation that counts.</p>
-            </div>
-            <div className="rounded-lg border border-dashed border-amber-400 bg-amber-50 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                Suggestion — combined
-              </div>
-              <p className="mt-1 text-xs text-amber-900">
-                Westline + Total Auto ({formatAmount(balance.totalAutoAvailable)})
-              </p>
-              <div className="mt-2 flex justify-between text-sm text-gray-800">
-                <span>Balance before</span>
-                <span className="font-semibold">{formatAmount(balance.combinedBefore)}</span>
-              </div>
-              <div className="mt-1 flex justify-between text-sm text-gray-800">
-                <span>Balance after</span>
-                <span className="font-semibold">{formatAmount(balance.combinedAfter)}</span>
-              </div>
-              <p className="mt-2 text-xs text-amber-900">
-                Suggestion only. Not shown on the recorded payment.
-              </p>
-            </div>
+          <div className="mb-4">
+            <ProposedBalanceCards balance={balance} />
           </div>
         )}
 
@@ -861,22 +901,11 @@ export function FuelMakePaymentModal({
             </div>
 
             {balance && (
-              <div className="mb-6">
+              <div style={{ marginBottom: '24px' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
                   Balance Information
                 </div>
-                <div style={{ fontWeight: 'bold' }}>Westline (used for payment)</div>
-                <div>Balance Before (Available): {formatAmount(balance.westlineBefore)}</div>
-                <div>Balance After (Available - Planned): {formatAmount(balance.westlineAfter)}</div>
-                <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
-                  Suggestion only — Combined (Westline + Total Auto)
-                </div>
-                <div>Total Auto: {formatAmount(balance.totalAutoAvailable)}</div>
-                <div>Balance Before: {formatAmount(balance.combinedBefore)}</div>
-                <div>Balance After: {formatAmount(balance.combinedAfter)}</div>
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                  Suggestion only. Fuel is still paid from Westline.
-                </div>
+                <ProposedBalanceCards balance={balance} />
               </div>
             )}
 

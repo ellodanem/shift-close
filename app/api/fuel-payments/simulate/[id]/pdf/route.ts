@@ -162,36 +162,111 @@ export async function GET(
     doc.text('Ref pending', col3Start, yPos)
     yPos += 0.5 // Two lines of spacing before Balance Information
 
-    // Balance Information Section — Westline is the result; combined is a suggestion.
+    // Balance Information — Westline and the combined suggestion sit side by side.
     if (proposedBalances) {
       doc.setFont('courier', 'bold')
       doc.setFontSize(16)
+      doc.setTextColor(0, 0, 0)
       doc.text('Balance Information', margin, yPos)
-      yPos += 0.25
+      yPos += 0.18
 
-      doc.setFontSize(14)
-      doc.text('Westline (used for payment)', margin, yPos)
-      yPos += 0.2
+      const gap = 0.12
+      const cardW = (pageWidth - margin * 2 - gap) / 2
+      const cardH = 1.78
+      const leftX = margin
+      const rightX = margin + cardW + gap
+      const westlineAfterColor: [number, number, number] =
+        proposedBalances.westlineAfter >= 0 ? [21, 128, 61] : [220, 38, 38]
 
+      const drawCard = (
+        x: number,
+        fill: [number, number, number],
+        stroke: [number, number, number],
+        dashed: boolean,
+        accent: boolean,
+        title: string,
+        subtitle: string,
+        rows: Array<{ label: string; value: string; color?: [number, number, number] }>,
+        footnote: string
+      ) => {
+        doc.setFillColor(...fill)
+        doc.setDrawColor(...stroke)
+        doc.setLineWidth(0.012)
+        doc.setLineDashPattern(dashed ? [0.05, 0.03] : [], 0)
+        doc.roundedRect(x, yPos, cardW, cardH, 0.06, 0.06, 'FD')
+        doc.setLineDashPattern([], 0)
+        if (accent) {
+          doc.setFillColor(...stroke)
+          doc.roundedRect(x, yPos, 0.07, cardH, 0.06, 0.06, 'F')
+          doc.rect(x + 0.03, yPos, 0.05, cardH, 'F')
+        }
+
+        let ty = yPos + 0.24
+        doc.setFont('courier', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(...stroke)
+        doc.text(title, x + 0.16, ty)
+        ty += 0.16
+        doc.setFont('courier', 'normal')
+        doc.setFontSize(9)
+        doc.text(subtitle, x + 0.16, ty)
+        ty += 0.24
+
+        rows.forEach((row) => {
+          doc.setFont('courier', 'normal')
+          doc.setFontSize(11)
+          doc.setTextColor(31, 41, 55)
+          doc.text(row.label, x + 0.16, ty)
+          doc.setFont('courier', 'bold')
+          doc.setTextColor(...(row.color ?? [31, 41, 55]))
+          const amountWidth = doc.getTextWidth(row.value)
+          doc.text(row.value, x + cardW - 0.12 - amountWidth, ty)
+          ty += 0.2
+        })
+
+        doc.setFont('courier', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(...stroke)
+        doc.text(footnote, x + 0.16, yPos + cardH - 0.16)
+      }
+
+      drawCard(
+        leftX,
+        [239, 246, 255],
+        [37, 99, 235],
+        false,
+        true,
+        'WESTLINE',
+        'Used for payment',
+        [
+          { label: 'Balance before', value: formatAmount(proposedBalances.westlineBefore) },
+          {
+            label: 'Balance after',
+            value: formatAmount(proposedBalances.westlineAfter),
+            color: westlineAfterColor
+          }
+        ],
+        'This is the calculation that counts.'
+      )
+      drawCard(
+        rightX,
+        [255, 251, 235],
+        [146, 64, 14],
+        true,
+        false,
+        'SUGGESTION ONLY',
+        'Combined - Westline + Total Auto',
+        [
+          { label: 'Total Auto', value: formatAmount(proposedBalances.totalAutoAvailable) },
+          { label: 'Balance before', value: formatAmount(proposedBalances.combinedBefore) },
+          { label: 'Balance after', value: formatAmount(proposedBalances.combinedAfter) }
+        ],
+        'Fuel is still paid from Westline.'
+      )
+
+      yPos += cardH + 0.28
+      doc.setTextColor(0, 0, 0)
       doc.setFont('courier', 'normal')
-      doc.text(`Balance Before (Available): ${formatAmount(proposedBalances.westlineBefore)}`, margin, yPos)
-      yPos += 0.2
-      doc.text(`Balance After (Available - Planned): ${formatAmount(proposedBalances.westlineAfter)}`, margin, yPos)
-      yPos += 0.28
-
-      doc.setFont('courier', 'bold')
-      doc.text('Suggestion only — Combined (Westline + Total Auto)', margin, yPos)
-      yPos += 0.2
-      doc.setFont('courier', 'normal')
-      doc.text(`Total Auto: ${formatAmount(proposedBalances.totalAutoAvailable)}`, margin, yPos)
-      yPos += 0.2
-      doc.text(`Balance Before: ${formatAmount(proposedBalances.combinedBefore)}`, margin, yPos)
-      yPos += 0.2
-      doc.text(`Balance After: ${formatAmount(proposedBalances.combinedAfter)}`, margin, yPos)
-      yPos += 0.2
-      doc.setFontSize(11)
-      doc.text('Suggestion only. Fuel is still paid from Westline.', margin, yPos)
-      yPos += 0.45
     }
 
     // Other Unpaid Invoices Section
