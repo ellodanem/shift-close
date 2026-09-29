@@ -20,6 +20,26 @@ export function balanceAfterFromAvailable(availableFunds: number): number {
   return roundMoney(availableFunds)
 }
 
+/** Westline is the payment result. Combined (Westline + Total Auto) is a suggestion only. */
+export function proposedPaymentBalances(
+  availableFunds: number,
+  totalAutoAvailable: number,
+  planned: number
+) {
+  const westlineBefore = roundMoney(availableFunds)
+  const plannedAmount = roundMoney(planned)
+  const totalAuto = roundMoney(totalAutoAvailable || 0)
+  const westlineAfter = roundMoney(westlineBefore - plannedAmount)
+  const combinedBefore = roundMoney(westlineBefore + totalAuto)
+  return {
+    westlineBefore,
+    westlineAfter,
+    totalAutoAvailable: totalAuto,
+    combinedBefore,
+    combinedAfter: roundMoney(combinedBefore - plannedAmount)
+  }
+}
+
 /** Recompute planned (pending total) and balanceAfter from current DB state. */
 export async function refreshBalanceSnapshot() {
   let balance = await prisma.balance.upsert({

@@ -103,7 +103,8 @@ export default function InvoicesPage() {
   } | null>(null)
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',
-    availableFunds: ''
+    availableFunds: '',
+    totalAutoAvailable: ''
   })
   const [savingBalance, setSavingBalance] = useState(false)
 
@@ -286,7 +287,8 @@ export default function InvoicesPage() {
         setBalance(data)
         setBalanceFormData({
           currentBalance: data.currentBalance.toString(),
-          availableFunds: data.availableFunds.toString()
+          availableFunds: data.availableFunds.toString(),
+          totalAutoAvailable: (data.totalAutoAvailable ?? 0).toString()
         })
       }
     } catch (error) {
@@ -302,7 +304,8 @@ export default function InvoicesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currentBalance: parseFloat(balanceFormData.currentBalance) || 0,
-          availableFunds: parseFloat(balanceFormData.availableFunds) || 0
+          availableFunds: parseFloat(balanceFormData.availableFunds) || 0,
+          totalAutoAvailable: parseFloat(balanceFormData.totalAutoAvailable) || 0
         })
       })
 
@@ -1178,7 +1181,7 @@ export default function InvoicesPage() {
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Available Funds
+                    Westline available
                   </label>
                   <input
                     type="number"
@@ -1187,6 +1190,27 @@ export default function InvoicesPage() {
                     onChange={(e) => setBalanceFormData({ ...balanceFormData, availableFunds: e.target.value })}
                     className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Payment calculations use this balance.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Total Auto available
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={balanceFormData.totalAutoAvailable}
+                    onChange={(e) =>
+                      setBalanceFormData({ ...balanceFormData, totalAutoAvailable: e.target.value })
+                    }
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Used only as a suggestion on proposed payments.
+                  </p>
                 </div>
 
                 {balance && (

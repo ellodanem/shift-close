@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { formatAmount, roundMoney } from '@/lib/fuelPayments'
+import { proposedPaymentBalances } from '@/lib/fuelBalance'
+import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import html2canvas from 'html2canvas'
 import {
@@ -64,7 +65,7 @@ export function FuelMakePaymentModal({
   const [simulation, setSimulation] = useState<Simulation | null>(null)
   const [simulatedKey, setSimulatedKey] = useState('')
   const imageRef = useRef<HTMLDivElement>(null)
-  const [balance, setBalance] = useState<{ availableFunds: number; balanceAfter: number } | null>(null)
+  const [balance, setBalance] = useState<ReturnType<typeof proposedPaymentBalances> | null>(null)
   const [otherUnpaidInvoices, setOtherUnpaidInvoices] = useState<Invoice[]>([])
   const [hiddenFromImageIds, setHiddenFromImageIds] = useState<Set<string>>(new Set())
   const [editingInvoice, setEditingInvoice] = useState<FuelQuickEditInvoice | null>(null)
@@ -297,10 +298,13 @@ export function FuelMakePaymentModal({
         const res = await fetch('/api/fuel-payments/balance')
         if (res.ok) {
           const data = await res.json()
-          setBalance({
-            availableFunds: data.availableFunds,
-            balanceAfter: roundMoney(data.availableFunds - simulation.totalAmount)
-          })
+          setBalance(
+            proposedPaymentBalances(
+              data.availableFunds,
+              data.totalAutoAvailable ?? 0,
+              simulation.totalAmount
+            )
+          )
         }
       } catch (error) {
         console.error('Error fetching balance:', error)
@@ -509,6 +513,52 @@ export function FuelMakePaymentModal({
             </div>
           </div>
         </div>
+
+        {balance && simulation && (
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+                Proposed — Westline
+              </div>
+              <div className="mt-2 flex justify-between text-sm text-gray-800">
+                <span>Balance before</span>
+                <span className="font-semibold">{formatAmount(balance.westlineBefore)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-sm text-gray-800">
+                <span>Balance after</span>
+                <span
+                  className={
+                    balance.westlineAfter >= 0
+                      ? 'font-semibold text-green-700'
+                      : 'font-semibold text-red-600'
+                  }
+                >
+                  {formatAmount(balance.westlineAfter)}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-blue-900">This is the calculation that counts.</p>
+            </div>
+            <div className="rounded-lg border border-dashed border-amber-400 bg-amber-50 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                Suggestion — combined
+              </div>
+              <p className="mt-1 text-xs text-amber-900">
+                Westline + Total Auto ({formatAmount(balance.totalAutoAvailable)})
+              </p>
+              <div className="mt-2 flex justify-between text-sm text-gray-800">
+                <span>Balance before</span>
+                <span className="font-semibold">{formatAmount(balance.combinedBefore)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-sm text-gray-800">
+                <span>Balance after</span>
+                <span className="font-semibold">{formatAmount(balance.combinedAfter)}</span>
+              </div>
+              <p className="mt-2 text-xs text-amber-900">
+                Suggestion only. Not shown on the recorded payment.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="rounded-lg border border-gray-200 p-4">
           <div className="mb-3 flex items-center justify-between">
@@ -815,8 +865,18 @@ export function FuelMakePaymentModal({
                 <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
                   Balance Information
                 </div>
-                <div>Balance Before (Available): {formatAmount(balance.availableFunds)}</div>
-                <div>Balance After (Available - Planned): {formatAmount(balance.balanceAfter)}</div>
+                <div style={{ fontWeight: 'bold' }}>Westline (used for payment)</div>
+                <div>Balance Before (Available): {formatAmount(balance.westlineBefore)}</div>
+                <div>Balance After (Available - Planned): {formatAmount(balance.westlineAfter)}</div>
+                <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
+                  Suggestion only — Combined (Westline + Total Auto)
+                </div>
+                <div>Total Auto: {formatAmount(balance.totalAutoAvailable)}</div>
+                <div>Balance Before: {formatAmount(balance.combinedBefore)}</div>
+                <div>Balance After: {formatAmount(balance.combinedAfter)}</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  Suggestion only. Fuel is still paid from Westline.
+                </div>
               </div>
             )}
 

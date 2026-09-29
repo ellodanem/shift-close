@@ -31,15 +31,19 @@ export async function GET() {
   }
 }
 
-// PATCH update balance (currentBalance and availableFunds)
+// PATCH update balance (currentBalance, availableFunds, and Total Auto available)
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { currentBalance, availableFunds } = body
+    const { currentBalance, availableFunds, totalAutoAvailable } = body
 
-    if (currentBalance === undefined && availableFunds === undefined) {
+    if (
+      currentBalance === undefined &&
+      availableFunds === undefined &&
+      totalAutoAvailable === undefined
+    ) {
       return NextResponse.json(
-        { error: 'currentBalance or availableFunds must be provided' },
+        { error: 'currentBalance, availableFunds, or totalAutoAvailable must be provided' },
         { status: 400 }
       )
     }
@@ -56,6 +60,7 @@ export async function PATCH(request: NextRequest) {
           id: 'balance',
           currentBalance: currentBalance ?? 0,
           availableFunds: availableFunds ?? currentBalance ?? 0,
+          totalAutoAvailable: totalAutoAvailable ?? 0,
           planned: 0,
           balanceAfter: (availableFunds ?? currentBalance ?? 0) - 0
         }
@@ -68,6 +73,9 @@ export async function PATCH(request: NextRequest) {
       }
       if (availableFunds !== undefined) {
         updateData.availableFunds = roundMoney(Number(availableFunds))
+      }
+      if (totalAutoAvailable !== undefined) {
+        updateData.totalAutoAvailable = roundMoney(Number(totalAutoAvailable))
       }
 
       const finalAvailableFunds = updateData.availableFunds ?? existingBalance.availableFunds

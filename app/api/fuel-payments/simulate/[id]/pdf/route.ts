@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { proposedPaymentBalances } from '@/lib/fuelBalance'
 import { roundMoney, formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 import jsPDF from 'jspdf'
@@ -61,10 +62,13 @@ export async function GET(
       invoices.reduce((sum, inv) => sum + roundMoney(inv.amount), 0)
     )
 
-    // Calculate balance after for this simulation
-    const balanceAfter = balanceRecord 
-      ? roundMoney(balanceRecord.availableFunds - planned)
-      : 0
+    const proposedBalances = balanceRecord
+      ? proposedPaymentBalances(
+          balanceRecord.availableFunds,
+          balanceRecord.totalAutoAvailable ?? 0,
+          planned
+        )
+      : null
 
     // Optional image/PDF omissions. These stay unpaid; they are only left off this draft.
     const omitIds = (request.nextUrl.searchParams.get('omit') ?? '')
@@ -158,19 +162,36 @@ export async function GET(
     doc.text('Ref pending', col3Start, yPos)
     yPos += 0.5 // Two lines of spacing before Balance Information
 
-    // Balance Information Section
-    if (balanceRecord) {
+    // Balance Information Section — Westline is the result; combined is a suggestion.
+    if (proposedBalances) {
       doc.setFont('courier', 'bold')
       doc.setFontSize(16)
       doc.text('Balance Information', margin, yPos)
       yPos += 0.25
 
-      doc.setFont('courier', 'normal')
       doc.setFontSize(14)
-      doc.text(`Balance Before (Available): ${formatAmount(balanceRecord.availableFunds)}`, margin, yPos)
+      doc.text('Westline (used for payment)', margin, yPos)
       yPos += 0.2
-      doc.text(`Balance After (Available - Planned): ${formatAmount(balanceAfter)}`, margin, yPos)
-      yPos += 0.45 // One extra line of spacing before Other Unpaid Invoices
+
+      doc.setFont('courier', 'normal')
+      doc.text(`Balance Before (Available): ${formatAmount(proposedBalances.westlineBefore)}`, margin, yPos)
+      yPos += 0.2
+      doc.text(`Balance After (Available - Planned): ${formatAmount(proposedBalances.westlineAfter)}`, margin, yPos)
+      yPos += 0.28
+
+      doc.setFont('courier', 'bold')
+      doc.text('Suggestion only — Combined (Westline + Total Auto)', margin, yPos)
+      yPos += 0.2
+      doc.setFont('courier', 'normal')
+      doc.text(`Total Auto: ${formatAmount(proposedBalances.totalAutoAvailable)}`, margin, yPos)
+      yPos += 0.2
+      doc.text(`Balance Before: ${formatAmount(proposedBalances.combinedBefore)}`, margin, yPos)
+      yPos += 0.2
+      doc.text(`Balance After: ${formatAmount(proposedBalances.combinedAfter)}`, margin, yPos)
+      yPos += 0.2
+      doc.setFontSize(11)
+      doc.text('Suggestion only. Fuel is still paid from Westline.', margin, yPos)
+      yPos += 0.45
     }
 
     // Other Unpaid Invoices Section
