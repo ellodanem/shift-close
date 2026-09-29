@@ -66,7 +66,7 @@ function AccountRow({
         </div>
         <div className="pl-3 text-right sm:pl-4">
           <p className="text-xs font-medium text-slate-500">Available</p>
-          <p className="mt-1 text-sm tabular-nums text-slate-700 sm:text-base">{money(available)}</p>
+          <p className="mt-1 text-sm font-bold tabular-nums text-slate-800 sm:text-base">{money(available)}</p>
         </div>
       </div>
     </div>
