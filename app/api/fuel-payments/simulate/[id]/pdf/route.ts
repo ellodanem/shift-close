@@ -224,10 +224,12 @@ export async function GET(
           ty += 0.2
         })
 
-        doc.setFont('courier', 'normal')
-        doc.setFontSize(8)
-        doc.setTextColor(...stroke)
-        doc.text(footnote, x + 0.16, yPos + cardH - 0.16)
+        if (footnote) {
+          doc.setFont('courier', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(...stroke)
+          doc.text(footnote, x + 0.16, yPos + cardH - 0.16)
+        }
       }
 
       drawCard(
@@ -246,7 +248,7 @@ export async function GET(
             color: westlineAfterColor
           }
         ],
-        'This is the calculation that counts.'
+        ''
       )
       drawCard(
         rightX,

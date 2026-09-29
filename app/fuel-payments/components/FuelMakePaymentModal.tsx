@@ -74,9 +74,6 @@ function ProposedBalanceCards({
             {formatAmount(balance.westlineAfter)}
           </span>
         </div>
-        <div style={{ fontSize: '11px', color: '#1e3a8a', marginTop: '10px' }}>
-          This is the calculation that counts.
-        </div>
       </div>
       <div
         style={{
