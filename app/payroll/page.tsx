@@ -37,11 +37,12 @@ type RunListItem = {
 type StatusFilter = 'all' | 'draft' | 'processed' | 'void'
 
 const STATUS_CHIPS: Array<{
-  id: Exclude<StatusFilter, 'all'>
+  id: StatusFilter
   label: string
   dot: string
   active: string
 }> = [
+  { id: 'all', label: 'All', dot: 'bg-slate-500', active: 'border-slate-300 bg-slate-50 text-slate-900' },
   { id: 'draft', label: 'Draft', dot: 'bg-violet-600', active: 'border-violet-200 bg-violet-50 text-violet-900' },
   {
     id: 'processed',
@@ -218,7 +219,11 @@ export default function PayrollStartPage() {
                 ? `No payroll runs in ${year}.`
                 : 'No payroll runs match these filters.'
 
-  const toggleStatus = (next: Exclude<StatusFilter, 'all'>) => {
+  const toggleStatus = (next: StatusFilter) => {
+    if (next === 'all') {
+      setStatusFilter('all')
+      return
+    }
     setStatusFilter((current) => (current === next ? 'all' : next))
   }
 
@@ -259,8 +264,8 @@ export default function PayrollStartPage() {
                   aria-pressed={selected}
                   onClick={() => toggleStatus(chip.id)}
                   className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium ${
-                    selected ? chip.active : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+                    chip.id === 'void' ? 'ml-1' : ''
+                  } ${selected ? chip.active : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
                   <span className={`h-2 w-2 rounded-full ${chip.dot}`} aria-hidden="true" />
                   {chip.label} {counts[chip.id]}

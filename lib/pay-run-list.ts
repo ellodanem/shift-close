@@ -127,18 +127,20 @@ export function filterPayRuns<T extends PayRunListItem>(
 }
 
 export type PayrollStatusCounts = {
+  all: number
   draft: number
   processed: number
   void: number
 }
 
 export function payrollStatusCounts(runs: Array<{ status: string }>): PayrollStatusCounts {
-  const counts: PayrollStatusCounts = { draft: 0, processed: 0, void: 0 }
+  const counts: PayrollStatusCounts = { all: 0, draft: 0, processed: 0, void: 0 }
   for (const run of runs) {
     if (run.status === 'draft' || run.status === 'processed' || run.status === 'void') {
       counts[run.status] += 1
     }
   }
+  counts.all = counts.draft + counts.processed
   return counts
 }
 

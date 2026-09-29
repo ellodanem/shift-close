@@ -121,7 +121,7 @@ describe('payroll run list', () => {
   })
 
   it('counts draft, approved, and voided runs', () => {
-    assert.deepEqual(payrollStatusCounts(runs), { draft: 1, processed: 3, void: 1 })
+    assert.deepEqual(payrollStatusCounts(runs), { all: 4, draft: 1, processed: 3, void: 1 })
   })
 
   it('derives a missing cycle number from the period end', () => {
