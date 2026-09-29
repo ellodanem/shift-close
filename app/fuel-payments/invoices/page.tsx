@@ -10,6 +10,7 @@ import { FuelRevertPaymentModal } from '../components/FuelRevertPaymentModal'
 import { FuelTankInventoryCard } from '../components/FuelTankInventoryCard'
 import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
 import { OperatingBalanceCard } from '@/app/components/OperatingBalanceCard'
+import { QuickBalanceEntryModal } from '@/app/components/QuickBalanceEntryModal'
 
 interface Invoice {
   id: string
@@ -105,6 +106,7 @@ export default function InvoicesPage() {
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',
     availableFunds: '',
+    totalAutoCurrentBalance: '',
     totalAutoAvailable: ''
   })
   const [savingBalance, setSavingBalance] = useState(false)
@@ -289,6 +291,7 @@ export default function InvoicesPage() {
         setBalanceFormData({
           currentBalance: data.currentBalance.toString(),
           availableFunds: data.availableFunds.toString(),
+          totalAutoCurrentBalance: (data.totalAutoCurrentBalance ?? 0).toString(),
           totalAutoAvailable: (data.totalAutoAvailable ?? 0).toString()
         })
       }
@@ -306,6 +309,7 @@ export default function InvoicesPage() {
         body: JSON.stringify({
           currentBalance: parseFloat(balanceFormData.currentBalance) || 0,
           availableFunds: parseFloat(balanceFormData.availableFunds) || 0,
+          totalAutoCurrentBalance: parseFloat(balanceFormData.totalAutoCurrentBalance) || 0,
           totalAutoAvailable: parseFloat(balanceFormData.totalAutoAvailable) || 0
         })
       })
@@ -1095,102 +1099,16 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        {/* Balance Modal */}
-        {showBalanceModal && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
-            <div className="my-4 w-full max-h-[90vh] max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Quick Balance Entry</h2>
-                <button
-                  onClick={() => setShowBalanceModal(false)}
-                  className="min-h-[44px] min-w-[44px] text-2xl text-gray-500 hover:text-gray-700 sm:min-h-0 sm:min-w-0"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Current Balance
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceFormData.currentBalance}
-                    onChange={(e) => setBalanceFormData({ ...balanceFormData, currentBalance: e.target.value })}
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Westline available
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceFormData.availableFunds}
-                    onChange={(e) => setBalanceFormData({ ...balanceFormData, availableFunds: e.target.value })}
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Payment calculations use this balance.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Total Auto available
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceFormData.totalAutoAvailable}
-                    onChange={(e) =>
-                      setBalanceFormData({ ...balanceFormData, totalAutoAvailable: e.target.value })
-                    }
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Used only as a suggestion on proposed payments.
-                  </p>
-                </div>
-
-                {balance && (
-                  <div className="bg-gray-50 rounded p-3 space-y-1">
-                    <div className="text-sm">
-                      <span className="text-gray-600">Planned: </span>
-                      <span className="font-semibold text-blue-600">{formatAmount(balance.planned)}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-600">Balance After: </span>
-                      <span className={`font-semibold ${balance.balanceAfter >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatAmount(balance.balanceAfter)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
-                <button
-                  onClick={handleSaveBalance}
-                  disabled={savingBalance}
-                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
-                >
-                  {savingBalance ? 'Saving...' : 'Save Balance'}
-                </button>
-                <button
-                  onClick={() => setShowBalanceModal(false)}
-                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <QuickBalanceEntryModal
+          open={showBalanceModal}
+          saving={savingBalance}
+          form={balanceFormData}
+          onFormChange={setBalanceFormData}
+          planned={balance?.planned}
+          balanceAfter={balance?.balanceAfter}
+          onClose={() => setShowBalanceModal(false)}
+          onSave={() => void handleSaveBalance()}
+        />
         {/* Copy notification */}
         {copyNotification && (
           <div className="fixed bottom-6 right-6 z-50">

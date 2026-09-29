@@ -9,6 +9,7 @@ import { VendorAddInvoiceModal } from '../components/VendorAddInvoiceModal'
 import { VendorMakePaymentModal } from '../components/VendorMakePaymentModal'
 import { DEFAULT_VAT_RATE } from '@/lib/vendorVat'
 import { OperatingBalanceCard } from '@/app/components/OperatingBalanceCard'
+import { QuickBalanceEntryModal } from '@/app/components/QuickBalanceEntryModal'
 
 interface VendorRef {
   id: string
@@ -103,7 +104,9 @@ function VendorInvoicesPageInner() {
   } | null>(null)
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',
-    availableFunds: ''
+    availableFunds: '',
+    totalAutoCurrentBalance: '',
+    totalAutoAvailable: ''
   })
   const [savingBalance, setSavingBalance] = useState(false)
 
@@ -180,7 +183,9 @@ function VendorInvoicesPageInner() {
         setBalance(data)
         setBalanceFormData({
           currentBalance: data.currentBalance.toString(),
-          availableFunds: data.availableFunds.toString()
+          availableFunds: data.availableFunds.toString(),
+          totalAutoCurrentBalance: (data.totalAutoCurrentBalance ?? 0).toString(),
+          totalAutoAvailable: (data.totalAutoAvailable ?? 0).toString()
         })
       }
     } catch (e) {
@@ -231,7 +236,9 @@ function VendorInvoicesPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currentBalance: parseFloat(balanceFormData.currentBalance) || 0,
-          availableFunds: parseFloat(balanceFormData.availableFunds) || 0
+          availableFunds: parseFloat(balanceFormData.availableFunds) || 0,
+          totalAutoCurrentBalance: parseFloat(balanceFormData.totalAutoCurrentBalance) || 0,
+          totalAutoAvailable: parseFloat(balanceFormData.totalAutoAvailable) || 0
         })
       })
       if (res.ok) {
@@ -944,96 +951,17 @@ function VendorInvoicesPageInner() {
           }}
         />
 
-        {showBalanceModal && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
-            <div className="my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Balance (shared)</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowBalanceModal(false)}
-                  className="min-h-[44px] min-w-[44px] text-2xl text-gray-500 hover:text-gray-700 sm:min-h-0 sm:min-w-0"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Current balance
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceFormData.currentBalance}
-                    onChange={(e) =>
-                      setBalanceFormData({
-                        ...balanceFormData,
-                        currentBalance: e.target.value
-                      })
-                    }
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Available funds
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceFormData.availableFunds}
-                    onChange={(e) =>
-                      setBalanceFormData({
-                        ...balanceFormData,
-                        availableFunds: e.target.value
-                      })
-                    }
-                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0"
-                  />
-                </div>
-                {balance && (
-                  <div className="space-y-1 rounded bg-gray-50 p-3 text-sm">
-                    <div>
-                      <span className="text-gray-600">Planned: </span>
-                      <span className="font-semibold text-blue-600">
-                        {formatAmount(balance.planned)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Balance after: </span>
-                      <span
-                        className={`font-semibold ${
-                          balance.balanceAfter >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}
-                      >
-                        {formatAmount(balance.balanceAfter)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:gap-4">
-                <button
-                  type="button"
-                  onClick={() => void handleSaveBalance()}
-                  disabled={savingBalance}
-                  className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
-                >
-                  {savingBalance ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBalanceModal(false)}
-                  className="min-h-[44px] rounded bg-gray-500 px-4 py-2 font-semibold text-white hover:bg-gray-600 sm:min-h-0"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <QuickBalanceEntryModal
+          open={showBalanceModal}
+          saving={savingBalance}
+          form={balanceFormData}
+          onFormChange={setBalanceFormData}
+          planned={balance?.planned}
+          balanceAfter={balance?.balanceAfter}
+          note="Shared with Fuel Payments"
+          onClose={() => setShowBalanceModal(false)}
+          onSave={() => void handleSaveBalance()}
+        />
 
         {copyNotification && (
           <div className="fixed bottom-6 right-6 z-50">

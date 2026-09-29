@@ -31,19 +31,23 @@ export async function GET() {
   }
 }
 
-// PATCH update balance (currentBalance, availableFunds, and Total Auto available)
+// PATCH update balance (Westline and Service Station / Total Auto current + available)
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { currentBalance, availableFunds, totalAutoAvailable } = body
+    const { currentBalance, availableFunds, totalAutoCurrentBalance, totalAutoAvailable } = body
 
     if (
       currentBalance === undefined &&
       availableFunds === undefined &&
+      totalAutoCurrentBalance === undefined &&
       totalAutoAvailable === undefined
     ) {
       return NextResponse.json(
-        { error: 'currentBalance, availableFunds, or totalAutoAvailable must be provided' },
+        {
+          error:
+            'currentBalance, availableFunds, totalAutoCurrentBalance, or totalAutoAvailable must be provided'
+        },
         { status: 400 }
       )
     }
@@ -60,6 +64,7 @@ export async function PATCH(request: NextRequest) {
           id: 'balance',
           currentBalance: currentBalance ?? 0,
           availableFunds: availableFunds ?? currentBalance ?? 0,
+          totalAutoCurrentBalance: totalAutoCurrentBalance ?? 0,
           totalAutoAvailable: totalAutoAvailable ?? 0,
           planned: 0,
           balanceAfter: (availableFunds ?? currentBalance ?? 0) - 0
@@ -73,6 +78,9 @@ export async function PATCH(request: NextRequest) {
       }
       if (availableFunds !== undefined) {
         updateData.availableFunds = roundMoney(Number(availableFunds))
+      }
+      if (totalAutoCurrentBalance !== undefined) {
+        updateData.totalAutoCurrentBalance = roundMoney(Number(totalAutoCurrentBalance))
       }
       if (totalAutoAvailable !== undefined) {
         updateData.totalAutoAvailable = roundMoney(Number(totalAutoAvailable))

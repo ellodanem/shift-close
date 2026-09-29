@@ -486,7 +486,9 @@ model Balance {
   id             String   @id // Always use "balance" as the ID
   currentBalance Float    @default(0) @map("current_balance")
   availableFunds Float    @default(0) @map("available_funds")
-  /// Total Auto account available balance. Shown only as a suggestion on proposed fuel payments.
+  /// Service Station / Total Auto current balance.
+  totalAutoCurrentBalance Float @default(0) @map("total_auto_current_balance")
+  /// Service Station / Total Auto available balance. Shown only as a suggestion on proposed fuel payments.
   totalAutoAvailable Float @default(0) @map("total_auto_available")
   planned        Float    @default(0) // Calculated from active simulation
   balanceAfter   Float    @default(0) @map("balance_after") // availableFunds - planned
