@@ -66,6 +66,7 @@ export function FuelMakePaymentModal({
   const imageRef = useRef<HTMLDivElement>(null)
   const [balance, setBalance] = useState<{ availableFunds: number; balanceAfter: number } | null>(null)
   const [otherUnpaidInvoices, setOtherUnpaidInvoices] = useState<Invoice[]>([])
+  const [hiddenFromImageIds, setHiddenFromImageIds] = useState<Set<string>>(new Set())
   const [editingInvoice, setEditingInvoice] = useState<FuelQuickEditInvoice | null>(null)
 
   const fetchInvoices = async () => {
@@ -106,6 +107,7 @@ export function FuelMakePaymentModal({
     setProcessing(false)
     setSimulation(null)
     setSimulatedKey('')
+    setHiddenFromImageIds(new Set())
     setEditingInvoice(null)
     void fetchInvoices()
   }, [open, initialSelectedCsv])
@@ -140,6 +142,15 @@ export function FuelMakePaymentModal({
     if (next.has(invoiceId)) next.delete(invoiceId)
     else next.add(invoiceId)
     setSelectedInvoiceIds(next)
+  }
+
+  const handleToggleHiddenFromImage = (invoiceId: string) => {
+    setHiddenFromImageIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(invoiceId)) next.delete(invoiceId)
+      else next.add(invoiceId)
+      return next
+    })
   }
 
   const handleQuickEditSaved = (updated: FuelQuickEditInvoice) => {
@@ -363,6 +374,18 @@ export function FuelMakePaymentModal({
     .filter((inv) => selectedInvoiceIds.has(inv.id))
     .reduce((sum, inv) => sum + inv.amount, 0)
 
+  const visibleOtherUnpaid = otherUnpaidInvoices.filter((inv) => !hiddenFromImageIds.has(inv.id))
+  const omittedFromImageCount = otherUnpaidInvoices.length - visibleOtherUnpaid.length
+  const pdfHref = simulation
+    ? (() => {
+        const omitIds = otherUnpaidInvoices
+          .filter((inv) => hiddenFromImageIds.has(inv.id))
+          .map((inv) => inv.id)
+        const base = `/api/fuel-payments/simulate/${simulation.id}/pdf`
+        return omitIds.length > 0 ? `${base}?omit=${encodeURIComponent(omitIds.join(','))}` : base
+      })()
+    : ''
+
   if (!open) return null
 
   return (
@@ -392,6 +415,11 @@ export function FuelMakePaymentModal({
             )}
             {simulation && selectedInvoiceIds.size > 0 && (
               <>
+                {omittedFromImageCount > 0 && (
+                  <span className="text-sm text-gray-500">
+                    {omittedFromImageCount} left off the image
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleCopyPNG()}
@@ -407,7 +435,7 @@ export function FuelMakePaymentModal({
                   WhatsApp Web
                 </button>
                 <a
-                  href={`/api/fuel-payments/simulate/${simulation.id}/pdf`}
+                  href={pdfHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded bg-gray-600 px-4 py-2 font-semibold text-white hover:bg-gray-700"
@@ -484,9 +512,14 @@ export function FuelMakePaymentModal({
 
         <div className="rounded-lg border border-gray-200 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Pending invoices ({invoices.length})
-            </h3>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Pending invoices ({invoices.length})
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Unchecked invoices are listed under Other Unpaid on the image. Hide any you want left off. They stay unpaid.
+              </p>
+            </div>
             {invoices.length > 0 && (
               <button
                 type="button"
@@ -531,6 +564,9 @@ export function FuelMakePaymentModal({
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      On image
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Edit
                     </th>
@@ -539,12 +575,17 @@ export function FuelMakePaymentModal({
                 <tbody className="bg-white divide-y divide-gray-200">
                   {invoices.map((invoice) => {
                     const dueStatus = getDueDateStatus(invoice.dueDate)
+                    const selected = selectedInvoiceIds.has(invoice.id)
+                    const hiddenFromImage = !selected && hiddenFromImageIds.has(invoice.id)
                     return (
-                      <tr key={invoice.id} className="hover:bg-gray-50">
+                      <tr
+                        key={invoice.id}
+                        className={hiddenFromImage ? 'bg-amber-50/70' : 'hover:bg-gray-50'}
+                      >
                         <td className="px-4 py-4">
                           <input
                             type="checkbox"
-                            checked={selectedInvoiceIds.has(invoice.id)}
+                            checked={selected}
                             onChange={() => handleToggleInvoice(invoice.id)}
                             className="rounded border-gray-300"
                           />
@@ -567,6 +608,23 @@ export function FuelMakePaymentModal({
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {invoice.type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {selected ? (
+                            <span className="text-gray-400">In payment</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleHiddenFromImage(invoice.id)}
+                              className={
+                                hiddenFromImage
+                                  ? 'font-medium text-amber-800 hover:text-amber-950'
+                                  : 'font-medium text-gray-600 hover:text-gray-900'
+                              }
+                            >
+                              {hiddenFromImage ? 'Hidden · Show' : 'Hide'}
+                            </button>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <button
@@ -762,12 +820,12 @@ export function FuelMakePaymentModal({
               </div>
             )}
 
-            {otherUnpaidInvoices.length > 0 && (
+            {visibleOtherUnpaid.length > 0 && (
               <div>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
                   Other Unpaid Invoices
                 </div>
-                {otherUnpaidInvoices.map((inv) => {
+                {visibleOtherUnpaid.map((inv) => {
                   const daysPastDue = calculateDaysPastDue(inv.dueDate)
                   const dpdText = daysPastDue > 0 ? `${daysPastDue} dpd` : ''
                   return (

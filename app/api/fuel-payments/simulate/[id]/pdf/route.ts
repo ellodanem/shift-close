@@ -66,11 +66,17 @@ export async function GET(
       ? roundMoney(balanceRecord.availableFunds - planned)
       : 0
 
-    // Fetch other unpaid invoices (excluding the ones in simulation)
+    // Optional image/PDF omissions. These stay unpaid; they are only left off this draft.
+    const omitIds = (request.nextUrl.searchParams.get('omit') ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0 && !invoiceIds.includes(id))
+
+    // Fetch other unpaid invoices (excluding the ones in simulation, plus any omitted from this draft)
     const otherUnpaidInvoices = await prisma.invoice.findMany({
       where: {
         status: 'pending',
-        id: { notIn: invoiceIds }
+        id: { notIn: [...invoiceIds, ...omitIds] }
       },
       orderBy: {
         invoiceNumber: 'asc'
