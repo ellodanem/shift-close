@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { businessTodayYmd, zonedEndExclusiveUtc, zonedStartOfDayUtc } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
-import { getListDisplayOverShort } from '@/lib/calculations'
 import { parsePayCycle } from '@/lib/pay-cycle'
 import {
   inactiveStaffIdsWithVacationOverlap,
@@ -14,7 +13,8 @@ export const dynamic = 'force-dynamic'
 
 /** POST /api/attendance/pay-period/generate
  * Body: { startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD" }
- * Generates pay period summary from attendance logs + shift shortages + vacation
+ * Generates pay period summary from attendance logs + vacation.
+ * Shortage is never calculated. Shift over/short stays on the shift and is not copied onto staff.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -85,26 +85,6 @@ export async function POST(request: NextRequest) {
       transTtlByStaff.set(key, Math.round(totalHours * 100) / 100)
     }
 
-    // Fetch shift shortages (net over/short when negative) per supervisor in range
-    const shifts = await prisma.shiftClose.findMany({
-      where: {
-        date: { gte: startDate, lte: endDate },
-        status: { in: ['closed', 'reviewed'] }
-      }
-    })
-
-    const shortageByStaff = new Map<string, number>()
-    for (const shift of shifts) {
-      const netOS = getListDisplayOverShort({
-        overShortTotal: shift.overShortTotal,
-        osReviewed: shift.osReviewed
-      })
-      if (netOS < 0 && shift.supervisorId) {
-        const sid = shift.supervisorId
-        shortageByStaff.set(sid, (shortageByStaff.get(sid) || 0) + Math.abs(netOS))
-      }
-    }
-
     // Fetch sick leave overlapping the pay period (approved only)
     const sickLeaves = await prisma.staffSickLeave.findMany({
       where: {
@@ -134,7 +114,6 @@ export async function POST(request: NextRequest) {
 
     const signalStaffIds = await staffIdsFromAttendanceLogs(logs)
     for (const sl of sickLeaves) signalStaffIds.add(sl.staffId)
-    for (const sid of shortageByStaff.keys()) signalStaffIds.add(sid)
     for (const id of await inactiveStaffIdsWithVacationOverlap(startDate, endDate)) {
       signalStaffIds.add(id)
     }
@@ -180,7 +159,6 @@ export async function POST(request: NextRequest) {
           vacation = '********'
         }
       }
-      const shortage = Math.round((shortageByStaff.get(s.id) || 0) * 100) / 100
       const sickLeave = sickLeaveByStaff.get(s.id)
 
       rows.push({
@@ -188,7 +166,7 @@ export async function POST(request: NextRequest) {
         staffName: s.name.trim(),
         transTtl,
         vacation,
-        shortage,
+        shortage: 0,
         sickLeaveDays: sickLeave?.days ?? 0,
         sickLeaveRanges: sickLeave?.ranges ?? '',
         payCycle: parsePayCycle(s.payCycle),

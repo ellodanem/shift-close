@@ -357,7 +357,7 @@ function lineFromHoursRow(
     extraPay: pay.extraPay,
     extraLines: extras,
     grossPay: pay.grossPay,
-    shortageReady: parseMoney(row.shortage),
+    shortageReady: 0,
     taxCode: (rateOverride?.taxCode ?? profile?.taxCode ?? '').trim()
   }
   return withDeductions(base, profile, deductionOverride, nisTaken)

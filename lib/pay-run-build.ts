@@ -40,7 +40,7 @@ export function parsePayPeriodHoursRows(raw: string): PayRunHoursRow[] {
         staffId: r.staffId,
         staffName: r.staffName,
         transTtl: typeof r.transTtl === 'number' ? r.transTtl : Number(r.transTtl) || 0,
-        shortage: typeof r.shortage === 'number' ? r.shortage : Number(r.shortage) || 0,
+        shortage: 0,
         payCycle: typeof r.payCycle === 'string' ? r.payCycle : undefined,
         staffNo: typeof r.staffNo === 'string' ? r.staffNo : null
       })

@@ -11,7 +11,6 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
   const totalBasic = splits.reduce((s, split) => s + split.basicHours, 0)
   const totalOt = splits.reduce((s, split) => s + split.otHours, 0)
-  const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
   const html = `
       <!DOCTYPE html>
       <html>
@@ -34,7 +33,6 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
                 <th style="text-align: center; padding: 8px 12px;">Vacation</th>
                 <th style="text-align: center; padding: 8px 16px; min-width: 5.5rem;">Sick Days</th>
                 <th style="text-align: left; padding: 8px 8px 8px 16px; min-width: 9rem;">Sick Leave</th>
-                <th style="text-align: right; padding: 8px 8px 8px 12px;">Shortage</th>
               </tr>
             </thead>
             <tbody>
@@ -49,7 +47,6 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
                   <td style="text-align: center; padding: 8px 12px;">${r.vacation || ''}</td>
                   <td style="text-align: center; padding: 8px 16px;">${r.sickLeaveDays ?? 0}</td>
                   <td style="text-align: left; padding: 8px 8px 8px 16px;">${r.sickLeaveRanges ?? ''}</td>
-                  <td style="text-align: right; padding: 8px 8px 8px 12px;">${r.shortage > 0 ? `$${r.shortage.toFixed(2)}` : ''}</td>
                 </tr>
               `
                 )
@@ -62,7 +59,6 @@ export function printPayPeriodReport(data: PayPeriodExcelData) {
                 <td style="padding: 8px 12px;"></td>
                 <td style="text-align: center; padding: 8px 16px;">${rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0)}</td>
                 <td style="padding: 8px 8px 8px 16px;"></td>
-                <td style="text-align: right; padding: 8px 8px 8px 12px;">${totalShortage > 0 ? `$${totalShortage.toFixed(2)}` : ''}</td>
               </tr>
             </tbody>
           </table>

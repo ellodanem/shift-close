@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { blankReportOnlyStaffSaveError } from '@/lib/pay-period-rows'
+import { blankReportOnlyStaffSaveError, withoutPayPeriodShortages } from '@/lib/pay-period-rows'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +61,7 @@ export async function PATCH(
         return NextResponse.json({ error: blankStaffError }, { status: 400 })
       }
       data.rowsBeforeLastEdit = existing.rows
-      data.rows = JSON.stringify(rows)
+      data.rows = JSON.stringify(withoutPayPeriodShortages(rows as Array<{ shortage?: number }>))
     }
 
     if (notes !== undefined) {

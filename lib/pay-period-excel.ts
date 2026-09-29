@@ -64,7 +64,6 @@ export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | 
   const totalTrans = rows.reduce((s, r) => s + r.transTtl, 0)
   const totalBasic = rows.reduce((s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).basicHours, 0)
   const totalOt = rows.reduce((s, r) => s + splitPayPeriodHours(r.transTtl, r.payCycle).otHours, 0)
-  const totalShortage = rows.reduce((s, r) => s + r.shortage, 0)
   return [
     ['Summary Report'],
     ['Report Date:', formatDateDisplay(data.reportDate)],
@@ -72,7 +71,7 @@ export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | 
     [data.entityName],
     ...buildPayPeriodNotesRows(data.notes ?? ''),
     [],
-    ['Staff', 'Trans Ttl', 'Basic', 'OT', 'Cycle', 'Vacation', 'Sick Days', 'Sick Leave', 'Shortage'],
+    ['Staff', 'Trans Ttl', 'Basic', 'OT', 'Cycle', 'Vacation', 'Sick Days', 'Sick Leave'],
     ...rows.map((r) => {
       const split = splitPayPeriodHours(r.transTtl, r.payCycle)
       return [
@@ -83,8 +82,7 @@ export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | 
         payCycleLabel(r.payCycle),
         r.vacation,
         r.sickLeaveDays ?? 0,
-        r.sickLeaveRanges ?? '',
-        r.shortage > 0 ? r.shortage : ''
+        r.sickLeaveRanges ?? ''
       ]
     }),
     [
@@ -95,8 +93,7 @@ export function buildPayPeriodWorksheetAoA(data: PayPeriodExcelData): (string | 
       '',
       '',
       rows.reduce((s, r) => s + (r.sickLeaveDays ?? 0), 0),
-      '',
-      totalShortage > 0 ? totalShortage : ''
+      ''
     ]
   ]
 }
