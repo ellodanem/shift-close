@@ -16,6 +16,13 @@ import {
   systemTenderTotal,
   type ShiftSaleFormRow
 } from '@/lib/shift-sales'
+import ShiftMeterPanel from '../ShiftMeterPanel'
+import {
+  emptyMeterReadings,
+  meterReadingsFromUnknown,
+  type MeterCarry,
+  type MeterReadingFields
+} from '@/lib/shift-meter'
 
 const DRAFT_STORAGE_KEY = 'shift-close-draft'
 
@@ -42,6 +49,7 @@ export default function NewShiftPage() {
     countMassyCoupons: 0,
     unleaded: 0,
     diesel: 0,
+    ...emptyMeterReadings(),
     sales: defaultDepartmentSales(),
     deposits: [0],
     depositBagNumbers: [''],
@@ -60,6 +68,7 @@ export default function NewShiftPage() {
   // Map structure: date -> Set of shift types that exist for that date
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; role: string }>>([])
   const [supervisorId, setSupervisorId] = useState<string>('')
+  const [meterCarry, setMeterCarry] = useState<MeterCarry | null>(null)
   
   // Load supervisorId from draft if exists
   useEffect(() => {
@@ -82,6 +91,7 @@ export default function NewShiftPage() {
         const draft = JSON.parse(savedDraft)
         setFormData({
           ...draft,
+          ...meterReadingsFromUnknown(draft),
           depositBagNumbers: Array.isArray(draft.depositBagNumbers)
             ? draft.depositBagNumbers.length > 0
               ? draft.depositBagNumbers
@@ -99,6 +109,24 @@ export default function NewShiftPage() {
     }
   }, [])
   
+  useEffect(() => {
+    const date = formData.date
+    const shift = formData.shift
+    if (!date || !shift) return
+    let cancelled = false
+    fetch(`/api/shifts/meter-carry?date=${date}&shift=${encodeURIComponent(shift)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: MeterCarry | null) => {
+        if (!cancelled) setMeterCarry(data)
+      })
+      .catch(() => {
+        if (!cancelled) setMeterCarry(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.date, formData.shift])
+
   // Fetch staff list
   useEffect(() => {
     fetch('/api/staff')
@@ -215,6 +243,7 @@ export default function NewShiftPage() {
         countMassyCoupons: safeNum(formData.countMassyCoupons),
         unleaded: safeNum(formData.unleaded),
         diesel: safeNum(formData.diesel),
+        ...meterReadingsFromUnknown(formData),
         sales: formData.sales,
         deposits: formData.deposits
           .map(d => safeNum(d))
@@ -298,6 +327,7 @@ export default function NewShiftPage() {
       countMassyCoupons: 0,
       unleaded: 0,
       diesel: 0,
+      ...emptyMeterReadings(),
       sales: defaultDepartmentSales(),
       deposits: [0],
       depositBagNumbers: [''],
@@ -660,6 +690,15 @@ export default function NewShiftPage() {
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 />
               </div>
+              <ShiftMeterPanel
+                readings={meterReadingsFromUnknown(formData)}
+                cstoreUnleaded={Number.isNaN(formData.unleaded) ? 0 : formData.unleaded}
+                cstoreDiesel={Number.isNaN(formData.diesel) ? 0 : formData.diesel}
+                carry={meterCarry}
+                editable
+                saveWithShift
+                onChange={(next: MeterReadingFields) => setFormData((prev) => ({ ...prev, ...next }))}
+              />
             </div>
           </div>
           

@@ -6,6 +6,7 @@ import { buildShiftsList } from '@/lib/shifts-list'
 import { syncShiftDepositsToCashbook } from '@/lib/cashbook-deposit-sync'
 import { syncShiftCardIncomeToCashbook } from '@/lib/cashbook-shift-income'
 import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
+import { meterPatchFromBody } from '@/lib/shift-meter'
 import { rename, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -129,7 +130,8 @@ export async function POST(request: NextRequest) {
         overShortExplanation: String(body.overShortExplanation || ''),
         overShortCash: calculated.overShortCash,
         overShortTotal: calculated.overShortTotal,
-        totalDeposits: calculated.totalDeposits
+        totalDeposits: calculated.totalDeposits,
+        ...meterPatchFromBody(body, {}).data
       }
     })
 

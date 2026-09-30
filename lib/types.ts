@@ -27,6 +27,13 @@ export interface ShiftCloseInput {
   countMassyCoupons: number
   unleaded: number
   diesel: number
+  /** Optional dispenser totalizers. Null skips that reading. */
+  unleadedMeterOpen?: number | null
+  unleadedMeterClose?: number | null
+  unleadedMeterTest?: number | null
+  dieselMeterOpen?: number | null
+  dieselMeterClose?: number | null
+  dieselMeterTest?: number | null
   deposits: number[]
   /** Optional night deposit bag number(s) for the shift (all deposits share these). */
   depositBagNumbers?: string[]

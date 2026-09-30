@@ -180,6 +180,15 @@ model ShiftClose {
   unleaded Float
   diesel   Float
 
+  /// Optional dispenser totalizers. Null means the shift skipped meter readings.
+  /// Litres through the pump = close − open − test, compared with unleaded/diesel (CStore).
+  unleadedMeterOpen  Float? @map("unleaded_meter_open")
+  unleadedMeterClose Float? @map("unleaded_meter_close")
+  unleadedMeterTest  Float? @map("unleaded_meter_test")
+  dieselMeterOpen    Float? @map("diesel_meter_open")
+  dieselMeterClose   Float? @map("diesel_meter_close")
+  dieselMeterTest    Float? @map("diesel_meter_test")
+
   // Deposits (stored as JSON string, parsed in app)
   deposits String // JSON array of numbers
 

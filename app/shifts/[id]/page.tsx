@@ -24,6 +24,13 @@ import {
   type ShiftSaleFormRow,
   type ShiftSaleRow
 } from '@/lib/shift-sales'
+import ShiftMeterPanel from '../ShiftMeterPanel'
+import {
+  emptyMeterReadings,
+  meterReadingsFromUnknown,
+  type MeterCarry,
+  type MeterReadingFields
+} from '@/lib/shift-meter'
 const DRAFT_STORAGE_KEY = 'shift-draft-edit'
 
 interface Shift {
@@ -48,6 +55,13 @@ interface Shift {
   countMassyCoupons: number
   unleaded: number
   diesel: number
+  unleadedMeterOpen?: number | null
+  unleadedMeterClose?: number | null
+  unleadedMeterTest?: number | null
+  dieselMeterOpen?: number | null
+  dieselMeterClose?: number | null
+  dieselMeterTest?: number | null
+  meterCarry?: MeterCarry | null
   deposits: string
   depositBagNumbers?: string
   notes: string
@@ -114,6 +128,8 @@ export default function ShiftDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false)
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; role: string }>>([])
   const [supervisorId, setSupervisorId] = useState<string>('')
+  const [meterCarry, setMeterCarry] = useState<MeterCarry | null>(null)
+  const [savingMeters, setSavingMeters] = useState(false)
   // For drafts, use editable state - must be at top level
   const [editData, setEditData] = useState({
     date: '',
@@ -136,6 +152,7 @@ export default function ShiftDetailPage() {
     countMassyCoupons: 0,
     unleaded: 0,
     diesel: 0,
+    ...emptyMeterReadings(),
     sales: mergeDepartmentSales([], { unleaded: 0, diesel: 0 }),
     deposits: [] as number[],
     depositBagNumbers: [''] as string[],
@@ -148,6 +165,7 @@ export default function ShiftDetailPage() {
         .then(res => res.json())
         .then(data => {
           setShift(data)
+          setMeterCarry(data.meterCarry ?? null)
           setHasMissingHardCopyData(data.hasMissingHardCopyData || false)
           setMissingDataNotes(data.missingDataNotes || '')
           setOsReviewedInput(
@@ -184,6 +202,7 @@ export default function ShiftDetailPage() {
             countMassyCoupons: data.countMassyCoupons || 0,
             unleaded: data.unleaded || 0,
             diesel: data.diesel || 0,
+            ...meterReadingsFromUnknown(data),
             sales: mergeDepartmentSales(data.sales, {
               unleaded: data.unleaded || 0,
               diesel: data.diesel || 0
@@ -226,6 +245,7 @@ export default function ShiftDetailPage() {
                     countMassyCoupons: draft.countMassyCoupons ?? data.countMassyCoupons ?? 0,
                     unleaded: draft.unleaded ?? data.unleaded ?? 0,
                     diesel: draft.diesel ?? data.diesel ?? 0,
+                    ...meterReadingsFromUnknown('unleadedMeterOpen' in draft ? { ...data, ...draft } : data),
                     sales: mergeDepartmentSales(draft.sales ?? data.sales, {
                       unleaded: draft.unleaded ?? data.unleaded ?? 0,
                       diesel: draft.diesel ?? data.diesel ?? 0
@@ -427,6 +447,34 @@ export default function ShiftDetailPage() {
         </div>
       </div>
     )
+  }
+
+  const handleSaveMeters = async () => {
+    if (!shift) return
+    setSavingMeters(true)
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(meterReadingsFromUnknown(editData))
+      })
+      if (!res.ok) {
+        alert('Failed to save meter readings')
+        return
+      }
+      const updated = await res.json()
+      setShift(updated)
+      setMeterCarry(updated.meterCarry ?? null)
+      setEditData((prev) => ({ ...prev, ...meterReadingsFromUnknown(updated) }))
+      if (updated.corrections) {
+        setChangedFields(new Set<string>(updated.corrections.map((c: { field: string }) => c.field)))
+      }
+    } catch (err) {
+      console.error('Error saving meter readings:', err)
+      alert('Failed to save meter readings')
+    } finally {
+      setSavingMeters(false)
+    }
   }
 
   const handleSaveDraft = async () => {
@@ -956,6 +1004,17 @@ export default function ShiftDetailPage() {
                 <div className="border border-gray-300 rounded px-3 py-2 bg-gray-50 text-right">{shift.diesel.toFixed(2)}</div>
               )}
             </div>
+            <ShiftMeterPanel
+              readings={meterReadingsFromUnknown(editData)}
+              cstoreUnleaded={Number.isNaN(isEditable ? editData.unleaded : shift.unleaded) ? 0 : (isEditable ? editData.unleaded : shift.unleaded)}
+              cstoreDiesel={Number.isNaN(isEditable ? editData.diesel : shift.diesel) ? 0 : (isEditable ? editData.diesel : shift.diesel)}
+              carry={meterCarry}
+              editable
+              saveWithShift={isEditable}
+              saving={savingMeters}
+              onChange={(next: MeterReadingFields) => setEditData((prev) => ({ ...prev, ...next }))}
+              onSave={isEditable ? undefined : handleSaveMeters}
+            />
           </div>
         </div>
         

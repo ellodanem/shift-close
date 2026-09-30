@@ -10,6 +10,8 @@ import {
   syncShiftCardIncomeToCashbook
 } from '@/lib/cashbook-shift-income'
 import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
+import { findMeterCarry } from '@/lib/shift-meter-carry'
+import { meterPatchFromBody } from '@/lib/shift-meter'
 
 export async function GET(
   request: NextRequest,
@@ -51,10 +53,17 @@ export async function GET(
         // Keep original value if parsing fails
       }
     }
+
+    const meterCarry = await findMeterCarry({
+      date: shift.date,
+      shift: shift.shift,
+      excludeId: shift.id
+    })
     
     return NextResponse.json({
       ...shift,
-      totalDeposits: recalculatedTotalDeposits
+      totalDeposits: recalculatedTotalDeposits,
+      meterCarry
     })
   } catch (error) {
     console.error('Error fetching shift:', error)
@@ -340,6 +349,12 @@ export async function PATCH(
       }
     }
     
+    const meterPatch = meterPatchFromBody(body, existingShift)
+    Object.assign(updateData, meterPatch.data)
+    if (!isDraft) {
+      changes.push(...meterPatch.changes)
+    }
+
     if ('sales' in body) {
       const fuel = {
         unleaded: 'unleaded' in updateData ? Number(updateData.unleaded) || 0 : existingShift.unleaded,
@@ -450,10 +465,17 @@ export async function PATCH(
         // Keep original value if parsing fails
       }
     }
+
+    const meterCarry = await findMeterCarry({
+      date: shift.date,
+      shift: shift.shift,
+      excludeId: shift.id
+    })
     
     return NextResponse.json({
       ...shift,
-      totalDeposits: recalculatedTotalDeposits
+      totalDeposits: recalculatedTotalDeposits,
+      meterCarry
     })
   } catch (error) {
     console.error('Error updating shift:', error)
