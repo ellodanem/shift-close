@@ -88,6 +88,19 @@ export function OperatingBalanceCard({
     <div className="mb-4 space-y-3">
     <section
       className="overflow-hidden rounded-lg border border-gray-200 bg-white"
+      aria-label={`${SERVICE_STATION_ACCOUNT.name} balance`}
+    >
+      <AccountRow
+        name={SERVICE_STATION_ACCOUNT.name}
+        kind={SERVICE_STATION_ACCOUNT.kind}
+        number={SERVICE_STATION_ACCOUNT.number}
+        currentBalance={balance.totalAutoCurrentBalance ?? 0}
+        available={balance.totalAutoAvailable ?? 0}
+      />
+    </section>
+
+    <section
+      className="overflow-hidden rounded-lg border border-gray-200 bg-white"
       aria-label={`${WESTLINE_ACCOUNT.name} balance`}
     >
       <AccountRow
@@ -137,19 +150,6 @@ export function OperatingBalanceCard({
         )}
         {note && <span className="text-xs text-slate-400">{note}</span>}
       </div>
-    </section>
-
-    <section
-      className="overflow-hidden rounded-lg border border-gray-200 bg-white"
-      aria-label={`${SERVICE_STATION_ACCOUNT.name} balance`}
-    >
-      <AccountRow
-        name={SERVICE_STATION_ACCOUNT.name}
-        kind={SERVICE_STATION_ACCOUNT.kind}
-        number={SERVICE_STATION_ACCOUNT.number}
-        currentBalance={balance.totalAutoCurrentBalance ?? 0}
-        available={balance.totalAutoAvailable ?? 0}
-      />
     </section>
     </div>
   )

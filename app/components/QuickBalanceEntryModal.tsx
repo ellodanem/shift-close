@@ -102,26 +102,26 @@ export function QuickBalanceEntryModal({
 
         <div className="space-y-5">
           <AccountFields
-            name="Westline Ent"
-            detail="Chequing Account · 200000316928"
-            currentValue={form.currentBalance}
-            availableValue={form.availableFunds}
-            onCurrent={(currentBalance) => onFormChange({ ...form, currentBalance })}
-            onAvailable={(availableFunds) => onFormChange({ ...form, availableFunds })}
-            hint="Payment calculations use Available."
+            name="Service Station"
+            detail="Total Auto · Chequing Account · 200000102146"
+            currentValue={form.totalAutoCurrentBalance}
+            availableValue={form.totalAutoAvailable}
+            onCurrent={(totalAutoCurrentBalance) =>
+              onFormChange({ ...form, totalAutoCurrentBalance })
+            }
+            onAvailable={(totalAutoAvailable) => onFormChange({ ...form, totalAutoAvailable })}
+            hint="Available is a suggestion on proposed payments."
           />
 
           <div className="border-t border-gray-200 pt-5">
             <AccountFields
-              name="Service Station"
-              detail="Total Auto · Chequing Account · 200000102146"
-              currentValue={form.totalAutoCurrentBalance}
-              availableValue={form.totalAutoAvailable}
-              onCurrent={(totalAutoCurrentBalance) =>
-                onFormChange({ ...form, totalAutoCurrentBalance })
-              }
-              onAvailable={(totalAutoAvailable) => onFormChange({ ...form, totalAutoAvailable })}
-              hint="Available is a suggestion on proposed payments."
+              name="Westline Ent"
+              detail="Chequing Account · 200000316928"
+              currentValue={form.currentBalance}
+              availableValue={form.availableFunds}
+              onCurrent={(currentBalance) => onFormChange({ ...form, currentBalance })}
+              onAvailable={(availableFunds) => onFormChange({ ...form, availableFunds })}
+              hint="Payment calculations use Available."
             />
           </div>
 
