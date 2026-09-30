@@ -41,6 +41,7 @@
     "test:deposit-comparisons": "tsx --test scripts/test-deposit-comparison-rows.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1143.0",
     "@prisma/client": "^5.20.0",
     "@vercel/blob": "^2.2.0",
     "bcryptjs": "^3.0.3",

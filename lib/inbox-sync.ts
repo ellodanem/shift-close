@@ -1,7 +1,7 @@
 import type { InboxMailbox } from '@prisma/client'
 import { ImapFlow } from 'imapflow'
 import { simpleParser, type AddressObject, type ParsedMail } from 'mailparser'
-import { put } from '@vercel/blob'
+import { hasRemoteObjectStorage, putPublicObject } from '@/lib/object-storage'
 import { prisma } from '@/lib/prisma'
 import {
   isOutlookLikeEmail,
@@ -198,18 +198,18 @@ async function uploadAttachment(
   content: Buffer,
   contentType: string
 ): Promise<string | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return null
+  if (!hasRemoteObjectStorage()) return null
   if (content.length > 8 * 1024 * 1024) return null
   try {
     const safe = filename.replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'file'
-    const blob = await put(`inbox/${mailboxKey}/${messageId}/${safe}`, content, {
-      access: 'public',
-      contentType,
-      addRandomSuffix: true
-    })
-    return blob.url
+    const suffix = Math.random().toString(36).slice(2, 8)
+    return await putPublicObject(
+      `inbox/${mailboxKey}/${messageId}/${suffix}-${safe}`,
+      content,
+      contentType
+    )
   } catch (e) {
-    console.warn('inbox attachment blob upload failed', e)
+    console.warn('inbox attachment upload failed', e)
     return null
   }
 }

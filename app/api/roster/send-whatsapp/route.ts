@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
 import { sendWhatsAppWithMedia, isWhatsAppConfigured } from '@/lib/whatsapp'
+import { putPublicObject } from '@/lib/object-storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,10 +35,10 @@ export async function POST(request: NextRequest) {
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    const blob = await put(
+    const imageUrl = await putPublicObject(
       `roster/${Date.now()}-roster.png`,
       buffer,
-      { access: 'public', contentType: 'image/png' }
+      'image/png'
     )
 
     const messageBody = weekStart
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     const errors: string[] = []
     for (const phone of recipients) {
       try {
-        await sendWhatsAppWithMedia(phone, messageBody, blob.url, { weekStart })
+        await sendWhatsAppWithMedia(phone, messageBody, imageUrl, { weekStart })
         sent.push(phone)
       } catch (err) {
         errors.push(`${phone}: ${err instanceof Error ? err.message : 'Unknown error'}`)

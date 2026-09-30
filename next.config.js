@@ -7,6 +7,7 @@ const nextConfig = {
   // Keep Electron agents, scripts, and docs out of Vercel Function bundles.
   // Those paths are not needed at runtime on Vercel and inflate Functions Storage.
   experimental: {
+    serverComponentsExternalPackages: ['@aws-sdk/client-s3'],
     outputFileTracingExcludes: {
       '*': [
         'agent/**/*',

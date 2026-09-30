@@ -1,14 +1,10 @@
-import { del, put } from '@vercel/blob'
 import { mkdir, unlink, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { deleteStoredObject, hasRemoteObjectStorage, putPublicObject } from '@/lib/object-storage'
 
 function sanitizeSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, '-')
-}
-
-function hasBlobToken() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN)
 }
 
 export async function saveStaffDocumentFile(args: {
@@ -21,18 +17,14 @@ export async function saveStaffDocumentFile(args: {
   const timestamp = Date.now()
   const extension = sanitizeSegment(file.name.split('.').pop() || 'bin')
 
-  if (hasBlobToken()) {
+  if (hasRemoteObjectStorage()) {
     const prefix = sickLeaveId ? `staff/${staffId}/sick-leave` : `staff/${staffId}`
     const filename = sickLeaveId
       ? `sick-leave-${sickLeaveId}-${timestamp}.${extension}`
       : `${sanitizeSegment(type)}-${timestamp}.${extension}`
     const pathname = `${prefix}/${filename}`
-    const blob = await put(pathname, file, {
-      access: 'public',
-      addRandomSuffix: false,
-      contentType: file.type || undefined
-    })
-    return blob.url
+    const bytes = Buffer.from(await file.arrayBuffer())
+    return putPublicObject(pathname, bytes, file.type || undefined)
   }
 
   const localPrefix = sickLeaveId
@@ -55,9 +47,7 @@ export async function deleteStaffDocumentFile(fileUrl: string) {
   if (!fileUrl) return
 
   if (/^https?:\/\//i.test(fileUrl)) {
-    if (hasBlobToken()) {
-      await del(fileUrl)
-    }
+    await deleteStoredObject(fileUrl)
     return
   }
 

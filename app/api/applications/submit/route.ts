@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { put } from '@vercel/blob'
 import { writeFile, mkdir } from 'fs/promises'
+import { hasRemoteObjectStorage, putPublicObject } from '@/lib/object-storage'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { jsPDF } from 'jspdf'
@@ -93,23 +93,23 @@ export async function POST(request: NextRequest) {
     let pdfUrl: string
     let resumeUrl: string | null = null
 
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    if (hasRemoteObjectStorage()) {
       const ts = Date.now()
-      const pdfBlob = await put(`applications/${formId}/${ts}-application.pdf`, pdfBuffer, {
-        access: 'public',
-        contentType: 'application/pdf'
-      })
-      pdfUrl = pdfBlob.url
+      pdfUrl = await putPublicObject(
+        `applications/${formId}/${ts}-application.pdf`,
+        pdfBuffer,
+        'application/pdf'
+      )
 
       if (resumeFile && resumeFile.size > 0 && resumeFile.size < 10 * 1024 * 1024) {
         const resBytes = await resumeFile.arrayBuffer()
         const resBuffer = Buffer.from(resBytes)
         const ext = resumeFile.name.split('.').pop() || 'pdf'
-        const resBlob = await put(`applications/${formId}/${ts}-resume.${ext}`, resBuffer, {
-          access: 'public',
-          contentType: resumeFile.type || 'application/octet-stream'
-        })
-        resumeUrl = resBlob.url
+        resumeUrl = await putPublicObject(
+          `applications/${formId}/${ts}-resume.${ext}`,
+          resBuffer,
+          resumeFile.type || 'application/octet-stream'
+        )
       }
     } else {
       const uploadsDir = join(process.cwd(), 'public', 'uploads', 'applications', formId)

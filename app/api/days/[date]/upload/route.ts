@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { put, del } from '@vercel/blob'
 import { writeFile, mkdir, unlink } from 'fs/promises'
+import { deleteStoredObject, hasRemoteObjectStorage, putPublicObject } from '@/lib/object-storage'
 import { join } from 'path'
 import { existsSync } from 'fs'
 
@@ -46,10 +46,8 @@ export async function POST(
     
     let url: string
     
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      // Production (Vercel): store in Blob
-      const blob = await put(`days/${date}/${filename}`, buffer, { access: 'public' })
-      url = blob.url
+    if (hasRemoteObjectStorage()) {
+      url = await putPublicObject(`days/${date}/${filename}`, buffer, file.type || undefined)
     } else {
       // Local: store on disk
       const dayUploadsDir = join(process.cwd(), 'public', 'uploads', 'days', date)
@@ -108,9 +106,9 @@ export async function POST(
   } catch (error: any) {
     console.error('Error uploading day file:', error)
     const isVercel = process.env.VERCEL === '1'
-    const noBlob = isVercel && !process.env.BLOB_READ_WRITE_TOKEN
-    const message = noBlob
-      ? 'Uploads on Vercel require Blob storage. Add BLOB_READ_WRITE_TOKEN in Vercel project settings (Storage).'
+    const noStorage = isVercel && !hasRemoteObjectStorage()
+    const message = noStorage
+      ? 'Uploads on Vercel require object storage. Set the Raff storage environment variables.'
       : (error?.message || 'Failed to upload file')
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -173,7 +171,7 @@ export async function DELETE(
     // Best-effort physical file delete (Blob or local disk)
     try {
       if (url.startsWith('http')) {
-        await del(url)
+        await deleteStoredObject(url)
       } else {
         const filePath = join(process.cwd(), 'public', url.replace(/^\/+/, ''))
         if (existsSync(filePath)) {
