@@ -15,11 +15,26 @@ import {
   normalizeAppRole
 } from '@/lib/roles'
 
-/** Enter a bill or pay one already on file. Not the rest of fuel and vendor admin. */
+/** Vendor and fuel bill routes the accountant may open. Writes are narrower. */
 function isAccountantBillPath(pathname: string): boolean {
   if (pathname === '/api/fuel-payments/make-payment') return true
   if (pathname === '/api/fuel-payments/invoices') return true
   if (pathname === '/api/vendor-payments/make-payment') return true
+  if (pathname === '/api/vendor-payments/vendors') return true
+  if (/^\/api\/vendor-payments\/vendors\/[^/]+$/.test(pathname)) return true
+  if (/^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)) return true
+  if (/^\/api\/vendor-payments\/invoices\/[^/]+$/.test(pathname)) return true
+  return false
+}
+
+function isAccountantBillWrite(pathname: string, method: string): boolean {
+  if (method !== 'POST' && method !== 'PATCH') return false
+  if (method === 'PATCH' && /^\/api\/vendor-payments\/invoices\/[^/]+$/.test(pathname)) return true
+  if (method === 'PATCH') return false
+  if (pathname === '/api/fuel-payments/make-payment') return true
+  if (pathname === '/api/fuel-payments/invoices') return true
+  if (pathname === '/api/vendor-payments/make-payment') return true
+  if (pathname === '/api/vendor-payments/vendors') return true
   return /^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)
 }
 
@@ -182,7 +197,7 @@ export function apiWriteAllowedForRole(
     if (pathname.startsWith('/api/accounting/journal')) return true
     if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/api/auth/')) return true
-    if (isAccountantBillPath(pathname)) return true
+    if (isAccountantBillWrite(pathname, method)) return true
     return false
   }
   if (normalizeAppRole(role) === 'stakeholder') {

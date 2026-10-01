@@ -521,16 +521,148 @@ export function BillsScreen() {
   )
 }
 
+type DirectoryVendor = {
+  id: string
+  name: string
+  isVatRegistered?: boolean
+}
+
 export function VendorsScreen() {
   const books = useBooks()
+  const { reload } = useAccountingBooks()
+  const [directory, setDirectory] = useState<DirectoryVendor[] | null>(null)
+  const [directoryTick, setDirectoryTick] = useState(0)
+  const [adding, setAdding] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [vatRegistered, setVatRegistered] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/vendor-payments/vendors', { cache: 'no-store' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !Array.isArray(data) || cancelled) return
+        setDirectory(data as DirectoryVendor[])
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [directoryTick])
+
+  const bookById = new Map(books.vendors.filter((vendor) => vendor.id).map((vendor) => [vendor.id as string, vendor]))
+  const rows = (directory ?? books.vendors.filter((vendor) => vendor.id).map((vendor) => ({ id: vendor.id as string, name: vendor.name }))).map(
+    (vendor) => ({
+      id: vendor.id,
+      name: vendor.name,
+      vat: 'isVatRegistered' in vendor ? Boolean(vendor.isVatRegistered) : null,
+      openAmount: bookById.get(vendor.id)?.openAmount ?? 0,
+      lastPayment: bookById.get(vendor.id)?.lastPayment ?? null
+    })
+  )
+
+  async function addVendor() {
+    if (!name.trim() || !email.trim()) {
+      setError('Name and email are required.')
+      return
+    }
+    setAdding(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/vendor-payments/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          notificationEmail: email.trim(),
+          isVatRegistered: vatRegistered
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not add vendor')
+      setName('')
+      setEmail('')
+      setVatRegistered(false)
+      setShowAdd(false)
+      setDirectoryTick((tick) => tick + 1)
+      reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add vendor')
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
     <div>
-      <PageTitle title="Vendors" note="Open bills and the last payment on file." />
-      <DataTable
-        headers={['Vendor', 'Open bills', 'Last payment']}
-        align={['left', 'right', 'left']}
-        rows={books.vendors.map((vendor) => [vendor.name, money(vendor.openAmount), vendor.lastPayment ?? ''])}
+      <PageTitle
+        title="Vendors"
+        note="Open each vendor for their bills, VAT, and payments. This is the same vendor record the station uses."
       />
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowAdd((open) => !open)}
+          className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800"
+        >
+          {showAdd ? 'Close' : 'Add vendor'}
+        </button>
+      </div>
+      {showAdd && (
+        <div className="mb-4 max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <label className="block text-sm">
+            <span className="text-gray-600">Name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-600">Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={vatRegistered} onChange={(e) => setVatRegistered(e.target.checked)} />
+            VAT registered
+          </label>
+          <button type="button" disabled={adding} onClick={() => void addVendor()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {adding ? 'Saving…' : 'Save vendor'}
+          </button>
+        </div>
+      )}
+      {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-3 py-2">Vendor</th>
+              <th className="px-3 py-2">VAT</th>
+              <th className="px-3 py-2 text-right">Open bills</th>
+              <th className="px-3 py-2">Last payment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-500">No vendors yet.</td>
+              </tr>
+            ) : (
+              rows.map((vendor) => (
+                <tr key={vendor.id} className="border-t border-gray-100">
+                  <td className="px-3 py-2">
+                    <Link href={`/accounting/vendors/${vendor.id}`} className="font-medium text-indigo-700 hover:underline">
+                      {vendor.name}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">{vendor.vat == null ? '—' : vendor.vat ? 'Registered' : 'No'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{money(vendor.openAmount)}</td>
+                  <td className="px-3 py-2">{vendor.lastPayment ?? '—'}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
