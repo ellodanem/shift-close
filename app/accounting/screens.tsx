@@ -117,18 +117,31 @@ export function OverviewScreen() {
   const books = useBooks()
   const assets = books.westlineOnFile + books.serviceStationOnFile + books.accountsReceivable
   const liabilities = books.accountsPayableFuel + books.accountsPayableVendors + books.payrollPayable
+  const asOfLabel = journalDateLabel(books.asOf) || books.asOf
+  const receivables = books.customers.filter((customer) => customer.closing !== 0)
+  const balanceRows: Array<{ account: string; debit: number | null; credit: number | null; total?: boolean }> = [
+    { account: '101 · Westline chequing', debit: books.westlineOnFile, credit: null },
+    { account: '102 · Service Station chequing', debit: books.serviceStationOnFile, credit: null },
+    { account: '104 · Accounts receivable', debit: books.accountsReceivable, credit: null },
+    { account: 'Total assets', debit: assets, credit: null, total: true },
+    { account: '201 · Accounts payable, fuel', debit: null, credit: books.accountsPayableFuel },
+    { account: '202 · Accounts payable, vendors', debit: null, credit: books.accountsPayableVendors },
+    { account: '204 · Payroll payable', debit: null, credit: books.payrollPayable },
+    { account: 'Total liabilities', debit: null, credit: liabilities, total: true }
+  ]
+
   return (
     <div>
-      <PageTitle
-        title="Accounting overview"
-        note={`Balances on file as of ${books.asOf}. Month figures are ${books.startDate} to ${books.endDate}.`}
-      />
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Link href="/accounting/journal" className="rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
-          Journal entry
+      <PageTitle title="Accounting overview" note="What would you like to do today?" />
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Link href="/accounting/customers" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+          Customers
         </Link>
         <Link href="/accounting/bills" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Enter & pay bills
+        </Link>
+        <Link href="/accounting/journal" className="rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
+          Journal entry
         </Link>
         <Link href="/accounting/reconcile" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Reconcile
@@ -137,31 +150,55 @@ export function OverviewScreen() {
           Pay runs
         </Link>
       </div>
-      <StatStrip
-        items={[
-          { label: 'Westline on file', value: money(books.westlineOnFile) },
-          { label: 'Service Station on file', value: money(books.serviceStationOnFile) },
-          { label: 'Accounts receivable', value: money(books.accountsReceivable) },
-          { label: 'Month net', value: money(books.monthNet), tone: books.monthNet >= 0 ? 'good' : 'bad' }
-        ]}
-      />
-      <DataTable
-        headers={['Account', 'Amount']}
-        align={['left', 'right']}
-        rows={[
-          ['101 · Westline chequing', money(books.westlineOnFile)],
-          ['102 · Service Station chequing', money(books.serviceStationOnFile)],
-          ['104 · Accounts receivable', money(books.accountsReceivable)],
-          ['Total of these assets', money(assets)],
-          ['201 · Accounts payable, fuel', money(books.accountsPayableFuel)],
-          ['202 · Accounts payable, vendors', money(books.accountsPayableVendors)],
-          ['204 · Payroll payable', money(books.payrollPayable)],
-          ['Total of these liabilities', money(liabilities)]
-        ]}
-      />
+      <p className="mb-6 text-sm text-gray-600">
+        Deposits and card totals already arrive from closed shifts. House-account charges already arrive from the close. This overview reads those balances.
+      </p>
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">Account balances as of {asOfLabel}</h2>
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-100 text-left text-xs font-semibold text-gray-600">
+            <tr>
+              <th className="px-3 py-2">Account</th>
+              <th className="px-3 py-2 text-right">Debit</th>
+              <th className="px-3 py-2 text-right">Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {balanceRows.map((row) => (
+              <tr key={row.account} className={row.total ? 'bg-gray-100 font-semibold' : 'border-t border-gray-100'}>
+                <td className="px-3 py-2">{row.account}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.debit == null ? '' : money(row.debit)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.credit == null ? '' : money(row.credit)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <p className="mt-3 text-sm text-gray-600">
         Westline and Service Station are the balances on file, not a sum of the ledger. Receivable, payable, and payroll come from open customer balances, open invoices, and approved pay runs whose pay date is still ahead.
       </p>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Receivable balances</h2>
+          <DataTable
+            headers={['Customer', 'Balance']}
+            align={['left', 'right']}
+            rows={receivables.map((customer) => [customer.name, money(customer.closing)])}
+          />
+        </div>
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Bills paid this month</h2>
+          <DataTable
+            headers={['Date', 'Payee', 'Amount']}
+            align={['left', 'left', 'right']}
+            rows={books.paidBills.map((bill) => [
+              journalDateLabel(bill.date) || bill.date,
+              bill.ref ? `${bill.name} · ${bill.ref}` : bill.name,
+              money(bill.amount)
+            ])}
+          />
+        </div>
+      </div>
       <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Pay runs in this month</h2>
       <DataTable
         headers={['Period', 'Pay date', 'Status', 'Net']}
