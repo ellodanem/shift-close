@@ -338,7 +338,8 @@
         <label>Harvest secret</label>
         <div class="secret-row">
           <span class="badge badge-miss" id="secretBadge">Not configured</span>
-          <input id="secretInput" type="password" placeholder="Paste once — cannot be viewed later" style="max-width:320px" />
+          <input id="secretInput" type="password" placeholder="Paste once — stored encrypted on this PC" style="max-width:320px" />
+          <button type="button" class="btn btn-outline" id="btnCopySecret" disabled>Copy secret</button>
           <button type="button" class="btn btn-outline" id="btnSaveSecret">Save secret</button>
           <button type="button" class="btn btn-outline" id="btnRemoveSecret">Remove</button>
         </div>
@@ -471,9 +472,10 @@
         badge.textContent = 'Not configured'
         badge.className = 'badge badge-miss'
         $('secretInput').disabled = false
-        $('secretInput').placeholder = 'Paste once — cannot be viewed later'
+        $('secretInput').placeholder = 'Paste once — stored encrypted on this PC'
         $('btnSaveSecret').disabled = false
       }
+      $('btnCopySecret').disabled = !cfg.agentSecretSet
     }
 
     async function refresh() {
@@ -594,6 +596,42 @@
         await loadConfigForm()
         await refresh()
       } catch (e) { toast(e.message, false) }
+    }
+
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text)
+          return
+        }
+      } catch {
+        // Clipboard API can be blocked; fall back to a hidden selection.
+      }
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      ta.remove()
+      if (!ok) throw new Error('Could not copy to the clipboard')
+    }
+
+    $('btnCopySecret').onclick = async () => {
+      const btn = $('btnCopySecret')
+      btn.disabled = true
+      try {
+        const data = await api('/api/secret')
+        if (!data.secret) throw new Error('No harvest secret is stored')
+        await copyText(data.secret)
+        toast('Secret copied')
+      } catch (e) {
+        toast(e.message, false)
+      } finally {
+        btn.disabled = !$('secretBadge').classList.contains('badge-ok')
+      }
     }
 
     $('btnSaveSecret').onclick = async () => {

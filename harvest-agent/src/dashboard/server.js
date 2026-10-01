@@ -5,7 +5,7 @@
 const express = require('express')
 const path = require('path')
 const { loadConfig, saveConfig } = require('../config')
-const { hasStoredSecret, setStoredSecret, clearStoredSecret } = require('../secrets')
+const { getStoredSecret, hasStoredSecret, setStoredSecret, clearStoredSecret } = require('../secrets')
 const { isPaused, getPauseInfo, resumeAgent } = require('../agentState')
 
 function createDashboardServer(config, activityLog, status, actions = {}) {
@@ -118,6 +118,18 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       timeZone: config.timeZone,
       runOnStart: config.runOnStart
     }})
+  })
+
+  app.get('/api/secret', (req, res) => {
+    try {
+      const secret = getStoredSecret() || config.agentSecret || ''
+      if (!secret) {
+        return res.status(404).json({ ok: false, error: 'No harvest secret is stored' })
+      }
+      res.json({ ok: true, secret })
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message })
+    }
   })
 
   app.post('/api/secret', (req, res) => {
