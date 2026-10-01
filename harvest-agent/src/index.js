@@ -14,7 +14,7 @@ const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
-const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendFuelInvoiceImport } = require('./shiftCloseClient')
+const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport } = require('./shiftCloseClient')
 const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
 const { notifyCloudPaused } = require('./pauseNotify')
@@ -426,12 +426,27 @@ async function runVendorInvoicesCycle(reason, options = {}) {
 
   let extra = { reason }
   const summaries = []
+  let checkTabError = null
+
+  function sameVendor(summary, vendorName) {
+    const key = String(vendorName || '').trim().toLowerCase()
+    if (!key) return false
+    return [summary.cstoreName, summary.vendor].some(
+      (name) => String(name || '').trim().toLowerCase() === key
+    )
+  }
+
+  function appendNote(summary, note) {
+    if (!note) return
+    summary.message = summary.message ? `${summary.message}; ${note}` : note
+  }
 
   async function importCaptured(captured) {
     const cstoreCount = captured.invoices?.length ?? 0
     if (!captured.ok) {
       summaries.push({
         vendor: captured.vendor,
+        cstoreName: captured.vendor,
         ok: false,
         message: captured.message,
         cstoreCount,
@@ -439,7 +454,8 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         created: 0,
         skipped: 0,
         suffixed: [],
-        vendorCreated: false
+        vendorCreated: false,
+        checks: []
       })
       return captured
     }
@@ -463,6 +479,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       console.log(`[Harvest] ${message}`)
       summaries.push({
         vendor: captured.vendor,
+        cstoreName: captured.vendor,
         ok: true,
         message,
         cstoreCount: 0,
@@ -470,7 +487,8 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         created: 0,
         skipped: 0,
         suffixed: [],
-        vendorCreated: false
+        vendorCreated: false,
+        checks: []
       })
       return { ...captured, message, invoices: undefined }
     }
@@ -487,6 +505,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       console.log(`[Harvest] ${message}`)
       summaries.push({
         vendor: imported.vendorName || captured.vendor,
+        cstoreName: captured.vendor,
         ok: imported.errors && imported.errors.length > 0 ? false : true,
         message,
         cstoreCount: imported.cstoreCount ?? cstoreCount,
@@ -494,7 +513,8 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         created: imported.created,
         skipped: imported.skipped,
         suffixed: imported.suffixed || [],
-        vendorCreated: Boolean(imported.vendorCreated)
+        vendorCreated: Boolean(imported.vendorCreated),
+        checks: []
       })
       return { ...captured, ok: !imported.errors?.length, message, invoices: undefined }
     } catch (err) {
@@ -502,6 +522,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       console.error(`[Harvest] ${captured.vendor}: ${message}`)
       summaries.push({
         vendor: captured.vendor,
+        cstoreName: captured.vendor,
         ok: false,
         message,
         cstoreCount,
@@ -509,10 +530,69 @@ async function runVendorInvoicesCycle(reason, options = {}) {
         created: 0,
         skipped: 0,
         suffixed: [],
-        vendorCreated: false
+        vendorCreated: false,
+        checks: []
       })
       return { ...captured, ok: false, message, invoices: undefined }
     }
+  }
+
+  async function importChecks(captured) {
+    if (!captured.ok && !captured.vendor) {
+      checkTabError = captured.message || 'Could not open By Check/EFT'
+      return captured
+    }
+
+    let summary = summaries.find((row) => sameVendor(row, captured.vendor))
+    if (!summary) {
+      summary = {
+        vendor: captured.vendor,
+        cstoreName: captured.vendor,
+        ok: true,
+        message: '',
+        cstoreCount: 0,
+        created: 0,
+        skipped: 0,
+        suffixed: [],
+        vendorCreated: false,
+        checks: []
+      }
+      summaries.push(summary)
+    }
+    if (!summary.checks) summary.checks = []
+
+    if (!captured.ok) {
+      summary.ok = false
+      appendNote(summary, captured.message || 'Check scrape failed')
+      return captured
+    }
+
+    const eftNote = captured.skippedEft ? `${captured.skippedEft} EFT skipped` : ''
+    const otherNote = captured.skippedOther ? `${captured.skippedOther} row(s) were not checks` : ''
+    if (!captured.checks || captured.checks.length === 0) {
+      const note = [eftNote, otherNote].filter(Boolean).join(', ')
+      appendNote(summary, note)
+      return captured
+    }
+
+    try {
+      const imported = await sendVendorCheckImport(config, {
+        vendor: captured.vendor,
+        year: captured.year,
+        month: captured.month,
+        checks: captured.checks
+      })
+      summary.checks = imported.checks || []
+      const note = [imported.message, eftNote, otherNote].filter(Boolean).join('; ')
+      appendNote(summary, note)
+      if (imported.errors && imported.errors.length) summary.ok = false
+      console.log(`[Harvest] ${imported.message || note}`)
+    } catch (err) {
+      summary.ok = false
+      appendNote(summary, `checks failed: ${err.message}`)
+      console.error(`[Harvest] ${captured.vendor}: checks failed: ${err.message}`)
+    }
+    return captured
   }
 
   let result
@@ -522,6 +602,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       vendor: vendorName || undefined,
       all: harvestVendorsAll || !vendorName,
       onVendor: importCaptured,
+      onVendorChecks: importChecks,
       hooks: createLoginHooks(config)
     })
   } catch (err) {
@@ -534,16 +615,42 @@ async function runVendorInvoicesCycle(reason, options = {}) {
     const addedCount = summaries.filter((s) => s.vendorCreated).length
     const suffixedCount = summaries.reduce((n, s) => n + (s.suffixed?.length || 0), 0)
     const importedCount = summaries.filter((s) => s.ok).length
+    const checksPrepared = summaries.reduce(
+      (count, summary) => count + (summary.checks || []).filter((check) => check.action === 'create').length,
+      0
+    )
+    const checksHeld = summaries.reduce(
+      (count, summary) =>
+        count + (summary.checks || []).filter((check) => check.action === 'skip_mismatch').length,
+      0
+    )
+    const checkNote = [
+      checksPrepared ? `${checksPrepared} check(s) prepared` : '',
+      checksHeld ? `${checksHeld} check(s) not created` : '',
+      checkTabError || ''
+    ]
+      .filter(Boolean)
+      .join(', ')
     result = {
       ...result,
-      ok: failed.length === 0 && result.ok !== false,
+      ok: failed.length === 0 && result.ok !== false && !checkTabError,
       invoices: undefined,
       message:
         summaries.length === 1
-          ? summaries[0].message || result.message
+          ? [summaries[0].message || result.message, checkTabError].filter(Boolean).join('; ')
           : `${importedCount} imported, ${failed.length} failed${
               addedCount ? `, ${addedCount} new vendor(s)` : ''
-            }${suffixedCount ? `, ${suffixedCount} numbered with a letter` : ''}`
+            }${suffixedCount ? `, ${suffixedCount} numbered with a letter` : ''}${
+              checkNote ? `, ${checkNote}` : ''
+            }`
+    }
+  }
+
+  if (checkTabError && summaries.length === 0 && result) {
+    result = {
+      ...result,
+      ok: false,
+      message: [result.message, checkTabError].filter(Boolean).join('; ')
     }
   }
 

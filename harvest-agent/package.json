@@ -21,7 +21,8 @@
     "bundle-node": "node scripts/bundle-node.js",
     "build": "node scripts/build-win.js",
     "install-task": "powershell -ExecutionPolicy Bypass -File scripts/install-scheduled-task.ps1",
-    "postinstall": "npx playwright install chromium"
+    "postinstall": "npx playwright install chromium",
+    "test": "node --test src/vendorChecks.test.js"
   },
   "engines": {
     "node": ">=20"

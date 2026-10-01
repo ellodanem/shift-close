@@ -27,6 +27,7 @@ export type HarvestVendorSummary = {
   skipped?: number
   suffixed?: { original?: string; stored?: string }[]
   vendorCreated?: boolean
+  checks?: { checkNumber?: string; action?: string; message?: string }[]
 }
 
 export type HarvestTaskEmailPayload = {
@@ -202,6 +203,14 @@ export function buildHarvestTaskEmailHtml(payload: HarvestTaskEmailPayload): str
         stored: s.stored
       }))
     )
+    const checkItems = vendors.flatMap((v) =>
+      (v.checks || [])
+        .filter((check) => check.message)
+        .map((check) => ({
+          vendor: v.vendor,
+          message: check.message || ''
+        }))
+    )
     accountSection = `
       <h3 style="margin:24px 0 8px;font-size:15px;color:#111">Invoice count verification</h3>
       <p style="margin:0 0 8px;font-size:13px;color:#666">Cstore = scraped from Cstore for the month. Shift Close = vendor invoices in Shift Close for that month after import. ✓ when counts match.</p>
@@ -243,6 +252,17 @@ export function buildHarvestTaskEmailHtml(payload: HarvestTaskEmailPayload): str
               .map(
                 (s) =>
                   `<li>${escapeHtmlText(s.vendor || '')}: Cstore ${escapeHtmlText(s.original || '')} stored as ${escapeHtmlText(s.stored || '')}</li>`
+              )
+              .join('')}</ul>`
+          : '<p style="color:#666;margin:0">None</p>'
+      }
+      <h3 style="margin:24px 0 8px;font-size:15px;color:#111">Checks (${checkItems.length})</h3>
+      ${
+        checkItems.length
+          ? `<ul style="margin:0;padding-left:20px;color:#444">${checkItems
+              .map(
+                (check) =>
+                  `<li>${escapeHtmlText(check.vendor || '')}: ${escapeHtmlText(check.message || '')}</li>`
               )
               .join('')}</ul>`
           : '<p style="color:#666;margin:0">None</p>'

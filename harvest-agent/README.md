@@ -11,11 +11,13 @@ This is **not** the ZKTeco attendance agent in `agent/`. It runs on a dedicated 
 | Ping Shift Close | With every job | Last-seen on **Settings → Harvest agent** |
 | `cstore_keepalive` | On start, then 7:00 and 19:00 America/St_Lucia | Pass if the Cstore dashboard is visible |
 | `customer_accounts` | Manual or CLI | Imports customer credit reports into Shift Close |
-| `vendor_invoices` | Manual or CLI | Scrapes Grocery → Purchases → Invoices and adds invoices in Shift Close |
+| `vendor_invoices` | Manual or CLI | Scrapes Grocery → Purchases → Invoices, then prepares uncashed checks from By Check/EFT |
 | `fuel_invoices` | Manual or CLI | Scrapes Gas → Delivery (unpaid only), reads B.O.L via Edit, adds **Fuel** invoices with Regular/Diesel litres |
 | `lpg_invoices` | Manual or CLI | Scrapes Grocery → Purchases → **Rubis West Indies**, adds **LPG** invoices |
 
 Vendor invoices have no export. The agent selects a vendor and month, reads the table (including pagination), and posts rows to Shift Close. Existing invoices (same vendor, number, date, and amount) are skipped. If a vendor reuses an invoice number, a letter is appended (`2062886A`) and that mapping is included in the harvest summary email. VAT-registered vendors in Shift Close split the Cstore amount using the global VAT rate; new Cstore-only vendors are created with VAT off.
+
+After the invoices are in, the same job opens **By Check/EFT** for that month and prepares one uncashed check per vendor and check number. EFT rows and Rubis West Indies are skipped. A check is not created when that number is already on file for the vendor, when every invoice on it is already paid, or when any invoice is missing or already paid on a different payment. The check date is the latest purchase date on that check. Available funds stay unchanged until the check is cleared.
 
 **Fuel** invoices come from **Gas → Delivery** (unpaid only; B.O.L = invoice number; type **Fuel**). Unleaded litres = Regular + Plus + Super; diesel = Diesel. Those figures are read from the list columns or the Edit modal **Net volume purchased** (either is enough). Existing Fuel invoices with blank litres are filled on the next harvest; values already entered are left alone.
 

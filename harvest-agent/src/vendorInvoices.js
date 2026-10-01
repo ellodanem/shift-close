@@ -7,6 +7,7 @@ const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
+const { groupVendorChecks } = require('./vendorChecks')
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -270,6 +271,16 @@ async function clickAllPurchasesTab(scope) {
   await sleep(400)
 }
 
+async function clickByCheckEftTab(scope) {
+  const clicked = await clickFirstVisible(scope, [
+    scope.getByRole('tab', { name: /by check\/eft/i }),
+    scope.getByRole('link', { name: /by check\/eft/i }),
+    scope.getByText(/^by check\/eft$/i)
+  ])
+  await sleep(700)
+  return clicked
+}
+
 async function openVendorDropdown(scope) {
   const opened = await clickFirstVisible(scope, [
     scope.locator('#GroceryPurchases_Form_VendorID'),
@@ -450,7 +461,7 @@ async function readInvoiceRows(scope) {
           invoiceDate,
           vendor: vendorIdx >= 0 ? (cells[vendorIdx]?.innerText || '').trim() : '',
           invoiceNumber: (cells[invIdx]?.innerText || '').trim().split('\n')[0].trim(),
-          paymentType: payIdx >= 0 ? (cells[payIdx]?.innerText || '').trim().split('\n')[0].trim() : '',
+          paymentType: payIdx >= 0 ? (cells[payIdx]?.innerText || '').replace(/\s+/g, ' ').trim() : '',
           amount: parseAmount(cells[amountIdx]?.innerText || '')
         })
       }
@@ -531,6 +542,44 @@ function pickVendorTargets(cstoreNames, options = {}) {
   }
   if (options.all) return list
   return []
+}
+
+async function harvestVendorChecks(page, scope, vendorName, year, month, debugDir) {
+  const selected = await selectVendor(scope, vendorName)
+  if (!selected.ok) {
+    await saveDebug(page, debugDir, 'vendor-checks-vendor-missing')
+    return {
+      ok: false,
+      vendor: vendorName,
+      year,
+      month,
+      checks: [],
+      skippedEft: 0,
+      skippedOther: 0,
+      message: `${vendorName} is not in the Cstore vendor list`
+    }
+  }
+
+  console.log(
+    `[Cstore] Vendor checks "${selected.matched}" (${year}-${String(month).padStart(2, '0')})`
+  )
+  await clickSearch(scope)
+  const rows = await scrapeAllInvoicePages(scope)
+  const grouped = groupVendorChecks(rows)
+  const eftNote = grouped.skippedEft ? `, ${grouped.skippedEft} EFT skipped` : ''
+  return {
+    ok: true,
+    vendor: selected.matched,
+    year,
+    month,
+    checks: grouped.checks,
+    skippedEft: grouped.skippedEft,
+    skippedOther: grouped.skippedOther,
+    message:
+      grouped.checks.length === 0
+        ? `${selected.matched}: no check payments${eftNote}`
+        : `${selected.matched}: ${grouped.checks.length} check(s)${eftNote}`
+  }
 }
 
 async function harvestOneVendor(page, scope, vendorName, year, month, debugDir) {
@@ -699,6 +748,45 @@ async function runVendorInvoices(config, options = {}) {
         captured = (await options.onVendor(captured)) || captured
       }
       results.push(captured)
+    }
+
+    if (!options.rubisLpg && typeof options.onVendorChecks === 'function') {
+      const opened = await clickByCheckEftTab(form)
+      if (!opened) {
+        await saveDebug(page, debugDir, 'vendor-checks-tab-failed')
+        await options.onVendorChecks({
+          ok: false,
+          vendor: null,
+          year,
+          month,
+          checks: [],
+          skippedEft: 0,
+          skippedOther: 0,
+          message: 'Could not open By Check/EFT on purchase invoices'
+        })
+      } else {
+        await setInvoiceMonth(form, year, month)
+        for (const vendorName of targets) {
+          if (isSkippedVendor(vendorName)) continue
+          let captured
+          try {
+            captured = await harvestVendorChecks(page, form, vendorName, year, month, debugDir)
+          } catch (err) {
+            captured = {
+              ok: false,
+              vendor: vendorName,
+              year,
+              month,
+              checks: [],
+              skippedEft: 0,
+              skippedOther: 0,
+              message: err.message || String(err)
+            }
+            await saveDebug(page, debugDir, 'vendor-checks-error')
+          }
+          await options.onVendorChecks(captured)
+        }
+      }
     }
 
     const failed = results.filter((r) => !r.ok)
