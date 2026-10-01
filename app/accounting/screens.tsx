@@ -262,27 +262,255 @@ export function AgingScreen() {
   )
 }
 
+const FUEL_BILL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment']
+
 export function BillsScreen() {
   const books = useBooks()
+  const { reload } = useAccountingBooks()
+  const [selected, setSelected] = useState<string[]>([])
+  const [paying, setPaying] = useState(false)
+  const [entering, setEntering] = useState(false)
+  const [showEnter, setShowEnter] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [payDate, setPayDate] = useState(books.asOf)
+  const [bankRef, setBankRef] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'check' | 'eft'>('check')
+  const [billKind, setBillKind] = useState<'vendor' | 'fuel'>('vendor')
+  const [vendorId, setVendorId] = useState('')
+  const [fuelType, setFuelType] = useState('Fuel')
+  const [billNumber, setBillNumber] = useState('')
+  const [billAmount, setBillAmount] = useState('')
+  const [billDate, setBillDate] = useState(books.asOf)
+  const [billDue, setBillDue] = useState('')
+
+  const payable = books.openBills.filter((bill) => bill.status === 'pending')
+  const chosen = payable.filter((bill) => selected.includes(`${bill.kind}:${bill.id}`))
+  const kinds = new Set(chosen.map((bill) => bill.kind))
+  const vendorIds = new Set(chosen.map((bill) => bill.vendorId).filter(Boolean))
+  const onePayee = chosen.length > 0 && kinds.size === 1 && (kinds.has('fuel') || vendorIds.size === 1)
+  const payTotal = chosen.reduce((sum, bill) => sum + bill.amount, 0)
+  const payeeName = chosen[0]?.kind === 'fuel' ? 'Fuel' : chosen[0]?.name ?? ''
+  const vendorChoices = books.vendors.filter((vendor) => vendor.id)
+
+  function toggle(key: string) {
+    setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
+    setError(null)
+    setMessage(null)
+  }
+
+  async function pay() {
+    if (!onePayee) return
+    setPaying(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const ids = chosen.map((bill) => bill.id)
+      const res =
+        chosen[0].kind === 'fuel'
+          ? await fetch('/api/fuel-payments/make-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentDate: payDate, bankRef, selectedInvoiceIds: ids, addToCashbook: true })
+            })
+          : await fetch('/api/vendor-payments/make-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                vendorId: chosen[0].vendorId,
+                paymentDate: payDate,
+                paymentMethod,
+                bankRef,
+                selectedInvoiceIds: ids,
+                addToCashbook: true
+              })
+            })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Payment failed')
+      setSelected([])
+      setBankRef('')
+      setMessage(`Paid ${payeeName} ${money(payTotal)}. The cashbook and the bank balance are updated.`)
+      reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  async function enterBill() {
+    const amount = Number(billAmount)
+    if (!billNumber.trim() || !Number.isFinite(amount) || amount <= 0 || !billDate) {
+      setError('Number, date, and amount are required.')
+      return
+    }
+    setEntering(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const res =
+        billKind === 'fuel'
+          ? await fetch('/api/fuel-payments/invoices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ invoiceNumber: billNumber.trim(), amount, type: fuelType, invoiceDate: billDate })
+            })
+          : await fetch(`/api/vendor-payments/vendors/${vendorId}/invoices`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                invoiceNumber: billNumber.trim(),
+                amount,
+                invoiceDate: billDate,
+                dueDate: billDue || null
+              })
+            })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not enter the bill')
+      setBillNumber('')
+      setBillAmount('')
+      setBillDue('')
+      setShowEnter(false)
+      setMessage('Bill entered. It is open until you pay it.')
+      reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not enter the bill')
+    } finally {
+      setEntering(false)
+    }
+  }
+
   return (
     <div>
       <PageTitle
         title="Enter and pay bills"
-        note="Open fuel and vendor invoices. Paying a bill stays on the payment screens, so the check, the bank balance, and the cashbook stay one record. Paid bills land here and on the ledger."
+        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. Payment uses the same check, balance, and cashbook path as the station."
       />
-      <h2 className="mb-2 text-lg font-semibold text-gray-900">Open</h2>
-      <DataTable
-        headers={['Payee', 'Number', 'Date', 'Due', 'Account', 'Amount']}
-        align={['left', 'left', 'left', 'left', 'left', 'right']}
-        rows={books.openBills.map((bill) => [
-          bill.name,
-          bill.number,
-          bill.date,
-          bill.due ?? '',
-          bill.account,
-          money(bill.amount)
-        ])}
-      />
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowEnter((open) => !open)}
+          className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800"
+        >
+          {showEnter ? 'Close' : 'Enter a bill'}
+        </button>
+      </div>
+      {showEnter && (
+        <div className="mb-4 max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setBillKind('vendor')} className={`rounded px-3 py-1 text-sm ${billKind === 'vendor' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Vendor</button>
+            <button type="button" onClick={() => setBillKind('fuel')} className={`rounded px-3 py-1 text-sm ${billKind === 'fuel' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Fuel</button>
+          </div>
+          {billKind === 'vendor' ? (
+            <label className="block text-sm">
+              <span className="text-gray-600">Vendor</span>
+              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
+                <option value="">Select…</option>
+                {vendorChoices.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id ?? ''}>{vendor.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="block text-sm">
+              <span className="text-gray-600">Type</span>
+              <select value={fuelType} onChange={(e) => setFuelType(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
+                {FUEL_BILL_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="block text-sm">
+            <span className="text-gray-600">Number</span>
+            <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-600">Amount</span>
+            <input value={billAmount} onChange={(e) => setBillAmount(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-600">Date</span>
+            <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          {billKind === 'vendor' && (
+            <label className="block text-sm">
+              <span className="text-gray-600">Due</span>
+              <input type="date" value={billDue} onChange={(e) => setBillDue(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+            </label>
+          )}
+          <button type="button" disabled={entering || (billKind === 'vendor' && !vendorId)} onClick={() => void enterBill()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {entering ? 'Saving…' : 'Save bill'}
+          </button>
+        </div>
+      )}
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
+        <label className="text-sm">
+          <span className="text-gray-600">Payment date</span>
+          <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="text-sm">
+          <span className="text-gray-600">Check or reference</span>
+          <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
+        </label>
+        {chosen[0]?.kind === 'vendor' && (
+          <label className="text-sm">
+            <span className="text-gray-600">How paid</span>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value === 'eft' ? 'eft' : 'check')} className="mt-1 block rounded border border-gray-300 px-2 py-1">
+              <option value="check">Check</option>
+              <option value="eft">EFT</option>
+            </select>
+          </label>
+        )}
+        <button type="button" disabled={paying || !onePayee || !payDate || !bankRef.trim()} onClick={() => void pay()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          {paying ? 'Paying…' : onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
+        </button>
+        <p className="text-sm text-gray-600">
+          {chosen.length === 0 ? 'Select pending bills for one payee.' : onePayee ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.` : 'Fuel bills pay as one group. Each vendor pays separately.'}
+        </p>
+      </div>
+      {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
+      {message ? <p className="mb-3 text-sm text-green-700">{message}</p> : null}
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-3 py-2" />
+              <th className="px-3 py-2">Payee</th>
+              <th className="px-3 py-2">Number</th>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Due</th>
+              <th className="px-3 py-2">Account</th>
+              <th className="px-3 py-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {books.openBills.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
+              </tr>
+            ) : (
+              books.openBills.map((bill) => {
+                const key = `${bill.kind}:${bill.id}`
+                const canPay = bill.status === 'pending'
+                return (
+                  <tr key={key} className="border-t border-gray-100">
+                    <td className="px-3 py-2">
+                      <input type="checkbox" checked={selected.includes(key)} disabled={!canPay} onChange={() => toggle(key)} aria-label={`Select ${bill.name} ${bill.number}`} />
+                    </td>
+                    <td className="px-3 py-2">{bill.name}{!canPay ? <span className="ml-2 text-xs text-amber-700">{bill.status}</span> : null}</td>
+                    <td className="px-3 py-2">{bill.number}</td>
+                    <td className="px-3 py-2">{bill.date}</td>
+                    <td className="px-3 py-2">{bill.due ?? '—'}</td>
+                    <td className="px-3 py-2">{bill.account}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
       <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Paid this month</h2>
       <DataTable
         headers={['Date', 'Payee', 'Ref', 'Account', 'Amount']}

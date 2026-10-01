@@ -15,6 +15,14 @@ import {
   normalizeAppRole
 } from '@/lib/roles'
 
+/** Enter a bill or pay one already on file. Not the rest of fuel and vendor admin. */
+function isAccountantBillPath(pathname: string): boolean {
+  if (pathname === '/api/fuel-payments/make-payment') return true
+  if (pathname === '/api/fuel-payments/invoices') return true
+  if (pathname === '/api/vendor-payments/make-payment') return true
+  return /^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)
+}
+
 /** Paths that never require auth */
 export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith('/_next')) return true
@@ -87,6 +95,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (pathname === '/api/financial/cashbook/categories') return true
     if (pathname.startsWith('/api/auth/')) return true
     if (pathname.startsWith('/api/rent-due/')) return true
+    if (isAccountantBillPath(pathname)) return true
     return false
   }
 
@@ -173,6 +182,7 @@ export function apiWriteAllowedForRole(
     if (pathname.startsWith('/api/accounting/journal')) return true
     if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/api/auth/')) return true
+    if (isAccountantBillPath(pathname)) return true
     return false
   }
   if (normalizeAppRole(role) === 'stakeholder') {

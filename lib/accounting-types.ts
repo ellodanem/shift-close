@@ -36,13 +36,17 @@ export type AgingRow = {
 }
 
 export type OpenBill = {
+  id: string
   kind: 'fuel' | 'vendor'
+  vendorId: string | null
   name: string
   number: string
   date: string
   due: string | null
   amount: number
   account: string
+  /** pending bills can be paid. simulated fuel bills are listed and not payable. */
+  status: string
 }
 
 export type PaidBill = {
@@ -54,6 +58,7 @@ export type PaidBill = {
 }
 
 export type VendorRow = {
+  id: string | null
   name: string
   openAmount: number
   lastPayment: string | null

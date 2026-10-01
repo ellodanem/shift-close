@@ -3,7 +3,7 @@ import { businessTodayYmd, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { roundMoney } from '@/lib/fuelPayments'
 import { listUncashedChecks } from '@/lib/uncashedChecks'
-import { agingFromLines, type AccountingBooks, type AgingRow, type CustomerRow } from '@/lib/accounting-types'
+import { agingFromLines, type AccountingBooks, type AgingRow, type CustomerRow, type VendorRow } from '@/lib/accounting-types'
 
 export function parseAccountingMonth(month: string): { start: string; end: string; year: number; monthNum: number } | null {
   const match = /^(\d{4})-(\d{2})$/.exec(month.trim())
@@ -246,24 +246,30 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
 
   const openBills = [
     ...fuelOpen.map((invoice) => ({
+      id: invoice.id,
       kind: 'fuel' as const,
+      vendorId: null,
       name: invoice.type || 'Fuel',
       number: invoice.invoiceNumber,
       date: toYmdInBusinessTz(invoice.invoiceDate),
       due: invoice.dueDate ? toYmdInBusinessTz(invoice.dueDate) : null,
       amount: roundMoney(invoice.amount),
-      account: fuelAccount(invoice.type)
+      account: fuelAccount(invoice.type),
+      status: invoice.status
     })),
     ...vendorOpen.map((invoice) => ({
+      id: invoice.id,
       kind: 'vendor' as const,
+      vendorId: invoice.vendorId,
       name: invoice.vendor.name,
       number: invoice.invoiceNumber,
       date: toYmdInBusinessTz(invoice.invoiceDate),
       due: invoice.dueDate ? toYmdInBusinessTz(invoice.dueDate) : null,
-      amount: roundMoney(invoice.amount),
-      account: '3021 · Rec. Gen'
+      amount: roundMoney(invoice.amount + (invoice.vat ?? 0)),
+      account: '3021 · Rec. Gen',
+      status: invoice.status
     }))
-  ]
+  ].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
 
   const paidBills = [
     ...fuelPaid
@@ -288,13 +294,15 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
 
   const fuelOpenTotal = roundMoney(fuelOpen.reduce((sum, invoice) => sum + invoice.amount, 0))
   const lastFuel = await prisma.paymentBatch.findFirst({ orderBy: { paymentDate: 'desc' } })
-  const vendorRows = vendors.map((vendor) => ({
+  const vendorRows: VendorRow[] = vendors.map((vendor) => ({
+    id: vendor.id,
     name: vendor.name,
-    openAmount: roundMoney(vendor.invoices.reduce((sum, invoice) => sum + invoice.amount, 0)),
+    openAmount: roundMoney(vendor.invoices.reduce((sum, invoice) => sum + invoice.amount + (invoice.vat ?? 0), 0)),
     lastPayment: vendor.batches[0] ? toYmdInBusinessTz(vendor.batches[0].paymentDate) : null
   }))
   if (fuelOpenTotal > 0 || lastFuel) {
     vendorRows.unshift({
+      id: null,
       name: 'Fuel',
       openAmount: fuelOpenTotal,
       lastPayment: lastFuel ? toYmdInBusinessTz(lastFuel.paymentDate) : null
