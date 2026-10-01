@@ -10,6 +10,15 @@ export function money(amount: number): string {
   return formatAmount(amount)
 }
 
+function journalDateLabel(ymd: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!match) return ''
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const month = months[Number(match[2]) - 1]
+  if (!month) return ''
+  return `${Number(match[3])} ${month} ${match[1]}`
+}
+
 export function PageTitle({ title, note }: { title: string; note?: string }) {
   return (
     <div className="mb-4">
@@ -697,6 +706,9 @@ export function JournalScreen() {
 
   const parsed = Number(amount)
   const balanced = Number.isFinite(parsed) && parsed > 0
+  const accountName = categories.find((category) => category.id === categoryId)?.name ?? 'Expense account'
+  const line = description.trim()
+  const entryDate = journalDateLabel(date)
 
   async function save() {
     setSaving(true)
@@ -731,33 +743,31 @@ export function JournalScreen() {
 
   return (
     <div>
-      <PageTitle
-        title="Journal entry"
-        note="Debit the expense. Credit 101 Westline. The difference is zero because both lines use the same amount. This does not change a shift."
-      />
-      <div className="max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Journal entry</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            The expense is debited and 101 Westline is credited for the same amount. It posts when the difference is zero, and it does not change a shift.
+          </p>
+        </div>
+        <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700">Debits and credits</span>
+      </div>
+      <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-gray-600">Date</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
         </label>
         <label className="block text-sm">
+          <span className="text-gray-600">Amount</span>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block text-sm sm:col-span-2">
           <span className="text-gray-600">Description</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
         </label>
         <label className="block text-sm">
           <span className="text-gray-600">Ref</span>
           <input value={ref} onChange={(e) => setRef(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="block text-sm">
-          <span className="text-gray-600">Expense account</span>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
-            <option value="">Select…</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
         </label>
         <label className="block text-sm">
           <span className="text-gray-600">How paid</span>
@@ -769,31 +779,70 @@ export function JournalScreen() {
             ))}
           </select>
         </label>
-        <label className="block text-sm">
-          <span className="text-gray-600">Amount</span>
-          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+        <label className="block text-sm sm:col-span-2">
+          <span className="text-gray-600">Expense account</span>
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
+            <option value="">Select…</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
         </label>
-        <div className="grid grid-cols-3 gap-3 border-t border-gray-100 pt-3 text-sm">
+      </div>
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <p className="mb-3 text-sm text-gray-700">
+          <span className="font-semibold text-gray-900">{entryDate || 'Date'}</span>
+          {line ? <span className="ml-3">{line}</span> : null}
+        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500">
+              <tr>
+                <th className="py-2 pr-3">Account</th>
+                <th className="py-2 pr-3">Line</th>
+                <th className="py-2 pr-3 text-right">Debit</th>
+                <th className="py-2 text-right">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-gray-100">
+                <td className="py-2 pr-3">{accountName}</td>
+                <td className="py-2 pr-3">{line || '—'}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{balanced ? money(parsed) : ''}</td>
+                <td className="py-2" />
+              </tr>
+              <tr>
+                <td className="py-2 pr-3">101 · Westline</td>
+                <td className="py-2 pr-3">{line || '—'}</td>
+                <td className="py-2 pr-3" />
+                <td className="py-2 text-right tabular-nums">{balanced ? money(parsed) : ''}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-8 border-t border-gray-100 pt-4">
           <div>
-            <p className="text-gray-500">Debit</p>
-            <p className="font-semibold tabular-nums">{balanced ? money(parsed) : '—'}</p>
+            <p className="text-2xl font-semibold tabular-nums text-gray-900">{balanced ? money(parsed) : '—'}</p>
+            <p className="text-xs text-gray-500">Total debits</p>
           </div>
           <div>
-            <p className="text-gray-500">Credit 101</p>
-            <p className="font-semibold tabular-nums">{balanced ? money(parsed) : '—'}</p>
+            <p className="text-2xl font-semibold tabular-nums text-gray-900">{balanced ? money(parsed) : '—'}</p>
+            <p className="text-xs text-gray-500">Total credits</p>
           </div>
           <div>
-            <p className="text-gray-500">Difference</p>
-            <p className={`font-semibold ${balanced ? 'text-green-700' : 'text-gray-400'}`}>{balanced ? money(0) : '—'}</p>
+            <p className={`text-2xl font-semibold tabular-nums ${balanced ? 'text-green-600' : 'text-gray-400'}`}>{balanced ? money(0) : '—'}</p>
+            <p className="text-xs text-gray-500">Difference</p>
           </div>
         </div>
-        {error ? <p className="text-sm text-red-700">{error}</p> : null}
-        {message ? <p className="text-sm text-green-700">{message}</p> : null}
+        {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
+        {message ? <p className="mt-3 text-sm text-green-700">{message}</p> : null}
         <button
           type="button"
           disabled={saving || !balanced || !description.trim() || !categoryId || !date}
           onClick={() => void save()}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="mt-4 rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {saving ? 'Posting…' : 'Post entry'}
         </button>
