@@ -1243,7 +1243,7 @@ model AppUser {
   firstName    String?  @map("first_name")
   lastName     String?  @map("last_name")
   passwordHash String   @map("password_hash")
-  role         String // admin | manager | senior_supervisor | supervisor | stakeholder
+  role         String // admin | manager | senior_supervisor | supervisor | stakeholder | accountant
   isSuperAdmin Boolean  @default(false) @map("is_super_admin")
   /// Post-login landing path (e.g. /attendance/viewer). Must be an app-relative path.
   homePath     String?  @map("home_path")

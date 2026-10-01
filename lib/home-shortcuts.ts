@@ -371,6 +371,9 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
   if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
   if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
+  if (r === 'accountant') {
+    return isStakeholderPeoplePath(href) || href === '/accounting' || href.startsWith('/accounting/')
+  }
   if (r === 'stakeholder') {
     return (
       href === '/dashboard' ||
@@ -390,6 +393,7 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       '/reports',
       '/settings',
       '/customer-accounts',
+      '/accounting',
       '/roster/templates'
     ]
     return !blocked.some((b) => href.startsWith(b))

@@ -13,7 +13,7 @@ import {
   readStationTimeZone,
   type PresenceStatus
 } from '@/lib/present-absence'
-import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
+import { isFullAccessRole, isOperationsManagerRole, roleHomePath } from '@/lib/roles'
 import { staffDisplayName } from '@/lib/roster-week-client'
 
 /** Canonical route for the read-only mobile attendance dashboard. */
@@ -53,7 +53,7 @@ export function resolvePostLoginPath(
   }
   const home = sanitizeHomePath(user.homePath ?? null)
   if (home) return home
-  return '/dashboard'
+  return roleHomePath(user.role)
 }
 
 export interface AttendanceSummaryCounts {

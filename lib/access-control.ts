@@ -4,6 +4,7 @@ import { canAccessManagerHub, isManagerHubPath } from '@/lib/manager-hub'
 import { canAccessRosterMobile, isRosterMobilePath } from '@/lib/roster-mobile'
 import { canAccessScansMobile, isScansMobilePath } from '@/lib/scans-mobile'
 import {
+  isAccountantRole,
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
@@ -78,6 +79,17 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
 
   if (isFullAccessRole(role)) return true
 
+  if (isAccountantRole(role)) {
+    if (isStakeholderPeoplePath(pathname)) return true
+    if (pathname === '/accounting' || pathname.startsWith('/accounting/')) return true
+    if (pathname.startsWith('/api/accounting')) return true
+    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
+    if (pathname === '/api/financial/cashbook/categories') return true
+    if (pathname.startsWith('/api/auth/')) return true
+    if (pathname.startsWith('/api/rent-due/')) return true
+    return false
+  }
+
   if (normalizeAppRole(role) === 'stakeholder') {
     if (
       isStakeholderPeoplePath(pathname) ||
@@ -124,6 +136,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
       '/reports',
       '/settings',
       '/customer-accounts',
+      '/accounting',
       '/roster/templates'
     ]
     if (blockedPrefixes.some((p) => pathname.startsWith(p))) return false
@@ -133,6 +146,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (pathname.startsWith('/api/reports/')) return false
     if (pathname.startsWith('/api/settings')) return false
     if (pathname.startsWith('/api/customer-accounts')) return false
+    if (pathname.startsWith('/api/accounting')) return false
     return true
   }
 
@@ -154,6 +168,13 @@ export function apiWriteAllowedForRole(
   }
   if (isFullAccessRole(role)) return true
   if (pathname.startsWith('/api/fuel-inventory')) return false
+  if (isAccountantRole(role)) {
+    if (isStakeholderPeoplePath(pathname)) return true
+    if (pathname.startsWith('/api/accounting/journal')) return true
+    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
+    if (pathname.startsWith('/api/auth/')) return true
+    return false
+  }
   if (normalizeAppRole(role) === 'stakeholder') {
     if (isStakeholderPeoplePath(pathname)) return true
     return (

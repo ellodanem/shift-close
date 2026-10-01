@@ -27,6 +27,7 @@ export function isManagerHubPath(pathname: string): boolean {
 
 export const HOME_PATH_PRESETS = [
   { value: '', label: 'Default (Dashboard)' },
+  { value: '/accounting', label: 'Accounting' },
   { value: MANAGER_HUB_PATH, label: 'Manager hub' },
   { value: ATTENDANCE_VIEWER_PATH, label: 'Attendance viewer' },
   { value: ROSTER_MOBILE_PATH, label: 'Roster (mobile)' },

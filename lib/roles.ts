@@ -8,6 +8,7 @@ export type AppRole =
   | 'senior_supervisor'
   | 'supervisor'
   | 'stakeholder'
+  | 'accountant'
 
 export const APP_ROLES: AppRole[] = [
   'admin',
@@ -15,7 +16,8 @@ export const APP_ROLES: AppRole[] = [
   'operations_manager',
   'senior_supervisor',
   'supervisor',
-  'stakeholder'
+  'stakeholder',
+  'accountant'
 ]
 
 /**
@@ -41,6 +43,20 @@ export function isOperationsManagerRole(role: string): boolean {
   return normalizeAppRole(role) === 'operations_manager'
 }
 
+/** Accountant login: People plus the accounting section. Not the station menu. */
+export function isAccountantRole(role: string): boolean {
+  return normalizeAppRole(role) === 'accountant'
+}
+
+export function canUseAccountingModule(role: string): boolean {
+  return isFullAccessRole(role) || isAccountantRole(role)
+}
+
+/** Where a forbidden page sends this role, and where accountant lands with no home path. */
+export function roleHomePath(role: string): string {
+  return isAccountantRole(role) ? '/accounting' : '/dashboard'
+}
+
 /** Page + API paths blocked for operations_manager (no financial module). */
 export function isPathBlockedForOperationsManager(pathname: string): boolean {
   const blockedPagePrefixes = [
@@ -50,7 +66,8 @@ export function isPathBlockedForOperationsManager(pathname: string): boolean {
     '/customer-accounts',
     '/reports/financial',
     '/reports/monthly',
-    '/reports/daily-financial-summary'
+    '/reports/daily-financial-summary',
+    '/accounting'
   ]
   if (blockedPagePrefixes.some((p) => pathname.startsWith(p))) return true
   if (pathname.startsWith('/api/financial')) return true
@@ -59,6 +76,7 @@ export function isPathBlockedForOperationsManager(pathname: string): boolean {
   if (pathname.startsWith('/api/customer-accounts')) return true
   if (pathname.startsWith('/api/reports/monthly')) return true
   if (pathname.startsWith('/api/reports/daily-financial-summary')) return true
+  if (pathname.startsWith('/api/accounting')) return true
   return false
 }
 
@@ -80,9 +98,14 @@ export function isSupervisorLike(role: string): boolean {
   return r === 'supervisor' || r === 'senior_supervisor'
 }
 
-/** NIC, bank account, and pay rates — admin, manager, operations manager, and stakeholder. */
+/** NIC, bank account, and pay rates — admin, manager, operations manager, stakeholder, and accountant. */
 export function canViewStaffSensitiveFields(role: string): boolean {
-  return isFullAccessRole(role) || isOperationsManagerRole(role) || normalizeAppRole(role) === 'stakeholder'
+  return (
+    isFullAccessRole(role) ||
+    isOperationsManagerRole(role) ||
+    normalizeAppRole(role) === 'stakeholder' ||
+    isAccountantRole(role)
+  )
 }
 
 /**
@@ -145,7 +168,7 @@ export function canEditRoster(role: string): boolean {
   const r = normalizeAppRole(role)
   if (isFullAccessRole(role)) return true
   if (r === 'operations_manager') return true
-  if (r === 'stakeholder') return false
+  if (r === 'stakeholder' || r === 'accountant') return false
   return !isSupervisorLike(role)
 }
 

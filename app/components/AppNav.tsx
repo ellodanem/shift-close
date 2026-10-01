@@ -17,7 +17,7 @@ import {
   navTilesForGroup,
   type NavGroupConfig
 } from '@/lib/app-nav'
-import { formatAppUserDisplayName } from '@/lib/roles'
+import { formatAppUserDisplayName, isAccountantRole } from '@/lib/roles'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -183,7 +183,7 @@ export default function AppNav({
         }`}
       >
         <Link
-          href="/dashboard"
+          href={isAccountantRole(user?.role ?? '') ? '/accounting' : '/dashboard'}
           prefetch={false}
           onClick={closeMobile}
           className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}

@@ -9,6 +9,7 @@ import {
   type HomeShortcutId
 } from '@/lib/home-shortcuts'
 import {
+  isAccountantRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
@@ -111,6 +112,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         href: '/vendor-payments/monthly-report',
         permission: 'financial.vendor',
         section: 'Vendors'
+      },
+      {
+        label: 'Accountant books',
+        href: '/accounting',
+        permission: 'financial.cashbook',
+        section: 'Cash'
       }
     ]
   },
@@ -152,6 +159,19 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
   }
 ]
 
+const ACCOUNTING_NAV_ITEMS: NavItemConfig[] = [
+  { label: 'Overview', href: '/accounting', permission: 'accounting', section: 'Accounting' },
+  { label: 'General ledger', href: '/accounting/ledger', permission: 'accounting', section: 'Accounting' },
+  { label: 'Customers', href: '/accounting/customers', permission: 'accounting', section: 'Receivables' },
+  { label: 'A/R aging', href: '/accounting/aging', permission: 'accounting', section: 'Receivables' },
+  { label: 'Enter & pay bills', href: '/accounting/bills', permission: 'accounting', section: 'Payables' },
+  { label: 'Vendors', href: '/accounting/vendors', permission: 'accounting', section: 'Payables' },
+  { label: 'Journal entry', href: '/accounting/journal', permission: 'accounting', section: 'Tasks' },
+  { label: 'Reconcile', href: '/accounting/reconcile', permission: 'accounting', section: 'Tasks' },
+  { label: 'Receipts', href: '/accounting/receipts', permission: 'accounting', section: 'Tasks' },
+  { label: 'Balance sheet', href: '/accounting/balance-sheet', permission: 'accounting', section: 'Reports' }
+]
+
 const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/days': 'end-of-day',
   '/inbox': 'inbox',
@@ -165,6 +185,17 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
+  '/financial/cashbook': 'cashbook',
+  '/accounting': 'cashbook',
+  '/accounting/ledger': 'cashbook',
+  '/accounting/customers': 'customer-accounts',
+  '/accounting/aging': 'customer-accounts',
+  '/accounting/bills': 'vendor-payments',
+  '/accounting/vendors': 'vendor-payments',
+  '/accounting/journal': 'cashbook',
+  '/accounting/reconcile': 'deposit-comparisons',
+  '/accounting/receipts': 'deposit-scans',
+  '/accounting/balance-sheet': 'cashbook',
   '/promotions': 'promotions',
   '/payroll': 'pay-run',
   '/pay-run': 'pay-run',
@@ -252,6 +283,9 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
   if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
   if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
+  if (r === 'accountant') {
+    return isStakeholderPeoplePath(href) || href === '/accounting' || href.startsWith('/accounting/')
+  }
   if (r === 'stakeholder') {
     return (
       href === '/dashboard' ||
@@ -270,6 +304,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       '/reports',
       '/settings',
       '/customer-accounts',
+      '/accounting',
       '/roster/templates'
     ]
     return !blocked.some((b) => href.startsWith(b))
@@ -319,6 +354,8 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/days') return pathname === '/days'
   if (href === '/inbox') return pathname === '/inbox' || pathname.startsWith('/inbox/')
   if (href === '/financial/cashbook') return pathname.startsWith('/financial/cashbook')
+  if (href === '/accounting') return pathname === '/accounting'
+  if (href.startsWith('/accounting/')) return pathname === href || pathname.startsWith(`${href}/`)
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
   if (href === '/reports/financial') return pathname.startsWith('/reports/financial')
   if (href === '/reports/fuel-comparison') return pathname.startsWith('/reports/fuel-comparison')
@@ -401,6 +438,16 @@ export function isGroupActive(group: NavGroupConfig, pathname: string): boolean 
 
 export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   const nr = normalizeAppRole(role)
+  if (nr === 'accountant') {
+    const people = BASE_NAV_CONFIG.find((group) => group.label === 'People')
+    return [
+      { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS },
+      {
+        label: 'People',
+        items: people ? filterNavItems(people.items, 'stakeholder') : []
+      }
+    ].filter((group) => group.items.length > 0)
+  }
   const groups = BASE_NAV_CONFIG.map((group) => {
     if (group.label === 'Setup') {
       return {
@@ -473,6 +520,8 @@ export const NAV_GROUP_ICON: Record<string, string> = {
     'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
   Insights: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
   Financial:
+    'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  Accounting:
     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   Reports:
     'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
