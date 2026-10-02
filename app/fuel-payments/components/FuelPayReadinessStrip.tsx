@@ -1,10 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import html2canvas from 'html2canvas'
+import { ExpectedRevenueShareCard } from '@/app/insights/expected-revenue/ExpectedRevenueShareCard'
 import { businessTodayYmd, formatDateOnlyForDisplay, isYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
 import type { DaysOfCover } from '@/lib/fuel-inventory'
+import type { ExpectedRevenueShareInput } from '@/lib/expected-revenue-share'
 
 /**
  * Decision row on Fuel Invoices. Revert to the previous layout from
@@ -21,14 +24,7 @@ type CoverPayload = {
   daysOfCoverBusy: { unleaded: DaysOfCover; diesel: DaysOfCover }
 }
 
-type RevenuePayload = {
-  grandTotal: number
-  totalDeposits: number
-  totalDebitAndCredit: number
-  shiftCount: number
-  startDate: string
-  endDate: string
-}
+type RevenuePayload = ExpectedRevenueShareInput
 
 type CheckRow = {
   id: string
@@ -113,6 +109,11 @@ export function FuelPayReadinessStrip() {
   const [checks, setChecks] = useState<CheckRow[] | null>(null)
   const [checksLoading, setChecksLoading] = useState(true)
   const [checksError, setChecksError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  const shareCardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -164,6 +165,12 @@ export function FuelPayReadinessStrip() {
       setRevenueLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [copied])
 
   useEffect(() => {
     const saved = readSavedIncoming()
@@ -220,11 +227,51 @@ export function FuelPayReadinessStrip() {
     void calculateIncoming(startDate, endDate)
   }
 
+  const copyIncoming = useCallback(async () => {
+    if (!revenue || !shareCardRef.current || copying) return
+    setCopyError(null)
+    setCopying(true)
+    try {
+      const canvas = await html2canvas(shareCardRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false
+      })
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('Empty image')
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setCopied(true)
+    } catch {
+      setCopied(false)
+      setCopyError('Could not copy the image.')
+    } finally {
+      setCopying(false)
+    }
+  }, [copying, revenue])
+
   return (
+    <>
     <section className="mb-4 overflow-hidden rounded-lg border border-gray-200 bg-white" aria-label="Can I pay?">
-      <div className="border-b border-gray-200 px-4 py-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={`flex min-h-[44px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left ${
+          open ? 'border-b border-gray-200' : ''
+        }`}
+      >
         <h2 className="text-sm font-semibold text-slate-800">Can I pay?</h2>
-      </div>
+        <span className="inline-flex items-center gap-2 text-xs font-medium text-gray-500">
+          {open ? 'Hide' : 'Show'}
+          <span
+            aria-hidden
+            className={`inline-block h-1.5 w-1.5 border-b-2 border-r-2 border-gray-500 ${
+              open ? '-translate-y-px rotate-[225deg]' : 'translate-y-px rotate-45'
+            }`}
+          />
+        </span>
+      </button>
+      {open ? (
       <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-gray-200">
         <div className="border-b border-gray-200 px-4 py-3 md:border-b-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Cover</p>
@@ -290,15 +337,26 @@ export function FuelPayReadinessStrip() {
             </button>
           </div>
           {revenueError ? <p className="mt-2 text-sm text-red-700">{revenueError}</p> : null}
-          {incomingAmount != null && !revenueError ? (
-            <div className="mt-2">
-              <p className="text-xl font-bold tabular-nums text-gray-900">{money(incomingAmount)}</p>
-              <p className="text-xs text-gray-500">
-                {depositsAndCardOnly ? 'Deposits + card' : 'Grand total'}
-                {revenue ? ` · ${revenue.shiftCount} shift${revenue.shiftCount === 1 ? '' : 's'}` : ''}
-              </p>
+          {incomingAmount != null && !revenueError && revenue ? (
+            <div className="mt-2 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xl font-bold tabular-nums text-gray-900">{money(incomingAmount)}</p>
+                <p className="text-xs text-gray-500">
+                  {depositsAndCardOnly ? 'Deposits + card' : 'Grand total'}
+                  {` · ${revenue.shiftCount} shift${revenue.shiftCount === 1 ? '' : 's'}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyIncoming()}
+                disabled={copying}
+                className="inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 sm:min-h-0"
+              >
+                {copying ? 'Copying…' : copied ? 'Copied' : 'Copy image'}
+              </button>
             </div>
           ) : null}
+          {copyError ? <p className="mt-1 text-xs text-red-700">{copyError}</p> : null}
           {!revenue && !revenueLoading && !revenueError ? (
             <p className="mt-2 text-xs text-gray-500">Choose a range, then calculate. Not in the bank yet.</p>
           ) : null}
@@ -360,7 +418,16 @@ export function FuelPayReadinessStrip() {
           </Link>
         </div>
       </div>
+      ) : null}
     </section>
+    {revenue ? (
+      <ExpectedRevenueShareCard
+        ref={shareCardRef}
+        data={revenue}
+        depositsAndCardOnly={depositsAndCardOnly}
+      />
+    ) : null}
+    </>
   )
 }
 
