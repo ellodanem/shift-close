@@ -172,11 +172,55 @@ export async function GET(
 
       const gap = 0.12
       const cardW = (pageWidth - margin * 2 - gap) / 2
-      const cardH = 1.78
       const leftX = margin
       const rightX = margin + cardW + gap
       const westlineAfterColor: [number, number, number] =
         proposedBalances.westlineAfter >= 0 ? [21, 128, 61] : [220, 38, 38]
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(8)
+      const checksNoteMaxW = cardW - 0.28
+      const checksNoteTokens = ['Checks pending transactions not shown.', 'Click here']
+      const checksNoteLines: string[] = []
+      let checksNoteCurrent = ''
+      for (const token of checksNoteTokens) {
+        const candidate = checksNoteCurrent ? `${checksNoteCurrent} ${token}` : token
+        if (doc.getTextWidth(candidate) <= checksNoteMaxW) {
+          checksNoteCurrent = candidate
+        } else {
+          if (checksNoteCurrent) checksNoteLines.push(checksNoteCurrent)
+          checksNoteCurrent = token
+        }
+      }
+      if (checksNoteCurrent) checksNoteLines.push(checksNoteCurrent)
+      const cardH = 1.78 + checksNoteLines.length * 0.14
+
+      const drawFootnoteLine = (
+        line: string,
+        x: number,
+        lineY: number,
+        color: [number, number, number]
+      ) => {
+        const clickLabel = 'Click here'
+        const clickAt = line.indexOf(clickLabel)
+        doc.setFont('courier', 'normal')
+        doc.setFontSize(8)
+        if (clickAt === -1) {
+          doc.setTextColor(...color)
+          doc.text(line, x, lineY)
+          return
+        }
+        const before = line.slice(0, clickAt)
+        doc.setTextColor(...color)
+        doc.text(before, x, lineY)
+        const beforeWidth = doc.getTextWidth(before)
+        doc.setTextColor(29, 78, 216)
+        const clickX = x + beforeWidth
+        doc.text(clickLabel, clickX, lineY)
+        const clickWidth = doc.getTextWidth(clickLabel)
+        doc.setDrawColor(29, 78, 216)
+        doc.setLineWidth(0.006)
+        doc.line(clickX, lineY + 0.015, clickX + clickWidth, lineY + 0.015)
+      }
 
       const drawCard = (
         x: number,
@@ -187,7 +231,7 @@ export async function GET(
         title: string,
         subtitle: string,
         rows: Array<{ label: string; value: string; color?: [number, number, number] }>,
-        footnote: string
+        footnotes: string[]
       ) => {
         doc.setFillColor(...fill)
         doc.setDrawColor(...stroke)
@@ -224,12 +268,10 @@ export async function GET(
           ty += 0.2
         })
 
-        if (footnote) {
-          doc.setFont('courier', 'normal')
-          doc.setFontSize(8)
-          doc.setTextColor(...stroke)
-          doc.text(footnote, x + 0.16, yPos + cardH - 0.16)
-        }
+        footnotes.forEach((line, index) => {
+          const lineY = yPos + cardH - 0.16 - (footnotes.length - 1 - index) * 0.14
+          drawFootnoteLine(line, x + 0.16, lineY, stroke)
+        })
       }
 
       drawCard(
@@ -248,7 +290,7 @@ export async function GET(
             color: westlineAfterColor
           }
         ],
-        ''
+        []
       )
       drawCard(
         rightX,
@@ -263,7 +305,7 @@ export async function GET(
           { label: 'Balance before', value: formatAmount(proposedBalances.combinedBefore) },
           { label: 'Balance after', value: formatAmount(proposedBalances.combinedAfter) }
         ],
-        'Fuel is still paid from Westline.'
+        ['Fuel is still paid from Westline.', ...checksNoteLines]
       )
 
       yPos += cardH + 0.28

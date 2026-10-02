@@ -105,6 +105,18 @@ function ProposedBalanceCards({
         <div style={{ fontSize: '11px', color: '#92400e', marginTop: '10px' }}>
           Fuel is still paid from Westline.
         </div>
+        <div style={{ fontSize: '11px', color: '#92400e', marginTop: '6px' }}>
+          Checks pending transactions not shown.{' '}
+          <a
+            href="/vendor-payments/uncashed-checks"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Show check management"
+            style={{ color: '#1d4ed8', textDecoration: 'underline' }}
+          >
+            Click here
+          </a>
+        </div>
       </div>
     </div>
   )
