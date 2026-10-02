@@ -32,6 +32,58 @@ function formatRangeLabel(startDate: string, endDate: string): string {
   return `${formatDateOnlyForDisplay(startDate)} – ${formatDateOnlyForDisplay(endDate)}`
 }
 
+export type ExpectedRevenueShareDayLine = {
+  date: string
+  total: string
+  detail: string
+}
+
+/** Fields painted on the share image. Amounts already include the dollar sign. */
+export type ExpectedRevenueShareModel = {
+  rangeLine: string
+  grandTotal: string
+  excludedNote: string | null
+  deposits: string
+  card: string
+  debit: string
+  credit: string
+  fleet: string
+  vouchers: string
+  days: ExpectedRevenueShareDayLine[] | null
+}
+
+export function buildExpectedRevenueShareModel(
+  data: ExpectedRevenueShareInput,
+  depositsAndCardOnly: boolean
+): ExpectedRevenueShareModel {
+  const grand = depositsAndCardOnly
+    ? data.totalDeposits + data.totalDebitAndCredit
+    : data.grandTotal
+  const shiftLabel = `${data.shiftCount} shift${data.shiftCount === 1 ? '' : 's'}`
+
+  return {
+    rangeLine: `${formatRangeLabel(data.startDate, data.endDate)} · ${shiftLabel}`,
+    grandTotal: formatShareMoney(grand),
+    excludedNote: depositsAndCardOnly
+      ? 'Deposits + card only (fleet & vouchers excluded)'
+      : null,
+    deposits: formatShareMoney(data.totalDeposits),
+    card: formatShareMoney(data.totalDebitAndCredit),
+    debit: formatShareMoney(data.totalDebit),
+    credit: formatShareMoney(data.totalCredit),
+    fleet: formatShareMoney(data.totalFleet),
+    vouchers: formatShareMoney(data.totalVouchers),
+    days:
+      data.byDay.length > 1
+        ? data.byDay.map((row) => ({
+            date: formatDateOnlyForDisplay(row.date),
+            total: formatShareMoney(depositsAndCardOnly ? row.depositsAndCardTotal : row.grandTotal),
+            detail: `Deposits ${formatShareMoney(row.depositsTotal)} · Card ${formatShareMoney(row.cardTotal)}`
+          }))
+        : null
+  }
+}
+
 /** Plain-text summary of the expected-revenue screen, ready to paste into a message. */
 export function buildExpectedRevenueShareText(
   data: ExpectedRevenueShareInput,

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { buildExpectedRevenueShareText, type ExpectedRevenueShareInput } from '../lib/expected-revenue-share'
+import {
+  buildExpectedRevenueShareModel,
+  buildExpectedRevenueShareText,
+  type ExpectedRevenueShareInput
+} from '../lib/expected-revenue-share'
 
 const sample: ExpectedRevenueShareInput = {
   startDate: '2026-10-01',
@@ -54,6 +58,33 @@ describe('expected revenue share text', () => {
     assert.match(text, /Fleet: \$1,000\.00/)
     assert.match(text, /Oct 1, 2026 — \$6,500\.00/)
     assert.match(text, /Oct 2, 2026 — \$7,500\.50/)
+  })
+
+  it('builds the image fields, and drops the daily lines for a single day', () => {
+    const model = buildExpectedRevenueShareModel(sample, false)
+    assert.equal(model.rangeLine, 'Oct 1, 2026 – Oct 2, 2026 · 3 shifts')
+    assert.equal(model.grandTotal, '$15,345.60')
+    assert.equal(model.excludedNote, null)
+    assert.equal(model.days?.length, 2)
+    assert.equal(model.days?.[0].detail, 'Deposits $2,000.00 · Card $4,500.00')
+
+    const excluded = buildExpectedRevenueShareModel(sample, true)
+    assert.equal(excluded.grandTotal, '$14,000.50')
+    assert.equal(excluded.excludedNote, 'Deposits + card only (fleet & vouchers excluded)')
+    assert.equal(excluded.days?.[1].total, '$7,500.50')
+
+    const oneDay = buildExpectedRevenueShareModel(
+      {
+        ...sample,
+        startDate: '2026-10-02',
+        endDate: '2026-10-02',
+        shiftCount: 1,
+        byDay: [sample.byDay[1]]
+      },
+      false
+    )
+    assert.equal(oneDay.rangeLine, 'Oct 2, 2026 · 1 shift')
+    assert.equal(oneDay.days, null)
   })
 
   it('omits the by-day section for a single day', () => {

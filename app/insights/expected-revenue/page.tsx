@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import html2canvas from 'html2canvas'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { buildExpectedRevenueShareText } from '@/lib/expected-revenue-share'
+import { ExpectedRevenueShareCard } from './ExpectedRevenueShareCard'
 
 function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -44,7 +45,9 @@ export default function ExpectedRevenuePage() {
   /** When true, grand total and by-day amounts exclude fleet & vouchers (deposits + card only). */
   const [depositsAndCardOnly, setDepositsAndCardOnly] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copying, setCopying] = useState(false)
   const [copyError, setCopyError] = useState<string | null>(null)
+  const shareCardRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     if (startDate > endDate) {
@@ -86,17 +89,26 @@ export default function ExpectedRevenuePage() {
   }, [copied])
 
   const copySummary = useCallback(async () => {
-    if (!data) return
+    if (!data || !shareCardRef.current || copying) return
     setCopyError(null)
-    const text = buildExpectedRevenueShareText(data, depositsAndCardOnly)
+    setCopying(true)
     try {
-      await navigator.clipboard.writeText(text)
+      const canvas = await html2canvas(shareCardRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false
+      })
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('Empty image')
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       setCopied(true)
     } catch {
       setCopied(false)
-      setCopyError('Could not copy. Try again, or select the totals and copy them manually.')
+      setCopyError('Could not copy the image.')
+    } finally {
+      setCopying(false)
     }
-  }, [data, depositsAndCardOnly])
+  }, [copying, data])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100/90 to-gray-50 p-4 sm:p-6">
@@ -194,9 +206,10 @@ export default function ExpectedRevenuePage() {
                     <button
                       type="button"
                       onClick={() => void copySummary()}
-                      className="inline-flex min-h-9 items-center rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-100"
+                      disabled={copying}
+                      className="inline-flex min-h-9 items-center rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-100 disabled:opacity-60"
                     >
-                      {copied ? 'Copied' : 'Copy'}
+                      {copying ? 'Copying…' : copied ? 'Copied' : 'Copy image'}
                     </button>
                     {copyError && <p className="text-xs text-red-700">{copyError}</p>}
                   </div>
@@ -215,6 +228,12 @@ export default function ExpectedRevenuePage() {
                 </label>
               </div>
             </div>
+
+            <ExpectedRevenueShareCard
+              ref={shareCardRef}
+              data={data}
+              depositsAndCardOnly={depositsAndCardOnly}
+            />
 
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-900">Components</h2>
