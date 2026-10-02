@@ -523,7 +523,9 @@ function HoursEntryCards({
                 </div>
                 {columns.map((category) => (
                   <label key={category.id} className="block">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{category.label}</span>
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      {category.id === 'vacation' && rateLabel === 'Hourly rate' ? 'Vacation days' : category.label}
+                    </span>
                     <span className="mt-1 block">
                       <CategoryControl
                         line={line}
@@ -554,7 +556,7 @@ function HoursEntryCards({
         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
           {columns.map((category) => (
             <div key={category.id} className="flex items-baseline justify-between gap-2">
-              <dt>{category.label}</dt>
+              <dt>{category.id === 'vacation' && rateLabel === 'Hourly rate' ? 'Vacation days' : category.label}</dt>
               <dd className="font-semibold tabular-nums">{categoryTotal(lines, category) || '—'}</dd>
             </div>
           ))}
@@ -1570,7 +1572,7 @@ export default function PayrollRunPage() {
                         key={category.id}
                         className={`py-2 pr-3 font-bold ${categoryAlign(category)}`}
                       >
-                        {category.label}
+                        {category.id === 'vacation' ? 'Vacation days' : category.label}
                       </th>
                     ))}
                     <th className="py-2 text-right font-bold">Total</th>
