@@ -16,6 +16,12 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItemConfig[] = [
     permission: 'settings.users'
   },
   {
+    label: 'Login activity',
+    href: '/settings/login-activity',
+    shortcutId: 'settings-login-activity',
+    permission: 'settings.users'
+  },
+  {
     label: 'Fuel data',
     href: '/settings/fuel-data',
     shortcutId: 'settings-fuel-data',
@@ -97,7 +103,9 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItemConfig[] = [
 
 export function filterSettingsNavItems(role: string): SettingsNavItemConfig[] {
   return SETTINGS_NAV_ITEMS.filter((item) => {
-    if (item.href === '/settings/users') return canManageAppUsers(role)
+    if (item.href === '/settings/users' || item.href === '/settings/login-activity') {
+      return canManageAppUsers(role)
+    }
     return true
   })
 }

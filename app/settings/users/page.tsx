@@ -172,7 +172,11 @@ export default function SettingsUsersPage() {
           <h1 className="text-3xl font-bold text-gray-900 mt-2">User accounts</h1>
           <p className="text-sm text-gray-600 mt-1">
             Create and manage logins. Super admin cannot be edited or deleted. Operations managers can create any role
-            except administrator; they cannot modify or delete administrator accounts.
+            except administrator; they cannot modify or delete administrator accounts.{' '}
+            <Link href="/settings/login-activity" className="text-blue-600 hover:underline">
+              Login activity
+            </Link>{' '}
+            lists who signed in and when.
           </p>
         </div>
 

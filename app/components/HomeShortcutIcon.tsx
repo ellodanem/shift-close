@@ -109,6 +109,9 @@ const ICONS: Record<HomeShortcutId, { d: string | string[]; viewBox?: string }> 
   'settings-users': {
     d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
   },
+  'settings-login-activity': {
+    d: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+  },
   'settings-fuel-data': {
     d: 'M8 7V3m0 18V11m8-4V3m0 18V11M5 7h14M5 11h14M8 21h8a2 2 0 002-2V7H6v12a2 2 0 002 2z'
   },

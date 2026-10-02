@@ -36,6 +36,7 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   'reports-center': '#ca8a04',
   settings: '#64748b',
   'settings-users': '#475569',
+  'settings-login-activity': '#334155',
   'settings-fuel-data': '#2563eb',
   'settings-fuel-prices': '#1d4ed8',
   'settings-smtp': '#0891b2',

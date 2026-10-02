@@ -1256,8 +1256,23 @@ model AppUser {
   resetTokens      PasswordResetToken[]
   callOutsRecorded StaffCallOut[]
   voidedPayRuns    PayRun[]
+  loginEvents      LoginEvent[]
 
   @@map("app_users")
+}
+
+/// Successful app sign-ins. Name and username are copied at login so the row stays readable if the account changes.
+model LoginEvent {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id")
+  username    String
+  displayName String   @map("display_name")
+  loggedAt    DateTime @default(now()) @map("logged_at")
+
+  user AppUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([loggedAt])
+  @@map("login_events")
 }
 
 model PasswordResetToken {

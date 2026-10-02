@@ -47,6 +47,7 @@ export type HomeShortcutId =
   | 'attendance-viewer'
   | 'settings'
   | 'settings-users'
+  | 'settings-login-activity'
   | 'settings-fuel-data'
   | 'settings-fuel-prices'
   | 'settings-smtp'

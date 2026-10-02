@@ -200,6 +200,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/payroll': 'pay-run',
   '/pay-run': 'pay-run',
   '/settings/users': 'settings-users',
+  '/settings/login-activity': 'settings-login-activity',
   '/settings/fuel-data': 'settings-fuel-data',
   '/settings/fuel-prices': 'settings-fuel-prices',
   '/settings/smtp': 'settings-smtp',
@@ -407,6 +408,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   }
   if (href === '/roster/templates') return pathname.startsWith('/roster/templates')
   if (href === '/settings/users') return pathname.startsWith('/settings/users')
+  if (href === '/settings/login-activity') return pathname.startsWith('/settings/login-activity')
   if (href === '/settings/fuel-data') return pathname.startsWith('/settings/fuel-data')
   if (href === '/settings/fuel-prices') return pathname.startsWith('/settings/fuel-prices')
   if (href === '/settings/smtp') return pathname.startsWith('/settings/smtp')

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { SESSION_COOKIE, signSessionToken } from '@/lib/session'
 import { resolvePostLoginPath } from '@/lib/attendance-viewer'
+import { recordLoginEvent } from '@/lib/login-audit'
 import { normalizeAppRole } from '@/lib/roles'
 
 const REMEMBER_MAX_AGE_SEC = 60 * 60 * 24 * 30
@@ -30,6 +31,8 @@ export async function POST(request: NextRequest) {
     if (!ok) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 })
     }
+
+    await recordLoginEvent(user)
 
     const roleNorm = normalizeAppRole(user.role)
     const token = await signSessionToken(
