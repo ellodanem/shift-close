@@ -5,9 +5,12 @@ import {
   PAYROLL_PAYSLIP_COMPANY_ADDRESS_KEY,
   PAYROLL_PAYSLIP_COMPANY_NAME_KEY,
   PAYROLL_PAYSLIP_COMPANY_PHONE_KEY,
+  PAYROLL_VACATION_HOURS_PER_DAY_KEY,
   normalizeOvertimeMultiplier,
   normalizePayslipCompany,
-  parseOvertimeMultiplierInput
+  normalizeVacationHoursPerDay,
+  parseOvertimeMultiplierInput,
+  parseVacationHoursPerDayInput
 } from '@/lib/payroll-settings'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +19,8 @@ const KEYS = [
   PAYROLL_PAYSLIP_COMPANY_NAME_KEY,
   PAYROLL_PAYSLIP_COMPANY_ADDRESS_KEY,
   PAYROLL_PAYSLIP_COMPANY_PHONE_KEY,
-  PAYROLL_OVERTIME_MULTIPLIER_KEY
+  PAYROLL_OVERTIME_MULTIPLIER_KEY,
+  PAYROLL_VACATION_HOURS_PER_DAY_KEY
 ] as const
 
 async function readSettings() {
@@ -30,7 +34,8 @@ async function readSettings() {
       address: value(PAYROLL_PAYSLIP_COMPANY_ADDRESS_KEY),
       phone: value(PAYROLL_PAYSLIP_COMPANY_PHONE_KEY)
     }),
-    overtimeMultiplier: normalizeOvertimeMultiplier(value(PAYROLL_OVERTIME_MULTIPLIER_KEY))
+    overtimeMultiplier: normalizeOvertimeMultiplier(value(PAYROLL_OVERTIME_MULTIPLIER_KEY)),
+    vacationHoursPerDay: normalizeVacationHoursPerDay(value(PAYROLL_VACATION_HOURS_PER_DAY_KEY))
   }
 }
 
@@ -52,6 +57,7 @@ export async function POST(request: NextRequest) {
       address?: unknown
       phone?: unknown
       overtimeMultiplier?: unknown
+      vacationHoursPerDay?: unknown
     }
     const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : ''
     const address = typeof body.address === 'string' ? body.address.trim() : ''
@@ -70,9 +76,20 @@ export async function POST(request: NextRequest) {
     if (!phone) {
       return NextResponse.json({ error: 'Enter a contact number.' }, { status: 400 })
     }
+    const vacationHoursPerDay = parseVacationHoursPerDayInput(
+      typeof body.vacationHoursPerDay === 'number' || typeof body.vacationHoursPerDay === 'string'
+        ? String(body.vacationHoursPerDay)
+        : ''
+    )
     if (overtimeMultiplier == null) {
       return NextResponse.json(
         { error: 'Enter an overtime rate from 1 to 3. 1.5 is time and a half.' },
+        { status: 400 }
+      )
+    }
+    if (vacationHoursPerDay == null) {
+      return NextResponse.json(
+        { error: 'Enter vacation hours per day from 0 to 24. 6 is the usual day.' },
         { status: 400 }
       )
     }
@@ -81,7 +98,8 @@ export async function POST(request: NextRequest) {
       { key: PAYROLL_PAYSLIP_COMPANY_NAME_KEY, value: company.companyName },
       { key: PAYROLL_PAYSLIP_COMPANY_ADDRESS_KEY, value: company.address },
       { key: PAYROLL_PAYSLIP_COMPANY_PHONE_KEY, value: company.phone },
-      { key: PAYROLL_OVERTIME_MULTIPLIER_KEY, value: String(overtimeMultiplier) }
+      { key: PAYROLL_OVERTIME_MULTIPLIER_KEY, value: String(overtimeMultiplier) },
+      { key: PAYROLL_VACATION_HOURS_PER_DAY_KEY, value: String(vacationHoursPerDay) }
     ]
     await prisma.$transaction(
       saved.map((row) =>
@@ -92,7 +110,7 @@ export async function POST(request: NextRequest) {
         })
       )
     )
-    return NextResponse.json({ ...company, overtimeMultiplier })
+    return NextResponse.json({ ...company, overtimeMultiplier, vacationHoursPerDay })
   } catch (error) {
     console.error('Payroll settings POST error:', error)
     return NextResponse.json({ error: 'Failed to save payroll settings' }, { status: 500 })

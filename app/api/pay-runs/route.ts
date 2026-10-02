@@ -88,7 +88,9 @@ export async function POST(request: NextRequest) {
       hoursRows,
       cycle,
       payDate,
-      keepOverrides: false
+      keepOverrides: false,
+      periodStart: startDate,
+      periodEnd: endDate
     })
 
     const run = await prisma.payRun.create({

@@ -33,6 +33,9 @@ export type PayrollPreviewLine = {
   otHours: number
   otPay: number
   otYtd: number
+  vacationHours: number
+  vacationPay: number
+  vacationYtd: number
   extraPay: number
   extraYtd: number
   grossYtd: number
@@ -53,12 +56,15 @@ export type PayrollPreviewSourceLine = {
   basicPay: number
   otPay: number
   extraPay: number
+  vacationHours?: number
+  vacationPay?: number
   grossPay: number
   nisEmployee: number
   staffLoan: number
   medical: number
   shortageReady: number
   extraDeductionPay?: number
+  paye?: number
   totalDeductions: number
   netPay: number
   nisEmployer: number
@@ -68,12 +74,14 @@ export type PayrollPreviewSourceLine = {
     basicPay: number
     otPay: number
     extraPay: number
+    vacationPay?: number
     grossPay: number
     nisEmployee: number
     staffLoan: number
     medical: number
     shortageReady: number
     extraDeductionPay: number
+    paye?: number
     totalDeductions: number
     netPay: number
   }
@@ -238,10 +246,14 @@ export function buildPayrollPreviewLine(line: PayrollPreviewSourceLine): Payroll
   const basicPay = parseMoney(line.basicPay)
   const otPay = parseMoney(line.otPay)
   const extraPay = parseMoney(line.extraPay)
+  const vacationHours = parseMoney(line.vacationHours)
+  const vacationPay = parseMoney(line.vacationPay)
   const grossPay = parseMoney(line.grossPay)
   const totalDeductions = parseMoney(line.totalDeductions)
   const netPay = parseMoney(line.netPay)
   const nis = parseMoney(line.nisEmployee)
+  const paye = parseMoney(line.paye)
+  const payeRow = previewDeduction('PAYE', paye, line.ytd?.paye)
   const optional = [
     previewDeduction('Loan', line.staffLoan, line.ytd?.staffLoan),
     previewDeduction('Medical', line.medical, line.ytd?.medical),
@@ -253,7 +265,7 @@ export function buildPayrollPreviewLine(line: PayrollPreviewSourceLine): Payroll
     staffName: line.staffName,
     payType: line.payType,
     taxCode: (line.taxCode ?? '').trim(),
-    hours: round2(parseMoney(line.basicHours) + parseMoney(line.otHours)),
+    hours: round2(parseMoney(line.basicHours) + parseMoney(line.otHours) + vacationHours),
     grossPay,
     totalDeductions,
     netPay,
@@ -263,10 +275,17 @@ export function buildPayrollPreviewLine(line: PayrollPreviewSourceLine): Payroll
     otHours: parseMoney(line.otHours),
     otPay,
     otYtd: ytdOrCurrent(line.ytd?.otPay, otPay),
+    vacationHours,
+    vacationPay,
+    vacationYtd: ytdOrCurrent(line.ytd?.vacationPay, vacationPay),
     extraPay,
     extraYtd: ytdOrCurrent(line.ytd?.extraPay, extraPay),
     grossYtd: ytdOrCurrent(line.ytd?.grossPay, grossPay),
-    deductions: [{ label: 'NIS', amount: nis, ytd: ytdOrCurrent(line.ytd?.nisEmployee, nis) }, ...optional],
+    deductions: [
+      ...(payeRow ? [payeRow] : []),
+      { label: 'NIS', amount: nis, ytd: ytdOrCurrent(line.ytd?.nisEmployee, nis) },
+      ...optional
+    ],
     deductionsYtd: ytdOrCurrent(line.ytd?.totalDeductions, totalDeductions),
     netYtd: ytdOrCurrent(line.ytd?.netPay, netPay),
     nisEmployer: parseMoney(line.nisEmployer),
@@ -287,12 +306,14 @@ export type PayslipYtd = {
   basicPay: number
   otPay: number
   extraPay: number
+  vacationPay?: number
   grossPay: number
   nisEmployee: number
   staffLoan: number
   medical: number
   shortageReady: number
   extraDeductionPay: number
+  paye?: number
   totalDeductions: number
   netPay: number
 }
@@ -323,6 +344,8 @@ export type PayslipSourceLine = {
   otHours?: number | null
   basicPay: number
   otPay: number
+  vacationHours?: number | null
+  vacationPay?: number | null
   extraLines?: PayRunExtraLine[] | null
   extraDeductions?: PayRunExtraLine[] | null
   nisEmployee: number
@@ -330,6 +353,7 @@ export type PayslipSourceLine = {
   staffLoan: number
   shortageReady: number
   grossPay: number
+  paye?: number
   totalDeductions: number
   netPay: number
   ytd?: PayslipYtd | null
@@ -420,6 +444,13 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
     hours: line.otHours || undefined,
     ytd: ytdOrCurrent(ytd?.otPay, line.otPay)
   })
+  const vacationPay = parseMoney(line.vacationPay)
+  const vacationHours = parseMoney(line.vacationHours)
+  pushAmount(earnings, 'Vacation', vacationPay, {
+    rate: vacationHours ? round2(vacationPay / vacationHours) : hourlyRate,
+    hours: vacationHours || undefined,
+    ytd: ytdOrCurrent(ytd?.vacationPay, vacationPay)
+  })
   const extraEarnings = visibleExtraLines(line.extraLines ?? [])
   for (const extra of extraEarnings) {
     pushAmount(earnings, extra.label || 'Extra', extra.amount, {
@@ -434,11 +465,18 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
 
   const deductions: PayslipAmount[] = []
   const extras = line.extraDeductions ?? []
-  const paye = extras.filter((extra) => {
+  const calculatedPaye = parseMoney(line.paye)
+  const typedPaye = extras.filter((extra) => {
     const key = labelKey(extra.label)
     return key === 'paye' || key === 'payetax'
   })
-  const otherExtras = extras.filter((extra) => !paye.includes(extra))
+  const paye = calculatedPaye > 0 ? [] : typedPaye
+  const otherExtras = extras.filter((extra) => !typedPaye.includes(extra))
+  if (calculatedPaye > 0) {
+    pushAmount(deductions, 'P.A.Y.E.', calculatedPaye, {
+      ytd: ytdOrCurrent(ytd?.paye, calculatedPaye)
+    })
+  }
   for (const extra of paye) {
     pushAmount(deductions, 'P.A.Y.E.', extra.amount, {
       ytd: paye.length === 1 ? ytd?.extraDeductionPay : undefined
@@ -475,24 +513,42 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
   }
 }
 
+/** Letter content box: 11in page minus 0.4in top and 0.36in bottom padding, in CSS px. */
+const PAYSLIP_PAGE_BODY = 960
+/** Dashed cut guide, including the gap on either side of the line. */
+const PAYSLIP_CUT_HEIGHT = 19
+
+function payslipBlockHeight(line: PayslipLine): number {
+  const rows = Math.max(line.earnings.length, line.deductions.length, 1)
+  return 128 + rows * 16 + PAYSLIP_CUT_HEIGHT
+}
+
 function payslipPages(lines: PayslipLine[]): PayslipLine[][] {
   const pages: PayslipLine[][] = []
   let current: PayslipLine[] = []
-  let used = 0
-  const pageBody = 820
+  let used = PAYSLIP_CUT_HEIGHT
   for (const line of lines) {
-    const rows = Math.max(line.earnings.length, line.deductions.length, 1)
-    const height = 150 + rows * 14
-    if (current.length >= 3 || (current.length > 0 && used + height > pageBody)) {
+    const height = payslipBlockHeight(line)
+    if (current.length > 0 && used + height > PAYSLIP_PAGE_BODY) {
       pages.push(current)
       current = []
-      used = 0
+      used = PAYSLIP_CUT_HEIGHT
     }
     current.push(line)
     used += height
   }
   if (current.length > 0) pages.push(current)
   return pages.length > 0 ? pages : [[]]
+}
+
+function payslipCutLine(): string {
+  return `<div class="cut" aria-hidden="true"><span>✂</span></div>`
+}
+
+/** Stack slips with a cut guide above, between, and below so each one can be cut out. */
+function payslipStack(slips: string[]): string {
+  if (slips.length === 0) return ''
+  return `${payslipCutLine()}${slips.join(payslipCutLine())}${payslipCutLine()}`
 }
 
 export type PayslipPeriodTotals = {
@@ -526,12 +582,16 @@ export function buildPayslipPeriodTotals(lines: PayslipSourceLine[]): PayslipPer
     totals.basic += line.basicPay
     totals.nis += line.nisEmployee
     totals.net += line.netPay
+    const calculatedPaye = parseMoney(line.paye)
+    if (calculatedPaye > 0) totals.paye += calculatedPaye
     for (const extra of visibleExtraLines(line.extraLines ?? [])) {
       if (labelKey(extra.label) === 'bonus') totals.bonus += extra.amount
     }
-    for (const extra of line.extraDeductions ?? []) {
-      const key = labelKey(extra.label)
-      if (key === 'paye' || key === 'payetax') totals.paye += extra.amount
+    if (calculatedPaye === 0) {
+      for (const extra of line.extraDeductions ?? []) {
+        const key = labelKey(extra.label)
+        if (key === 'paye' || key === 'payetax') totals.paye += extra.amount
+      }
     }
   }
   ;(Object.keys(totals) as (keyof PayslipPeriodTotals)[]).forEach((key) => {
@@ -672,8 +732,24 @@ function payslipDocument(title: string, body: string): string {
       .reg-break div + div { margin-top: 10px; }
       .void { margin: 4px 0 0; font-weight: 700; }
       .empty { margin-top: 24px; }
-      .slip { margin-top: 16px; page-break-inside: avoid; }
-      .slip:first-child { margin-top: 0; }
+      .slip { margin: 0; page-break-inside: avoid; }
+      .cut {
+        position: relative;
+        height: 0;
+        margin: 9px -0.48in;
+        border-top: 1px dashed #6b7280;
+      }
+      .cut span {
+        position: absolute;
+        left: 0.42in;
+        top: 0;
+        transform: translateY(-50%);
+        background: #fff;
+        padding: 0 4px;
+        font-size: 12px;
+        line-height: 1;
+        color: #374151;
+      }
       .id-row {
         width: 100%;
         display: grid;
@@ -787,7 +863,7 @@ export function renderPayslipsHtml(input: PayslipPrintInput): string {
       .map((page, index) => {
         const content =
           page.length > 0
-            ? page.map((line) => slipHtml(line, payDate, cycleDay, period, company)).join('')
+            ? payslipStack(page.map((line) => slipHtml(line, payDate, cycleDay, period, company)))
             : '<p class="empty">No payslips for this payroll.</p>'
         return `<section class="page">
         ${voided}
@@ -834,7 +910,7 @@ export function renderStaffPayslipsHtml(input: {
       ? pages
           .map(
             (content, index) => `<section class="page">
-        ${content}
+        ${payslipStack([content])}
         <footer>Printed: ${printed}<span>Page: ${index + 1}</span></footer>
       </section>`
           )
@@ -1142,6 +1218,7 @@ function detailArticleHtml(input: PayrollPreviewInput, line: PayrollPreviewLine)
           <tbody>
             ${earning('Basic', usd(line.basicHours), line.basicPay, line.basicYtd)}
             ${earning('Overtime', usd(line.otHours), line.otPay, line.otYtd)}
+            ${line.vacationPay || line.vacationYtd ? earning('Vacation', usd(line.vacationHours), line.vacationPay, line.vacationYtd) : ''}
             ${earning('Extra', '', line.extraPay, line.extraYtd)}
             ${earning('Gross pay', '', line.grossPay, line.grossYtd, 'total')}
           </tbody>
@@ -1219,7 +1296,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
           ${summaryMoneyRow('Total', usd(totals.hours), totals, 'grand')}
         </tbody>
       </table>
-      <p class="note">PAYE is still calculated in Pay+.</p>
+      <p class="note">PAYE is 15% of taxable pay after NIC, above $2,500 a month.</p>
     </section>
     <section class="page">
       <h1>Payroll details</h1>
@@ -1382,6 +1459,9 @@ function drawEmployeeBlock(doc: jsPDF, input: PayrollPreviewInput, line: Payroll
   const earnings = [
     { label: 'Basic', hours: usd(line.basicHours), amount: formatMoney(line.basicPay), ytd: formatMoney(line.basicYtd) },
     { label: 'Overtime', hours: usd(line.otHours), amount: formatMoney(line.otPay), ytd: formatMoney(line.otYtd) },
+    ...(line.vacationPay || line.vacationYtd
+      ? [{ label: 'Vacation', hours: usd(line.vacationHours), amount: formatMoney(line.vacationPay), ytd: formatMoney(line.vacationYtd) }]
+      : []),
     { label: 'Extra', hours: '', amount: formatMoney(line.extraPay), ytd: formatMoney(line.extraYtd) },
     { label: 'Gross pay', amount: formatMoney(line.grossPay), ytd: formatMoney(line.grossYtd), bold: true }
   ]
@@ -1526,7 +1606,7 @@ export function buildPayrollPreviewPdf(input: PayrollPreviewInput): jsPDF {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100)
-  doc.text('PAYE is still calculated in Pay+.', PREVIEW_MARGIN, noteY)
+  doc.text('PAYE is 15% of taxable pay after NIC, above $2,500 a month.', PREVIEW_MARGIN, noteY)
 
   drawPreviewDetails(doc, input)
   stampPreviewPages(doc)

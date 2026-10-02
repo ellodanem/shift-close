@@ -1,7 +1,21 @@
+import {
+  DEFAULT_VACATION_HOURS_PER_DAY,
+  normalizeVacationHoursPerDay
+} from '@/lib/vacation-pay'
+
+export {
+  DEFAULT_VACATION_HOURS_PER_DAY,
+  MAX_VACATION_HOURS_PER_DAY,
+  MIN_VACATION_HOURS_PER_DAY,
+  normalizeVacationHoursPerDay,
+  parseVacationHoursPerDayInput
+} from '@/lib/vacation-pay'
+
 export const PAYROLL_PAYSLIP_COMPANY_NAME_KEY = 'payroll_payslip_company_name'
 export const PAYROLL_PAYSLIP_COMPANY_ADDRESS_KEY = 'payroll_payslip_company_address'
 export const PAYROLL_PAYSLIP_COMPANY_PHONE_KEY = 'payroll_payslip_company_phone'
 export const PAYROLL_OVERTIME_MULTIPLIER_KEY = 'payroll_overtime_multiplier'
+export const PAYROLL_VACATION_HOURS_PER_DAY_KEY = 'payroll_vacation_hours_per_day'
 
 /** 1.5 is time and a half. 2 is double time. */
 export const DEFAULT_OVERTIME_MULTIPLIER = 1.5
@@ -40,6 +54,17 @@ export async function loadOvertimeMultiplier(): Promise<number> {
     return normalizeOvertimeMultiplier(data.overtimeMultiplier)
   } catch {
     return DEFAULT_OVERTIME_MULTIPLIER
+  }
+}
+
+export async function loadVacationHoursPerDay(): Promise<number> {
+  try {
+    const res = await fetch('/api/pay-runs/settings')
+    if (!res.ok) return DEFAULT_VACATION_HOURS_PER_DAY
+    const data = (await res.json()) as { vacationHoursPerDay?: unknown }
+    return normalizeVacationHoursPerDay(data.vacationHoursPerDay)
+  } catch {
+    return DEFAULT_VACATION_HOURS_PER_DAY
   }
 }
 

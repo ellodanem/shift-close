@@ -11,8 +11,13 @@ import {
   PAYSLIP_COMPANY_PHONE_MAX,
   normalizeOvertimeMultiplier,
   normalizePayslipCompany,
+  normalizeVacationHoursPerDay,
+  DEFAULT_VACATION_HOURS_PER_DAY,
+  MAX_VACATION_HOURS_PER_DAY,
+  MIN_VACATION_HOURS_PER_DAY,
   overtimeMultiplierLabel,
   parseOvertimeMultiplierInput,
+  parseVacationHoursPerDayInput,
   type PayslipCompany
 } from '@/lib/payroll-settings'
 
@@ -59,12 +64,18 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
   const titleId = useId()
   const [company, setCompany] = useState<PayslipCompany>({ ...DEFAULT_PAYSLIP_COMPANY })
   const [overtimeRate, setOvertimeRate] = useState(String(DEFAULT_OVERTIME_MULTIPLIER))
+  const [vacationHours, setVacationHours] = useState(String(DEFAULT_VACATION_HOURS_PER_DAY))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const parsedOvertime = parseOvertimeMultiplierInput(overtimeRate)
+  const parsedVacationHours = parseVacationHoursPerDayInput(vacationHours)
   const ready = Boolean(
-    company.companyName.trim() && company.address.trim() && company.phone.trim() && parsedOvertime != null
+    company.companyName.trim() &&
+      company.address.trim() &&
+      company.phone.trim() &&
+      parsedOvertime != null &&
+      parsedVacationHours != null
   )
 
   useEffect(() => {
@@ -81,12 +92,13 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Failed to load payroll settings')
-        return data as Partial<PayslipCompany> & { overtimeMultiplier?: unknown }
+        return data as Partial<PayslipCompany> & { overtimeMultiplier?: unknown; vacationHoursPerDay?: unknown }
       })
       .then((data) => {
         if (cancelled) return
         setCompany(normalizePayslipCompany(data))
         setOvertimeRate(String(normalizeOvertimeMultiplier(data.overtimeMultiplier)))
+        setVacationHours(String(normalizeVacationHoursPerDay(data.vacationHoursPerDay)))
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load payroll settings')
@@ -116,6 +128,10 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
       setError('Enter an overtime rate from 1 to 3. 1.5 is time and a half.')
       return
     }
+    if (parsedVacationHours == null) {
+      setError('Enter vacation hours per day from 0 to 24. 6 is the usual day.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -126,7 +142,8 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
           companyName: company.companyName.trim(),
           address: company.address.trim(),
           phone: company.phone.trim(),
-          overtimeMultiplier: parsedOvertime
+          overtimeMultiplier: parsedOvertime,
+          vacationHoursPerDay: parsedVacationHours
         })
       })
       const data = await res.json().catch(() => ({}))
@@ -205,6 +222,25 @@ function PayrollSettingsDialog({ onClose }: { onClose: () => void }) {
             Overtime is this multiple of the hourly rate.
             {parsedOvertime != null ? ` ${overtimeMultiplierLabel(parsedOvertime)}.` : ' 1.5 is time and a half.'}{' '}
             A draft uses the new rate when you save it. Approved payroll keeps the overtime already calculated.
+          </p>
+        </div>
+        <div className="mt-6 border-t border-slate-200 pt-4">
+          <label className="block text-sm">
+            <span className="font-medium text-slate-800">Vacation hours per day</span>
+            <input
+              type="number"
+              min={MIN_VACATION_HOURS_PER_DAY}
+              max={MAX_VACATION_HOURS_PER_DAY}
+              step="0.01"
+              value={vacationHours}
+              disabled={loading || saving}
+              onChange={(e) => setVacationHours(e.target.value)}
+              className="mt-1 min-h-[44px] w-full rounded-md border border-slate-300 px-3 py-2 sm:min-h-0 sm:w-32"
+            />
+          </label>
+          <p className="mt-2 text-sm text-slate-600">
+            Hourly vacation pays this many hours at the person’s rate for each vacation day in the pay period.
+            Salaried pay stays the same. NIS, PAYE, and the other deductions still come off the gross.
           </p>
         </div>
         {error ? (

@@ -1163,6 +1163,10 @@ model PayRunLine {
   salariedAmount Float   @default(0) @map("salaried_amount")
   basicPay       Float   @default(0) @map("basic_pay")
   otPay          Float   @default(0) @map("ot_pay")
+  /// Hourly vacation days inside this pay period. Salaried lines stay at 0.
+  vacationDays   Float   @default(0) @map("vacation_days")
+  vacationHours  Float   @default(0) @map("vacation_hours")
+  vacationPay    Float   @default(0) @map("vacation_pay")
   extraPay       Float   @default(0) @map("extra_pay")
   extraLines     String  @default("[]") @map("extra_lines")
   extraDeductions String @default("[]") @map("extra_deductions")
@@ -1171,6 +1175,8 @@ model PayRunLine {
   shortageReady  Float   @default(0) @map("shortage_ready")
   nisEmployee    Float   @default(0) @map("nis_employee")
   nisEmployer    Float   @default(0) @map("nis_employer")
+  /// PAYE for this pay, after NIC and the monthly free amount.
+  paye           Float   @default(0)
   staffLoan      Float   @default(0) @map("staff_loan")
   medical        Float   @default(0)
   totalDeductions Float  @default(0) @map("total_deductions")

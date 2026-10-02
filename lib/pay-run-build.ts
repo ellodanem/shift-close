@@ -1,6 +1,6 @@
 import { isReportOnlyPayPeriodRow } from '@/lib/pay-period-rows'
 import { payrollBankCode } from '@/lib/pay-run-banking'
-import { payMonthKey } from '@/lib/pay-run-deductions'
+import { payMonthKey, type PayeMonthTaken } from '@/lib/pay-run-deductions'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   buildPayRunLines,
@@ -11,6 +11,7 @@ import {
   parsePayType,
   payPeriodSourceHash,
   serializePayRunLine,
+  taxablePayFromGross,
   type BuiltPayRunLine,
   type DeductionOverride,
   type NisTaken,
@@ -18,7 +19,8 @@ import {
   type PayRunHoursRow,
   type PayRunStaffProfile
 } from '@/lib/pay-run'
-import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
+import { readOvertimeMultiplier, readVacationHoursPerDay } from '@/lib/payroll-settings-store'
+import { vacationDaysInPeriod } from '@/lib/vacation-pay'
 import { prisma } from '@/lib/prisma'
 import { parsePayCycle, splitPayPeriodHours, type PayCycle } from '@/lib/pay-cycle'
 import { loanDeductionForProfile, loadStaffLoanSnapshots } from '@/lib/staff-loan-store'
@@ -66,6 +68,8 @@ export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
       salariedAmount: true,
       staffLoan: true,
       medicalAmount: true,
+      vacationStart: true,
+      vacationEnd: true,
       taxCode: true,
       bankName: true,
       accountNumber: true
@@ -112,6 +116,37 @@ export async function loadNisTakenByStaffId(
   return taken
 }
 
+/** Taxable pay, employee NIC, and PAYE already taken this pay-date month on other processed runs. */
+export async function loadPayeTakenByStaffId(
+  payDate: string,
+  excludePayRunId?: string
+): Promise<Record<string, PayeMonthTaken>> {
+  const month = payMonthKey(payDate)
+  if (!month) return {}
+  const lines = await prisma.payRunLine.findMany({
+    where: {
+      staffId: { not: null },
+      payRun: {
+        status: 'processed',
+        payDate: { startsWith: month },
+        ...(excludePayRunId ? { id: { not: excludePayRunId } } : {})
+      }
+    },
+    select: { staffId: true, grossPay: true, extraLines: true, nisEmployee: true, paye: true }
+  })
+  const taken: Record<string, PayeMonthTaken> = {}
+  for (const line of lines) {
+    if (!line.staffId) continue
+    const prev = taken[line.staffId] ?? { taxablePay: 0, employeeNic: 0, paye: 0 }
+    taken[line.staffId] = {
+      taxablePay: round2(prev.taxablePay + taxablePayFromGross(line.grossPay, parseExtraLines(line.extraLines))),
+      employeeNic: round2(prev.employeeNic + line.nisEmployee),
+      paye: round2(prev.paye + line.paye)
+    }
+  }
+  return taken
+}
+
 export async function rebuildPayRunLines(
   payRunId: string,
   options: {
@@ -119,6 +154,8 @@ export async function rebuildPayRunLines(
     cycle: PayCycle
     payDate: string
     keepOverrides?: boolean
+    periodStart?: string
+    periodEnd?: string
   }
 ) {
   const staff = await loadPayRunStaffProfiles()
@@ -127,6 +164,7 @@ export async function rebuildPayRunLines(
   const deductionOverrides: Record<string, DeductionOverride> = {}
   const excludePayRunId = payRunId === 'new' ? undefined : payRunId
   const nisTakenByStaffId = await loadNisTakenByStaffId(options.payDate, excludePayRunId)
+  const payeTakenByStaffId = await loadPayeTakenByStaffId(options.payDate, excludePayRunId)
 
   if (options.keepOverrides) {
     const existing = await prisma.payRunLine.findMany({ where: { payRunId } })
@@ -161,7 +199,18 @@ export async function rebuildPayRunLines(
     }
   }
 
+  let periodStart = options.periodStart
+  let periodEnd = options.periodEnd
+  if ((!periodStart || !periodEnd) && payRunId !== 'new') {
+    const saved = await prisma.payRun.findUnique({
+      where: { id: payRunId },
+      select: { startDate: true, endDate: true }
+    })
+    periodStart = periodStart || saved?.startDate
+    periodEnd = periodEnd || saved?.endDate
+  }
   const otMultiplier = await readOvertimeMultiplier()
+  const vacationHoursPerDay = await readVacationHoursPerDay()
   const built = buildPayRunLines({
     cycle: parsePayCycle(options.cycle),
     hoursRows: options.hoursRows,
@@ -170,7 +219,11 @@ export async function rebuildPayRunLines(
     rateOverrides: options.keepOverrides ? rateOverrides : undefined,
     deductionOverrides: options.keepOverrides ? deductionOverrides : undefined,
     nisTakenByStaffId,
-    otMultiplier
+    payeTakenByStaffId,
+    otMultiplier,
+    periodStart,
+    periodEnd,
+    vacationHoursPerDay
   })
   const staffById = new Map(staff.map((s) => [s.id, s]))
   const lines = attachBankingToLines(built, staffById)
@@ -208,7 +261,9 @@ export async function updatePayRunSchedule(
     hoursRows,
     cycle: frequency,
     payDate: input.payDate,
-    keepOverrides: true
+    keepOverrides: true,
+    periodStart: input.startDate,
+    periodEnd: input.endDate
   })
   await prisma.$transaction(async (tx) => {
     await tx.payRunLine.deleteMany({ where: { payRunId } })
@@ -235,7 +290,9 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
   const staffById = new Map(staff.map((person) => [person.id, person]))
   const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
   const nisTaken = await loadNisTakenByStaffId(run.payDate, payRunId)
+  const payeTaken = await loadPayeTakenByStaffId(run.payDate, payRunId)
   const otMultiplier = await readOvertimeMultiplier()
+  const vacationHoursPerDay = await readVacationHoursPerDay()
 
   for (const line of run.lines) {
     if (!line.staffId) continue
@@ -251,6 +308,10 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
     const otHours = nextType === 'salaried' ? 0 : split.otHours
     const extraLines = parseExtraLines(line.extraLines)
     const extraDeductions = parseExtraLines(line.extraDeductions)
+    const vacationDays =
+      nextType === 'hourly'
+        ? vacationDaysInPeriod(profile.vacationStart, profile.vacationEnd, run.startDate, run.endDate)
+        : 0
     const pay = computeGrossPay({
       payType: nextType,
       basicHours,
@@ -258,17 +319,21 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
       hourlyRate,
       salariedAmount,
       extraLines,
-      otMultiplier
+      otMultiplier,
+      vacationDays,
+      vacationHoursPerDay
     })
     const taken = nisTaken[line.staffId]
     const deducted = computePayRunDeductions({
       grossPay: pay.grossPay,
+      taxablePay: taxablePayFromGross(pay.grossPay, extraLines),
       staffLoan: line.staffLoan,
       medical: line.medical,
       shortage: line.shortageReady,
       extraDeductions,
       nisEmployeeTaken: taken?.employee,
-      nisEmployerTaken: taken?.employer
+      nisEmployerTaken: taken?.employer,
+      payeTaken: payeTaken[line.staffId]
     })
     await prisma.payRunLine.update({
       where: { id: line.id },
@@ -282,6 +347,9 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
         salariedAmount,
         basicPay: pay.basicPay,
         otPay: pay.otPay,
+        vacationDays: pay.vacationDays,
+        vacationHours: pay.vacationHours,
+        vacationPay: pay.vacationPay,
         extraPay: pay.extraPay,
         grossPay: pay.grossPay,
         extraDeductions: JSON.stringify(deducted.extraDeductions),
@@ -289,6 +357,7 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
         shortageReady: deducted.shortage,
         nisEmployee: deducted.nisEmployee,
         nisEmployer: deducted.nisEmployer,
+        paye: deducted.paye,
         staffLoan: deducted.staffLoan,
         medical: deducted.medical,
         totalDeductions: deducted.totalDeductions,
@@ -302,12 +371,16 @@ export type PayRunYtd = {
   basicPay: number
   otPay: number
   extraPay: number
+  /** Omitted on older totals. Treated as zero. */
+  vacationPay?: number
   grossPay: number
   nisEmployee: number
   staffLoan: number
   medical: number
   shortageReady: number
   extraDeductionPay: number
+  /** Omitted on older totals. Treated as zero. */
+  paye?: number
   totalDeductions: number
   netPay: number
 }
@@ -316,12 +389,14 @@ const ZERO_YTD: PayRunYtd = {
   basicPay: 0,
   otPay: 0,
   extraPay: 0,
+  vacationPay: 0,
   grossPay: 0,
   nisEmployee: 0,
   staffLoan: 0,
   medical: 0,
   shortageReady: 0,
   extraDeductionPay: 0,
+  paye: 0,
   totalDeductions: 0,
   netPay: 0
 }
@@ -331,12 +406,14 @@ function addYtd(left: PayRunYtd, right: PayRunYtd): PayRunYtd {
     basicPay: round2(left.basicPay + right.basicPay),
     otPay: round2(left.otPay + right.otPay),
     extraPay: round2(left.extraPay + right.extraPay),
+    vacationPay: round2((left.vacationPay ?? 0) + (right.vacationPay ?? 0)),
     grossPay: round2(left.grossPay + right.grossPay),
     nisEmployee: round2(left.nisEmployee + right.nisEmployee),
     staffLoan: round2(left.staffLoan + right.staffLoan),
     medical: round2(left.medical + right.medical),
     shortageReady: round2(left.shortageReady + right.shortageReady),
     extraDeductionPay: round2(left.extraDeductionPay + right.extraDeductionPay),
+    paye: round2((left.paye ?? 0) + (right.paye ?? 0)),
     totalDeductions: round2(left.totalDeductions + right.totalDeductions),
     netPay: round2(left.netPay + right.netPay)
   }
@@ -363,12 +440,14 @@ export async function loadPriorYtdByStaffId(
       basicPay: true,
       otPay: true,
       extraPay: true,
+      vacationPay: true,
       grossPay: true,
       nisEmployee: true,
       staffLoan: true,
       medical: true,
       shortageReady: true,
       extraDeductionPay: true,
+      paye: true,
       totalDeductions: true,
       netPay: true
     }
@@ -381,12 +460,14 @@ export async function loadPriorYtdByStaffId(
       basicPay: line.basicPay,
       otPay: line.otPay,
       extraPay: line.extraPay,
+      vacationPay: line.vacationPay,
       grossPay: line.grossPay,
       nisEmployee: line.nisEmployee,
       staffLoan: line.staffLoan,
       medical: line.medical,
       shortageReady: line.shortageReady,
       extraDeductionPay: line.extraDeductionPay,
+      paye: line.paye,
       totalDeductions: line.totalDeductions,
       netPay: line.netPay
     })

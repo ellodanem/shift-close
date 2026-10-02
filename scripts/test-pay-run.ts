@@ -6,8 +6,11 @@ import {
   inferPayCycleFromRange,
   inferPayRunCycle,
   OT_MULTIPLIER,
-  payPeriodSourceHash
+  parseExtraLines,
+  payPeriodSourceHash,
+  taxablePayFromGross
 } from '../lib/pay-run'
+import { vacationDaysInPeriod } from '../lib/vacation-pay'
 
 describe('pay run gross', () => {
   it('pays hourly basic and time-and-a-half OT', () => {
@@ -188,6 +191,108 @@ describe('pay run gross', () => {
     })
     assert.equal(lines[0]?.nisEmployee, 10)
     assert.equal(lines[0]?.nisEmployer, 10)
+    assert.equal(lines[0]?.paye, 0)
     assert.equal(lines[0]?.netPay, 608.74)
+  })
+
+  it('leaves an untaxed extra out of PAYE', () => {
+    const lines = parseExtraLines([{ label: 'Travel', amount: 500, taxable: false }, { label: 'Extra', amount: 20 }])
+    assert.equal(lines[0]?.taxable, false)
+    assert.equal(taxablePayFromGross(3800, lines), 3300)
+    const built = buildPayRunLines({
+      cycle: 'monthly',
+      hoursRows: [],
+      staff: [
+        {
+          id: 'm1',
+          name: 'Marjorie Poleon',
+          status: 'active',
+          role: 'cashier',
+          nicNumber: '250987',
+          payCycle: 'monthly',
+          payType: 'salaried',
+          hourlyRate: null,
+          salariedAmount: 3300,
+          staffLoan: null,
+          medicalAmount: null
+        }
+      ],
+      extrasByStaffId: { m1: [{ label: 'Travel', amount: 500, taxable: false }] }
+    })
+    assert.equal(built[0]?.grossPay, 3800)
+    assert.equal(built[0]?.nisEmployee, 190)
+    assert.equal(built[0]?.paye, 91.5)
+    assert.equal(built[0]?.netPay, 3518.5)
+  })
+
+  it('counts vacation days that fall inside the pay period', () => {
+    assert.equal(vacationDaysInPeriod('2026-09-01', '2026-09-18', '2026-09-01', '2026-09-15'), 15)
+    assert.equal(vacationDaysInPeriod('2026-09-01', '2026-09-18', '2026-09-16', '2026-09-30'), 3)
+    assert.equal(vacationDaysInPeriod('2026-09-10', '2026-09-12', '2026-09-01', '2026-09-15'), 3)
+  })
+
+  it('pays hourly vacation at 6 hours a day and still takes NIS and medical', () => {
+    const pay = computeGrossPay({
+      payType: 'hourly',
+      basicHours: 0,
+      hourlyRate: 10,
+      vacationDays: 18,
+      vacationHoursPerDay: 6
+    })
+    assert.equal(pay.vacationHours, 108)
+    assert.equal(pay.vacationPay, 1080)
+    assert.equal(pay.grossPay, 1080)
+
+    const lines = buildPayRunLines({
+      cycle: 'semimonthly',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-15',
+      vacationHoursPerDay: 6,
+      hoursRows: [{ staffId: 'h1', staffName: 'Althea Frank', transTtl: 40, payCycle: 'semimonthly' }],
+      staff: [
+        {
+          id: 'h1',
+          name: 'Althea Frank',
+          status: 'active',
+          role: 'cashier',
+          nicNumber: '289864',
+          payCycle: 'semimonthly',
+          payType: 'hourly',
+          hourlyRate: 10,
+          salariedAmount: null,
+          staffLoan: 0,
+          medicalAmount: 5,
+          vacationStart: '2026-09-10',
+          vacationEnd: '2026-09-12'
+        },
+        {
+          id: 's1',
+          name: 'Jovita Henry',
+          status: 'active',
+          role: 'cashier',
+          nicNumber: '266258',
+          payCycle: 'semimonthly',
+          payType: 'salaried',
+          hourlyRate: null,
+          salariedAmount: 1000,
+          staffLoan: null,
+          medicalAmount: null,
+          vacationStart: '2026-09-01',
+          vacationEnd: '2026-09-15'
+        }
+      ]
+    })
+    const hourly = lines.find((line) => line.staffId === 'h1')
+    const salaried = lines.find((line) => line.staffId === 's1')
+    assert.equal(hourly?.vacationDays, 3)
+    assert.equal(hourly?.vacationHours, 18)
+    assert.equal(hourly?.vacationPay, 180)
+    assert.equal(hourly?.basicPay, 400)
+    assert.equal(hourly?.grossPay, 580)
+    assert.equal(hourly?.nisEmployee, 29)
+    assert.equal(hourly?.medical, 5)
+    assert.equal(hourly?.netPay, 546)
+    assert.equal(salaried?.vacationPay, 0)
+    assert.equal(salaried?.grossPay, 1000)
   })
 })

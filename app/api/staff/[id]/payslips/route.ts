@@ -24,6 +24,7 @@ function ytdOf(line: {
   medical: number
   shortageReady: number
   extraDeductionPay: number
+  paye?: number
   totalDeductions: number
   netPay: number
 }): PayRunYtd {
@@ -37,6 +38,7 @@ function ytdOf(line: {
     medical: line.medical,
     shortageReady: line.shortageReady,
     extraDeductionPay: line.extraDeductionPay,
+    paye: line.paye ?? 0,
     totalDeductions: line.totalDeductions,
     netPay: line.netPay
   }
@@ -111,6 +113,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             extraLines: line.extraLines,
             extraDeductions: line.extraDeductions,
             nisEmployee: line.nisEmployee,
+            paye: line.paye,
             medical: line.medical,
             staffLoan: line.staffLoan,
             shortageReady: line.shortageReady,

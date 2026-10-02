@@ -129,25 +129,42 @@ export function hoursForLabel(lines: PayRunExtraLine[], label: string): number {
   return match?.hours ?? 0
 }
 
+function flagExtraTax(line: PayRunExtraLine, untaxed: ReadonlySet<string> | null): PayRunExtraLine {
+  if (!untaxed) return line
+  if (untaxed.has(line.label)) return { ...line, taxable: false }
+  const { taxable: _drop, ...rest } = line
+  return rest
+}
+
 export function buildExtraLines(input: {
   existing: PayRunExtraLine[]
   extraAmount: number
   hourlyRate: number
   categories: PayrollCategory[]
   values: Record<string, string>
+  /** Labels left out of PAYE. When set, this list is the choice for every extra on the line. */
+  untaxedLabels?: readonly string[]
 }): PayRunExtraLine[] {
+  const untaxed = input.untaxedLabels ? new Set(input.untaxedLabels) : null
   const custom = input.categories.filter((category) => !category.builtin && category.kind !== 'deduction')
   const managed = new Set(['Extra', ...custom.map((category) => category.label)])
-  const kept = visibleExtraLines(input.existing).filter((line) => !managed.has(line.label))
+  const kept = visibleExtraLines(input.existing)
+    .filter((line) => !managed.has(line.label))
+    .map((line) => flagExtraTax(line, untaxed))
   const next: PayRunExtraLine[] = [...kept]
-  if (input.extraAmount > 0) next.push({ label: 'Extra', amount: input.extraAmount })
+  if (input.extraAmount > 0) next.push(flagExtraTax({ label: 'Extra', amount: input.extraAmount }, untaxed))
   for (const category of custom) {
     const entered = parseMoney(input.values[category.id])
     if (entered <= 0) continue
     if (category.kind === 'hours') {
-      next.push({ label: category.label, hours: entered, amount: parseMoney(entered * input.hourlyRate) })
+      next.push(
+        flagExtraTax(
+          { label: category.label, hours: entered, amount: parseMoney(entered * input.hourlyRate) },
+          untaxed
+        )
+      )
     } else {
-      next.push({ label: category.label, amount: entered })
+      next.push(flagExtraTax({ label: category.label, amount: entered }, untaxed))
     }
   }
   return next

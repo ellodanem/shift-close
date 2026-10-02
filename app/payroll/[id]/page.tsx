@@ -9,7 +9,13 @@ import {
   payPeriodAttendanceFromRows,
   type PayPeriodAttendance
 } from '@/lib/pay-period-rows'
-import { DEFAULT_OVERTIME_MULTIPLIER, loadOvertimeMultiplier, loadPayslipCompany } from '@/lib/payroll-settings'
+import {
+  DEFAULT_OVERTIME_MULTIPLIER,
+  DEFAULT_VACATION_HOURS_PER_DAY,
+  loadOvertimeMultiplier,
+  loadPayslipCompany,
+  loadVacationHoursPerDay
+} from '@/lib/payroll-settings'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 import { buildBankingPack } from '@/lib/pay-run-banking'
 import { downloadBankingPackExcel } from '@/lib/pay-run-banking-excel'
@@ -62,6 +68,7 @@ import {
   parseMoney,
   parsePayType,
   salarySkipped,
+  visibleExtraLines,
   type PayRunExtraLine
 } from '@/lib/pay-run'
 
@@ -79,13 +86,18 @@ type PayRunLine = {
   extraDeductions: PayRunExtraLine[]
   basicPay: number
   otPay: number
+  vacationDays?: number
+  vacationHours?: number
+  vacationPay?: number
   extraPay: number
   grossPay: number
   shortageReady: number
   nisEmployee: number
+  paye?: number
   ytd?: {
     basicPay: number
     otPay: number
+    vacationPay?: number
     extraPay: number
     grossPay: number
     nisEmployee: number
@@ -93,6 +105,7 @@ type PayRunLine = {
     medical: number
     shortageReady: number
     extraDeductionPay: number
+    paye?: number
     totalDeductions: number
     netPay: number
   }
@@ -128,12 +141,15 @@ type Draft = {
   salary: string
   basicHours: string
   otHours: string
+  vacationDays: string
   extra: string
   shortage: string
   loan: string
   medical: string
   otherDeduction: string
   custom: Record<string, string>
+  /** Extra labels left out of PAYE. */
+  untaxedExtras: string[]
 }
 
 function mdy(ymd: string): string {
@@ -192,12 +208,16 @@ function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
     salary: String(line.salariedAmount || ''),
     basicHours: line.basicHours ? String(line.basicHours) : '',
     otHours: line.otHours ? String(line.otHours) : '',
+    vacationDays: line.vacationDays ? String(line.vacationDays) : '',
     extra: moneyInput(amountForLabel(line.extraLines, 'Extra')),
     shortage: moneyInput(line.shortageReady),
     loan: moneyInput(line.staffLoan),
     medical: moneyInput(line.medical),
     otherDeduction: moneyInput(amountForLabel(line.extraDeductions, 'Other')),
-    custom
+    custom,
+    untaxedExtras: visibleExtraLines(line.extraLines)
+      .filter((extra) => extra.taxable === false)
+      .map((extra) => extra.label)
   }
 }
 
@@ -207,7 +227,8 @@ function extraLinesFor(line: PayRunLine, draft: Draft, categories: PayrollCatego
     extraAmount: parseMoney(draft.extra),
     hourlyRate: parseMoney(draft.rate),
     categories,
-    values: draft.custom
+    values: draft.custom,
+    untaxedLabels: draft.untaxedExtras ?? []
   })
 }
 
@@ -274,6 +295,7 @@ function payrollEntryPayload(
         taxCode: line.taxCode || '',
         basicHours: parseMoney(draft.basicHours),
         otHours: parseMoney(draft.otHours),
+        vacationDays: parseMoney(draft.vacationDays),
         hourlyRate: parseMoney(draft.rate),
         salariedAmount: parseMoney(draft.salary),
         extraLines: extraLinesFor(line, draft, categories),
@@ -388,6 +410,18 @@ function CategoryControl({
   onChange: (value: string) => void
   onBlur: () => void
 }) {
+  if (category.id === 'vacation' && parsePayType(line.payType) === 'hourly') {
+    return (
+      <HoursField
+        label={`Vacation days for ${line.staffName}`}
+        value={draft.vacationDays}
+        disabled={locked || busy}
+        roomy={roomy}
+        onBlur={onBlur}
+        onChange={onChange}
+      />
+    )
+  }
   if (category.id === 'sickDays') {
     return (
       <HoursField
@@ -562,6 +596,7 @@ export default function PayrollRunPage() {
   const [newTypeKind, setNewTypeKind] = useState<CategoryKind>('money')
   const [loading, setLoading] = useState(true)
   const [otMultiplier, setOtMultiplier] = useState(DEFAULT_OVERTIME_MULTIPLIER)
+  const [vacationHoursPerDay, setVacationHoursPerDay] = useState(DEFAULT_VACATION_HOURS_PER_DAY)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rateLineId, setRateLineId] = useState<string | null>(null)
@@ -658,6 +693,9 @@ export default function PayrollRunPage() {
       void loadOvertimeMultiplier().then((multiplier) => {
         if (!cancelled) setOtMultiplier(multiplier)
       })
+      void loadVacationHoursPerDay().then((hours) => {
+        if (!cancelled) setVacationHoursPerDay(hours)
+      })
     }
     refresh()
     window.addEventListener('payroll-settings-saved', refresh)
@@ -696,10 +734,12 @@ export default function PayrollRunPage() {
         hourlyRate: parseMoney(draft.rate),
         salariedAmount: parseMoney(draft.salary),
         extraLines: extraLinesFor(line, draft, categories),
-        otMultiplier
+        otMultiplier,
+        vacationDays: parseMoney(draft.vacationDays),
+        vacationHoursPerDay
       }).grossPay
     },
-    [drafts, categories, locked, otMultiplier]
+    [drafts, categories, locked, otMultiplier, vacationHoursPerDay]
   )
 
   const patchDraft = (lineId: string, patch: Partial<Draft>) => {
@@ -791,6 +831,16 @@ export default function PayrollRunPage() {
       debounceRef.current = null
     }
     void persistNow().catch(() => undefined)
+  }
+
+  const toggleExtraTax = (lineId: string, label: string, taxed: boolean) => {
+    const draft = draftsRef.current[lineId]
+    if (!draft) return
+    const next = new Set(draft.untaxedExtras ?? [])
+    if (taxed) next.delete(label)
+    else next.add(label)
+    patchDraft(lineId, { untaxedExtras: [...next] })
+    flushSave()
   }
 
   useEffect(() => {
@@ -1216,6 +1266,7 @@ export default function PayrollRunPage() {
   const setCategoryValue = (lineId: string, draft: Draft, category: PayrollCategory, value: string) => {
     if (category.id === 'basic') patchDraft(lineId, { basicHours: value })
     else if (category.id === 'ot') patchDraft(lineId, { otHours: value })
+    else if (category.id === 'vacation') patchDraft(lineId, { vacationDays: value })
     else if (category.id === 'extra') patchDraft(lineId, { extra: value })
     else if (category.id === 'medical') patchDraft(lineId, { medical: value })
     else if (category.id === 'shortage') patchDraft(lineId, { shortage: value })
@@ -1227,7 +1278,10 @@ export default function PayrollRunPage() {
 
   const categoryTotal = (lines: PayRunLine[], category: PayrollCategory) => {
     if (category.kind === 'attendance') {
-      if (category.id === 'vacation') return ''
+      if (category.id === 'vacation') {
+        const days = lines.reduce((sum, line) => sum + parseMoney(drafts[line.id]?.vacationDays), 0)
+        return days ? formatSickDays(days) : ''
+      }
       return formatSickDays(lines.reduce((sum, line) => sum + attendanceFact(line).sickLeaveDays, 0))
     }
     if (category.id === 'basic') return sumHours(lines, 'basicHours').toFixed(2)
@@ -1700,6 +1754,7 @@ export default function PayrollRunPage() {
             onDraft={patchDraft}
             onFlush={flushSave}
             onEditName={openPayInfo}
+            onToggleExtraTax={toggleExtraTax}
             locked={Boolean(locked)}
           />
         ) : null}
@@ -1800,7 +1855,7 @@ export default function PayrollRunPage() {
             ) : null}
             {cuSent ? <p className="mt-3 text-sm text-emerald-800">{cuSent}</p> : null}
             <p className="mt-6 text-sm text-slate-500">
-              You can leave and open this payroll again. PAYE stays in Pay+.
+              You can leave and open this payroll again. PAYE is calculated on this payroll.
             </p>
           </div>
         ) : null}
@@ -2265,7 +2320,9 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
               <span className="font-semibold">Deductions</span> {formatMoney(deductions)} ·{' '}
               <span className="font-semibold">Net</span> {formatMoney(net)}
             </p>
-            <p className="mt-2 text-sm text-slate-500">PAYE is still calculated in Pay+.</p>
+            <p className="mt-2 text-sm text-slate-500">
+              PAYE is 15% of taxable pay after NIC, above $2,500 a month.
+            </p>
           </div>
         </div>
         <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
@@ -2383,6 +2440,7 @@ function ReviewStep({
   onDraft,
   onFlush,
   onEditName,
+  onToggleExtraTax,
   locked
 }: {
   run: PayRun
@@ -2392,12 +2450,13 @@ function ReviewStep({
   onDraft: (lineId: string, patch: Partial<Draft>) => void
   onFlush: () => void
   onEditName: (lineId: string) => void
+  onToggleExtraTax: (lineId: string, label: string, taxed: boolean) => void
   locked: boolean
 }) {
   const [openDeductions, setOpenDeductions] = useState<Record<string, true>>({})
   const hourly = run.lines.filter((line) => parsePayType(line.payType) !== 'salaried')
   const salaried = run.lines.filter((line) => parsePayType(line.payType) === 'salaried')
-  const hours = run.lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
+  const hours = run.lines.reduce((sum, line) => sum + line.basicHours + line.otHours + (line.vacationHours ?? 0), 0)
   const gross = run.lines.reduce((sum, line) => sum + line.grossPay, 0)
   const deductions = run.lines.reduce((sum, line) => sum + line.totalDeductions, 0)
   const net = run.lines.reduce((sum, line) => sum + line.netPay, 0)
@@ -2408,7 +2467,7 @@ function ReviewStep({
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-slate-900">{details ? 'Payroll details' : 'Payroll summary'}</h2>
           <HelpTip label="About this payroll">
-            {`Pay period ${mdy(run.startDate)} – ${mdy(run.endDate)} · Pay date ${mdy(run.payDate)}. Net is gross minus employee NIS, loan, medical, shortage, and other deductions. Employer NIS is a memo. PAYE stays in Pay+. YTD is approved pay in ${run.payDate.slice(0, 4)} through this pay date, including this payroll.`}
+            {`Pay period ${mdy(run.startDate)} – ${mdy(run.endDate)} · Pay date ${mdy(run.payDate)}. Net is gross minus PAYE, employee NIS, loan, medical, shortage, and other deductions. PAYE is 15% of taxable pay after NIC, above $2,500 for the month. Uncheck Tax on an extra to leave that amount out. Employer NIS is a memo. YTD is approved pay in ${run.payDate.slice(0, 4)} through this pay date, including this payroll.`}
           </HelpTip>
         </div>
         <button
@@ -2478,12 +2537,45 @@ function ReviewStep({
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.otPay)}</td>
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.otPay ?? line.otPay)}</td>
                         </tr>
+                        {line.vacationPay || line.ytd?.vacationPay ? (
+                          <tr>
+                            <td className="py-1">Vacation</td>
+                            <td className="py-1 text-right tabular-nums">{(line.vacationHours ?? 0).toFixed(2)}</td>
+                            <td className="py-1 text-right tabular-nums">{formatMoney(line.vacationPay ?? 0)}</td>
+                            <td className="py-1 text-right tabular-nums">
+                              {formatMoney(line.ytd?.vacationPay ?? line.vacationPay ?? 0)}
+                            </td>
+                          </tr>
+                        ) : null}
                         <tr>
                           <td className="py-1">Extra</td>
                           <td />
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.extraPay)}</td>
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.extraPay ?? line.extraPay)}</td>
                         </tr>
+                        {visibleExtraLines(line.extraLines).map((extra) => {
+                          const untaxed = new Set(draft?.untaxedExtras ?? [])
+                          const taxed = !untaxed.has(extra.label)
+                          return (
+                            <tr key={`${line.id}-${extra.label}`}>
+                              <td className="py-1 pl-3" colSpan={2}>
+                                <label className="inline-flex min-h-[44px] items-center gap-2 text-slate-600 sm:min-h-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={taxed}
+                                    disabled={locked}
+                                    aria-label={`Tax ${extra.label} for ${line.staffName}`}
+                                    onChange={(e) => onToggleExtraTax(line.id, extra.label, e.target.checked)}
+                                  />
+                                  Tax {extra.label}
+                                  {taxed ? '' : ' · not taxed'}
+                                </label>
+                              </td>
+                              <td className="py-1 text-right tabular-nums text-slate-600">{formatMoney(extra.amount)}</td>
+                              <td />
+                            </tr>
+                          )
+                        })}
                         <tr className="font-semibold">
                           <td className="py-1">Gross pay</td>
                           <td />
@@ -2504,6 +2596,11 @@ function ReviewStep({
                         </tr>
                       </thead>
                       <tbody>
+                        <tr>
+                          <td className="py-1">PAYE</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.paye ?? 0)}</td>
+                          <td className="py-1 text-right tabular-nums">{formatMoney(line.ytd?.paye ?? line.paye ?? 0)}</td>
+                        </tr>
                         <tr>
                           <td className="py-1">NIS</td>
                           <td className="py-1 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
@@ -2624,7 +2721,7 @@ function SummaryCards({
   onEditName?: (lineId: string) => void
 }) {
   const block = (title: string, lines: PayRunLine[]) => {
-    const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
+    const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours + (line.vacationHours ?? 0), 0)
     const blockGross = lines.reduce((sum, line) => sum + line.grossPay, 0)
     const blockDeductions = lines.reduce((sum, line) => sum + line.totalDeductions, 0)
     const blockNet = lines.reduce((sum, line) => sum + line.netPay, 0)
@@ -2650,7 +2747,7 @@ function SummaryCards({
                 <div>
                   <dt className="text-slate-500">Hours</dt>
                   <dd className="tabular-nums">
-                    {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours).toFixed(2)}
+                    {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours + (line.vacationHours ?? 0)).toFixed(2)}
                   </dd>
                 </div>
                 <div>
@@ -2741,7 +2838,7 @@ function SummaryTable({
   onEditName?: (lineId: string) => void
 }) {
   const block = (title: string, lines: PayRunLine[]) => {
-    const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours, 0)
+    const blockHours = lines.reduce((sum, line) => sum + line.basicHours + line.otHours + (line.vacationHours ?? 0), 0)
     const blockGross = lines.reduce((sum, line) => sum + line.grossPay, 0)
     const blockDeductions = lines.reduce((sum, line) => sum + line.totalDeductions, 0)
     const blockNet = lines.reduce((sum, line) => sum + line.netPay, 0)
@@ -2769,7 +2866,7 @@ function SummaryTable({
               {line.taxCode ? <p className="text-xs font-normal text-slate-500">Tax code {line.taxCode}</p> : null}
             </td>
             <td className="py-2 text-right tabular-nums">
-              {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours).toFixed(2)}
+              {parsePayType(line.payType) === 'salaried' ? '—' : (line.basicHours + line.otHours + (line.vacationHours ?? 0)).toFixed(2)}
             </td>
             <td className="py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
             <td className="py-2 text-right tabular-nums">{formatMoney(line.totalDeductions)}</td>

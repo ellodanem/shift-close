@@ -49,6 +49,7 @@ type PayRunLine = {
   shortageReady: number
   nisEmployee: number
   nisEmployer: number
+  paye?: number
   staffLoan: number
   loanRemaining?: number | null
   medical: number
@@ -76,11 +77,13 @@ type PayRun = {
 function ExtraLineEditor({
   rows,
   onChange,
-  addLabel
+  addLabel,
+  showTax = false
 }: {
   rows: PayRunExtraLine[]
   onChange: (rows: PayRunExtraLine[]) => void
   addLabel: string
+  showTax?: boolean
 }) {
   const hidden = rows.filter((row) => row.label.startsWith('__'))
   const visible = rows.filter((row) => !row.label.startsWith('__'))
@@ -112,6 +115,28 @@ function ExtraLineEditor({
             }
             className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
           />
+          {showTax ? (
+            <label className="flex items-center gap-1 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={extra.taxable !== false}
+                aria-label={`Tax ${extra.label || 'extra'}`}
+                onChange={(e) =>
+                  updateVisible(
+                    visible.map((row, i) => {
+                      if (i !== index) return row
+                      if (e.target.checked) {
+                        const { taxable: _drop, ...rest } = row
+                        return rest
+                      }
+                      return { ...row, taxable: false }
+                    })
+                  )
+                }
+              />
+              Tax
+            </label>
+          ) : null}
           <button
             type="button"
             onClick={() => updateVisible(visible.filter((_, i) => i !== index))}
@@ -173,6 +198,7 @@ export default function PayRunDetailPage() {
     return {
       gross: lines.reduce((s, l) => s + l.grossPay, 0),
       nis: lines.reduce((s, l) => s + l.nisEmployee, 0),
+      paye: lines.reduce((s, l) => s + (l.paye ?? 0), 0),
       employerNis: lines.reduce((s, l) => s + l.nisEmployer, 0),
       loan: lines.reduce((s, l) => s + l.staffLoan, 0),
       medical: lines.reduce((s, l) => s + l.medical, 0),
@@ -454,7 +480,8 @@ export default function PayRunDetailPage() {
               </div>
               <p className="text-sm text-gray-600">
                 Net is gross minus employee NIS (5%, $250 monthly cap), staff loan, medical, shortage,
-                and extra deductions. Employer NIS is a memo only. PAYE stays in Pay+.
+                and extra deductions. PAYE is 15% of taxable pay after NIC, above $2,500 a month.
+                Employer NIS is a memo only.
               </p>
             </div>
 
@@ -468,6 +495,7 @@ export default function PayRunDetailPage() {
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">OT</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Gross</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">PAYE</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">NIS</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Loan</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Med</th>
@@ -494,7 +522,12 @@ export default function PayRunDetailPage() {
                           ) : null}
                           {extras.length > 0 ? (
                             <div className="text-xs text-gray-500 mt-1">
-                              {extras.map((extra) => `${extra.label} ${formatMoney(extra.amount)}`).join(' · ')}
+                              {extras
+                                .map(
+                                  (extra) =>
+                                    `${extra.label} ${formatMoney(extra.amount)}${extra.taxable === false ? ' (not taxed)' : ''}`
+                                )
+                                .join(' · ')}
                             </div>
                           ) : null}
                           {deductions.length > 0 ? (
@@ -553,7 +586,7 @@ export default function PayRunDetailPage() {
                                 </label>
                               </div>
                               <p className="text-xs font-medium text-gray-700">Extra earnings</p>
-                              <ExtraLineEditor rows={editExtras} onChange={setEditExtras} addLabel="+ Extra line" />
+                              <ExtraLineEditor rows={editExtras} onChange={setEditExtras} addLabel="+ Extra line" showTax />
                               <p className="text-xs font-medium text-gray-700">Extra deductions</p>
                               <ExtraLineEditor
                                 rows={editDeductions}
@@ -591,6 +624,7 @@ export default function PayRunDetailPage() {
                           {salaried ? formatMoney(line.salariedAmount) : formatMoney(line.hourlyRate)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.grossPay)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.paye ?? 0)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.nisEmployee)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {line.staffLoan > 0 ? formatMoney(line.staffLoan) : ''}
@@ -628,6 +662,7 @@ export default function PayRunDetailPage() {
                       Totals
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.gross)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.paye)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatMoney(totals.nis)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {totals.loan > 0 ? formatMoney(totals.loan) : ''}
@@ -647,7 +682,7 @@ export default function PayRunDetailPage() {
 
             <p className="text-sm text-gray-600 mb-6">
               Employer NIS this run: <span className="font-medium">{formatMoney(totals.employerNis)}</span>{' '}
-              (memo only — not taken from net). PAYE is still calculated in Pay+.
+              (memo only — not taken from net). PAYE is 15% of taxable pay after NIC, above $2,500 a month.
             </p>
 
             <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">

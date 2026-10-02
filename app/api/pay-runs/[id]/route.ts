@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   attachBankingToLines,
   loadNisTakenByStaffId,
+  loadPayeTakenByStaffId,
+  loadPayRunStaffProfiles,
   loadPriorYtdByStaffId,
   parsePayPeriodHoursRows,
   rebuildPayRunLines,
@@ -18,9 +20,11 @@ import {
   parsePayType,
   payPeriodSourceHash,
   presentPayRunLine,
-  serializePayRunLine
+  serializePayRunLine,
+  taxablePayFromGross
 } from '@/lib/pay-run'
-import { readOvertimeMultiplier } from '@/lib/payroll-settings-store'
+import { readOvertimeMultiplier, readVacationHoursPerDay } from '@/lib/payroll-settings-store'
+import { vacationDaysInPeriod } from '@/lib/vacation-pay'
 import { prisma } from '@/lib/prisma'
 import { parseCycleNumber } from '@/lib/pay-cycle'
 import { getSessionFromRequest } from '@/lib/session'
@@ -49,6 +53,7 @@ async function presentRun<
       medical: number
       shortageReady: number
       extraDeductionPay: number
+      paye?: number
       totalDeductions: number
       netPay: number
     }>
@@ -83,6 +88,7 @@ async function presentRun<
         medical: line.medical,
         shortageReady: line.shortageReady,
         extraDeductionPay: line.extraDeductionPay,
+        paye: line.paye ?? 0,
         totalDeductions: line.totalDeductions,
         netPay: line.netPay
       })
@@ -187,6 +193,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ? [body.line]
         : []
     const otMultiplier = await readOvertimeMultiplier()
+    const vacationHoursPerDay = await readVacationHoursPerDay()
+    const datesChanged = startDate !== run.startDate || endDate !== run.endDate
+    const staffById = new Map((await loadPayRunStaffProfiles()).map((person) => [person.id, person]))
+    const payeTakenByStaff = await loadPayeTakenByStaffId(payDate, id)
     for (const lineBody of linePatches) {
       if (!lineBody || typeof lineBody !== 'object') continue
       const lineId = typeof lineBody.id === 'string' ? lineBody.id : ''
@@ -218,6 +228,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const basicHours =
         lineBody.basicHours !== undefined ? parseMoney(lineBody.basicHours) : existing.basicHours
       const otHours = lineBody.otHours !== undefined ? parseMoney(lineBody.otHours) : existing.otHours
+      const profile = existing.staffId ? staffById.get(existing.staffId) : undefined
+      const vacationDays = datesChanged
+        ? vacationDaysInPeriod(profile?.vacationStart, profile?.vacationEnd, startDate, endDate)
+        : lineBody.vacationDays !== undefined
+          ? parseMoney(lineBody.vacationDays)
+          : existing.vacationDays
       const pay = computeGrossPay({
         payType,
         basicHours,
@@ -225,19 +241,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         hourlyRate,
         salariedAmount,
         extraLines,
-        otMultiplier
+        otMultiplier,
+        vacationDays,
+        vacationHoursPerDay
       })
       const nisTaken = existing.staffId
         ? (await loadNisTakenByStaffId(payDate, id))[existing.staffId]
         : undefined
       const deducted = computePayRunDeductions({
         grossPay: pay.grossPay,
+        taxablePay: taxablePayFromGross(pay.grossPay, extraLines),
         staffLoan,
         medical,
         shortage: shortageReady,
         extraDeductions,
         nisEmployeeTaken: nisTaken?.employee,
-        nisEmployerTaken: nisTaken?.employer
+        nisEmployerTaken: nisTaken?.employer,
+        payeTaken: existing.staffId ? payeTakenByStaff[existing.staffId] : undefined
       })
       await prisma.payRunLine.update({
         where: { id: lineId },
@@ -254,10 +274,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           extraDeductionPay: deducted.extraDeductionPay,
           basicPay: pay.basicPay,
           otPay: pay.otPay,
+          vacationDays: pay.vacationDays,
+          vacationHours: pay.vacationHours,
+          vacationPay: pay.vacationPay,
           grossPay: pay.grossPay,
           shortageReady: deducted.shortage,
           nisEmployee: deducted.nisEmployee,
           nisEmployer: deducted.nisEmployer,
+          paye: deducted.paye,
           staffLoan: deducted.staffLoan,
           medical: deducted.medical,
           totalDeductions: deducted.totalDeductions,
