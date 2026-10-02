@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
-import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
+import {
+  adjustOperatingBalance,
+  chargedVendorBalanceAccount
+} from '@/lib/checkBalanceAccount'
 
 // POST revert vendor payment by bank reference/check number
 export async function POST(request: NextRequest) {
@@ -27,31 +30,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If this payment already reduced available funds, add it back.
-    const shouldRestoreBalance = batch.paymentMethod === 'eft' || batch.clearedAt != null
-    if (shouldRestoreBalance) {
-      const existingBalance = await prisma.balance.findUnique({ where: { id: 'balance' } })
-      const amount = roundMoney(batch.totalAmount)
-      if (existingBalance) {
-        const updatedAvailable = roundMoney(existingBalance.availableFunds + amount)
-        await prisma.balance.update({
-          where: { id: 'balance' },
-          data: {
-            availableFunds: updatedAvailable,
-            balanceAfter: balanceAfterFromAvailable(updatedAvailable)
-          }
-        })
-      } else {
-        await prisma.balance.create({
-          data: {
-            id: 'balance',
-            currentBalance: amount,
-            availableFunds: amount,
-            planned: 0,
-            balanceAfter: amount
-          }
-        })
-      }
+    // If this payment already reduced an operating balance, add it back to that account.
+    const restoreAccount = chargedVendorBalanceAccount(batch)
+    if (restoreAccount) {
+      await adjustOperatingBalance(prisma, roundMoney(batch.totalAmount), restoreAccount, 'restore')
     }
 
     // Remove any linked cashbook rows generated from this vendor payment batch

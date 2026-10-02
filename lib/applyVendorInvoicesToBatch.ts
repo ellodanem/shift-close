@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
 import { mapExpenseDebits } from '@/lib/cashbook-expense'
 import { roundMoney, vendorInvoiceTotal } from '@/lib/vendorVat'
+import {
+  adjustOperatingBalance,
+  chargedVendorBalanceAccount
+} from '@/lib/checkBalanceAccount'
 import type { Prisma } from '@prisma/client'
 
 export class ApplyVendorInvoicesError extends Error {
@@ -11,30 +14,6 @@ export class ApplyVendorInvoicesError extends Error {
     super(message)
     this.name = 'ApplyVendorInvoicesError'
     this.status = status
-  }
-}
-
-async function deductAvailableFunds(tx: Prisma.TransactionClient, amount: number) {
-  const existingBalance = await tx.balance.findUnique({ where: { id: 'balance' } })
-  if (existingBalance) {
-    const updatedAvailable = roundMoney(existingBalance.availableFunds - amount)
-    await tx.balance.update({
-      where: { id: 'balance' },
-      data: {
-        availableFunds: updatedAvailable,
-        balanceAfter: balanceAfterFromAvailable(updatedAvailable)
-      }
-    })
-  } else {
-    await tx.balance.create({
-      data: {
-        id: 'balance',
-        currentBalance: 0,
-        availableFunds: roundMoney(0 - amount),
-        planned: 0,
-        balanceAfter: roundMoney(0 - amount)
-      }
-    })
   }
 }
 
@@ -121,9 +100,9 @@ export async function applyVendorInvoicesToBatch(opts: {
     )
     const newTotal = roundMoney(batch.totalAmount + delta)
 
-    const fundsAlreadyDeducted = batch.paymentMethod === 'eft' || batch.clearedAt != null
-    if (fundsAlreadyDeducted) {
-      await deductAvailableFunds(tx, delta)
+    const chargedAccount = chargedVendorBalanceAccount(batch)
+    if (chargedAccount) {
+      await adjustOperatingBalance(tx, delta, chargedAccount, 'deduct')
     }
 
     for (const inv of invoices) {

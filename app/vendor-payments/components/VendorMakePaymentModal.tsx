@@ -123,8 +123,12 @@ export function VendorMakePaymentModal({
   const [applyBatchDetail, setApplyBatchDetail] = useState<ApplyBatchDetail | null>(null)
   const [balance, setBalance] = useState<{
     availableFunds: number
+    totalAutoAvailable?: number
     uncashedChecksTotal: number
+    vendorUncashedChecksTotal?: number
     netBalance: number
+    serviceStationPhantom?: number
+    serviceStationUncashedChecksTotal?: number
   } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<VendorQuickEditInvoice | null>(null)
@@ -500,21 +504,43 @@ export function VendorMakePaymentModal({
         ) : (
           <>
             {balance && (
-              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-                <span className="text-gray-600">Available: </span>
-                <span className="font-medium">{formatAmount(balance.availableFunds)}</span>
-                {balance.uncashedChecksTotal > 0 && (
-                  <>
-                    <span className="mx-2 text-gray-400">|</span>
-                    <span className="text-gray-600">Uncashed: </span>
-                    <span className="font-medium text-amber-600">
-                      {formatAmount(balance.uncashedChecksTotal)}
-                    </span>
-                  </>
-                )}
-                <span className="mx-2 text-gray-400">|</span>
-                <span className="text-gray-600">Net: </span>
-                <span className="font-medium">{formatAmount(balance.netBalance)}</span>
+              <div className="mb-4 space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                <div>
+                  <span className="text-gray-600">Service Station available: </span>
+                  <span className="font-medium">
+                    {formatAmount(balance.totalAutoAvailable ?? 0)}
+                  </span>
+                  {(balance.serviceStationUncashedChecksTotal ?? 0) > 0 && (
+                    <>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-600">Uncashed: </span>
+                      <span className="font-medium text-amber-600">
+                        {formatAmount(balance.serviceStationUncashedChecksTotal ?? 0)}
+                      </span>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-600">Phantom: </span>
+                      <span className="font-medium">
+                        {formatAmount(balance.serviceStationPhantom ?? 0)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div>
+                  <span className="text-gray-600">Westline available: </span>
+                  <span className="font-medium">{formatAmount(balance.availableFunds)}</span>
+                  {balance.uncashedChecksTotal > 0 && (
+                    <>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-600">Uncashed: </span>
+                      <span className="font-medium text-amber-600">
+                        {formatAmount(balance.uncashedChecksTotal)}
+                      </span>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-600">Phantom: </span>
+                      <span className="font-medium">{formatAmount(balance.netBalance)}</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 

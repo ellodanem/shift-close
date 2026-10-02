@@ -1,7 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
-import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
 import { businessTodayYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
+import {
+  adjustOperatingBalance,
+  DEFAULT_VENDOR_CHECK_BALANCE,
+  type CheckBalanceAccount
+} from '@/lib/checkBalanceAccount'
 
 function resolveClearedAt(clearedAt?: Date | null): Date {
   if (clearedAt instanceof Date && !Number.isNaN(clearedAt.getTime())) {
@@ -21,6 +25,8 @@ export type UncashedCheckRecord = {
   bankRef: string
   totalAmount: number
   detail: string
+  /** Set once a check has cleared. Null while it is still outstanding. */
+  balanceAccount: CheckBalanceAccount | null
 }
 
 export type ClearedCheckRecord = UncashedCheckRecord & {
@@ -52,31 +58,10 @@ export function uncashedCheckId(source: UncashedCheckSource, rawId: string) {
   return `${source}:${rawId}`
 }
 
-async function deductFromBalance(amount: number) {
-  const existingBalance = await prisma.balance.findUnique({
-    where: { id: 'balance' }
-  })
-
-  if (existingBalance) {
-    const updatedAvailable = roundMoney(existingBalance.availableFunds - amount)
-    await prisma.balance.update({
-      where: { id: 'balance' },
-      data: {
-        availableFunds: updatedAvailable,
-        balanceAfter: balanceAfterFromAvailable(updatedAvailable)
-      }
-    })
-  } else {
-    await prisma.balance.create({
-      data: {
-        id: 'balance',
-        currentBalance: 0,
-        availableFunds: roundMoney(0 - amount),
-        planned: 0,
-        balanceAfter: roundMoney(0 - amount)
-      }
-    })
-  }
+function clearedVendorBalanceAccount(
+  stored: string | null | undefined
+): CheckBalanceAccount {
+  return stored === 'service_station' ? 'service_station' : 'westline'
 }
 
 export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
@@ -113,7 +98,8 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
     payee: batch.vendor.name,
     bankRef: batch.bankRef,
     totalAmount: batch.totalAmount,
-    detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', ')
+    detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', '),
+    balanceAccount: null
   }))
 
   const cashbookItems: UncashedCheckRecord[] = cashbookEntries.map((entry) => {
@@ -130,7 +116,8 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
       payee: entry.description.trim() || 'Cashbook expense',
       bankRef: entry.ref?.trim() || '—',
       totalAmount: roundMoney(entry.debitCheck),
-      detail: categories || entry.description.trim() || '—'
+      detail: categories || entry.description.trim() || '—',
+      balanceAccount: null
     }
   })
 
@@ -178,6 +165,7 @@ export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
     bankRef: batch.bankRef,
     totalAmount: batch.totalAmount,
     detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', '),
+    balanceAccount: clearedVendorBalanceAccount(batch.clearedBalanceAccount),
     clearedAt: batch.clearedAt!.toISOString()
   }))
 
@@ -196,6 +184,7 @@ export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
       bankRef: entry.ref?.trim() || '—',
       totalAmount: roundMoney(entry.debitCheck),
       detail: categories || entry.description.trim() || '—',
+      balanceAccount: 'westline',
       clearedAt: entry.clearedAt!.toISOString()
     }
   })
@@ -211,7 +200,11 @@ export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
   })
 }
 
-export async function sumUncashedChecks(): Promise<number> {
+export async function sumUncashedChecksBySource(): Promise<{
+  vendor: number
+  cashbook: number
+  total: number
+}> {
   const [vendorSum, cashbookSum] = await Promise.all([
     prisma.vendorPaymentBatch.aggregate({
       where: {
@@ -230,14 +223,24 @@ export async function sumUncashedChecks(): Promise<number> {
     })
   ])
 
-  return roundMoney(
-    (vendorSum._sum.totalAmount ?? 0) + (cashbookSum._sum.debitCheck ?? 0)
-  )
+  const vendor = roundMoney(vendorSum._sum.totalAmount ?? 0)
+  const cashbook = roundMoney(cashbookSum._sum.debitCheck ?? 0)
+  return {
+    vendor,
+    cashbook,
+    total: roundMoney(vendor + cashbook)
+  }
+}
+
+export async function sumUncashedChecks(): Promise<number> {
+  const sums = await sumUncashedChecksBySource()
+  return sums.total
 }
 
 export async function clearUncashedCheck(
   compositeId: string,
-  clearedAt?: Date | null
+  clearedAt?: Date | null,
+  balanceAccount?: CheckBalanceAccount
 ): Promise<void> {
   const parsed = parseUncashedCheckId(compositeId)
   if (!parsed) {
@@ -264,11 +267,15 @@ export async function clearUncashedCheck(
     }
 
     const amount = roundMoney(batch.totalAmount)
-    await deductFromBalance(amount)
+    const account = balanceAccount ?? DEFAULT_VENDOR_CHECK_BALANCE
+    await adjustOperatingBalance(prisma, amount, account, 'deduct')
 
     await prisma.vendorPaymentBatch.update({
       where: { id: batch.id },
-      data: { clearedAt: resolvedClearedAt }
+      data: {
+        clearedAt: resolvedClearedAt,
+        clearedBalanceAccount: account
+      }
     })
 
     await prisma.cashbookEntry.updateMany({
@@ -300,7 +307,7 @@ export async function clearUncashedCheck(
   }
 
   const amount = roundMoney(entry.debitCheck)
-  await deductFromBalance(amount)
+  await adjustOperatingBalance(prisma, amount, 'westline', 'deduct')
 
   await prisma.cashbookEntry.update({
     where: { id: entry.id },

@@ -10,6 +10,12 @@ import {
   monthFilterLabel,
   sortChecksCurrentMonthFirst
 } from '@/lib/monthFilter'
+import {
+  CHECK_BALANCE_ACCOUNTS,
+  DEFAULT_VENDOR_CHECK_BALANCE,
+  checkBalanceAccountLabel,
+  type CheckBalanceAccount
+} from '@/lib/checkBalanceAccount'
 
 interface CheckRow {
   id: string
@@ -20,6 +26,7 @@ interface CheckRow {
   bankRef: string
   totalAmount: number
   clearedAt?: string
+  balanceAccount?: CheckBalanceAccount | null
 }
 
 type TabType = 'uncashed' | 'cleared'
@@ -66,6 +73,9 @@ function normalizeChecks(data: unknown, includeCleared: boolean): CheckRow[] {
 
     if (includeCleared && item.clearedAt) {
       row.clearedAt = String(item.clearedAt)
+    }
+    if (item.balanceAccount === 'service_station' || item.balanceAccount === 'westline') {
+      row.balanceAccount = item.balanceAccount
     }
 
     return row
@@ -134,6 +144,9 @@ export default function CheckManagementPage() {
   const [pendingClear, setPendingClear] = useState<CheckRow | null>(null)
   const [pendingDateEdit, setPendingDateEdit] = useState<CheckRow | null>(null)
   const [clearedDate, setClearedDate] = useState('')
+  const [balanceAccount, setBalanceAccount] = useState<CheckBalanceAccount>(
+    DEFAULT_VENDOR_CHECK_BALANCE
+  )
 
   const fetchChecks = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true)
@@ -213,6 +226,7 @@ export default function CheckManagementPage() {
     setPendingDateEdit(null)
     setPendingClear(check)
     setClearedDate('')
+    setBalanceAccount(DEFAULT_VENDOR_CHECK_BALANCE)
   }
 
   const openDateEditModal = (check: CheckRow) => {
@@ -236,12 +250,15 @@ export default function CheckManagementPage() {
     setClearingId(pendingClear.id)
     try {
       const trimmedDate = clearedDate.trim()
+      const payload: { clearedAt?: string; balanceAccount?: CheckBalanceAccount } = {}
+      if (trimmedDate) payload.clearedAt = trimmedDate
+      if (pendingClear.source === 'vendor') payload.balanceAccount = balanceAccount
       const res = await fetch(
         `/api/vendor-payments/uncashed-checks/${encodeURIComponent(pendingClear.id)}/clear`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(trimmedDate ? { clearedAt: trimmedDate } : {})
+          body: JSON.stringify(payload)
         }
       )
       if (res.ok) {
@@ -507,6 +524,9 @@ export default function CheckManagementPage() {
                           {check.clearedAt
                             ? `Cleared ${formatDate(check.clearedAt)}`
                             : 'Cleared'}
+                          {check.balanceAccount
+                            ? ` · ${checkBalanceAccountLabel(check.balanceAccount)}`
+                            : ''}
                         </div>
                       )}
                     </div>
@@ -607,6 +627,9 @@ export default function CheckManagementPage() {
                           <div className="flex items-center gap-2">
                             <span>
                               {check.clearedAt ? formatDate(check.clearedAt) : '—'}
+                              {check.balanceAccount
+                                ? ` · ${checkBalanceAccountLabel(check.balanceAccount)}`
+                                : ''}
                             </span>
                             <button
                               type="button"
@@ -680,10 +703,18 @@ export default function CheckManagementPage() {
                 ? 'Set cleared date'
                 : 'Mark check as cleared'}
             </h2>
-            {!isEditingClearedDate && (
+            {!isEditingClearedDate && pendingCheck.source === 'vendor' && (
               <p className="mt-2 text-sm text-gray-600">
-                This will deduct {formatAmount(pendingCheck.totalAmount)} from
-                available funds.
+                This outstanding vendor check is reserved on both Service Station
+                and Westline. Clearing it deducts{' '}
+                {formatAmount(pendingCheck.totalAmount)} from the{' '}
+                {checkBalanceAccountLabel(balanceAccount)} available balance.
+              </p>
+            )}
+            {!isEditingClearedDate && pendingCheck.source !== 'vendor' && (
+              <p className="mt-2 text-sm text-gray-600">
+                This will deduct {formatAmount(pendingCheck.totalAmount)} from the
+                Westline Ent available balance.
               </p>
             )}
             <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
@@ -692,6 +723,35 @@ export default function CheckManagementPage() {
                 #{pendingCheck.bankRef}
               </div>
             </div>
+            {!isEditingClearedDate && pendingCheck.source === 'vendor' && (
+              <fieldset className="mt-4">
+                <legend className="mb-2 text-xs font-medium text-gray-500">
+                  Deduct from
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {CHECK_BALANCE_ACCOUNTS.map((account) => (
+                    <label
+                      key={account}
+                      className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm sm:min-h-0 ${
+                        balanceAccount === account
+                          ? 'border-blue-600 bg-blue-50 text-blue-900'
+                          : 'border-gray-300 text-gray-800'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="clear-balance-account"
+                        value={account}
+                        checked={balanceAccount === account}
+                        onChange={() => setBalanceAccount(account)}
+                        className="h-4 w-4"
+                      />
+                      {checkBalanceAccountLabel(account)}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div className="mt-4">
               <label
                 htmlFor="cleared-date"

@@ -22,10 +22,47 @@ export type OperatingBalance = {
   phantom?: number
   totalAutoCurrentBalance?: number
   totalAutoAvailable?: number
+  /** Outstanding vendor checks, reserved on Service Station until a check clears. */
+  serviceStationUncashedChecksTotal?: number
+  serviceStationPhantom?: number
 }
 
 function money(amount: number): string {
   return `XCD ${formatAmount(amount)}`
+}
+
+function UncashedPhantom({
+  uncashed,
+  phantom,
+  title
+}: {
+  uncashed: number
+  phantom: number
+  title: string
+}) {
+  if (uncashed <= 0) return null
+
+  return (
+    <>
+      <Link
+        href="/vendor-payments/uncashed-checks"
+        className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
+        title="Checks issued but not yet cleared by the bank"
+      >
+        Uncashed <span className="tabular-nums font-normal">{money(uncashed)}</span>
+      </Link>
+      <span title={title}>
+        <span className="font-semibold text-slate-700">Phantom</span>{' '}
+        <span
+          className={`tabular-nums font-semibold ${
+            phantom >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}
+        >
+          {money(phantom)}
+        </span>
+      </span>
+    </>
+  )
 }
 
 function AccountRow({
@@ -81,8 +118,9 @@ export function OperatingBalanceCard({
   note?: string
 }) {
   const uncashed = balance.uncashedChecksTotal ?? 0
-  const showUncashed = uncashed > 0
   const phantom = balance.phantom ?? 0
+  const serviceStationUncashed = balance.serviceStationUncashedChecksTotal ?? 0
+  const serviceStationPhantom = balance.serviceStationPhantom ?? 0
 
   return (
     <div className="mb-4 space-y-3">
@@ -97,6 +135,15 @@ export function OperatingBalanceCard({
         currentBalance={balance.totalAutoCurrentBalance ?? 0}
         available={balance.totalAutoAvailable ?? 0}
       />
+      {serviceStationUncashed > 0 && (
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-gray-200 px-4 py-2.5 text-sm text-slate-600">
+          <UncashedPhantom
+            uncashed={serviceStationUncashed}
+            phantom={serviceStationPhantom}
+            title="Phantom = Service Station available − uncashed vendor checks. Outstanding vendor checks are reserved on both accounts until the check clears."
+          />
+        </div>
+      )}
     </section>
 
     <section
@@ -126,28 +173,11 @@ export function OperatingBalanceCard({
             {money(balance.balanceAfter)}
           </span>
         </span>
-        {showUncashed && (
-          <>
-            <Link
-              href="/vendor-payments/uncashed-checks"
-              className="font-semibold text-amber-700 hover:text-amber-800 hover:underline"
-              title="Total of vendor checks issued but not yet cleared by the bank"
-            >
-              Uncashed{' '}
-              <span className="tabular-nums font-normal">{money(uncashed)}</span>
-            </Link>
-            <span title="Phantom = Available − Uncashed checks. A heads-up of actual spendable funds.">
-              <span className="font-semibold text-slate-700">Phantom</span>{' '}
-              <span
-                className={`tabular-nums font-semibold ${
-                  phantom >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {money(phantom)}
-              </span>
-            </span>
-          </>
-        )}
+        <UncashedPhantom
+          uncashed={uncashed}
+          phantom={phantom}
+          title="Phantom = Westline available − uncashed checks. Outstanding vendor checks are reserved on both accounts until the check clears. Cashbook checks are reserved on Westline only."
+        />
         {note && <span className="text-xs text-slate-400">{note}</span>}
       </div>
     </section>

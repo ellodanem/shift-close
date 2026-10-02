@@ -101,6 +101,10 @@ function VendorInvoicesPageInner() {
     planned: number
     uncashedChecksTotal?: number
     phantom?: number
+    totalAutoCurrentBalance?: number
+    totalAutoAvailable?: number
+    serviceStationUncashedChecksTotal?: number
+    serviceStationPhantom?: number
   } | null>(null)
   const [balanceFormData, setBalanceFormData] = useState({
     currentBalance: '',

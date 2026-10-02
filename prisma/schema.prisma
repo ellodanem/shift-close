@@ -631,6 +631,9 @@ model VendorPaymentBatch {
   balanceBefore Float?    @map("balance_before")
   balanceAfter  Float?    @map("balance_after")
   clearedAt     DateTime? @map("cleared_at") // When check was cashed (null = uncashed)
+  /// Account deducted when a vendor check clears: service_station | westline.
+  /// Null while uncashed. Older cleared checks (null) were deducted from Westline.
+  clearedBalanceAccount String? @map("cleared_balance_account")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

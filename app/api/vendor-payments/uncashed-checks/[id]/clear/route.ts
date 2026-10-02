@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isYmd, ymdToUtcNoonDate } from '@/lib/datetime-policy'
+import { parseCheckBalanceAccount } from '@/lib/checkBalanceAccount'
 import { clearUncashedCheck } from '@/lib/uncashedChecks'
 
 function parseOptionalClearedAt(body: unknown): Date | undefined {
@@ -23,7 +24,12 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     const clearedAt = parseOptionalClearedAt(body)
-    await clearUncashedCheck(id, clearedAt)
+    const balanceAccount = parseCheckBalanceAccount(
+      body && typeof body === 'object'
+        ? (body as { balanceAccount?: unknown }).balanceAccount
+        : undefined
+    )
+    await clearUncashedCheck(id, clearedAt, balanceAccount)
     return NextResponse.json({ success: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to clear check'
@@ -38,7 +44,8 @@ export async function PATCH(
       message === 'Entry is not a check payment' ||
       message === 'Clear this check from its vendor payment batch' ||
       message === 'Invalid check id' ||
-      message === 'Invalid cleared date'
+      message === 'Invalid cleared date' ||
+      message === 'Invalid balance account'
     ) {
       return NextResponse.json({ error: message }, { status: 400 })
     }

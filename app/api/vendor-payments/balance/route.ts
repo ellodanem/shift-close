@@ -1,21 +1,28 @@
 import { NextResponse } from 'next/server'
-import { roundMoney } from '@/lib/fuelPayments'
+import { phantomBalances } from '@/lib/checkBalanceAccount'
 import { refreshBalanceSnapshot } from '@/lib/fuelBalance'
-import { sumUncashedChecks } from '@/lib/uncashedChecks'
+import { sumUncashedChecksBySource } from '@/lib/uncashedChecks'
 
 // GET balance with uncashed checks (shared with fuel payments)
 export async function GET() {
   try {
     const balance = await refreshBalanceSnapshot()
-
-    const uncashedTotal = await sumUncashedChecks()
-    const availableFunds = balance.availableFunds
-    const netBalance = roundMoney(availableFunds - uncashedTotal)
+    const uncashed = await sumUncashedChecksBySource()
+    const phantoms = phantomBalances({
+      westlineAvailable: balance.availableFunds,
+      serviceStationAvailable: balance.totalAutoAvailable,
+      vendorUncashed: uncashed.vendor,
+      cashbookUncashed: uncashed.cashbook
+    })
 
     return NextResponse.json({
-      availableFunds,
-      uncashedChecksTotal: uncashedTotal,
-      netBalance,
+      availableFunds: balance.availableFunds,
+      totalAutoAvailable: balance.totalAutoAvailable,
+      uncashedChecksTotal: phantoms.uncashedChecksTotal,
+      vendorUncashedChecksTotal: phantoms.vendorUncashedChecksTotal,
+      netBalance: phantoms.phantom,
+      serviceStationPhantom: phantoms.serviceStationPhantom,
+      serviceStationUncashedChecksTotal: phantoms.serviceStationUncashedChecksTotal,
       planned: balance.planned,
       balanceAfter: balance.balanceAfter
     })

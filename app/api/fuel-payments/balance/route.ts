@@ -6,21 +6,26 @@ import {
   refreshBalanceSnapshot,
   sumPendingFuelInvoiceAmounts
 } from '@/lib/fuelBalance'
-import { sumUncashedChecks } from '@/lib/uncashedChecks'
+import { phantomBalances } from '@/lib/checkBalanceAccount'
+import { sumUncashedChecksBySource } from '@/lib/uncashedChecks'
 
 // GET current balance
 export async function GET() {
   try {
     const balance = await refreshBalanceSnapshot()
 
-    // Uncashed checks reduce spendable balance (vendor batches + cashbook check expenses).
-    const uncashedChecksTotal = await sumUncashedChecks()
-    const phantom = roundMoney(balance.availableFunds - uncashedChecksTotal)
+    // Uncashed vendor checks are reserved on both accounts. Cashbook checks stay on Westline.
+    const uncashed = await sumUncashedChecksBySource()
+    const phantoms = phantomBalances({
+      westlineAvailable: balance.availableFunds,
+      serviceStationAvailable: balance.totalAutoAvailable,
+      vendorUncashed: uncashed.vendor,
+      cashbookUncashed: uncashed.cashbook
+    })
 
     return NextResponse.json({
       ...balance,
-      uncashedChecksTotal,
-      phantom
+      ...phantoms
     })
   } catch (error) {
     console.error('Error fetching balance:', error)
