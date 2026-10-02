@@ -150,22 +150,20 @@ export function parseExtraLines(raw: unknown): PayRunExtraLine[] {
     }
   }
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((line) => {
-      if (!line || typeof line !== 'object') return null
-      const o = line as { label?: unknown; amount?: unknown; hours?: unknown; taxable?: unknown }
-      const label = typeof o.label === 'string' ? o.label.trim() : ''
-      const amount = parseMoney(o.amount)
-      const hours = typeof o.hours === 'number' && Number.isFinite(o.hours) ? parseMoney(o.hours) : undefined
-      if (!label && amount === 0 && !hours) return null
-      return {
-        label: label || 'Extra',
-        amount,
-        ...(hours ? { hours } : {}),
-        ...(o.taxable === false ? { taxable: false as const } : {})
-      }
-    })
-    .filter((line): line is PayRunExtraLine => line !== null)
+  const lines: PayRunExtraLine[] = []
+  for (const line of raw) {
+    if (!line || typeof line !== 'object') continue
+    const o = line as { label?: unknown; amount?: unknown; hours?: unknown; taxable?: unknown }
+    const label = typeof o.label === 'string' ? o.label.trim() : ''
+    const amount = parseMoney(o.amount)
+    const hours = typeof o.hours === 'number' && Number.isFinite(o.hours) ? parseMoney(o.hours) : undefined
+    if (!label && amount === 0 && !hours) continue
+    const parsed: PayRunExtraLine = { label: label || 'Extra', amount }
+    if (hours) parsed.hours = hours
+    if (o.taxable === false) parsed.taxable = false
+    lines.push(parsed)
+  }
+  return lines
 }
 
 export function salarySkipped(lines: PayRunExtraLine[]): boolean {
