@@ -771,8 +771,8 @@ function CreatePayRunDialog({
             </label>
           </div>
           <p className="mt-4 text-sm text-slate-500">
-            People are included from the pay frequency on their staff record. A 1st–15th or 16th–end range pays
-            semi-monthly staff.
+            People are included from the pay frequency on their staff record. A 1st–15th range pays
+            semi-monthly staff. A 16th–end range pays semi-monthly and monthly staff.
           </p>
           {error ? (
             <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

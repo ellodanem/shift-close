@@ -262,6 +262,21 @@ export function inferPayCycleFromRange(startDate: string, endDate: string): PayC
   return DEFAULT_PAY_CYCLE
 }
 
+/**
+ * Staff frequencies paid on this window.
+ * The 16th–month-end run pays semi-monthly staff and monthly staff together.
+ * The 1st–15th run pays semi-monthly staff only.
+ */
+export function payCyclesDueOnRange(startDate: string, endDate: string): PayCycle[] {
+  const primary = inferPayCycleFromRange(startDate, endDate)
+  const start = ymdParts(startDate)
+  const end = ymdParts(endDate)
+  if (!start || !end || start.y !== end.y || start.m !== end.m) return [primary]
+  const lastDay = new Date(end.y, end.m, 0).getDate()
+  if (start.d === 16 && end.d === lastDay) return ['semimonthly', 'monthly']
+  return [primary]
+}
+
 /** Prefer the cycle most staff on the hours list actually use. */
 export function inferPayRunCycle(
   startDate: string,
@@ -480,6 +495,11 @@ export function buildPayRunLines(input: {
   vacationHoursPerDay?: number
 }): BuiltPayRunLine[] {
   const cycle = parsePayCycle(input.cycle)
+  const due = new Set<PayCycle>(
+    input.periodStart && input.periodEnd
+      ? payCyclesDueOnRange(input.periodStart, input.periodEnd)
+      : [cycle]
+  )
   const staffById = new Map(input.staff.map((s) => [s.id, s]))
   const used = new Set<string>()
   const lines: BuiltPayRunLine[] = []
@@ -488,7 +508,7 @@ export function buildPayRunLines(input: {
     const reportOnly = isReportOnlyPayPeriodRow(row)
     const profile = reportOnly ? undefined : staffById.get(row.staffId)
     const rowCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
-    if (!reportOnly && rowCycle !== cycle) continue
+    if (!reportOnly && !due.has(rowCycle)) continue
     if (!reportOnly) used.add(row.staffId)
     const key = reportOnly ? row.staffId : row.staffId
     const vacationDays =
@@ -512,9 +532,8 @@ export function buildPayRunLines(input: {
 
   for (const profile of input.staff) {
     if (profile.status !== 'active') continue
-    if (profile.role === 'manager') continue
     if (parsePayType(profile.payType) !== 'salaried') continue
-    if (parsePayCycle(profile.payCycle) !== cycle) continue
+    if (!due.has(parsePayCycle(profile.payCycle))) continue
     if (used.has(profile.id)) continue
     lines.push(
       salariedLine(

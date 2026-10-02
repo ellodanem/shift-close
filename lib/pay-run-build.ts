@@ -6,6 +6,7 @@ import {
   buildPayRunLines,
   computeGrossPay,
   inferPayCycleFromRange,
+  payCyclesDueOnRange,
   parseExtraLines,
   parseMoney,
   parsePayType,
@@ -55,7 +56,6 @@ export function parsePayPeriodHoursRows(raw: string): PayRunHoursRow[] {
 
 export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
   const staff = await prisma.staff.findMany({
-    where: { role: { not: 'manager' } },
     select: {
       id: true,
       name: true,
@@ -365,6 +365,64 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
       }
     })
   }
+}
+
+/** Add salaried staff who are due on this draft and were left off when it was built. */
+export async function syncDraftDueStaff(payRunId: string): Promise<void> {
+  const run = await prisma.payRun.findUnique({
+    where: { id: payRunId },
+    include: { lines: { select: { id: true, staffId: true, staffName: true } } }
+  })
+  if (!run || run.status !== 'draft') return
+  const due = new Set(payCyclesDueOnRange(run.startDate, run.endDate))
+  const presentIds = new Set(run.lines.map((line) => line.staffId).filter((id): id is string => Boolean(id)))
+  const presentNames = new Set(run.lines.map((line) => line.staffName.trim().toLowerCase()))
+  const staff = await loadPayRunStaffProfiles()
+  const missing = staff.filter(
+    (profile) =>
+      profile.status === 'active' &&
+      parsePayType(profile.payType) === 'salaried' &&
+      due.has(parsePayCycle(profile.payCycle)) &&
+      !presentIds.has(profile.id) &&
+      !presentNames.has(profile.name.trim().toLowerCase())
+  )
+  if (missing.length === 0) return
+
+  const [nisTakenByStaffId, payeTakenByStaffId, otMultiplier] = await Promise.all([
+    loadNisTakenByStaffId(run.payDate, payRunId),
+    loadPayeTakenByStaffId(run.payDate, payRunId),
+    readOvertimeMultiplier()
+  ])
+  const built = buildPayRunLines({
+    cycle: parsePayCycle(run.cycle),
+    hoursRows: [],
+    staff: missing,
+    periodStart: run.startDate,
+    periodEnd: run.endDate,
+    nisTakenByStaffId,
+    payeTakenByStaffId,
+    otMultiplier
+  })
+  if (built.length === 0) return
+  const staffById = new Map(staff.map((person) => [person.id, person]))
+  const lines = attachBankingToLines(built, staffById)
+  const startOrder = run.lines.length
+  await prisma.payRunLine.createMany({
+    data: lines.map((line, index) => ({
+      payRunId,
+      ...serializePayRunLine(line, startOrder + index)
+    }))
+  })
+  const ordered = await prisma.payRunLine.findMany({
+    where: { payRunId },
+    select: { id: true, staffName: true }
+  })
+  ordered.sort((a, b) => a.staffName.localeCompare(b.staffName, undefined, { sensitivity: 'base' }))
+  await prisma.$transaction(
+    ordered.map((line, index) =>
+      prisma.payRunLine.update({ where: { id: line.id }, data: { sortOrder: index } })
+    )
+  )
 }
 
 export type PayRunYtd = {

@@ -1966,7 +1966,7 @@ export default function PayrollRunPage() {
           <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Pay period</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Cycle, range, and pay date for this draft. A 1st–15th or 16th–end range pays semi-monthly staff.
+              Cycle, range, and pay date for this draft. A 1st–15th range pays semi-monthly staff. A 16th–end range pays semi-monthly and monthly staff.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm">

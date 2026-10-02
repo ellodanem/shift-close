@@ -7,6 +7,7 @@ import {
   loadPriorYtdByStaffId,
   parsePayPeriodHoursRows,
   rebuildPayRunLines,
+  syncDraftDueStaff,
   syncDraftPayTypes,
   updatePayRunSchedule,
   ytdIncludingCurrent
@@ -109,7 +110,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
     const loaded = await loadRun(id)
     if (!loaded) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
-    if (loaded.status === 'draft') await syncDraftPayTypes(id)
+    if (loaded.status === 'draft') {
+      await syncDraftPayTypes(id)
+      await syncDraftDueStaff(id)
+    }
     const run = loaded.status === 'draft' ? await loadRun(id) : loaded
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)

@@ -5,6 +5,7 @@ import {
   computeGrossPay,
   inferPayCycleFromRange,
   inferPayRunCycle,
+  payCyclesDueOnRange,
   OT_MULTIPLIER,
   parseExtraLines,
   payPeriodSourceHash,
@@ -166,6 +167,80 @@ describe('pay run gross', () => {
         { staffId: 'a', transTtl: 1 }
       ])
     )
+  })
+
+  it('pays monthly staff on the 16th–end run, including a manager', () => {
+    assert.deepEqual(payCyclesDueOnRange('2026-09-01', '2026-09-15'), ['semimonthly'])
+    assert.deepEqual(payCyclesDueOnRange('2026-09-16', '2026-09-30'), ['semimonthly', 'monthly'])
+    assert.deepEqual(payCyclesDueOnRange('2026-02-16', '2026-02-28'), ['semimonthly', 'monthly'])
+    assert.deepEqual(payCyclesDueOnRange('2026-09-01', '2026-09-30'), ['monthly'])
+
+    const lines = buildPayRunLines({
+      cycle: 'semimonthly',
+      periodStart: '2026-09-16',
+      periodEnd: '2026-09-30',
+      hoursRows: [{ staffId: 'h1', staffName: 'Althea Frank', transTtl: 80, payCycle: 'semimonthly' }],
+      staff: [
+        {
+          id: 'h1',
+          name: 'Althea Frank',
+          status: 'active',
+          role: 'cashier',
+          nicNumber: '289864',
+          payCycle: 'semimonthly',
+          payType: 'hourly',
+          hourlyRate: 6.75,
+          salariedAmount: null,
+          staffLoan: null,
+          medicalAmount: null
+        },
+        {
+          id: 'm1',
+          name: 'Marjorie Poleon',
+          status: 'active',
+          role: 'manager',
+          nicNumber: '250987',
+          payCycle: 'monthly',
+          payType: 'salaried',
+          hourlyRate: null,
+          salariedAmount: 3200,
+          staffLoan: null,
+          medicalAmount: null
+        }
+      ]
+    })
+    assert.deepEqual(
+      lines.map((line) => line.staffName),
+      ['Althea Frank', 'Marjorie Poleon']
+    )
+    const marjorie = lines.find((line) => line.staffId === 'm1')
+    assert.equal(marjorie?.payCycle, 'monthly')
+    assert.equal(marjorie?.grossPay, 3200)
+  })
+
+  it('keeps monthly staff off the 1st–15th run', () => {
+    const lines = buildPayRunLines({
+      cycle: 'semimonthly',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-15',
+      hoursRows: [],
+      staff: [
+        {
+          id: 'm1',
+          name: 'Marjorie Poleon',
+          status: 'active',
+          role: 'manager',
+          nicNumber: '250987',
+          payCycle: 'monthly',
+          payType: 'salaried',
+          hourlyRate: null,
+          salariedAmount: 3200,
+          staffLoan: null,
+          medicalAmount: null
+        }
+      ]
+    })
+    assert.equal(lines.length, 0)
   })
 
   it('caps NIS using amounts already taken this month', () => {
