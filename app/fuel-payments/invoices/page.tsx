@@ -7,6 +7,7 @@ import { formatInvoiceDate, getDueDateStatus } from '@/lib/invoiceHelpers'
 import { formatAmount } from '@/lib/fuelPayments'
 import { FuelMakePaymentModal } from '../components/FuelMakePaymentModal'
 import { FuelRevertPaymentModal } from '../components/FuelRevertPaymentModal'
+import { FuelPayReadinessStrip } from '../components/FuelPayReadinessStrip'
 import { FuelTankInventoryCard } from '../components/FuelTankInventoryCard'
 import { FuelVolumeFields, litresInputValue, litresPayload } from '@/app/components/FuelVolumeFields'
 import { OperatingBalanceCard } from '@/app/components/OperatingBalanceCard'
@@ -500,6 +501,8 @@ export default function InvoicesPage() {
         )}
 
         {balance && <OperatingBalanceCard balance={balance} />}
+
+        <FuelPayReadinessStrip />
 
         {/* Quick links to C-Store Essentials & Republic Bank */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
