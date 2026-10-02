@@ -210,6 +210,43 @@ describe('payslips', () => {
     assert.match(html, /NET :/)
   })
 
+  it('packs more than three payslips on a page, with a cut line around each one', () => {
+    const line = {
+      staffName: 'Althea Frank',
+      staffNo: '289864',
+      taxCode: '220',
+      basicPay: 900,
+      otPay: 0,
+      extraLines: [] as { label: string; amount: number }[],
+      extraDeductions: [] as { label: string; amount: number }[],
+      nisEmployee: 45,
+      medical: 0,
+      staffLoan: 0,
+      shortageReady: 0,
+      grossPay: 900,
+      totalDeductions: 45,
+      netPay: 855
+    }
+    const input = {
+      startDate: '2026-09-14',
+      endDate: '2026-09-28',
+      payDate: '2026-09-30'
+    }
+    const eight = renderPayslipsHtml({
+      ...input,
+      lines: Array.from({ length: 8 }, (_, index) => ({ ...line, staffName: `Staff ${index + 1}` }))
+    })
+    assert.equal((eight.match(/class="page"/g) || []).length, 2)
+    assert.equal((eight.match(/class="slip"/g) || []).length, 8)
+    assert.equal((eight.match(/class="cut"/g) || []).length, 9)
+    const nine = renderPayslipsHtml({
+      ...input,
+      lines: Array.from({ length: 9 }, (_, index) => ({ ...line, staffName: `Staff ${index + 1}` }))
+    })
+    assert.equal((nine.match(/class="page"/g) || []).length, 3)
+    assert.match(nine, /✂/)
+  })
+
   it('adds bonus and PAYE into the period totals', () => {
     const totals = buildPayslipPeriodTotals([
       {

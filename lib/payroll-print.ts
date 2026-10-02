@@ -513,14 +513,14 @@ export function buildPayslipLine(line: PayslipSourceLine): PayslipLine | null {
   }
 }
 
-/** Letter content box: 11in page minus 0.4in top and 0.36in bottom padding, in CSS px. */
-const PAYSLIP_PAGE_BODY = 960
+/** Letter content box, in CSS px, stopping short of the printed footer. */
+const PAYSLIP_PAGE_BODY = 975
 /** Dashed cut guide, including the gap on either side of the line. */
 const PAYSLIP_CUT_HEIGHT = 19
 
 function payslipBlockHeight(line: PayslipLine): number {
   const rows = Math.max(line.earnings.length, line.deductions.length, 1)
-  return 128 + rows * 16 + PAYSLIP_CUT_HEIGHT
+  return 85 + rows * 14 + PAYSLIP_CUT_HEIGHT
 }
 
 function payslipPages(lines: PayslipLine[]): PayslipLine[][] {
