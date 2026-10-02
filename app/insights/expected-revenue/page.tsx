@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
+import { buildExpectedRevenueShareText } from '@/lib/expected-revenue-share'
 
 function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -42,6 +43,8 @@ export default function ExpectedRevenuePage() {
   const [error, setError] = useState<string | null>(null)
   /** When true, grand total and by-day amounts exclude fleet & vouchers (deposits + card only). */
   const [depositsAndCardOnly, setDepositsAndCardOnly] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (startDate > endDate) {
@@ -72,7 +75,28 @@ export default function ExpectedRevenuePage() {
   useEffect(() => {
     setData(null)
     setError(null)
+    setCopied(false)
+    setCopyError(null)
   }, [startDate, endDate])
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
+  const copySummary = useCallback(async () => {
+    if (!data) return
+    setCopyError(null)
+    const text = buildExpectedRevenueShareText(data, depositsAndCardOnly)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+      setCopyError('Could not copy. Try again, or select the totals and copy them manually.')
+    }
+  }, [data, depositsAndCardOnly])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100/90 to-gray-50 p-4 sm:p-6">
@@ -146,34 +170,49 @@ export default function ExpectedRevenuePage() {
 
         {data && !error && (
           <div className="mt-8 space-y-6">
-            <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-sm">
-              <label className="absolute right-4 top-4 flex max-w-[11rem] cursor-pointer select-none items-start gap-2 sm:right-5 sm:top-5">
-                <input
-                  type="checkbox"
-                  checked={depositsAndCardOnly}
-                  onChange={(e) => setDepositsAndCardOnly(e.target.checked)}
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-emerald-400 text-emerald-700 focus:ring-emerald-600"
-                />
-                <span className="text-[11px] leading-snug text-emerald-900/90">Exclude fleet &amp; vouchers</span>
-              </label>
-              <div className="max-w-full pr-[9.5rem] sm:pr-[10.5rem]">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Grand total (range)</p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-emerald-950">
-                  $
-                  {formatMoney(
-                    depositsAndCardOnly
-                      ? data.totalDeposits + data.totalDebitAndCredit
-                      : data.grandTotal
-                  )}
-                </p>
-                <p className="mt-2 text-xs text-emerald-900/90">
-                  {data.shiftCount} shift{data.shiftCount === 1 ? '' : 'es'} · {data.startDate} → {data.endDate}
-                </p>
-                {depositsAndCardOnly && (
-                  <p className="mt-1.5 text-xs text-emerald-800/95">
-                    Deposits + card only (fleet &amp; vouchers excluded).
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Grand total (range)</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums text-emerald-950">
+                    $
+                    {formatMoney(
+                      depositsAndCardOnly
+                        ? data.totalDeposits + data.totalDebitAndCredit
+                        : data.grandTotal
+                    )}
                   </p>
-                )}
+                  <p className="mt-2 text-xs text-emerald-900/90">
+                    {data.shiftCount} shift{data.shiftCount === 1 ? '' : 's'} · {data.startDate} → {data.endDate}
+                  </p>
+                  {depositsAndCardOnly && (
+                    <p className="mt-1.5 text-xs text-emerald-800/95">
+                      Deposits + card only (fleet &amp; vouchers excluded).
+                    </p>
+                  )}
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void copySummary()}
+                      className="inline-flex min-h-9 items-center rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-100"
+                    >
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    {copyError && <p className="text-xs text-red-700">{copyError}</p>}
+                  </div>
+                </div>
+                <label className="flex max-w-[11rem] shrink-0 cursor-pointer select-none items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={depositsAndCardOnly}
+                    onChange={(e) => {
+                      setDepositsAndCardOnly(e.target.checked)
+                      setCopied(false)
+                    }}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-emerald-400 text-emerald-700 focus:ring-emerald-600"
+                  />
+                  <span className="text-[11px] leading-snug text-emerald-900/90">Exclude fleet &amp; vouchers</span>
+                </label>
               </div>
             </div>
 
