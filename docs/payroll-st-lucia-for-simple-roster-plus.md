@@ -262,11 +262,11 @@ One page. Header **N.I.C.**, period start–end, cycle number, and the month of 
 
 Columns:
 
-| Name | Charge | Staff | Employer | Govt ttl |
-|---|---|---|---|---|
-| `{NIC} - {name}` | employee NIC | employee NIC | employer NIC | staff + employer |
+| Name | Staff | Employer | Govt ttl |
+|---|---|---|---|
+| `{NIC} - {name}` | employee NIC | employer NIC | staff + employer |
 
-Charge is a copy of the employee amount. It is not a third calculation. People with zero gross and zero NIC are omitted. A totals line sits under the columns, then the printed date.
+People with zero gross and zero NIC are omitted. A totals line sits under the columns, then the printed date.
 
 ### GL analysis
 

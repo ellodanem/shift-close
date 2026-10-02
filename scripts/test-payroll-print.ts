@@ -554,7 +554,7 @@ describe('payroll preview', () => {
 })
 
 describe('N.I.C. report', () => {
-  it('lists staff charges in the printable report', () => {
+  it('lists staff and employer amounts in the printable report', () => {
     const html = renderNisHtml({
       startDate: '2026-07-30',
       endDate: '2026-08-12',
@@ -568,6 +568,9 @@ describe('N.I.C. report', () => {
     assert.doesNotMatch(html, /N\.I\.S\./)
     assert.match(html, /Elenna James/)
     assert.doesNotMatch(html, /Zero Pay/)
+    assert.doesNotMatch(html, /CHARGE/)
+    assert.match(html, /STAFF/)
+    assert.match(html, /25\.75/)
     assert.match(html, /CYCLE: 15/)
   })
 })

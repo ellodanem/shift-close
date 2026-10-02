@@ -120,7 +120,6 @@ export function renderNisHtml(input: NisReportInput): string {
       return `<tr>
         <td>${escapePayPeriodHtml(name)}</td>
         <td class="num">${usd(line.nisEmployee)}</td>
-        <td class="num">${usd(line.nisEmployee)}</td>
         <td class="num">${usd(line.nisEmployer)}</td>
         <td class="num">${usd(govt)}</td>
       </tr>`
@@ -158,7 +157,6 @@ export function renderNisHtml(input: NisReportInput): string {
       <thead>
         <tr>
           <th>NAME</th>
-          <th>CHARGE</th>
           <th>STAFF</th>
           <th>EMPLOYER</th>
           <th>GOVT TTL</th>
@@ -168,7 +166,6 @@ export function renderNisHtml(input: NisReportInput): string {
       <tfoot>
         <tr>
           <td></td>
-          <td class="num">${usd(staff)}</td>
           <td class="num">${usd(staff)}</td>
           <td class="num">${usd(employer)}</td>
           <td class="num">${usd(staff + employer)}</td>

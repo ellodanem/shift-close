@@ -150,11 +150,11 @@ Completed banner with the period and pay date.
 **N.I.S. report** (reference: `NIS 08152026.pdf`, period 08/16/2026–08/31/2026). One page per period:
 
 - Header: **N.I.S.**, period start–end, cycle, and the month it is for (that sample is cycle 15, for August).
-- Columns: **Name** (`staff number - name`), **Charge**, **Staff**, **Employer**, **Govt ttl**.
-- On that sample, Charge, Staff, and Employer are the same amount per person. Govt ttl is Staff + Employer. People at the cap show 125.00 / 125.00 / 125.00 / 250.00.
+- Columns: **Name** (`staff number - name`), **Staff**, **Employer**, **Govt ttl**.
+- On that sample, Staff and Employer are the same amount per person. Govt ttl is Staff + Employer. People at the cap show 125.00 / 125.00 / 250.00. The sample also had a Charge column that repeated Staff; the report leaves it off.
 - A totals line under the columns, then printed date and page number.
 
-Staff and Employer come from the run (5%, $250 monthly cap each). Charge follows Staff, matching the sample. The report can be printed with the run or opened again later.
+Staff and Employer come from the run (5%, $250 monthly cap each). The report can be printed with the run or opened again later.
 
 Patriot’s other reports (screenshot 18) are not part of this run.
 
