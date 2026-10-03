@@ -21,6 +21,14 @@ function journalDateLabel(ymd: string): string {
   return `${Number(match[3])} ${month} ${match[1]}`
 }
 
+function BooksBackLink() {
+  return (
+    <Link href="/accounting" className="mb-3 inline-block text-sm text-indigo-700 hover:underline">
+      ← Back
+    </Link>
+  )
+}
+
 export function PageTitle({ title, note }: { title: string; note?: string }) {
   return (
     <div className="mb-4">
@@ -302,9 +310,7 @@ export function CustomersScreen() {
   const books = useBooks()
   return (
     <div>
-      <Link href="/accounting" className="mb-3 inline-block text-sm text-indigo-700 hover:underline">
-        ← Back
-      </Link>
+      <BooksBackLink />
       <PageTitle
         title="Customers"
         note="Monthly account activity. Charges come from the customer accounts already imported. A payment still posts as a deposit."
@@ -485,6 +491,7 @@ export function BillsScreen() {
 
   return (
     <div>
+      <BooksBackLink />
       <PageTitle
         title="Enter and pay bills"
         note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. Payment uses the same check, balance, and cashbook path as the station."
@@ -837,6 +844,7 @@ export function JournalScreen() {
 
   return (
     <div>
+      <BooksBackLink />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Journal entry</h1>
@@ -980,6 +988,7 @@ export function ReconcileScreen() {
 
   return (
     <div>
+      <BooksBackLink />
       <PageTitle
         title="Reconcile · 101 Westline"
         note="Tick a row when it is on the bank statement. The shift amount stays as it was counted."
