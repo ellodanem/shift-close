@@ -101,6 +101,29 @@ export function aggregateVendorInvoiceRows(inputs: AggregateInput[]): VendorInvo
     .sort((a, b) => a.vendorName.localeCompare(b.vendorName, undefined, { sensitivity: 'base' }))
 }
 
+export type VendorInvoiceReportDisplayRow =
+  | { kind: 'vendor'; row: VendorInvoicePaymentRow }
+  | { kind: 'expense'; row: MonthlyReportExpenseRow }
+
+/** Vendor invoice rows and additional expenses, one alphabetical list by name. */
+export function mergeReportRowsAlphabetically(
+  rows: VendorInvoicePaymentRow[],
+  additionalExpenses: MonthlyReportExpenseRow[]
+): VendorInvoiceReportDisplayRow[] {
+  const merged: { name: string; item: VendorInvoiceReportDisplayRow }[] = [
+    ...rows.map((row) => ({
+      name: row.vendorName,
+      item: { kind: 'vendor' as const, row }
+    })),
+    ...additionalExpenses.map((row) => ({
+      name: row.description,
+      item: { kind: 'expense' as const, row }
+    }))
+  ]
+  merged.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  return merged.map((entry) => entry.item)
+}
+
 export function serializeMonthlyReportExpense(row: {
   id: string
   description: string

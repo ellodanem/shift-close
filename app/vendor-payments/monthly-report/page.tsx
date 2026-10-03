@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
-import type {
-  MonthlyReportExpenseRow,
-  VendorInvoicePaymentsInclude,
-  VendorInvoicePaymentsReport
+import {
+  mergeReportRowsAlphabetically,
+  type MonthlyReportExpenseRow,
+  type VendorInvoicePaymentsInclude,
+  type VendorInvoicePaymentsReport
 } from '@/lib/vendorInvoicePaymentsReport'
 import { AddMonthlyExpenseModal } from '../components/AddMonthlyExpenseModal'
 
@@ -113,6 +114,9 @@ export default function VendorInvoicePaymentsReportPage() {
   const hasRows =
     data != null &&
     (data.rows.length > 0 || (data.additionalExpenses?.length ?? 0) > 0)
+  const displayRows = data
+    ? mergeReportRowsAlphabetically(data.rows, data.additionalExpenses ?? [])
+    : []
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
@@ -222,73 +226,73 @@ export default function VendorInvoicePaymentsReportPage() {
               ) : (
                 <>
                   <div className="space-y-3 md:hidden print:hidden">
-                    {data.rows.map((row) => (
-                      <div
-                        key={row.vendorId}
-                        className="rounded-lg border border-gray-200 bg-gray-50 p-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 font-medium text-gray-900">
-                            {row.vendorName}
+                    {displayRows.map((item) =>
+                      item.kind === 'vendor' ? (
+                        <div
+                          key={item.row.vendorId}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 font-medium text-gray-900">
+                              {item.row.vendorName}
+                            </div>
+                            {item.row.paidLabel ? (
+                              <span className="shrink-0 text-xs font-semibold text-green-700">
+                                Paid
+                              </span>
+                            ) : null}
                           </div>
-                          {row.paidLabel ? (
-                            <span className="shrink-0 text-xs font-semibold text-green-700">
-                              Paid
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <div className="text-xs text-gray-500">Expenses</div>
+                              <div className="font-mono font-semibold tabular-nums text-gray-900">
+                                ${formatAmount(item.row.expenses)}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500">Invoice Amount</div>
+                              <div className="font-mono font-semibold tabular-nums text-gray-900">
+                                ${formatAmount(item.row.invoiceAmount)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          key={item.row.id}
+                          className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-medium text-gray-900">{item.row.description}</div>
+                              <div className="mt-0.5 text-xs text-gray-500">
+                                Additional
+                                {item.row.inCashbook ? ' · Cashbook' : ''}
+                              </div>
+                            </div>
+                            <span className="shrink-0 font-mono font-semibold tabular-nums text-gray-900">
+                              ${formatAmount(item.row.amount)}
                             </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <div className="text-xs text-gray-500">Expenses</div>
-                            <div className="font-mono font-semibold tabular-nums text-gray-900">
-                              ${formatAmount(row.expenses)}
-                            </div>
                           </div>
-                          <div className="text-right">
-                            <div className="text-xs text-gray-500">Invoice Amount</div>
-                            <div className="font-mono font-semibold tabular-nums text-gray-900">
-                              ${formatAmount(row.invoiceAmount)}
-                            </div>
+                          <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
+                            <button
+                              type="button"
+                              onClick={() => openEditExpense(item.row)}
+                              className="min-h-[44px] text-sm font-medium text-blue-600 hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteExpense(item.row)}
+                              className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
-
-                    {(data.additionalExpenses ?? []).map((row) => (
-                      <div
-                        key={row.id}
-                        className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-medium text-gray-900">{row.description}</div>
-                            <div className="mt-0.5 text-xs text-gray-500">
-                              Additional
-                              {row.inCashbook ? ' · Cashbook' : ''}
-                            </div>
-                          </div>
-                          <span className="shrink-0 font-mono font-semibold tabular-nums text-gray-900">
-                            ${formatAmount(row.amount)}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex gap-4 border-t border-gray-100 pt-3">
-                          <button
-                            type="button"
-                            onClick={() => openEditExpense(row)}
-                            className="min-h-[44px] text-sm font-medium text-blue-600 hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteExpense(row)}
-                            className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    )}
 
                     <div className="rounded-lg border-2 border-gray-400 bg-white p-3">
                       <div className="text-sm font-bold text-gray-900">Total</div>
@@ -340,59 +344,60 @@ export default function VendorInvoicePaymentsReportPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.rows.map((row) => (
-                          <tr key={row.vendorId} className="border-b border-gray-200">
-                            <td className="py-2 pr-4 align-top">{row.vendorName}</td>
-                            <td className="px-4 py-2 text-right align-top tabular-nums">
-                              ${formatAmount(row.expenses)}
-                            </td>
-                            <td className="py-2 pl-4 text-right align-top tabular-nums">
-                              ${formatAmount(row.invoiceAmount)}
-                            </td>
-                            <td className="py-2 pl-4 align-top text-gray-700">
-                              {row.paidLabel ? 'Paid' : ''}
-                            </td>
-                          </tr>
-                        ))}
-                        {(data.additionalExpenses ?? []).map((row) => (
-                          <tr key={row.id} className="border-b border-gray-200">
-                            <td className="py-2 pr-4 align-top">
-                              {row.description}
-                              <span className="ml-2 text-xs font-normal text-gray-500 print:hidden">
-                                Additional
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-right align-top tabular-nums">
-                              ${formatAmount(row.amount)}
-                            </td>
-                            <td className="py-2 pl-4 text-right align-top tabular-nums text-gray-400">
-                              —
-                            </td>
-                            <td className="py-2 pl-4 align-top text-gray-700">
-                              <span className="inline-flex flex-wrap items-center gap-2">
-                                {row.inCashbook ? (
-                                  <span className="text-xs text-gray-500">Cashbook</span>
-                                ) : null}
-                                <span className="no-print inline-flex gap-2 print:hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditExpense(row)}
-                                    className="text-xs font-medium text-blue-600 hover:underline"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleDeleteExpense(row)}
-                                    className="text-xs font-medium text-red-600 hover:underline"
-                                  >
-                                    Delete
-                                  </button>
+                        {displayRows.map((item) =>
+                          item.kind === 'vendor' ? (
+                            <tr key={item.row.vendorId} className="border-b border-gray-200">
+                              <td className="py-2 pr-4 align-top">{item.row.vendorName}</td>
+                              <td className="px-4 py-2 text-right align-top tabular-nums">
+                                ${formatAmount(item.row.expenses)}
+                              </td>
+                              <td className="py-2 pl-4 text-right align-top tabular-nums">
+                                ${formatAmount(item.row.invoiceAmount)}
+                              </td>
+                              <td className="py-2 pl-4 align-top text-gray-700">
+                                {item.row.paidLabel ? 'Paid' : ''}
+                              </td>
+                            </tr>
+                          ) : (
+                            <tr key={item.row.id} className="border-b border-gray-200">
+                              <td className="py-2 pr-4 align-top">
+                                {item.row.description}
+                                <span className="ml-2 text-xs font-normal text-gray-500 print:hidden">
+                                  Additional
                                 </span>
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="px-4 py-2 text-right align-top tabular-nums">
+                                ${formatAmount(item.row.amount)}
+                              </td>
+                              <td className="py-2 pl-4 text-right align-top tabular-nums text-gray-400">
+                                —
+                              </td>
+                              <td className="py-2 pl-4 align-top text-gray-700">
+                                <span className="inline-flex flex-wrap items-center gap-2">
+                                  {item.row.inCashbook ? (
+                                    <span className="text-xs text-gray-500">Cashbook</span>
+                                  ) : null}
+                                  <span className="no-print inline-flex gap-2 print:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditExpense(item.row)}
+                                      className="text-xs font-medium text-blue-600 hover:underline"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDeleteExpense(item.row)}
+                                      className="text-xs font-medium text-red-600 hover:underline"
+                                    >
+                                      Delete
+                                    </button>
+                                  </span>
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        )}
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 border-gray-800 font-semibold">

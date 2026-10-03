@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     try {
       const additionalExpenseRecords = await prisma.monthlyReportExpense.findMany({
         where: { month },
-        orderBy: [{ createdAt: 'asc' }]
+        orderBy: [{ description: 'asc' }, { createdAt: 'asc' }]
       })
       additionalExpenses = additionalExpenseRecords.map(serializeMonthlyReportExpense)
     } catch (expenseErr) {
