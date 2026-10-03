@@ -111,22 +111,7 @@ export default function FuelExpectancyPage() {
         ) : null}
 
         {data?.canManage ? (
-          <section className="mt-6 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              This is where openings and dip corrections are saved. An opening is the start of that
-              date: earlier shift sales and fuel invoices stay behind it, and same-day invoices add
-              while same-day shift sales subtract. A stick taken after those sales (last night’s close)
-              belongs on the next morning. Fuel invoices show these levels for reference while you pay.
-            </p>
-            {!data.book ? (
-              <p className="mt-3 text-sm text-amber-800">
-                No opening reading yet. Set one from this morning’s dip (or last night’s close).
-              </p>
-            ) : null}
-            <TankReadingControls hasOpening={data.book != null} onSaved={() => void load()} />
-            {data.recentReadings.length > 0 ? <RecentReadings rows={data.recentReadings} /> : null}
-          </section>
+          <TankInventorySection data={data} onSaved={() => void load()} />
         ) : null}
 
         {data && !data.book && !data.canManage ? (
@@ -180,6 +165,51 @@ export default function FuelExpectancyPage() {
         ) : null}
       </div>
     </div>
+  )
+}
+
+function TankInventorySection({ data, onSaved }: { data: Payload; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={`flex min-h-[44px] w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5 ${
+          open ? 'border-b border-emerald-100' : ''
+        }`}
+      >
+        <h2 className="text-lg font-semibold text-gray-900">Tank inventory</h2>
+        <span className="inline-flex items-center gap-2 text-xs font-medium text-gray-500">
+          {open ? 'Hide' : 'Show'}
+          <span
+            aria-hidden
+            className={`inline-block h-1.5 w-1.5 border-b-2 border-r-2 border-gray-500 ${
+              open ? '-translate-y-px rotate-[225deg]' : 'translate-y-px rotate-45'
+            }`}
+          />
+        </span>
+      </button>
+      {open ? (
+        <div className="p-4 sm:p-5">
+          <p className="text-sm text-gray-600">
+            This is where openings and dip corrections are saved. An opening is the start of that
+            date: earlier shift sales and fuel invoices stay behind it, and same-day invoices add
+            while same-day shift sales subtract. A stick taken after those sales (last night’s close)
+            belongs on the next morning. Fuel invoices show these levels for reference while you pay.
+          </p>
+          {!data.book ? (
+            <p className="mt-3 text-sm text-amber-800">
+              No opening reading yet. Set one from this morning’s dip (or last night’s close).
+            </p>
+          ) : null}
+          <TankReadingControls hasOpening={data.book != null} onSaved={onSaved} />
+          {data.recentReadings.length > 0 ? <RecentReadings rows={data.recentReadings} /> : null}
+        </div>
+      ) : null}
+    </section>
   )
 }
 
