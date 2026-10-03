@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { vendorInvoiceTotal } from '@/lib/vendorVat'
+import { applyFixedRubisRentExpense } from '@/lib/rubis-rent-report-expense'
 import {
   aggregateVendorInvoiceRows,
   buildReportTotals,
   monthUtcBounds,
+  isRubisRentExpenseDescription,
+  rubisRentExpenseRow,
   serializeMonthlyReportExpense,
   type VendorInvoicePaymentsInclude,
   type VendorInvoicePaymentsReport
@@ -45,6 +48,16 @@ export async function GET(request: NextRequest) {
       additionalExpenses = additionalExpenseRecords.map(serializeMonthlyReportExpense)
     } catch (expenseErr) {
       console.error('Additional monthly expenses unavailable:', expenseErr)
+    }
+
+    try {
+      additionalExpenses = await applyFixedRubisRentExpense(month, additionalExpenses)
+    } catch (rentErr) {
+      console.error('Rubis Rent expense unavailable:', rentErr)
+      additionalExpenses = [
+        ...additionalExpenses.filter((row) => !isRubisRentExpenseDescription(row.description)),
+        rubisRentExpenseRow(0)
+      ]
     }
 
     let report: VendorInvoicePaymentsReport

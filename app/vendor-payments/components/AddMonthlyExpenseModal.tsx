@@ -2,7 +2,11 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { monthDateBoundsYmd, type MonthlyReportExpenseRow } from '@/lib/vendorInvoicePaymentsReport'
+import {
+  isRubisRentExpenseDescription,
+  monthDateBoundsYmd,
+  type MonthlyReportExpenseRow
+} from '@/lib/vendorInvoicePaymentsReport'
 
 const PAYMENT_OPTIONS = [
   { value: 'cash', label: 'Cash' },
@@ -53,8 +57,9 @@ export function AddMonthlyExpenseModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const alreadyInCashbook = Boolean(editing?.inCashbook)
-  const showCashbookFields = addToCashbook && !alreadyInCashbook
+  const isFixed = Boolean(editing?.fixed)
+  const alreadyInCashbook = Boolean(editing?.inCashbook) && !isFixed
+  const showCashbookFields = addToCashbook && !alreadyInCashbook && !isFixed
 
   useEffect(() => {
     if (!open) return
@@ -101,12 +106,16 @@ export function AddMonthlyExpenseModal({
     e.preventDefault()
     const desc = description.trim()
     const amt = parseFloat(amount)
-    if (!desc) {
+    if (!isFixed && !desc) {
       setError('Description is required.')
       return
     }
-    if (!Number.isFinite(amt) || amt <= 0) {
-      setError('Enter an amount greater than 0.')
+    if (!isFixed && isRubisRentExpenseDescription(desc)) {
+      setError('Rubis Rent is already on the report. Edit that amount instead.')
+      return
+    }
+    if (!Number.isFinite(amt) || amt < 0 || (!isFixed && amt <= 0)) {
+      setError(isFixed ? 'Enter an amount of 0 or more.' : 'Enter an amount greater than 0.')
       return
     }
 
@@ -120,7 +129,15 @@ export function AddMonthlyExpenseModal({
         ref: (showCashbookFields || alreadyInCashbook) && ref.trim() ? ref.trim() : null
       }
 
-      if (editing) {
+      if (isFixed) {
+        const res = await fetch('/api/vendor-payments/monthly-expenses/rubis-rent', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ month, amount: amt })
+        })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(body.error || 'Failed to update Rubis Rent')
+      } else if (editing) {
         if (!alreadyInCashbook && addToCashbook) {
           payload.addToCashbook = true
           payload.cashbookDate = cashbookDate
@@ -168,24 +185,28 @@ export function AddMonthlyExpenseModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-gray-900 mb-1">
-          {editing ? 'Edit additional expense' : 'Add additional expense'}
+          {isFixed ? 'Rubis Rent' : editing ? 'Edit additional expense' : 'Add additional expense'}
         </h3>
         <p className="text-sm text-gray-500 mb-4">
-          Unique to {monthName}. Does not require a vendor or check number.
+          {isFixed
+            ? `Amount for ${monthName}. This stays on the report only. Rubis Rent is paid through Fuel Payments, so it is not posted to the cashbook.`
+            : `Unique to ${monthName}. Does not require a vendor or check number.`}
         </p>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Payee or what this expense is"
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
+          {isFixed ? null : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Payee or what this expense is"
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
@@ -196,10 +217,11 @@ export function AddMonthlyExpenseModal({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus={isFixed}
             />
           </div>
 
-          {alreadyInCashbook ? (
+          {isFixed ? null : alreadyInCashbook ? (
             <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded px-3 py-2">
               This line is already in the cashbook. Changing the description or amount updates that
               entry too.
@@ -291,7 +313,7 @@ export function AddMonthlyExpenseModal({
               disabled={saving}
               className="px-4 py-2 rounded font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
             >
-              {saving ? 'Saving…' : editing ? 'Update' : 'Add expense'}
+              {saving ? 'Saving…' : isFixed || editing ? 'Update' : 'Add expense'}
             </button>
           </div>
         </form>

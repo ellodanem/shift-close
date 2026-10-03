@@ -61,7 +61,7 @@ export default function RentDueBanner() {
   return (
     <div
       role="alert"
-      className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-red-300 bg-red-600 px-3 py-2 text-white sm:px-4"
+      className="no-print flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-red-300 bg-red-600 px-3 py-2 text-white sm:px-4"
     >
       <p className="text-sm font-semibold">
         Rubis rent is due — {status.monthLabel}. No Rent invoice found in Fuel Payments for this month.

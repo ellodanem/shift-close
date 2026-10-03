@@ -8,6 +8,7 @@ import {
 } from '@/lib/cashbook-expense'
 import {
   dateInReportMonth,
+  isRubisRentExpenseDescription,
   monthDateBoundsYmd,
   serializeMonthlyReportExpense
 } from '@/lib/vendorInvoicePaymentsReport'
@@ -66,6 +67,12 @@ export async function POST(request: NextRequest) {
     const desc = typeof description === 'string' ? description.trim() : ''
     if (!desc) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 })
+    }
+    if (isRubisRentExpenseDescription(desc)) {
+      return NextResponse.json(
+        { error: 'Rubis Rent is already on the report. Edit that amount instead.' },
+        { status: 400 }
+      )
     }
 
     const amt = roundMoney(typeof amount === 'string' ? parseFloat(amount) : Number(amount))

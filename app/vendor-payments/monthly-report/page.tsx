@@ -71,6 +71,7 @@ export default function VendorInvoicePaymentsReportPage() {
   }
 
   const handleDeleteExpense = async (row: MonthlyReportExpenseRow) => {
+    if (row.fixed) return
     const cashbookNote = row.inCashbook ? ' This will also remove it from the cashbook.' : ''
     if (!confirm(`Delete “${row.description}”?${cashbookNote}`)) return
     try {
@@ -119,7 +120,7 @@ export default function VendorInvoicePaymentsReportPage() {
     : []
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 print:min-h-0 print:bg-white print:p-0 sm:p-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex flex-col gap-4 no-print sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
@@ -265,10 +266,12 @@ export default function VendorInvoicePaymentsReportPage() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <div className="font-medium text-gray-900">{item.row.description}</div>
-                              <div className="mt-0.5 text-xs text-gray-500">
-                                Additional
-                                {item.row.inCashbook ? ' · Cashbook' : ''}
-                              </div>
+                              {item.row.fixed ? null : (
+                                <div className="mt-0.5 text-xs text-gray-500">
+                                  Additional
+                                  {item.row.inCashbook ? ' · Cashbook' : ''}
+                                </div>
+                              )}
                             </div>
                             <span className="shrink-0 font-mono font-semibold tabular-nums text-gray-900">
                               ${formatAmount(item.row.amount)}
@@ -282,13 +285,15 @@ export default function VendorInvoicePaymentsReportPage() {
                             >
                               Edit
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteExpense(item.row)}
-                              className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
-                            >
-                              Delete
-                            </button>
+                            {item.row.fixed ? null : (
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteExpense(item.row)}
+                                className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </div>
                         </div>
                       )
@@ -362,9 +367,11 @@ export default function VendorInvoicePaymentsReportPage() {
                             <tr key={item.row.id} className="border-b border-gray-200">
                               <td className="py-2 pr-4 align-top">
                                 {item.row.description}
-                                <span className="ml-2 text-xs font-normal text-gray-500 print:hidden">
-                                  Additional
-                                </span>
+                                {item.row.fixed ? null : (
+                                  <span className="ml-2 text-xs font-normal text-gray-500 print:hidden">
+                                    Additional
+                                  </span>
+                                )}
                               </td>
                               <td className="px-4 py-2 text-right align-top tabular-nums">
                                 ${formatAmount(item.row.amount)}
@@ -385,13 +392,15 @@ export default function VendorInvoicePaymentsReportPage() {
                                     >
                                       Edit
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleDeleteExpense(item.row)}
-                                      className="text-xs font-medium text-red-600 hover:underline"
-                                    >
-                                      Delete
-                                    </button>
+                                    {item.row.fixed ? null : (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteExpense(item.row)}
+                                        className="text-xs font-medium text-red-600 hover:underline"
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
                                   </span>
                                 </span>
                               </td>
@@ -446,8 +455,31 @@ export default function VendorInvoicePaymentsReportPage() {
             margin: 0.5in;
           }
 
+          html,
+          body,
+          .app-shell,
+          .app-column,
+          .app-main {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: white !important;
+            position: static !important;
+          }
+
+          header,
+          nav,
           .no-print {
             display: none !important;
+          }
+
+          .print-content {
+            border: none !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
         }
       `}</style>

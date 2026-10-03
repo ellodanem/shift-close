@@ -22,6 +22,28 @@ export interface MonthlyReportExpenseRow {
   paymentMethod: string | null
   ref: string | null
   inCashbook: boolean
+  /** Always on the report. The amount can change; it is not posted to the cashbook. */
+  fixed?: boolean
+}
+
+export const RUBIS_RENT_DESCRIPTION = 'Rubis Rent'
+export const RUBIS_RENT_FIXED_ID = 'fixed:rubis-rent'
+
+export function isRubisRentExpenseDescription(description: string): boolean {
+  const normalized = description.trim().replace(/\s+/g, ' ').toLowerCase()
+  return normalized === 'rubis rent' || normalized === 'rubis rent additional'
+}
+
+export function rubisRentExpenseRow(amount: number): MonthlyReportExpenseRow {
+  return {
+    id: RUBIS_RENT_FIXED_ID,
+    description: RUBIS_RENT_DESCRIPTION,
+    amount: roundMoney(amount),
+    paymentMethod: null,
+    ref: null,
+    inCashbook: false,
+    fixed: true
+  }
 }
 
 export interface VendorInvoicePaymentsReport {

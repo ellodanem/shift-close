@@ -8,6 +8,7 @@ import {
 } from '@/lib/cashbook-expense'
 import {
   dateInReportMonth,
+  isRubisRentExpenseDescription,
   serializeMonthlyReportExpense
 } from '@/lib/vendorInvoicePaymentsReport'
 
@@ -70,6 +71,12 @@ export async function PATCH(
       const desc = String(description).trim()
       if (!desc) {
         return NextResponse.json({ error: 'Description is required' }, { status: 400 })
+      }
+      if (isRubisRentExpenseDescription(desc)) {
+        return NextResponse.json(
+          { error: 'Rubis Rent is already on the report. Edit that amount instead.' },
+          { status: 400 }
+        )
       }
       data.description = desc
     }
