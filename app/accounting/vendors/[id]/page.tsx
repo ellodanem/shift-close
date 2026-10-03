@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { useAccountingBooks } from '../../books-context'
 import { money, PageTitle, StatStrip } from '../../screens'
+import { PayBillsModal, type PayBillsInput } from '../../pay-bills-modal'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
 
@@ -73,9 +74,7 @@ export default function AccountantVendorPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [paying, setPaying] = useState(false)
-  const [payDate, setPayDate] = useState(businessTodayYmd())
-  const [bankRef, setBankRef] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'check' | 'eft'>('check')
+  const [showPay, setShowPay] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [saving, setSaving] = useState(false)
   const [billNumber, setBillNumber] = useState('')
@@ -148,8 +147,8 @@ export default function AccountantVendorPage() {
     setBillVat(String(Math.round(amount * account.vatRate * 100) / 100))
   }
 
-  async function pay() {
-    if (chosen.length === 0 || !payDate || !bankRef.trim()) return
+  async function pay(input: PayBillsInput) {
+    if (chosen.length === 0 || !input.paymentDate || !input.bankRef) return
     setPaying(true)
     setError(null)
     setMessage(null)
@@ -159,9 +158,9 @@ export default function AccountantVendorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vendorId: account.id,
-          paymentDate: payDate,
-          paymentMethod,
-          bankRef: bankRef.trim(),
+          paymentDate: input.paymentDate,
+          paymentMethod: input.paymentMethod,
+          bankRef: input.bankRef,
           selectedInvoiceIds: chosen.map((invoice) => invoice.id),
           addToCashbook: true
         })
@@ -169,7 +168,7 @@ export default function AccountantVendorPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Payment failed')
       setSelected([])
-      setBankRef('')
+      setShowPay(false)
       setMessage(`Paid ${account.name} ${money(payTotal)}. The cashbook and the bank balance are updated.`)
       await load()
       reload()
@@ -330,35 +329,42 @@ export default function AccountantVendorPage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
-        <label className="text-sm">
-          <span className="text-gray-600">Payment date</span>
-          <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="text-sm">
-          <span className="text-gray-600">Check or reference</span>
-          <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="text-sm">
-          <span className="text-gray-600">How paid</span>
-          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value === 'eft' ? 'eft' : 'check')} className="mt-1 block rounded border border-gray-300 px-2 py-1">
-            <option value="check">Check</option>
-            <option value="eft">EFT</option>
-          </select>
-        </label>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={paying || chosen.length === 0 || !payDate || !bankRef.trim()}
-          onClick={() => void pay()}
+          disabled={chosen.length === 0}
+          onClick={() => {
+            setError(null)
+            setShowPay(true)
+          }}
           className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {paying ? 'Paying…' : chosen.length > 0 ? `Pay ${money(payTotal)}` : 'Pay selected'}
+          {chosen.length > 0 ? `Pay ${money(payTotal)}` : 'Pay selected'}
         </button>
         <p className="text-sm text-gray-600">
           {chosen.length === 0 ? 'Select pending bills.' : `${chosen.length} bill${chosen.length === 1 ? '' : 's'} selected.`}
         </p>
       </div>
-      {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
+      <PayBillsModal
+        open={showPay && chosen.length > 0}
+        payeeName={account.name}
+        fuel={false}
+        bills={chosen.map((invoice) => ({
+          number: invoice.invoiceNumber,
+          date: showDate(invoice.invoiceDate),
+          amount: invoiceTotal(invoice.amount, invoice.vat)
+        }))}
+        paying={paying}
+        error={showPay ? error : null}
+        defaultDate={businessTodayYmd()}
+        onClose={() => {
+          if (paying) return
+          setShowPay(false)
+          setError(null)
+        }}
+        onPay={(input) => void pay(input)}
+      />
+      {error && !showPay ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="mb-3 text-sm text-green-700">{message}</p> : null}
 
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Open bills</h2>

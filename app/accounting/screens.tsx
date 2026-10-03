@@ -8,6 +8,7 @@ import { isFullAccessRole } from '@/lib/roles'
 import type { AccountingBooks } from '@/lib/accounting-types'
 import { useAuth } from '@/app/components/AuthContext'
 import { useAccountingBooks } from './books-context'
+import { PayBillsModal, type PayBillsInput } from './pay-bills-modal'
 
 export function money(amount: number): string {
   return formatAmount(amount)
@@ -386,13 +387,11 @@ export function BillsScreen() {
   const { reload } = useAccountingBooks()
   const [selected, setSelected] = useState<string[]>([])
   const [paying, setPaying] = useState(false)
+  const [showPay, setShowPay] = useState(false)
   const [entering, setEntering] = useState(false)
   const [showEnter, setShowEnter] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [payDate, setPayDate] = useState(books.asOf)
-  const [bankRef, setBankRef] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'check' | 'eft'>('check')
   const [billKind, setBillKind] = useState<'vendor' | 'fuel' | 'overhead'>('vendor')
   const [vendorId, setVendorId] = useState('')
   const [fuelType, setFuelType] = useState('Fuel')
@@ -486,8 +485,8 @@ export function BillsScreen() {
     setMessage(null)
   }
 
-  async function pay() {
-    if (!onePayee) return
+  async function pay(input: PayBillsInput) {
+    if (!onePayee || !input.bankRef || !input.paymentDate) return
     setPaying(true)
     setError(null)
     setMessage(null)
@@ -498,16 +497,21 @@ export function BillsScreen() {
           ? await fetch('/api/fuel-payments/make-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentDate: payDate, bankRef, selectedInvoiceIds: ids, addToCashbook: true })
+              body: JSON.stringify({
+                paymentDate: input.paymentDate,
+                bankRef: input.bankRef,
+                selectedInvoiceIds: ids,
+                addToCashbook: true
+              })
             })
           : await fetch('/api/vendor-payments/make-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 vendorId: chosen[0].vendorId,
-                paymentDate: payDate,
-                paymentMethod,
-                bankRef,
+                paymentDate: input.paymentDate,
+                paymentMethod: input.paymentMethod,
+                bankRef: input.bankRef,
                 selectedInvoiceIds: ids,
                 addToCashbook: true
               })
@@ -515,7 +519,7 @@ export function BillsScreen() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Payment failed')
       setSelected([])
-      setBankRef('')
+      setShowPay(false)
       setMessage(`Paid ${payeeName} ${money(payTotal)}. The cashbook and the bank balance are updated.`)
       reload()
     } catch (err) {
@@ -749,33 +753,43 @@ export function BillsScreen() {
         </div>
       )}
       {billTab === 'unpaid' && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
-          <label className="text-sm">
-            <span className="text-gray-600">Payment date</span>
-            <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-          </label>
-          <label className="text-sm">
-            <span className="text-gray-600">Check or reference</span>
-            <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-          </label>
-          {(chosen[0]?.kind === 'vendor' || chosen[0]?.kind === 'overhead') && (
-            <label className="text-sm">
-              <span className="text-gray-600">How paid</span>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value === 'eft' ? 'eft' : 'check')} className="mt-1 block rounded border border-gray-300 px-2 py-1">
-                <option value="check">Check</option>
-                <option value="eft">EFT</option>
-              </select>
-            </label>
-          )}
-          <button type="button" disabled={paying || !onePayee || !payDate || !bankRef.trim()} onClick={() => void pay()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-            {paying ? 'Paying…' : onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={!onePayee}
+            onClick={() => {
+              setError(null)
+              setShowPay(true)
+            }}
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
           </button>
           <p className="text-sm text-gray-600">
-            {chosen.length === 0 ? 'Select pending bills for one payee.' : onePayee ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.` : 'Fuel bills pay as one group. Vendor and overhead bills pay by payee.'}
+            {chosen.length === 0
+              ? 'Select pending bills for one payee.'
+              : onePayee
+                ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.`
+                : 'Fuel bills pay as one group. Vendor and overhead bills pay by payee.'}
           </p>
         </div>
       )}
-      {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
+      <PayBillsModal
+        open={showPay && onePayee}
+        payeeName={payeeName}
+        fuel={chosen[0]?.kind === 'fuel'}
+        bills={chosen.map((bill) => ({ number: bill.number, date: bill.date, amount: bill.amount }))}
+        paying={paying}
+        error={showPay ? error : null}
+        defaultDate={books.asOf}
+        onClose={() => {
+          if (paying) return
+          setShowPay(false)
+          setError(null)
+        }}
+        onPay={(input) => void pay(input)}
+      />
+      {error && !showPay ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="mb-3 text-sm text-green-700">{message}</p> : null}
       {billTab === 'unpaid' ? (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
