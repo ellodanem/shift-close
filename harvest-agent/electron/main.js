@@ -4,6 +4,7 @@
  */
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
@@ -15,8 +16,15 @@ if (process.platform === 'win32') {
 let tray = null
 let agentChild = null
 let dashboardWindow = null
+let lastStatus = null
+let updateState = null
+let updatePrompted = false
+let installStarted = false
+let agentStopStarted = false
+let agentStopPromise = null
 
 const DEFAULT_DASHBOARD_PORT = 3921
+const UPDATE_CHECK_MS = 4 * 60 * 60 * 1000
 
 function getConfigDir() {
   return app.isPackaged ? app.getPath('userData') : getAgentRoot()
@@ -167,6 +175,139 @@ async function fetchStatus() {
   return null
 }
 
+function logUpdate(line) {
+  const text = `[${new Date().toISOString()}] ${line}\n`
+  console.log('[Harvest Update]', line)
+  try {
+    fs.appendFileSync(path.join(getConfigDir(), 'update.log'), text)
+  } catch {}
+}
+
+function applyTrayStatus(statusPayload) {
+  lastStatus = statusPayload
+  if (!tray) return
+  if (updateState?.phase === 'ready') {
+    tray.setToolTip(`Shift Close Harvest Agent — Update ${updateState.version} ready`)
+  } else if (updateState?.phase === 'downloading') {
+    tray.setToolTip(`Shift Close Harvest Agent — Downloading ${updateState.version}`)
+  } else if (statusPayload?.paused) {
+    tray.setToolTip('Shift Close Harvest Agent — PAUSED')
+  } else if (statusPayload?.cstoreSessionOk) {
+    tray.setToolTip('Shift Close Harvest Agent — Cstore signed in')
+  } else if (statusPayload?.configured) {
+    tray.setToolTip('Shift Close Harvest Agent — Running')
+  } else {
+    tray.setToolTip('Shift Close Harvest Agent — Needs setup')
+  }
+  tray.setContextMenu(buildTrayMenu(statusPayload))
+  maybePromptForUpdate()
+}
+
+function stopAgentChild() {
+  if (agentStopPromise) return agentStopPromise
+  agentStopStarted = true
+  app.isQuitting = true
+  if (!agentChild || agentChild.killed) return Promise.resolve()
+  const child = agentChild
+  agentStopPromise = new Promise((resolve) => {
+    const timer = setTimeout(resolve, 8000)
+    child.once('exit', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+    try {
+      child.kill()
+    } catch {
+      clearTimeout(timer)
+      resolve()
+    }
+  })
+  return agentStopPromise
+}
+
+async function installUpdateNow() {
+  if (installStarted || updateState?.phase !== 'ready') return
+  installStarted = true
+  logUpdate(`Installing ${updateState.version}`)
+  await stopAgentChild()
+  autoUpdater.quitAndInstall(true, true)
+}
+
+function maybePromptForUpdate() {
+  if (updateState?.phase !== 'ready' || updatePrompted || installStarted) return
+  if (lastStatus?.jobRunning) return
+  updatePrompted = true
+  const version = updateState.version
+  dialog
+    .showMessageBox({
+      type: 'info',
+      buttons: ['Restart and install', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Shift Close Harvest Agent',
+      message: `Version ${version} is ready`,
+      detail:
+        'Restart to install it. Settings and the harvest secret stay on this PC. Later installs the update the next time you quit.'
+    })
+    .then(({ response }) => {
+      if (response === 0) installUpdateNow()
+    })
+    .catch((err) => {
+      logUpdate(`Update prompt failed: ${err && err.message ? err.message : String(err)}`)
+    })
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) {
+    logUpdate('Skipping update check (not a packaged install)')
+    return
+  }
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.logger = {
+    info: (message) => logUpdate(typeof message === 'string' ? message : JSON.stringify(message)),
+    warn: (message) => logUpdate(typeof message === 'string' ? message : JSON.stringify(message)),
+    error: (message) => logUpdate(message && message.stack ? message.stack : String(message))
+  }
+
+  autoUpdater.on('update-available', (info) => {
+    updateState = { phase: 'downloading', version: info.version }
+    logUpdate(`Update available: ${info.version}`)
+    applyTrayStatus(lastStatus)
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    logUpdate(`Up to date (${info?.version || app.getVersion()})`)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    updateState = { phase: 'ready', version: info.version }
+    logUpdate(`Update downloaded: ${info.version}`)
+    applyTrayStatus(lastStatus)
+    if (tray) {
+      tray.displayBalloon({
+        title: 'Harvest Agent update',
+        content: `Version ${info.version} is ready to install.`
+      })
+    }
+  })
+
+  autoUpdater.on('error', (err) => {
+    logUpdate(`Update check failed: ${err && err.message ? err.message : String(err)}`)
+  })
+
+  const check = () => {
+    if (updateState?.phase === 'ready' || installStarted) return
+    autoUpdater.checkForUpdates().catch((err) => {
+      logUpdate(`Update check failed: ${err && err.message ? err.message : String(err)}`)
+    })
+  }
+
+  setTimeout(check, 20000)
+  setInterval(check, UPDATE_CHECK_MS)
+}
+
 function buildTrayMenu(statusPayload) {
   const paused = statusPayload?.paused === true
   const winExtras =
@@ -177,8 +318,25 @@ function buildTrayMenu(statusPayload) {
         ]
       : []
 
+  const updateItems =
+    updateState?.phase === 'ready'
+      ? [
+          {
+            label: `Restart to install ${updateState.version}`,
+            click: () => installUpdateNow()
+          },
+          { type: 'separator' }
+        ]
+      : updateState?.phase === 'downloading'
+        ? [
+            { label: `Downloading update ${updateState.version}…`, enabled: false },
+            { type: 'separator' }
+          ]
+        : []
+
   return Menu.buildFromTemplate([
-    { label: 'Shift Close Harvest Agent', enabled: false },
+    ...updateItems,
+    { label: `Shift Close Harvest Agent ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: 'Open dashboard', click: openDashboard },
     {
@@ -307,19 +465,10 @@ app.whenReady().then(() => {
 
   startAgent()
   setAutoStart(true)
+  setupAutoUpdater()
 
   setInterval(async () => {
-    const s = await fetchStatus()
-    if (s?.paused) {
-      tray.setToolTip('Shift Close Harvest Agent — PAUSED')
-    } else if (s?.cstoreSessionOk) {
-      tray.setToolTip('Shift Close Harvest Agent — Cstore signed in')
-    } else if (s?.configured) {
-      tray.setToolTip('Shift Close Harvest Agent — Running')
-    } else {
-      tray.setToolTip('Shift Close Harvest Agent — Needs setup')
-    }
-    tray.setContextMenu(buildTrayMenu(s))
+    applyTrayStatus(await fetchStatus())
   }, 15000)
 
   if (!process.argv.includes('--autostart')) {
@@ -331,9 +480,21 @@ app.on('window-all-closed', (e) => {
   e.preventDefault()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   app.isQuitting = true
-  if (agentChild && !agentChild.killed) {
-    agentChild.kill()
+  const pendingUpdate = updateState?.phase === 'ready' && !installStarted
+
+  if (!agentStopStarted && agentChild && !agentChild.killed) {
+    event.preventDefault()
+    stopAgentChild().then(() => {
+      if (pendingUpdate) installUpdateNow()
+      else app.quit()
+    })
+    return
+  }
+
+  if (pendingUpdate) {
+    event.preventDefault()
+    installUpdateNow()
   }
 })

@@ -1,6 +1,6 @@
 {
   "name": "shift-close-harvest-agent",
-  "version": "0.2.7",
+  "version": "0.2.9",
   "description": "Shift Close harvest agent — Cstore Pro keep-alive and report jobs",
   "author": {
     "name": "Ellodane Enterprises"
@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "dotenv": "^16.3.1",
+    "electron-updater": "^6.6.2",
     "express": "^4.18.2",
     "playwright": "^1.55.0"
   },
@@ -41,6 +42,10 @@
   "build": {
     "directories": {
       "output": "installer-release"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/ellodanem/shift-close/releases/download/harvest-agent"
     },
     "appId": "com.westline.shiftclose.harvest-agent",
     "productName": "Shift Close Harvest Agent",

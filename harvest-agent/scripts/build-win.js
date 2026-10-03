@@ -68,7 +68,7 @@ if (signtool) {
 }
 
 console.log('[build-win] Running electron-builder…')
-const r = spawnSync('npx.cmd', ['electron-builder', '--win', '--x64'], {
+const r = spawnSync('npx.cmd', ['electron-builder', '--win', '--x64', '--publish', 'never'], {
   cwd: agentRoot,
   env,
   stdio: 'inherit',

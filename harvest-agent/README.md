@@ -49,7 +49,15 @@ npm.cmd install
 npm.cmd run build
 ```
 
-Run `installer-release\Shift Close Harvest Agent Setup 0.2.0.exe`. After install the app lives in the **system tray**, can **Start with Windows**, and opens the dashboard without a terminal. Config and the harvest secret are stored under `%AppData%\shift-close-harvest-agent\`. Google Chrome must be installed (Cstore uses your Chrome profile).
+Run `installer-release\Shift Close Harvest Agent Setup 0.2.9.exe` once. After that the tray app checks for a newer build on startup and every few hours. When one is downloaded it asks you to restart and install; if you choose Later, it installs the next time you quit. It waits until the current Cstore job finishes before asking. Config and the harvest secret stay under `%AppData%\shift-close-harvest-agent\`. Google Chrome must be installed (Cstore uses your Chrome profile).
+
+To ship the next update, bump `version` in `package.json`, run `npm.cmd run build`, then replace the files on the GitHub release tagged `harvest-agent`:
+
+```
+gh release upload harvest-agent --clobber "installer-release\latest.yml" "installer-release\*.exe" "installer-release\*.exe.blockmap"
+```
+
+Installed copies download that build on their own. The app is unsigned, so Windows may still show a SmartScreen or UAC prompt when the new installer runs.
 
 ### Dev / Node dashboard
 
