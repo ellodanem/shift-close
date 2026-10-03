@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import HarvestSyncCard from './HarvestSyncCard'
 
 type Presence = 'online' | 'stale' | 'offline'
 
@@ -162,6 +163,7 @@ export default function HarvestAgentSettingsPage() {
           <p className="text-gray-600">Loading...</p>
         ) : (
           <>
+            <HarvestSyncCard />
             <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Agents</h2>
               {agents.length === 0 ? (

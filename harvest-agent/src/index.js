@@ -14,7 +14,8 @@ const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
-const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport } = require('./shiftCloseClient')
+const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
+const { executeSyncRun } = require('./syncRunner')
 const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
 const { notifyCloudPaused } = require('./pauseNotify')
@@ -43,10 +44,21 @@ let stopCustomerMonthly = null
 let stopVendorMonthly = null
 let stopFuelMonthly = null
 let stopLpgMonthly = null
+let stopSyncPoll = null
 let running = false
+let syncExecuting = false
 let pauseNotified = false
 let activityLog = null
 let status = null
+
+const SYNC_POLL_MS = 12_000
+
+/** True when Chrome is taken. Sync-owned calls may proceed while a sync run is between steps. */
+function chromeBusy(options) {
+  if (running) return true
+  if (options && options.owned) return false
+  return syncExecuting
+}
 
 function scheduleSummaryLabel(config) {
   const keep = nextKeepaliveLabel(config.timeZone, config.slotHours)
@@ -157,7 +169,7 @@ async function recordJob(config, taskKey, startedAt, result, extraDetails = {}) 
 }
 
 async function runKeepaliveCycle(reason) {
-  if (running) {
+  if (chromeBusy()) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -200,7 +212,7 @@ async function runKeepaliveCycle(reason) {
 }
 
 async function runCstoreSignInCycle(reason) {
-  if (running) {
+  if (chromeBusy()) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -231,7 +243,7 @@ async function runCstoreSignInCycle(reason) {
 }
 
 async function runCustomerAccountsCycle(reason, options = {}) {
-  if (running) {
+  if (chromeBusy(options)) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -379,7 +391,7 @@ async function runCustomerAccountsCycle(reason, options = {}) {
 }
 
 async function runVendorInvoicesCycle(reason, options = {}) {
-  if (running) {
+  if (chromeBusy(options)) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -661,7 +673,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
 }
 
 async function runFuelInvoicesCycle(reason, options = {}) {
-  if (running) {
+  if (chromeBusy(options)) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -751,7 +763,7 @@ async function runFuelInvoicesCycle(reason, options = {}) {
 }
 
 async function runLpgInvoicesCycle(reason, options = {}) {
-  if (running) {
+  if (chromeBusy(options)) {
     console.log(`[Harvest] Skip ${reason} — a job is already running`)
     return
   }
@@ -851,6 +863,41 @@ async function runLpgInvoicesCycle(reason, options = {}) {
   running = false
   if (status) status.jobRunning = false
   return result
+}
+
+async function runSyncJob(taskKey, month) {
+  const options = { year: month.year, month: month.month, all: true, owned: true }
+  if (taskKey === 'customer_accounts') return runCustomerAccountsCycle('sync', options)
+  if (taskKey === 'vendor_invoices') return runVendorInvoicesCycle('sync', options)
+  if (taskKey === 'fuel_invoices') return runFuelInvoicesCycle('sync', options)
+  if (taskKey === 'lpg_invoices') return runLpgInvoicesCycle('sync', options)
+  return { ok: false, message: `Unknown sync step ${taskKey}` }
+}
+
+async function pollSyncOnce() {
+  if (syncExecuting || running || isPaused()) return
+  const config = loadConfig()
+  if (!config.vercelUrl || !config.agentSecret) return
+  syncExecuting = true
+  try {
+    const claimed = await claimHarvestSync(config)
+    if (!claimed?.run) return
+    const month = `${claimed.run.year}-${String(claimed.run.month).padStart(2, '0')}`
+    console.log(`[Harvest] Sync claimed ${month} (${claimed.run.id})`)
+    if (activityLog) activityLog.add(`Sync claimed ${month}`)
+    await executeSyncRun({
+      run: claimed.run,
+      isPaused,
+      pauseMessage: () => getPauseInfo()?.message || getPauseInfo()?.reason || 'Paused',
+      reportStep: (step) => reportHarvestSyncStep(config, step),
+      runJob: runSyncJob
+    })
+  } catch (err) {
+    console.error('[Harvest] Sync poll failed:', err.message)
+    if (activityLog) activityLog.add(`Sync poll failed: ${err.message}`)
+  } finally {
+    syncExecuting = false
+  }
 }
 
 function startDashboard(config) {
@@ -1005,6 +1052,11 @@ function start() {
     if (status) status.nextSlotLabel = scheduleSummaryLabel(loadConfig())
   }, 60_000)
 
+  stopSyncPoll = setInterval(() => {
+    pollSyncOnce().catch((err) => console.error('[Harvest] Sync poll error:', err))
+  }, SYNC_POLL_MS)
+  pollSyncOnce().catch((err) => console.error('[Harvest] Sync poll error:', err))
+
   console.log(
     `[Harvest] Keep-alive: ${formatSlotHours(config.slotHours)} ${config.timeZone}. ` +
       `${describeCustomerSchedule(config.customerAccountsSchedule, config.timeZone)}. ` +
@@ -1035,6 +1087,10 @@ function stop() {
   if (stopLpgMonthly) {
     stopLpgMonthly()
     stopLpgMonthly = null
+  }
+  if (stopSyncPoll) {
+    clearInterval(stopSyncPoll)
+    stopSyncPoll = null
   }
   if (httpServer) {
     httpServer.close()

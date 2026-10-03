@@ -116,6 +116,17 @@ async function addHarvestCustomers(config, names) {
   })
 }
 
+async function claimHarvestSync(config) {
+  return postJson(config, '/api/harvest-agent/sync/claim', identity(config))
+}
+
+async function reportHarvestSyncStep(config, step) {
+  return postJson(config, '/api/harvest-agent/sync/step', {
+    ...identity(config),
+    ...step
+  })
+}
+
 module.exports = {
   sendHeartbeat,
   sendTask,
@@ -125,5 +136,7 @@ module.exports = {
   sendFuelInvoiceImport,
   fetchHarvestCustomers,
   addHarvestCustomers,
+  claimHarvestSync,
+  reportHarvestSyncStep,
   identity
 }

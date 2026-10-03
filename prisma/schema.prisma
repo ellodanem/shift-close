@@ -1418,6 +1418,7 @@ model HarvestAgent {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   tasks HarvestTaskRun[]
+  syncRuns HarvestSyncRun[]
 
   @@map("harvest_agents")
 }
@@ -1438,6 +1439,42 @@ model HarvestTaskRun {
   @@index([agentId, finishedAt])
   @@index([finishedAt])
   @@map("harvest_task_runs")
+}
+
+// One queued month of harvest jobs, claimed by the Windows agent.
+model HarvestSyncRun {
+  id         String    @id @default(cuid())
+  year       Int
+  month      Int
+  status     String // pending | running | pass | fail | paused
+  agentId    String?   @map("agent_id")
+  claimedAt  DateTime? @map("claimed_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  agent HarvestAgent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  steps HarvestSyncStep[]
+
+  @@index([status, createdAt])
+  @@map("harvest_sync_runs")
+}
+
+model HarvestSyncStep {
+  id         String    @id @default(cuid())
+  runId      String    @map("run_id")
+  position   Int
+  taskKey    String    @map("task_key")
+  status     String // waiting | running | pass | fail
+  message    String?
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  run HarvestSyncRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, position])
+  @@unique([runId, taskKey])
+  @@map("harvest_sync_steps")
 }
 
 // Internal Inbox — shared station mailboxes (IMAP sync)
