@@ -1,7 +1,13 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { businessTodayYmd } from '@/lib/datetime-policy'
 import { ensureHarvestSchema, harvestPresence, upsertHarvestHeartbeat } from '@/lib/harvest-agent'
+import {
+  currentHarvestSyncMonth,
+  harvestSyncMonthLabel,
+  previousHarvestSyncMonth
+} from '@/lib/harvest-sync-month'
+
+export { currentHarvestSyncMonth, harvestSyncMonthLabel, previousHarvestSyncMonth }
 
 export const HARVEST_SYNC_STEPS = [
   { taskKey: 'customer_accounts', label: 'Customer accounts' },
@@ -16,16 +22,6 @@ const TASK_KEYS = new Set<string>(HARVEST_SYNC_STEPS.map((step) => step.taskKey)
 
 export function isHarvestSyncTaskKey(value: string): value is HarvestSyncTaskKey {
   return TASK_KEYS.has(value)
-}
-
-export function harvestSyncMonthLabel(year: number, month: number): string {
-  const d = new Date(Date.UTC(year, month - 1, 1, 12))
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-}
-
-export function currentHarvestSyncMonth(now = new Date()): { year: number; month: number } {
-  const ymd = businessTodayYmd(now)
-  return { year: Number(ymd.slice(0, 4)), month: Number(ymd.slice(5, 7)) }
 }
 
 export class HarvestSyncActiveError extends Error {
@@ -141,7 +137,7 @@ export async function getHarvestSyncView() {
   await ensureHarvestSchema()
   const now = new Date()
   const month = currentHarvestSyncMonth(now)
-  const [agents, active, latest] = await Promise.all([
+  const [agents, active, lastFinished] = await Promise.all([
     prisma.harvestAgent.findMany({ orderBy: { lastHeartbeatAt: 'desc' } }),
     prisma.harvestSyncRun.findFirst({
       where: { status: { in: ['pending', 'running'] } },
@@ -149,15 +145,17 @@ export async function getHarvestSyncView() {
       include: runInclude
     }),
     prisma.harvestSyncRun.findFirst({
+      where: { status: { in: ['pass', 'fail', 'paused'] } },
       orderBy: { createdAt: 'desc' },
       include: runInclude
     })
   ])
   const online = agents.filter((agent) => harvestPresence(agent.lastHeartbeatAt, now) === 'online')
-  const run = active ?? latest
+  const run = active ?? lastFinished
   return {
     month: { ...month, label: harvestSyncMonthLabel(month.year, month.month) },
     run: run ? serializeHarvestSyncRun(run) : null,
+    lastFinished: lastFinished ? serializeHarvestSyncRun(lastFinished) : null,
     agentOnline: online.length > 0,
     agentPaused: online.length > 0 && online.every((agent) => agent.paused)
   }

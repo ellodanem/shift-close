@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
+import HarvestSyncControl from './HarvestSyncControl'
 import { formatAppUserDisplayName } from '@/lib/roles'
 import {
   DEFAULT_FAVORITE_IDS,
@@ -146,6 +147,7 @@ export default function AppUtilityBar() {
           />
         </svg>
       </button>
+      <HarvestSyncControl />
       <span
         className="ml-2 truncate text-sm text-slate-200 max-w-[40vw] sm:max-w-md"
         title={user.email}
