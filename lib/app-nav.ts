@@ -9,7 +9,7 @@ import {
   type HomeShortcutId
 } from '@/lib/home-shortcuts'
 import {
-  isAccountantRole,
+  isAccountantPayrollPath,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
@@ -285,7 +285,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
   if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'accountant') {
-    return isStakeholderPeoplePath(href) || href === '/accounting' || href.startsWith('/accounting/')
+    return href === '/accounting' || href.startsWith('/accounting/') || isAccountantPayrollPath(href)
   }
   if (r === 'stakeholder') {
     return (
@@ -441,14 +441,13 @@ export function isGroupActive(group: NavGroupConfig, pathname: string): boolean 
 export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   const nr = normalizeAppRole(role)
   if (nr === 'accountant') {
-    const people = BASE_NAV_CONFIG.find((group) => group.label === 'People')
     return [
       { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS },
       {
-        label: 'People',
-        items: people ? filterNavItems(people.items, 'stakeholder') : []
+        label: 'Payroll',
+        items: [{ label: 'Payroll', href: '/payroll', permission: 'people.staff' }]
       }
-    ].filter((group) => group.items.length > 0)
+    ]
   }
   const groups = BASE_NAV_CONFIG.map((group) => {
     if (group.label === 'Setup') {
@@ -528,6 +527,8 @@ export const NAV_GROUP_ICON: Record<string, string> = {
   Reports:
     'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
   People:
+    'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  Payroll:
     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
   Promotions:
     'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7',

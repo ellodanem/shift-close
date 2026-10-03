@@ -3,6 +3,7 @@ import { MANAGER_HUB_PATH, canAccessManagerHub } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH, canAccessScansMobile } from '@/lib/scans-mobile'
 import {
+  isAccountantPayrollPath,
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
@@ -373,7 +374,7 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
   if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'accountant') {
-    return isStakeholderPeoplePath(href) || href === '/accounting' || href.startsWith('/accounting/')
+    return href === '/accounting' || href.startsWith('/accounting/') || isAccountantPayrollPath(href)
   }
   if (r === 'stakeholder') {
     return (

@@ -4,6 +4,9 @@ import { canAccessManagerHub, isManagerHubPath } from '@/lib/manager-hub'
 import { canAccessRosterMobile, isRosterMobilePath } from '@/lib/roster-mobile'
 import { canAccessScansMobile, isScansMobilePath } from '@/lib/scans-mobile'
 import {
+  isAccountantBooksPath,
+  isAccountantPayrollPath,
+  isAccountantPayrollWrite,
   isAccountantRole,
   isFullAccessRole,
   isOperationsManagerRole,
@@ -107,10 +110,8 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
   if (isFullAccessRole(role)) return true
 
   if (isAccountantRole(role)) {
-    if (isStakeholderPeoplePath(pathname)) return true
-    if (pathname === '/accounting' || pathname.startsWith('/accounting/')) return true
-    if (pathname.startsWith('/api/accounting')) return true
-    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
+    if (isAccountantBooksPath(pathname)) return true
+    if (isAccountantPayrollPath(pathname)) return true
     if (pathname === '/api/financial/cashbook/categories') return true
     if (pathname.startsWith('/api/auth/')) return true
     if (pathname.startsWith('/api/rent-due/')) return true
@@ -197,9 +198,8 @@ export function apiWriteAllowedForRole(
   if (isFullAccessRole(role)) return true
   if (pathname.startsWith('/api/fuel-inventory')) return false
   if (isAccountantRole(role)) {
-    if (isStakeholderPeoplePath(pathname)) return true
-    if (pathname.startsWith('/api/accounting/journal')) return true
-    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
+    if (pathname.startsWith('/api/accounting')) return true
+    if (isAccountantPayrollWrite(pathname, method)) return true
     if (pathname.startsWith('/api/auth/')) return true
     if (isAccountantBillWrite(pathname, method)) return true
     return false

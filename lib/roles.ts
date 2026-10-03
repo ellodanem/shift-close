@@ -43,7 +43,7 @@ export function isOperationsManagerRole(role: string): boolean {
   return normalizeAppRole(role) === 'operations_manager'
 }
 
-/** Accountant login: People plus the accounting section. Not the station menu. */
+/** Accountant login: Accountant Books and payroll. Not the station menu. */
 export function isAccountantRole(role: string): boolean {
   return normalizeAppRole(role) === 'accountant'
 }
@@ -133,6 +133,31 @@ const STAKEHOLDER_PEOPLE_PREFIXES = [
 
 function pathMatchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
+}
+
+/** Accountant Books pages and their API. */
+export function isAccountantBooksPath(pathname: string): boolean {
+  return pathMatchesPrefix(pathname, '/accounting') || pathMatchesPrefix(pathname, '/api/accounting')
+}
+
+/**
+ * Payroll screens and the calls those screens make.
+ * Pay-period writes, the staff directory, and the rest of People stay closed.
+ */
+export function isAccountantPayrollPath(pathname: string): boolean {
+  if (pathMatchesPrefix(pathname, '/payroll')) return true
+  if (pathMatchesPrefix(pathname, '/pay-run')) return true
+  if (pathMatchesPrefix(pathname, '/api/pay-runs')) return true
+  if (pathname === '/api/attendance/pay-period') return true
+  if (pathname === '/api/pay-days') return true
+  return /^\/api\/staff\/[^/]+$/.test(pathname)
+}
+
+/** Pay-run changes, and the rate update a pay run saves onto a staff record. */
+export function isAccountantPayrollWrite(pathname: string, method: string): boolean {
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false
+  if (pathMatchesPrefix(pathname, '/api/pay-runs')) return true
+  return method === 'PATCH' && /^\/api\/staff\/[^/]+$/.test(pathname)
 }
 
 export function isStakeholderPeoplePath(pathname: string): boolean {
