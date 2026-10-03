@@ -886,6 +886,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
   const supervisorLike = isSupervisorLike(role)
   const skipFinancial = supervisorLike
   const skipFuelCharts = supervisorLike
+  const includeFuelComparisonWidget = !supervisorLike
 
   const monthKey = `${year}-${String(month).padStart(2, '0')}`
   const startDate = monthKey + '-01'
@@ -900,7 +901,6 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     upcoming,
     recentPayment,
     todayRoster,
-    fuelComparison,
     averageDeposit,
     arSummary,
     cashbookSummary,
@@ -914,7 +914,6 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     fetchDashboardUpcoming(),
     fetchRecentFuelPayment(),
     fetchDashboardToday(),
-    skipFuelCharts ? Promise.resolve([]) : fetchDashboardFuelComparison(),
     skipFuelCharts ? Promise.resolve(null) : fetchDashboardAverageDeposit(),
     skipFinancial ? Promise.resolve(null) : fetchCustomerArSummaryFirst(year, month),
     skipCashbookMtd ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
@@ -927,7 +926,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
         return null
       }),
     Promise.resolve({ lastClosedDay: null, cashbookLatest: null }),
-    stakeholder
+    includeFuelComparisonWidget
       ? fetchFuelComparisonWidgetDay(year, month).catch((err) => {
           console.error('fuel comparison widget day', err)
           return null
@@ -950,7 +949,7 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     upcoming,
     recentPayment,
     todayRoster,
-    fuelComparison,
+    fuelComparison: [] as Awaited<ReturnType<typeof fetchDashboardFuelComparison>>,
     averageDeposit,
     arSummary,
     cashbookSummary,

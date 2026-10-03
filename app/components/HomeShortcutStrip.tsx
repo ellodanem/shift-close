@@ -128,7 +128,7 @@ function Row({
           <ScrollArrow direction="left" onClick={() => scrollBy(-1)} />
           <div
             ref={scrollerRef}
-            className="flex min-w-0 flex-1 gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex w-full min-w-0 max-w-[calc(4*6.25rem+3*0.75rem)] gap-3 overflow-x-auto pb-1 sm:max-w-[calc(4*7.5rem+3*0.75rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {items.map((shortcut, i) => (
               <Tile
@@ -201,7 +201,7 @@ export default function HomeShortcutStrip() {
   }
 
   return (
-    <div className="mb-6 space-y-5 sm:mb-8 sm:space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       <Row
         title="Recently Used"
         items={recents}

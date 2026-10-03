@@ -148,15 +148,6 @@ interface CashbookSummary {
   entryCount: number
 }
 
-interface FuelComparisonDay {
-  date: string
-  priorDate: string
-  unleaded: number
-  diesel: number
-  prevUnleaded: number
-  prevDiesel: number
-}
-
 interface AverageDepositData {
   avgDepositMTD: number
   totalDepositsMTD: number
@@ -291,7 +282,6 @@ export default function DashboardPage() {
   const [lastClosedDay, setLastClosedDay] = useState<LastClosedDaySnapshot | null>(null)
   const [fuelComparisonRecordedDay, setFuelComparisonRecordedDay] = useState<FuelComparisonRecordedDay | null>(null)
   const [cashbookLatest, setCashbookLatest] = useState<CashbookLatestSnapshot | null>(null)
-  const [fuelComparison, setFuelComparison] = useState<FuelComparisonDay[]>([])
   const [averageDeposit, setAverageDeposit] = useState<AverageDepositData | null>(null)
   const [fuelMtdSold, setFuelMtdSold] = useState<FuelMtdSoldPayload | null>(null)
   const [fuelExpectancy, setFuelExpectancy] = useState<FuelExpectancyGlance | null>(null)
@@ -467,9 +457,6 @@ export default function DashboardPage() {
       setRecentPayment(data.recentPayment ?? null)
       setTodayRoster(data.todayRoster ?? null)
 
-      if (Array.isArray(data.fuelComparison)) setFuelComparison(data.fuelComparison)
-      else setFuelComparison([])
-
       const avg = data.averageDeposit
       if (avg && typeof avg.avgDepositMTD === 'number' && !avg.error) setAverageDeposit(avg)
       else setAverageDeposit(null)
@@ -630,10 +617,9 @@ export default function DashboardPage() {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   }
 
-  const visibleLayout = layout.filter((id) => {
-    if (id === 'fuel-volume' && fuelComparison.length === 0) return false
-    return true
-  })
+  const visibleLayout: DashboardWidgetId[] = layout.filter(
+    (id) => id !== 'fuel-volume' && id !== 'fuel-comparison-day'
+  )
 
   const showFuelMtdHero = visibleLayout.includes('fuel-mtd-deposit-block')
   const showRecentFuelPaymentHero = visibleLayout.includes('recent-fuel-payment')
@@ -1805,11 +1791,15 @@ export default function DashboardPage() {
     ? summary.year < todayParts[0] || (summary.year === todayParts[0] && summary.month < todayParts[1])
     : false
   const dashboardScopeHint = summary
-    ? isStakeholder
-      ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster = today · Fuel comparison = ${
-          selectedMonthIsPast ? 'last day of the month' : 'last recorded day'
-        }`
-      : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel chart = last 5 days`
+    ? isSupervisorLike
+      ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today`
+      : isStakeholder
+        ? `Monthly totals for ${summary.monthName} ${summary.year} · Roster = today · Fuel comparison = ${
+            selectedMonthIsPast ? 'last day of the month' : 'last recorded day'
+          }`
+        : `Monthly totals for ${summary.monthName} ${summary.year} · Roster and upcoming = today · Fuel comparison = ${
+            selectedMonthIsPast ? 'last day of the month' : 'last recorded day'
+          }`
     : 'Select a month to load summary data'
 
   return (
@@ -1822,7 +1812,10 @@ export default function DashboardPage() {
             Shortcuts stay on top. Dashboard insights stay below.
           </p>
         </div>
-        <HomeShortcutStrip />
+        <div className="mb-6 grid grid-cols-1 items-start gap-3 sm:mb-8 lg:grid-cols-2 lg:gap-4">
+          <HomeShortcutStrip />
+          {!isStakeholder ? <div className="min-w-0 self-start">{renderUpcomingCard()}</div> : null}
+        </div>
 
         <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
         <div className="mb-3 space-y-2">
@@ -1902,7 +1895,7 @@ export default function DashboardPage() {
           {summary ? renderThisMonthCard() : null}
           {showFuelMtdHero ? renderFuelMtdDepositBlock() : null}
           {renderTodayRosterCard()}
-          {isStakeholder ? renderFuelComparisonBarsCard() : renderUpcomingCard()}
+          {!isSupervisorLike ? renderFuelComparisonBarsCard() : null}
         </div>
 
         {showRecentFuelPaymentHero ? (
@@ -2351,86 +2344,6 @@ export default function DashboardPage() {
           </div>
         )}
             {id === 'fuel-expectancy' && renderFuelExpectancyCard()}
-            {id === 'fuel-volume' && fuelComparison.length > 0 && (() => {
-          const allVals = fuelComparison.flatMap(d => [d.unleaded, d.diesel, d.prevUnleaded, d.prevDiesel])
-          const maxVal = Math.max(...allVals, 1)
-          const BAR_HEIGHT_PX = 128
-          const px = (v: number) => `${Math.round((v / maxVal) * BAR_HEIGHT_PX)}px`
-          const shortDate = (d: string) => {
-            const dt = new Date(d + 'T12:00:00')
-            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          }
-          return (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-700">Fuel Volume — Last 5 Days</h3>
-                    <span className="text-xs text-gray-400">vs. same day prior year</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500"/><span>Unleaded</span></span>
-                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-800"/><span>Diesel</span></span>
-                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-200 border border-green-300"/><span>Prior yr</span></span>
-                  </div>
-                </div>
-                <div className="overflow-x-auto pb-1 -mx-1 px-1">
-                <div className="flex min-w-[320px] items-end gap-2 h-40 sm:gap-3">
-                  {fuelComparison.map((day) => (
-                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                      {/* Bar group */}
-                      <div className="w-full flex items-end justify-center gap-0.5 h-32">
-                        {/* Unleaded pair */}
-                        <div className="flex items-end gap-0.5 flex-1 justify-center">
-                          <div className="flex flex-col items-center">
-                            <span className="text-[9px] font-medium text-gray-700 mb-0.5 leading-tight">{day.unleaded > 0 ? `${Math.round(day.unleaded)}L` : ''}</span>
-                            <div
-                              title={`Unleaded ${shortDate(day.date)}: ${day.unleaded.toFixed(1)}L`}
-                              className="w-full max-w-[20px] bg-green-500 rounded-t transition-all cursor-default"
-                              style={{ height: px(day.unleaded), minHeight: day.unleaded > 0 ? '2px' : '0' }}
-                            />
-                          </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[9px] font-medium text-gray-500 mb-0.5 leading-tight">{day.prevUnleaded > 0 ? `${Math.round(day.prevUnleaded)}L` : ''}</span>
-                            <div
-                              title={`Unleaded ${shortDate(day.priorDate)} (prior yr): ${day.prevUnleaded.toFixed(1)}L`}
-                              className="w-full max-w-[20px] bg-green-200 border border-green-300 rounded-t transition-all cursor-default"
-                              style={{ height: px(day.prevUnleaded), minHeight: day.prevUnleaded > 0 ? '2px' : '0' }}
-                            />
-                          </div>
-                        </div>
-                        {/* Small gap between fuel types */}
-                        <div className="w-1" />
-                        {/* Diesel pair */}
-                        <div className="flex items-end gap-0.5 flex-1 justify-center">
-                          <div className="flex flex-col items-center">
-                            <span className="text-[9px] font-medium text-gray-700 mb-0.5 leading-tight">{day.diesel > 0 ? `${Math.round(day.diesel)}L` : ''}</span>
-                            <div
-                              title={`Diesel ${shortDate(day.date)}: ${day.diesel.toFixed(1)}L`}
-                              className="w-full max-w-[20px] bg-green-800 rounded-t transition-all cursor-default"
-                              style={{ height: px(day.diesel), minHeight: day.diesel > 0 ? '2px' : '0' }}
-                            />
-                          </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[9px] font-medium text-gray-500 mb-0.5 leading-tight">{day.prevDiesel > 0 ? `${Math.round(day.prevDiesel)}L` : ''}</span>
-                            <div
-                              title={`Diesel ${shortDate(day.priorDate)} (prior yr): ${day.prevDiesel.toFixed(1)}L`}
-                              className="w-full max-w-[20px] bg-green-100 border border-green-400 rounded-t transition-all cursor-default"
-                              style={{ height: px(day.prevDiesel), minHeight: day.prevDiesel > 0 ? '2px' : '0' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      {/* Date label */}
-                      <div className="text-xs text-gray-500 whitespace-nowrap">{shortDate(day.date)}</div>
-                      {/* Totals */}
-                      <div className="text-xs text-gray-400 whitespace-nowrap">{(day.unleaded + day.diesel).toFixed(0)}L</div>
-                    </div>
-                  ))}
-                </div>
-                </div>
-              </div>
-          )
-        })()}
             {id === 'recent-fuel-payment' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3.5 sm:p-4">
             {recentPayment ? (

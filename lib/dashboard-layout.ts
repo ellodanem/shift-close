@@ -27,7 +27,6 @@ const DEFAULT_LAYOUT: DashboardWidgetId[] = [
   'fuel-mtd-deposit-block',
   'customer-ar-glance',
   'fuel-expectancy',
-  'fuel-volume',
   'average-deposit',
   'recent-fuel-payment',
   'phase1-status'
