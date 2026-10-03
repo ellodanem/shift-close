@@ -405,6 +405,8 @@ export function BillsScreen() {
   const [billDue, setBillDue] = useState('')
   const [billTab, setBillTab] = useState<'unpaid' | 'paid'>('unpaid')
   const [paidSearch, setPaidSearch] = useState('')
+  const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
+  const [unpaidSearch, setUnpaidSearch] = useState('')
 
   const payable = books.openBills.filter((bill) => bill.status === 'pending')
   const chosen = payable.filter((bill) => selected.includes(`${bill.kind}:${bill.id}`))
@@ -446,6 +448,24 @@ export function BillsScreen() {
         [bill.date, bill.name, bill.ref, bill.account].some((value) => value.toLowerCase().includes(paidQuery))
       )
     : books.paidBills
+  const kindCounts = {
+    all: books.openBills.length,
+    fuel: books.openBills.filter((bill) => bill.kind === 'fuel').length,
+    vendor: books.openBills.filter((bill) => bill.kind === 'vendor').length,
+    overhead: books.openBills.filter((bill) => bill.kind === 'overhead').length
+  }
+  const unpaidQuery = unpaidSearch.trim().toLowerCase()
+  const visibleOpen = books.openBills.filter((bill) => {
+    if (kindFilter !== 'all' && bill.kind !== kindFilter) return false
+    if (!unpaidQuery) return true
+    return [bill.name, bill.number, bill.account].some((value) => value.toLowerCase().includes(unpaidQuery))
+  })
+  const kindChips: Array<{ id: 'all' | 'fuel' | 'vendor' | 'overhead'; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'fuel', label: 'Fuel' },
+    { id: 'vendor', label: 'Vendor' },
+    { id: 'overhead', label: 'Overhead' }
+  ]
 
   function toggle(key: string) {
     setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
@@ -660,6 +680,42 @@ export function BillsScreen() {
         )}
       </div>
       {billTab === 'unpaid' && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {kindChips.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => {
+                  setKindFilter(chip.id)
+                  setSelected([])
+                }}
+                className={`rounded-full px-3 py-1 text-sm font-medium ${
+                  kindFilter === chip.id
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {chip.label} ({kindCounts[chip.id]})
+              </button>
+            ))}
+          </div>
+          <div className="w-full sm:w-64">
+            <label className="sr-only" htmlFor="unpaid-bill-search">
+              Search unpaid bills
+            </label>
+            <input
+              id="unpaid-bill-search"
+              type="text"
+              value={unpaidSearch}
+              onChange={(e) => setUnpaidSearch(e.target.value)}
+              placeholder="Payee, number, or account"
+              className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
+            />
+          </div>
+        </div>
+      )}
+      {billTab === 'unpaid' && (
         <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
           <label className="text-sm">
             <span className="text-gray-600">Payment date</span>
@@ -707,8 +763,12 @@ export function BillsScreen() {
                 <tr>
                   <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
                 </tr>
+              ) : visibleOpen.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No bills match this filter.</td>
+                </tr>
               ) : (
-                books.openBills.map((bill) => {
+                visibleOpen.map((bill) => {
                   const key = `${bill.kind}:${bill.id}`
                   const canPay = bill.status === 'pending'
                   return (
