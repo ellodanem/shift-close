@@ -73,7 +73,7 @@ export async function hasRentInvoiceForMonth(year: number, month: number): Promi
     OR: [{ dueDate: { gte, lte } }, { invoiceDate: { gte, lte } }]
   }
 
-  const [pendingCount, paidCount] = await Promise.all([
+  const [pendingCount, paidCount, overheadCount] = await Promise.all([
     prisma.invoice.count({
       where: {
         type: 'Rent',
@@ -86,10 +86,23 @@ export async function hasRentInvoiceForMonth(year: number, month: number): Promi
         type: 'Rent',
         ...inMonth
       }
+    }),
+    prisma.vendorInvoice.count({
+      where: {
+        status: { in: ['pending', 'paid'] },
+        category: {
+          OR: [
+            { name: { equals: 'Rent', mode: 'insensitive' } },
+            { name: { equals: 'Mtnce', mode: 'insensitive' } },
+            { name: { equals: 'Maintenance', mode: 'insensitive' } }
+          ]
+        },
+        ...inMonth
+      }
     })
   ])
 
-  return pendingCount > 0 || paidCount > 0
+  return pendingCount > 0 || paidCount > 0 || overheadCount > 0
 }
 
 export async function getRentDueStatus(now = new Date()): Promise<RentDueStatus> {
@@ -132,7 +145,7 @@ export async function getRentDueStatus(now = new Date()): Promise<RentDueStatus>
 
 export function buildRentDueEmailHtml(status: RentDueStatus, kind: 'first' | 'daily'): string {
   const appUrl = getPublicAppUrlFromEnv()
-  const fuelPaymentsUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/fuel-payments` : '/fuel-payments'
+  const billsUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/accounting/bills` : '/accounting/bills'
   const intro =
     kind === 'first'
       ? `Rubis rent for <strong>${status.monthLabel}</strong> is due.`
@@ -142,10 +155,9 @@ export function buildRentDueEmailHtml(status: RentDueStatus, kind: 'first' | 'da
 <html>
 <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
   <p>${intro}</p>
-  <p>No Fuel Payments invoice with type <strong>Rent</strong> was found for this month
-  (pending or paid), based on invoice due date or invoice date.</p>
-  <p>Please enter the rent invoice in Fuel Payments so this alert clears.</p>
-  <p><a href="${fuelPaymentsUrl}">Open Fuel Payments</a></p>
+  <p>No rent bill was found for this month. Enter it as Overhead on Enter and pay bills, using the rent account from the cashbook
+  (or a Fuel Payments invoice of type Rent).</p>
+  <p><a href="${billsUrl}">Open Enter and pay bills</a></p>
   <p style="color:#666;font-size:12px;margin-top:24px">Automated reminder from Shift Close.</p>
 </body>
 </html>`

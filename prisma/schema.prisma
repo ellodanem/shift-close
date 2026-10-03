@@ -606,8 +606,11 @@ model VendorInvoice {
   vat           Float?   @default(0) // VAT / Prepaid Tax if included
   status        String   @default("pending") // 'pending' | 'paid'
   notes         String   @default("")
+  /// Set for Overhead bills. Null vendor bills post to Rec. Gen.
+  categoryId    String?  @map("category_id")
 
   vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category      CashbookCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   paidInvoice   PaidVendorInvoice?
 
   createdAt     DateTime @default(now()) @map("created_at")
@@ -616,6 +619,7 @@ model VendorInvoice {
   @@unique([vendorId, invoiceNumber])
   @@index([vendorId])
   @@index([status])
+  @@index([categoryId])
   @@map("vendor_invoices")
 }
 
@@ -950,7 +954,8 @@ model CashbookCategory {
   sortOrder Int      @default(0)
   active    Boolean  @default(true)
 
-  allocations CashbookAllocation[]
+  allocations    CashbookAllocation[]
+  vendorInvoices VendorInvoice[]
 
   @@map("cashbook_categories")
 }

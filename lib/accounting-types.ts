@@ -37,7 +37,7 @@ export type AgingRow = {
 
 export type OpenBill = {
   id: string
-  kind: 'fuel' | 'vendor'
+  kind: 'fuel' | 'vendor' | 'overhead'
   vendorId: string | null
   name: string
   number: string

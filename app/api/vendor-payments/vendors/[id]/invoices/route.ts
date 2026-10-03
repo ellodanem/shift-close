@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -26,7 +27,7 @@ export async function POST(
   try {
     const { id: vendorId } = await params
     const body = await request.json()
-    const { invoiceNumber, amount, invoiceDate, dueDate, vat, notes } = body
+    const { invoiceNumber, amount, invoiceDate, dueDate, vat, notes, categoryId } = body
 
     if (!invoiceNumber || amount === undefined || !invoiceDate) {
       return NextResponse.json(
@@ -57,6 +58,20 @@ export async function POST(
     const amt = Math.round(Number(amount) * 100) / 100
     const vatVal = vat !== undefined && vat !== null ? Math.round(Number(vat) * 100) / 100 : 0
 
+    let resolvedCategoryId: string | null = null
+    if (categoryId !== undefined && categoryId !== null && String(categoryId).trim() !== '') {
+      const category = await prisma.cashbookCategory.findFirst({
+        where: { id: String(categoryId).trim(), active: true }
+      })
+      if (!category || !isOverheadCashbookCategory(category)) {
+        return NextResponse.json(
+          { error: 'Choose a cashbook expense category that is not already used for vendor or fuel bills.' },
+          { status: 400 }
+        )
+      }
+      resolvedCategoryId = category.id
+    }
+
     const invoice = await prisma.vendorInvoice.create({
       data: {
         vendorId,
@@ -66,7 +81,8 @@ export async function POST(
         dueDate: dueDateObj,
         vat: vatVal,
         status: 'pending',
-        notes: (notes && String(notes).trim()) || ''
+        notes: (notes && String(notes).trim()) || '',
+        categoryId: resolvedCategoryId
       }
     })
 

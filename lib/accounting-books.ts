@@ -4,6 +4,7 @@ import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { roundMoney } from '@/lib/fuelPayments'
 import { listUncashedChecks } from '@/lib/uncashedChecks'
 import { type AccountingBooks, type VendorRow } from '@/lib/accounting-types'
+import { cashbookAccountLabel } from '@/lib/overhead-categories'
 import { buildReceivableAging } from '@/lib/receivable-aging'
 
 export function parseAccountingMonth(month: string): { start: string; end: string; year: number; monthNum: number } | null {
@@ -26,6 +27,15 @@ function fuelAccount(type: string): string {
   if (type === 'Fuel') return '3022 · Rec. Gas'
   if (type === 'Rent') return 'Mtnce'
   return '3021 · Rec. Gen'
+}
+
+function paidVendorAccount(
+  invoices: Array<{ vendorInvoice: { category: { name: string; code: string | null } | null } | null }>
+): string {
+  const labels = [
+    ...new Set(invoices.map((invoice) => cashbookAccountLabel(invoice.vendorInvoice?.category ?? null)))
+  ]
+  return labels.join(', ') || '3021 · Rec. Gen'
 }
 
 function ymdInRange(ymd: string, start: string, end: string): boolean {
@@ -94,7 +104,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     }),
     prisma.vendorInvoice.findMany({
       where: { status: 'pending' },
-      include: { vendor: true },
+      include: { vendor: true, category: true },
       orderBy: { invoiceDate: 'asc' }
     }),
     prisma.paymentBatch.findMany({
@@ -104,7 +114,10 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     }),
     prisma.vendorPaymentBatch.findMany({
       where: { paymentDate: { gte: rangeStart, lte: rangeEnd } },
-      include: { vendor: true },
+      include: {
+        vendor: true,
+        invoices: { include: { vendorInvoice: { include: { category: true } } } }
+      },
       orderBy: { paymentDate: 'asc' }
     }),
     prisma.vendor.findMany({
@@ -218,14 +231,14 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     })),
     ...vendorOpen.map((invoice) => ({
       id: invoice.id,
-      kind: 'vendor' as const,
+      kind: invoice.categoryId ? ('overhead' as const) : ('vendor' as const),
       vendorId: invoice.vendorId,
       name: invoice.vendor.name,
       number: invoice.invoiceNumber,
       date: toYmdInBusinessTz(invoice.invoiceDate),
       due: invoice.dueDate ? toYmdInBusinessTz(invoice.dueDate) : null,
       amount: roundMoney(invoice.amount + (invoice.vat ?? 0)),
-      account: '3021 · Rec. Gen',
+      account: cashbookAccountLabel(invoice.category),
       status: invoice.status
     }))
   ].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
@@ -247,7 +260,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
         name: batch.vendor.name,
         ref: batch.bankRef,
         amount: roundMoney(batch.totalAmount),
-        account: '3021 · Rec. Gen'
+        account: paidVendorAccount(batch.invoices)
       }))
   ].sort((a, b) => a.date.localeCompare(b.date))
 

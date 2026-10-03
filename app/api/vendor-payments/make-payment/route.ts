@@ -158,14 +158,26 @@ export async function POST(request: NextRequest) {
         }
 
         const recGenCat = await getOrCreateCategory('Rec. Gen', '3021')
-        const allocations = [{ categoryId: recGenCat.id, amount: totalAmount }]
+        const byCategory = new Map<string, number>()
+        for (const inv of invoices) {
+          const categoryKey = inv.categoryId || recGenCat.id
+          const lineAmount = vendorInvoiceTotal(inv.amount, inv.vat)
+          byCategory.set(categoryKey, roundMoney((byCategory.get(categoryKey) ?? 0) + lineAmount))
+        }
+        const allocations = [...byCategory.entries()].map(([categoryId, amount]) => ({ categoryId, amount }))
+        const allocated = roundMoney(allocations.reduce((sum, line) => sum + line.amount, 0))
+        const drift = roundMoney(totalAmount - allocated)
+        if (drift !== 0 && allocations[0]) allocations[0].amount = roundMoney(allocations[0].amount + drift)
+        const overheadOnly = invoices.every((inv) => inv.categoryId)
+        const description = overheadOnly
+          ? `Overhead (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`
+          : `Vendor payment (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`
 
-        const debitField = method === 'check' ? 'debitCheck' : 'debitEcard'
         await prisma.cashbookEntry.create({
           data: {
             date: paymentDateStr,
             ref: String(bankRef).trim(),
-            description: `Vendor payment (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`,
+            description,
             debitCash: 0,
             debitCheck: method === 'check' ? totalAmount : 0,
             debitEcard: method === 'eft' ? totalAmount : 0,

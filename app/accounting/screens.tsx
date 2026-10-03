@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { isFullAccessRole } from '@/lib/roles'
 import type { AccountingBooks } from '@/lib/accounting-types'
 import { useAuth } from '@/app/components/AuthContext'
@@ -181,7 +182,7 @@ export function OverviewScreen() {
           href={vendorHref}
           title="Vendors"
           amount={books.accountsPayableVendors}
-          note="Pending bills"
+          note="Pending vendor and overhead bills"
           link={vendorHref.startsWith('/accounting') ? 'Open vendors' : 'Open vendor bills'}
         />
         <PayableLink
@@ -371,7 +372,14 @@ export function AgingScreen() {
   )
 }
 
-const FUEL_BILL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment']
+const FUEL_BILL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Uniforms', 'Loyalty', 'Balance Payment']
+
+type OverheadCategory = {
+  id: string
+  name: string
+  code: string | null
+  type: string
+}
 
 export function BillsScreen() {
   const books = useBooks()
@@ -385,22 +393,59 @@ export function BillsScreen() {
   const [payDate, setPayDate] = useState(books.asOf)
   const [bankRef, setBankRef] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'check' | 'eft'>('check')
-  const [billKind, setBillKind] = useState<'vendor' | 'fuel'>('vendor')
+  const [billKind, setBillKind] = useState<'vendor' | 'fuel' | 'overhead'>('vendor')
   const [vendorId, setVendorId] = useState('')
   const [fuelType, setFuelType] = useState('Fuel')
+  const [categoryId, setCategoryId] = useState('')
+  const [categories, setCategories] = useState<OverheadCategory[]>([])
+  const [categoriesReady, setCategoriesReady] = useState(false)
   const [billNumber, setBillNumber] = useState('')
   const [billAmount, setBillAmount] = useState('')
   const [billDate, setBillDate] = useState(books.asOf)
   const [billDue, setBillDue] = useState('')
+  const [billTab, setBillTab] = useState<'unpaid' | 'paid'>('unpaid')
+  const [paidSearch, setPaidSearch] = useState('')
 
   const payable = books.openBills.filter((bill) => bill.status === 'pending')
   const chosen = payable.filter((bill) => selected.includes(`${bill.kind}:${bill.id}`))
   const kinds = new Set(chosen.map((bill) => bill.kind))
   const vendorIds = new Set(chosen.map((bill) => bill.vendorId).filter(Boolean))
-  const onePayee = chosen.length > 0 && kinds.size === 1 && (kinds.has('fuel') || vendorIds.size === 1)
+  const vendorPayee =
+    chosen.length > 0 && chosen.every((bill) => bill.kind === 'vendor' || bill.kind === 'overhead') && vendorIds.size === 1
+  const fuelPayee = chosen.length > 0 && kinds.size === 1 && kinds.has('fuel')
+  const onePayee = vendorPayee || fuelPayee
   const payTotal = chosen.reduce((sum, bill) => sum + bill.amount, 0)
   const payeeName = chosen[0]?.kind === 'fuel' ? 'Fuel' : chosen[0]?.name ?? ''
   const vendorChoices = books.vendors.filter((vendor) => vendor.id)
+  const needsPayee = billKind === 'vendor' || billKind === 'overhead'
+
+  useEffect(() => {
+    if (!showEnter) return
+    let cancelled = false
+    setCategoriesReady(false)
+    void fetch('/api/financial/cashbook/categories')
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled || !Array.isArray(data)) return
+        setCategories((data as OverheadCategory[]).filter((category) => isOverheadCashbookCategory(category)))
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([])
+      })
+      .finally(() => {
+        if (!cancelled) setCategoriesReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showEnter])
+  const paidQuery = paidSearch.trim().toLowerCase()
+  const visiblePaid = paidQuery
+    ? books.paidBills.filter((bill) =>
+        [bill.date, bill.name, bill.ref, bill.account].some((value) => value.toLowerCase().includes(paidQuery))
+      )
+    : books.paidBills
 
   function toggle(key: string) {
     setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
@@ -453,6 +498,10 @@ export function BillsScreen() {
       setError('Number, date, and amount are required.')
       return
     }
+    if (billKind === 'overhead' && !categoryId) {
+      setError('Choose the cashbook account for this bill.')
+      return
+    }
     setEntering(true)
     setError(null)
     setMessage(null)
@@ -471,7 +520,8 @@ export function BillsScreen() {
                 invoiceNumber: billNumber.trim(),
                 amount,
                 invoiceDate: billDate,
-                dueDate: billDue || null
+                dueDate: billDue || null,
+                ...(billKind === 'overhead' ? { categoryId } : {})
               })
             })
       const data = await res.json().catch(() => ({}))
@@ -494,7 +544,7 @@ export function BillsScreen() {
       <BooksBackLink />
       <PageTitle
         title="Enter and pay bills"
-        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. Payment uses the same check, balance, and cashbook path as the station."
+        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. Overhead uses the cashbook’s other expense accounts and pays that payee."
       />
       <div className="mb-4">
         <button
@@ -510,10 +560,11 @@ export function BillsScreen() {
           <div className="flex gap-2">
             <button type="button" onClick={() => setBillKind('vendor')} className={`rounded px-3 py-1 text-sm ${billKind === 'vendor' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Vendor</button>
             <button type="button" onClick={() => setBillKind('fuel')} className={`rounded px-3 py-1 text-sm ${billKind === 'fuel' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Fuel</button>
+            <button type="button" onClick={() => setBillKind('overhead')} className={`rounded px-3 py-1 text-sm ${billKind === 'overhead' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Overhead</button>
           </div>
-          {billKind === 'vendor' ? (
+          {needsPayee ? (
             <label className="block text-sm">
-              <span className="text-gray-600">Vendor</span>
+              <span className="text-gray-600">{billKind === 'overhead' ? 'Payee' : 'Vendor'}</span>
               <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
                 <option value="">Select…</option>
                 {vendorChoices.map((vendor) => (
@@ -531,6 +582,22 @@ export function BillsScreen() {
               </select>
             </label>
           )}
+          {billKind === 'overhead' && (
+            <label className="block text-sm">
+              <span className="text-gray-600">Account</span>
+              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
+                <option value="">Select…</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.code ? `${category.code} · ${category.name}` : category.name}
+                  </option>
+                ))}
+              </select>
+              {categoriesReady && categories.length === 0 && (
+                <span className="mt-1 block text-xs text-gray-500">Add the account in Cashbook first. Rec. Gen and Rec. Gas stay on Vendor and Fuel.</span>
+              )}
+            </label>
+          )}
           <label className="block text-sm">
             <span className="text-gray-600">Number</span>
             <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
@@ -543,90 +610,135 @@ export function BillsScreen() {
             <span className="text-gray-600">Date</span>
             <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
           </label>
-          {billKind === 'vendor' && (
+          {needsPayee && (
             <label className="block text-sm">
               <span className="text-gray-600">Due</span>
               <input type="date" value={billDue} onChange={(e) => setBillDue(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
             </label>
           )}
-          <button type="button" disabled={entering || (billKind === 'vendor' && !vendorId)} onClick={() => void enterBill()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          <button type="button" disabled={entering || (needsPayee && !vendorId) || (billKind === 'overhead' && !categoryId)} onClick={() => void enterBill()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             {entering ? 'Saving…' : 'Save bill'}
           </button>
         </div>
       )}
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
-        <label className="text-sm">
-          <span className="text-gray-600">Payment date</span>
-          <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="text-sm">
-          <span className="text-gray-600">Check or reference</span>
-          <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
-        </label>
-        {chosen[0]?.kind === 'vendor' && (
-          <label className="text-sm">
-            <span className="text-gray-600">How paid</span>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value === 'eft' ? 'eft' : 'check')} className="mt-1 block rounded border border-gray-300 px-2 py-1">
-              <option value="check">Check</option>
-              <option value="eft">EFT</option>
-            </select>
-          </label>
+      <div className="mb-4 flex flex-col gap-3 border-b border-gray-200 pb-3 md:flex-row md:items-end md:justify-between">
+        <div className="flex gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setBillTab('unpaid')}
+            className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
+              billTab === 'unpaid'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Unpaid ({books.openBills.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillTab('paid')}
+            className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
+              billTab === 'paid'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Paid ({books.paidBills.length})
+          </button>
+        </div>
+        {billTab === 'paid' && (
+          <div className="w-full md:w-64">
+            <label className="mb-1 block text-xs font-medium text-gray-500">Search paid</label>
+            <input
+              type="text"
+              value={paidSearch}
+              onChange={(e) => setPaidSearch(e.target.value)}
+              placeholder="Payee, ref, or account"
+              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
+            />
+          </div>
         )}
-        <button type="button" disabled={paying || !onePayee || !payDate || !bankRef.trim()} onClick={() => void pay()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-          {paying ? 'Paying…' : onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
-        </button>
-        <p className="text-sm text-gray-600">
-          {chosen.length === 0 ? 'Select pending bills for one payee.' : onePayee ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.` : 'Fuel bills pay as one group. Each vendor pays separately.'}
-        </p>
       </div>
+      {billTab === 'unpaid' && (
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <label className="text-sm">
+            <span className="text-gray-600">Payment date</span>
+            <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="text-sm">
+            <span className="text-gray-600">Check or reference</span>
+            <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 block rounded border border-gray-300 px-2 py-1" />
+          </label>
+          {(chosen[0]?.kind === 'vendor' || chosen[0]?.kind === 'overhead') && (
+            <label className="text-sm">
+              <span className="text-gray-600">How paid</span>
+              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value === 'eft' ? 'eft' : 'check')} className="mt-1 block rounded border border-gray-300 px-2 py-1">
+                <option value="check">Check</option>
+                <option value="eft">EFT</option>
+              </select>
+            </label>
+          )}
+          <button type="button" disabled={paying || !onePayee || !payDate || !bankRef.trim()} onClick={() => void pay()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {paying ? 'Paying…' : onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
+          </button>
+          <p className="text-sm text-gray-600">
+            {chosen.length === 0 ? 'Select pending bills for one payee.' : onePayee ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.` : 'Fuel bills pay as one group. Vendor and overhead bills pay by payee.'}
+          </p>
+        </div>
+      )}
       {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="mb-3 text-sm text-green-700">{message}</p> : null}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-3 py-2" />
-              <th className="px-3 py-2">Payee</th>
-              <th className="px-3 py-2">Number</th>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Due</th>
-              <th className="px-3 py-2">Account</th>
-              <th className="px-3 py-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {books.openBills.length === 0 ? (
+      {billTab === 'unpaid' ? (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2">Payee</th>
+                <th className="px-3 py-2">Number</th>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Due</th>
+                <th className="px-3 py-2">Account</th>
+                <th className="px-3 py-2 text-right">Amount</th>
               </tr>
-            ) : (
-              books.openBills.map((bill) => {
-                const key = `${bill.kind}:${bill.id}`
-                const canPay = bill.status === 'pending'
-                return (
-                  <tr key={key} className="border-t border-gray-100">
-                    <td className="px-3 py-2">
-                      <input type="checkbox" checked={selected.includes(key)} disabled={!canPay} onChange={() => toggle(key)} aria-label={`Select ${bill.name} ${bill.number}`} />
-                    </td>
-                    <td className="px-3 py-2">{bill.name}{!canPay ? <span className="ml-2 text-xs text-amber-700">{bill.status}</span> : null}</td>
-                    <td className="px-3 py-2">{bill.number}</td>
-                    <td className="px-3 py-2">{bill.date}</td>
-                    <td className="px-3 py-2">{bill.due ?? '—'}</td>
-                    <td className="px-3 py-2">{bill.account}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Paid this month</h2>
-      <DataTable
-        headers={['Date', 'Payee', 'Ref', 'Account', 'Amount']}
-        align={['left', 'left', 'left', 'left', 'right']}
-        rows={books.paidBills.map((bill) => [bill.date, bill.name, bill.ref, bill.account, money(bill.amount)])}
-      />
+            </thead>
+            <tbody>
+              {books.openBills.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
+                </tr>
+              ) : (
+                books.openBills.map((bill) => {
+                  const key = `${bill.kind}:${bill.id}`
+                  const canPay = bill.status === 'pending'
+                  return (
+                    <tr key={key} className="border-t border-gray-100">
+                      <td className="px-3 py-2">
+                        <input type="checkbox" checked={selected.includes(key)} disabled={!canPay} onChange={() => toggle(key)} aria-label={`Select ${bill.name} ${bill.number}`} />
+                      </td>
+                      <td className="px-3 py-2">{bill.name}{!canPay ? <span className="ml-2 text-xs text-amber-700">{bill.status}</span> : null}</td>
+                      <td className="px-3 py-2">{bill.number}</td>
+                      <td className="px-3 py-2">{bill.date}</td>
+                      <td className="px-3 py-2">{bill.due ?? '—'}</td>
+                      <td className="px-3 py-2">{bill.account}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-gray-600">Payments recorded in the month selected above.</p>
+          <DataTable
+            headers={['Date', 'Payee', 'Ref', 'Account', 'Amount']}
+            align={['left', 'left', 'left', 'left', 'right']}
+            rows={visiblePaid.map((bill) => [bill.date, bill.name, bill.ref, bill.account, money(bill.amount)])}
+          />
+        </>
+      )}
     </div>
   )
 }
