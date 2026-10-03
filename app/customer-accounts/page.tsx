@@ -13,6 +13,7 @@ import {
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
 import { formatAmount } from '@/lib/fuelPayments'
+import { isAccountantRole, isFullAccessRole } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
 import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
@@ -57,6 +58,24 @@ interface CustomerArPaymentRecord {
   notes: string | null
 }
 
+interface ReceivableAgingStrip {
+  open: number
+  d0_30: number
+  d31_60: number
+  d61_90: number
+  d90: number
+  unaged: number
+}
+
+const EMPTY_AGING: ReceivableAgingStrip = {
+  open: 0,
+  d0_30: 0,
+  d31_60: 0,
+  d61_90: 0,
+  d90: 0,
+  unaged: 0
+}
+
 function monthDateRange(monthKey: string): { startDate: string; endDate: string } {
   const [y, m] = monthKey.split('-').map(Number)
   const lastDay = new Date(y, m, 0).getDate()
@@ -90,8 +109,39 @@ function MonthParamSync({
   return null
 }
 
+function AgingStat({
+  label,
+  amount,
+  emphasize,
+  warn
+}: {
+  label: string
+  amount: number
+  emphasize?: boolean
+  warn?: boolean
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-3 sm:p-4 ${
+        warn
+          ? 'border-amber-200 bg-amber-50/70'
+          : emphasize
+            ? 'border-indigo-200 bg-indigo-50/50'
+            : 'border-gray-200 bg-white'
+      }`}
+    >
+      <div className={`text-xs font-medium ${warn ? 'text-amber-800' : emphasize ? 'text-indigo-800' : 'text-gray-500'}`}>
+        {label}
+      </div>
+      <div className={`mt-1 font-mono text-lg font-semibold sm:text-xl ${warn ? 'text-amber-950' : 'text-gray-900'}`}>
+        {formatAmount(amount)}
+      </div>
+    </div>
+  )
+}
+
 export default function CustomerAccountsPage() {
-  const { isStakeholder } = useAuth()
+  const { isStakeholder, user } = useAuth()
   const readOnly = isStakeholder
   const today = new Date()
   const defaultMonth = `${today.getFullYear()}-${String(
@@ -101,8 +151,10 @@ export default function CustomerAccountsPage() {
   const excelInputRef = useRef<HTMLInputElement>(null)
   const [summaries, setSummaries] = useState<CustomerArSummary[]>([])
   const [accounts, setAccounts] = useState<CustomerArAccount[]>([])
+  const [aging, setAging] = useState<ReceivableAgingStrip>(EMPTY_AGING)
   const [loading, setLoading] = useState(true)
   const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [loadingAging, setLoadingAging] = useState(false)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
   const [workingMonth, setWorkingMonth] = useState<string>(defaultMonth)
@@ -176,18 +228,28 @@ export default function CustomerAccountsPage() {
     }
 
     setLoadingAccounts(true)
+    setLoadingAging(true)
     try {
-      const res = await fetch(
-        `/api/customer-accounts/accounts?year=${year}&month=${month}`
-      )
-      if (!res.ok) throw new Error('Failed to fetch customer accounts')
-      const data = await res.json()
+      const [accountsRes, agingRes] = await Promise.all([
+        fetch(`/api/customer-accounts/accounts?year=${year}&month=${month}`),
+        fetch(`/api/customer-accounts/aging?year=${year}&month=${month}`)
+      ])
+      if (!accountsRes.ok) throw new Error('Failed to fetch customer accounts')
+      const data = await accountsRes.json()
       setAccounts(data)
+      if (agingRes.ok) {
+        const strip = (await agingRes.json()) as ReceivableAgingStrip
+        setAging(strip)
+      } else {
+        setAging(EMPTY_AGING)
+      }
     } catch (error) {
       console.error(error)
       setAccounts([])
+      setAging(EMPTY_AGING)
     } finally {
       setLoadingAccounts(false)
+      setLoadingAging(false)
     }
   }, [])
 
@@ -819,6 +881,36 @@ export default function CustomerAccountsPage() {
               )}
             </div>
         </div>
+        )}
+
+        {!loadingAging && (
+          <div className="mb-6">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold text-gray-800">Still owed</h2>
+              {(isFullAccessRole(user?.role ?? '') || isAccountantRole(user?.role ?? '')) && (
+                <Link
+                  href={`/accounting/aging?month=${workingMonth}`}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                >
+                  Open aging
+                </Link>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <AgingStat label="Open" amount={aging.open} emphasize />
+              <AgingStat label="0–30" amount={aging.d0_30} />
+              <AgingStat label="31–60" amount={aging.d31_60} />
+              <AgingStat label="61–90" amount={aging.d61_90} />
+              <AgingStat label="90+" amount={aging.d90} warn={aging.d90 > 0.004} />
+            </div>
+            {aging.unaged > 0.004 ? (
+              <p className="mt-2 text-xs text-gray-500">
+                Unaged {formatAmount(aging.unaged)}. Those balances have no ledger lines to age. Oldest charges are cleared first.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-gray-500">Oldest charges are cleared first.</p>
+            )}
+          </div>
         )}
 
         {!loadingAccounts && accounts.length > 0 && (

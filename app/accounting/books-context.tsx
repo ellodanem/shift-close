@@ -31,6 +31,11 @@ export function AccountingShell({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setTick((n) => n + 1), [])
 
   useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('month')
+    if (requested && /^\d{4}-\d{2}$/.test(requested)) setMonth(requested)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)

@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { isFullAccessRole } from '@/lib/roles'
 import type { AccountingBooks } from '@/lib/accounting-types'
+import { useAuth } from '@/app/components/AuthContext'
 import { useAccountingBooks } from './books-context'
 
 export function money(amount: number): string {
@@ -115,10 +117,15 @@ const PAYMENT_OPTIONS = [
 
 export function OverviewScreen() {
   const books = useBooks()
+  const { user } = useAuth()
+  const role = user?.role ?? ''
   const assets = books.westlineOnFile + books.serviceStationOnFile + books.accountsReceivable
   const liabilities = books.accountsPayableFuel + books.accountsPayableVendors + books.payrollPayable
   const asOfLabel = journalDateLabel(books.asOf) || books.asOf
   const receivables = books.customers.filter((customer) => customer.closing !== 0)
+  const fuelHref = isFullAccessRole(role) ? '/fuel-payments/invoices' : '/accounting/bills'
+  const vendorHref = isFullAccessRole(role) ? '/vendor-payments/invoices' : '/accounting/vendors'
+  const payrollHref = '/payroll'
   const balanceRows: Array<{ account: string; debit: number | null; credit: number | null; total?: boolean }> = [
     { account: '101 · Westline chequing', debit: books.westlineOnFile, credit: null },
     { account: '102 · Service Station chequing', debit: books.serviceStationOnFile, credit: null },
@@ -153,6 +160,30 @@ export function OverviewScreen() {
       <p className="mb-6 text-sm text-gray-600">
         Deposits and card totals already arrive from closed shifts. House-account charges already arrive from the close. This overview reads those balances.
       </p>
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">Payables</h2>
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <PayableLink
+          href={fuelHref}
+          title="Fuel"
+          amount={books.accountsPayableFuel}
+          note="Unpaid and simulated invoices"
+          link={fuelHref.startsWith('/accounting') ? 'Enter & pay bills' : 'Open fuel invoices'}
+        />
+        <PayableLink
+          href={vendorHref}
+          title="Vendors"
+          amount={books.accountsPayableVendors}
+          note="Pending bills"
+          link={vendorHref.startsWith('/accounting') ? 'Open vendors' : 'Open vendor bills'}
+        />
+        <PayableLink
+          href={payrollHref}
+          title="Payroll"
+          amount={books.payrollPayable}
+          note="Approved runs whose pay date is still ahead"
+          link="Open pay runs"
+        />
+      </div>
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Account balances as of {asOfLabel}</h2>
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="min-w-full text-sm">
@@ -206,6 +237,29 @@ export function OverviewScreen() {
         rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
       />
     </div>
+  )
+}
+
+function PayableLink({
+  href,
+  title,
+  amount,
+  note,
+  link
+}: {
+  href: string
+  title: string
+  amount: number
+  note: string
+  link: string
+}) {
+  return (
+    <Link href={href} className="rounded-lg border border-gray-200 bg-white p-4 hover:border-indigo-300">
+      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{money(amount)}</p>
+      <p className="mt-1 text-xs text-gray-500">{note}</p>
+      <p className="mt-3 text-sm font-semibold text-indigo-600">{link}</p>
+    </Link>
   )
 }
 

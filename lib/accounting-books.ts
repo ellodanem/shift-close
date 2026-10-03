@@ -3,7 +3,8 @@ import { businessTodayYmd, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { roundMoney } from '@/lib/fuelPayments'
 import { listUncashedChecks } from '@/lib/uncashedChecks'
-import { agingFromLines, type AccountingBooks, type AgingRow, type CustomerRow, type VendorRow } from '@/lib/accounting-types'
+import { type AccountingBooks, type VendorRow } from '@/lib/accounting-types'
+import { buildReceivableAging } from '@/lib/receivable-aging'
 
 export function parseAccountingMonth(month: string): { start: string; end: string; year: number; monthNum: number } | null {
   const match = /^(\d{4})-(\d{2})$/.exec(month.trim())
@@ -192,57 +193,15 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     }
   }
 
-  const snapByName = new Map(snapshots.map((snap) => [snap.account.trim().toLowerCase(), snap]))
-  const names = new Set<string>()
-  for (const snap of snapshots) if (snap.account.trim()) names.add(snap.account.trim())
-  for (const name of linesByAccount.keys()) names.add(name)
-
-  const customers: CustomerRow[] = []
-  const aging: AgingRow[] = []
-  for (const name of [...names].sort((a, b) => a.localeCompare(b))) {
-    const snap = snapByName.get(name.toLowerCase())
-    const lines = linesByAccount.get(name) ?? []
-    const buckets = lines.length > 0 ? agingFromLines(lines, end) : null
-    const closing = buckets ? buckets.total : roundMoney(snap?.closing ?? 0)
-    const opening = roundMoney(snap?.opening ?? 0)
-    const charges = roundMoney(snap?.charges ?? 0)
-    const paid = roundMoney(snap?.payments ?? 0)
-    if (closing === 0 && opening === 0 && charges === 0 && paid === 0) continue
-    customers.push({
-      name,
-      opening,
-      charges,
-      payments: paid,
-      closing: snap ? roundMoney(snap.closing) : closing,
-      lastPayment: lastPay.get(name) ?? null
-    })
-    if (buckets && buckets.total > 0) {
-      aging.push({
-        name,
-        total: buckets.total,
-        d0_30: buckets.d0_30,
-        d31_60: buckets.d31_60,
-        d61_90: buckets.d61_90,
-        d90: buckets.d90,
-        unaged: 0
-      })
-    } else if (snap && snap.closing > 0.004) {
-      aging.push({
-        name,
-        total: roundMoney(snap.closing),
-        d0_30: 0,
-        d31_60: 0,
-        d61_90: 0,
-        d90: 0,
-        unaged: roundMoney(snap.closing)
-      })
-    }
-  }
-
-  const accountsReceivable = roundMoney(
-    aging.reduce((sum, row) => sum + row.total, 0) ||
-      snapshots.reduce((sum, snap) => sum + (snap.closing || 0), 0)
-  )
+  const receivable = buildReceivableAging({
+    end,
+    snapshots,
+    lines: ledgerLines,
+    lastPaymentByAccount: lastPay
+  })
+  const customers = receivable.customers
+  const aging = receivable.aging
+  const accountsReceivable = receivable.accountsReceivable
 
   const openBills = [
     ...fuelOpen.map((invoice) => ({
