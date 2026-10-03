@@ -406,6 +406,7 @@ export function BillsScreen() {
   const [billTab, setBillTab] = useState<'unpaid' | 'paid'>('unpaid')
   const [paidSearch, setPaidSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
+  const [vendorFilter, setVendorFilter] = useState('')
   const [unpaidSearch, setUnpaidSearch] = useState('')
 
   const payable = books.openBills.filter((bill) => bill.status === 'pending')
@@ -454,9 +455,21 @@ export function BillsScreen() {
     vendor: books.openBills.filter((bill) => bill.kind === 'vendor').length,
     overhead: books.openBills.filter((bill) => bill.kind === 'overhead').length
   }
+  const openVendors = (() => {
+    const byId = new Map<string, { id: string; name: string; count: number }>()
+    for (const bill of books.openBills) {
+      if (bill.kind !== 'vendor' || !bill.vendorId) continue
+      const row = byId.get(bill.vendorId)
+      if (row) row.count += 1
+      else byId.set(bill.vendorId, { id: bill.vendorId, name: bill.name, count: 1 })
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+  })()
+  const activeVendorId = kindFilter === 'vendor' && openVendors.some((vendor) => vendor.id === vendorFilter) ? vendorFilter : ''
   const unpaidQuery = unpaidSearch.trim().toLowerCase()
   const visibleOpen = books.openBills.filter((bill) => {
     if (kindFilter !== 'all' && bill.kind !== kindFilter) return false
+    if (activeVendorId && bill.vendorId !== activeVendorId) return false
     if (!unpaidQuery) return true
     return [bill.name, bill.number, bill.account].some((value) => value.toLowerCase().includes(unpaidQuery))
   })
@@ -700,6 +713,26 @@ export function BillsScreen() {
               </button>
             ))}
           </div>
+          {kindFilter === 'vendor' && (
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Vendor</span>
+              <select
+                value={activeVendorId}
+                onChange={(e) => {
+                  setVendorFilter(e.target.value)
+                  setSelected([])
+                }}
+                className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:min-h-0 sm:w-64"
+              >
+                <option value="">All vendors</option>
+                {openVendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.name} ({vendor.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="w-full sm:w-64">
             <label className="sr-only" htmlFor="unpaid-bill-search">
               Search unpaid bills
