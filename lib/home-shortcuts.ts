@@ -3,6 +3,7 @@ import { MANAGER_HUB_PATH, canAccessManagerHub } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH, canAccessScansMobile } from '@/lib/scans-mobile'
 import {
+  isAccountantBooksPath,
   isAccountantPayrollPath,
   isFullAccessRole,
   isOperationsManagerRole,
@@ -384,7 +385,8 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       href === SCANS_MOBILE_PATH ||
       isStakeholderPeoplePath(href) ||
       isStakeholderFuelComparisonPath(href) ||
-      isStakeholderBooksPath(href)
+      isStakeholderBooksPath(href) ||
+      isAccountantBooksPath(href)
     )
   }
   if (isSupervisorLike(role)) {

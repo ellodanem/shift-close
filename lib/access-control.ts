@@ -125,7 +125,9 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (
       isStakeholderPeoplePath(pathname) ||
       isStakeholderFuelComparisonPath(pathname) ||
-      isStakeholderBooksPath(pathname)
+      isStakeholderBooksPath(pathname) ||
+      isAccountantBooksPath(pathname) ||
+      isAccountantBillPath(pathname)
     ) {
       return true
     }
@@ -208,6 +210,8 @@ export function apiWriteAllowedForRole(
   }
   if (normalizeAppRole(role) === 'stakeholder') {
     if (isStakeholderPeoplePath(pathname)) return true
+    if (pathname.startsWith('/api/accounting')) return true
+    if (isAccountantBillWrite(pathname, method)) return true
     return (
       pathname.startsWith('/api/auth/') ||
       pathname.startsWith('/api/insights/') ||

@@ -13,7 +13,7 @@ import {
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
 import { formatAmount } from '@/lib/fuelPayments'
-import { isAccountantRole, isFullAccessRole } from '@/lib/roles'
+import { canUseAccountingModule } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
 import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
@@ -887,7 +887,7 @@ export default function CustomerAccountsPage() {
           <div className="mb-6">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-800">Still owed</h2>
-              {(isFullAccessRole(user?.role ?? '') || isAccountantRole(user?.role ?? '')) && (
+              {canUseAccountingModule(user?.role ?? '') && (
                 <Link
                   href={`/accounting/aging?month=${workingMonth}`}
                   className="text-sm font-medium text-indigo-600 hover:text-indigo-800"

@@ -292,6 +292,8 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       href === '/dashboard' ||
       href.startsWith('/insights/') ||
       href === '/financial/deposit-comparisons' ||
+      href === '/accounting' ||
+      href.startsWith('/accounting/') ||
       isStakeholderPeoplePath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       isStakeholderBooksPath(href)
@@ -495,6 +497,12 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
       label: 'Insights',
       items: insightsItems
     })
+  }
+
+  if (nr === 'stakeholder') {
+    const financialIdx = groups.findIndex((g) => g.label === 'Financial')
+    const insertAt = financialIdx >= 0 ? financialIdx + 1 : groups.length
+    groups.splice(insertAt, 0, { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS })
   }
 
   return groups

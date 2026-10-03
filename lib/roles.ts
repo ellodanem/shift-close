@@ -48,8 +48,13 @@ export function isAccountantRole(role: string): boolean {
   return normalizeAppRole(role) === 'accountant'
 }
 
+/** Accountant Books: admin, manager, accountant, and stakeholder. */
 export function canUseAccountingModule(role: string): boolean {
-  return isFullAccessRole(role) || isAccountantRole(role)
+  return (
+    isFullAccessRole(role) ||
+    isAccountantRole(role) ||
+    normalizeAppRole(role) === 'stakeholder'
+  )
 }
 
 /** Where a forbidden page sends this role, and where accountant lands with no home path. */
