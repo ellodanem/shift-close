@@ -5,6 +5,7 @@ import { roundMoney } from '@/lib/fuelPayments'
 import { listUncashedChecks } from '@/lib/uncashedChecks'
 import { type AccountingBooks, type VendorRow } from '@/lib/accounting-types'
 import { cashbookAccountLabel } from '@/lib/overhead-categories'
+import { isOverheadPayeeNote } from '@/lib/overhead-payee'
 import { buildReceivableAging } from '@/lib/receivable-aging'
 
 export function parseAccountingMonth(month: string): { start: string; end: string; year: number; monthNum: number } | null {
@@ -270,7 +271,8 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     id: vendor.id,
     name: vendor.name,
     openAmount: roundMoney(vendor.invoices.reduce((sum, invoice) => sum + invoice.amount + (invoice.vat ?? 0), 0)),
-    lastPayment: vendor.batches[0] ? toYmdInBusinessTz(vendor.batches[0].paymentDate) : null
+    lastPayment: vendor.batches[0] ? toYmdInBusinessTz(vendor.batches[0].paymentDate) : null,
+    overheadPayee: isOverheadPayeeNote(vendor.notes)
   }))
   if (fuelOpenTotal > 0 || lastFuel) {
     vendorRows.unshift({

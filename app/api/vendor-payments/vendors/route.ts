@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isOverheadPayeeNote } from '@/lib/overhead-payee'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
@@ -11,7 +12,7 @@ export async function GET() {
         }
       }
     })
-    return NextResponse.json(vendors)
+    return NextResponse.json(vendors.filter((vendor) => !isOverheadPayeeNote(vendor.notes)))
   } catch (error) {
     console.error('Error fetching vendors:', error)
     return NextResponse.json({ error: 'Failed to fetch vendors' }, { status: 500 })

@@ -374,12 +374,17 @@ export function AgingScreen() {
 }
 
 const FUEL_BILL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Uniforms', 'Loyalty', 'Balance Payment']
+const OTHER_OVERHEAD_ITEM = '__other__'
 
 type OverheadCategory = {
   id: string
   name: string
   code: string | null
   type: string
+}
+
+function overheadCategoryLabel(category: OverheadCategory): string {
+  return category.code ? `${category.code} · ${category.name}` : category.name
 }
 
 export function BillsScreen() {
@@ -396,6 +401,8 @@ export function BillsScreen() {
   const [vendorId, setVendorId] = useState('')
   const [fuelType, setFuelType] = useState('Fuel')
   const [categoryId, setCategoryId] = useState('')
+  const [overheadItemId, setOverheadItemId] = useState('')
+  const [overheadPayee, setOverheadPayee] = useState('')
   const [categories, setCategories] = useState<OverheadCategory[]>([])
   const [categoriesReady, setCategoriesReady] = useState(false)
   const [billNumber, setBillNumber] = useState('')
@@ -418,8 +425,11 @@ export function BillsScreen() {
   const onePayee = vendorPayee || fuelPayee
   const payTotal = chosen.reduce((sum, bill) => sum + bill.amount, 0)
   const payeeName = chosen[0]?.kind === 'fuel' ? 'Fuel' : chosen[0]?.name ?? ''
-  const vendorChoices = books.vendors.filter((vendor) => vendor.id)
-  const needsPayee = billKind === 'vendor' || billKind === 'overhead'
+  const vendorChoices = books.vendors.filter((vendor) => vendor.id && !vendor.overheadPayee)
+  const needsPayee = billKind === 'vendor'
+  const overheadOther = billKind === 'overhead' && overheadItemId === OTHER_OVERHEAD_ITEM
+  const overheadCategoryId = billKind === 'overhead' ? (overheadOther ? categoryId : overheadItemId) : ''
+  const overheadCategory = categories.find((category) => category.id === overheadCategoryId)
 
   useEffect(() => {
     if (!showEnter) return
@@ -535,8 +545,12 @@ export function BillsScreen() {
       setError('Number, date, and amount are required.')
       return
     }
-    if (billKind === 'overhead' && !categoryId) {
-      setError('Choose the cashbook account for this bill.')
+    if (billKind === 'overhead' && overheadOther && !overheadPayee.trim()) {
+      setError('Enter the payee for this bill.')
+      return
+    }
+    if (billKind === 'overhead' && !overheadCategoryId) {
+      setError(overheadOther ? 'Choose the cashbook account for this bill.' : 'Choose the item for this bill.')
       return
     }
     setEntering(true)
@@ -550,17 +564,29 @@ export function BillsScreen() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ invoiceNumber: billNumber.trim(), amount, type: fuelType, invoiceDate: billDate })
             })
-          : await fetch(`/api/vendor-payments/vendors/${vendorId}/invoices`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                invoiceNumber: billNumber.trim(),
-                amount,
-                invoiceDate: billDate,
-                dueDate: billDue || null,
-                ...(billKind === 'overhead' ? { categoryId } : {})
+          : billKind === 'overhead'
+            ? await fetch('/api/vendor-payments/overhead-bills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  invoiceNumber: billNumber.trim(),
+                  amount,
+                  invoiceDate: billDate,
+                  dueDate: billDue || null,
+                  categoryId: overheadCategoryId,
+                  ...(overheadOther ? { payeeName: overheadPayee.trim() } : {})
+                })
               })
-            })
+            : await fetch(`/api/vendor-payments/vendors/${vendorId}/invoices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  invoiceNumber: billNumber.trim(),
+                  amount,
+                  invoiceDate: billDate,
+                  dueDate: billDue || null
+                })
+              })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Could not enter the bill')
       setBillNumber('')
@@ -581,7 +607,7 @@ export function BillsScreen() {
       <BooksBackLink />
       <PageTitle
         title="Enter and pay bills"
-        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. Overhead uses the cashbook’s other expense accounts and pays that payee."
+        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. An overhead item is a regular cashbook account, and bills for that item pay together."
       />
       <div className="mb-4">
         <button
@@ -599,9 +625,52 @@ export function BillsScreen() {
             <button type="button" onClick={() => setBillKind('fuel')} className={`rounded px-3 py-1 text-sm ${billKind === 'fuel' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Fuel</button>
             <button type="button" onClick={() => setBillKind('overhead')} className={`rounded px-3 py-1 text-sm ${billKind === 'overhead' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Overhead</button>
           </div>
-          {needsPayee ? (
+          {billKind === 'overhead' ? (
+            <>
+              <label className="block text-sm">
+                <span className="text-gray-600">Item</span>
+                <select
+                  value={overheadItemId}
+                  onChange={(e) => {
+                    setOverheadItemId(e.target.value)
+                    if (e.target.value !== OTHER_OVERHEAD_ITEM) setCategoryId('')
+                  }}
+                  className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                >
+                  <option value="">Select…</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{overheadCategoryLabel(category)}</option>
+                  ))}
+                  <option value={OTHER_OVERHEAD_ITEM}>Other</option>
+                </select>
+                {categoriesReady && categories.length === 0 && (
+                  <span className="mt-1 block text-xs text-gray-500">Add the account in Cashbook first. Rec. Gen and Rec. Gas stay on Vendor and Fuel.</span>
+                )}
+                {overheadCategory && !overheadOther && (
+                  <span className="mt-1 block text-xs text-gray-500">Posts to {overheadCategoryLabel(overheadCategory)}. Bills for this item pay together.</span>
+                )}
+              </label>
+              {overheadOther && (
+                <>
+                  <label className="block text-sm">
+                    <span className="text-gray-600">Payee</span>
+                    <input value={overheadPayee} onChange={(e) => setOverheadPayee(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-gray-600">Account</span>
+                    <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
+                      <option value="">Select…</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>{overheadCategoryLabel(category)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+            </>
+          ) : needsPayee ? (
             <label className="block text-sm">
-              <span className="text-gray-600">{billKind === 'overhead' ? 'Payee' : 'Vendor'}</span>
+              <span className="text-gray-600">Vendor</span>
               <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
                 <option value="">Select…</option>
                 {vendorChoices.map((vendor) => (
@@ -619,22 +688,6 @@ export function BillsScreen() {
               </select>
             </label>
           )}
-          {billKind === 'overhead' && (
-            <label className="block text-sm">
-              <span className="text-gray-600">Account</span>
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1">
-                <option value="">Select…</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.code ? `${category.code} · ${category.name}` : category.name}
-                  </option>
-                ))}
-              </select>
-              {categoriesReady && categories.length === 0 && (
-                <span className="mt-1 block text-xs text-gray-500">Add the account in Cashbook first. Rec. Gen and Rec. Gas stay on Vendor and Fuel.</span>
-              )}
-            </label>
-          )}
           <label className="block text-sm">
             <span className="text-gray-600">Number</span>
             <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
@@ -647,13 +700,18 @@ export function BillsScreen() {
             <span className="text-gray-600">Date</span>
             <input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
           </label>
-          {needsPayee && (
+          {billKind !== 'fuel' && (
             <label className="block text-sm">
               <span className="text-gray-600">Due</span>
               <input type="date" value={billDue} onChange={(e) => setBillDue(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
             </label>
           )}
-          <button type="button" disabled={entering || (needsPayee && !vendorId) || (billKind === 'overhead' && !categoryId)} onClick={() => void enterBill()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          <button
+            type="button"
+            disabled={entering || (needsPayee && !vendorId) || (billKind === 'overhead' && (!overheadCategoryId || (overheadOther && !overheadPayee.trim())))}
+            onClick={() => void enterBill()}
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
             {entering ? 'Saving…' : 'Save bill'}
           </button>
         </div>
@@ -770,7 +828,7 @@ export function BillsScreen() {
               ? 'Select pending bills for one payee.'
               : onePayee
                 ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.`
-                : 'Fuel bills pay as one group. Vendor and overhead bills pay by payee.'}
+                : 'Fuel bills pay as one group. A vendor’s bills pay together. Overhead bills for the same item pay together.'}
           </p>
         </div>
       )}
@@ -883,7 +941,7 @@ export function VendorsScreen() {
   }, [directoryTick])
 
   const bookById = new Map(books.vendors.filter((vendor) => vendor.id).map((vendor) => [vendor.id as string, vendor]))
-  const rows = (directory ?? books.vendors.filter((vendor) => vendor.id).map((vendor) => ({ id: vendor.id as string, name: vendor.name }))).map(
+  const rows = (directory ?? books.vendors.filter((vendor) => vendor.id && !vendor.overheadPayee).map((vendor) => ({ id: vendor.id as string, name: vendor.name }))).map(
     (vendor) => ({
       id: vendor.id,
       name: vendor.name,

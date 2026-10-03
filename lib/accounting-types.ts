@@ -62,6 +62,8 @@ export type VendorRow = {
   name: string
   openAmount: number
   lastPayment: string | null
+  /** Payee created for an overhead item. Hidden from the vendor list. */
+  overheadPayee?: boolean
 }
 
 export type ReconcileRow = {

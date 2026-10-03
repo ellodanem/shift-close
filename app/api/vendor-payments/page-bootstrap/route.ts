@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isOverheadPayeeNote } from '@/lib/overhead-payee'
 import { prisma } from '@/lib/prisma'
 import { getVendorVatRate } from '@/lib/vendorVatSettings'
 
@@ -20,7 +21,12 @@ export async function GET() {
       prisma.vendorInvoice.count({ where: { status: 'paid' } }),
       getVendorVatRate()
     ])
-    return NextResponse.json({ vendors, pendingCount, paidCount, vatRate })
+    return NextResponse.json({
+      vendors: vendors.filter((vendor) => !isOverheadPayeeNote(vendor.notes)),
+      pendingCount,
+      paidCount,
+      vatRate
+    })
   } catch (error) {
     console.error('vendor-payments page-bootstrap error:', error)
     return NextResponse.json({ error: 'Failed to load vendor payments data' }, { status: 500 })

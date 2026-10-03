@@ -27,6 +27,7 @@ function isAccountantBillPath(pathname: string): boolean {
   if (/^\/api\/vendor-payments\/vendors\/[^/]+$/.test(pathname)) return true
   if (/^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)) return true
   if (/^\/api\/vendor-payments\/invoices\/[^/]+$/.test(pathname)) return true
+  if (pathname === '/api/vendor-payments/overhead-bills') return true
   return false
 }
 
@@ -38,6 +39,7 @@ function isAccountantBillWrite(pathname: string, method: string): boolean {
   if (pathname === '/api/fuel-payments/invoices') return true
   if (pathname === '/api/vendor-payments/make-payment') return true
   if (pathname === '/api/vendor-payments/vendors') return true
+  if (pathname === '/api/vendor-payments/overhead-bills') return true
   return /^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)
 }
 

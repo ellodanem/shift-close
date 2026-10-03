@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { normalizeVendorKey } from '@/lib/harvest-vendor-invoices'
+import { isOverheadPayeeNote } from '@/lib/overhead-payee'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/vendor-payments/vendors/cstore-mapping
@@ -14,12 +15,14 @@ export async function GET() {
         id: true,
         name: true,
         cstoreName: true,
+        notes: true,
         _count: { select: { invoices: true } }
       }
     })
+    const suppliers = vendors.filter((vendor) => !isOverheadPayeeNote(vendor.notes))
 
-    const byCstoreKey = new Map<string, typeof vendors>()
-    for (const v of vendors) {
+    const byCstoreKey = new Map<string, typeof suppliers>()
+    for (const v of suppliers) {
       const key = normalizeVendorKey(v.cstoreName || v.name)
       if (!key) continue
       const list = byCstoreKey.get(key) || []
@@ -27,7 +30,7 @@ export async function GET() {
       byCstoreKey.set(key, list)
     }
 
-    const rows = vendors.map((v) => {
+    const rows = suppliers.map((v) => {
       const ownKey = normalizeVendorKey(v.name)
       const mappedKey = normalizeVendorKey(v.cstoreName || '')
       const nameEqualsCstore =
