@@ -79,4 +79,31 @@ if (r.error) {
   console.error(r.error)
   process.exit(1)
 }
-process.exit(typeof r.status === 'number' ? r.status : 1)
+if (r.status !== 0) {
+  process.exit(typeof r.status === 'number' ? r.status : 1)
+}
+
+// gh release upload replaces spaces in asset names with dots. latest.yml must
+// use those names or the installed app requests a file that is not on the release.
+const outDir = path.join(agentRoot, 'installer-release')
+const latestPath = path.join(outDir, 'latest.yml')
+if (fs.existsSync(latestPath)) {
+  let yml = fs.readFileSync(latestPath, 'utf8')
+  const fileNames = [...yml.matchAll(/^(?:path| {4}- url): (.+\.exe)\s*$/gm)].map((m) => m[1])
+  for (const name of [...new Set(fileNames)]) {
+    if (!name.includes(' ')) continue
+    const dotted = name.replace(/ /g, '.')
+    for (const suffix of ['', '.blockmap']) {
+      const from = path.join(outDir, name + suffix)
+      const to = path.join(outDir, dotted + suffix)
+      if (!fs.existsSync(from)) continue
+      if (fs.existsSync(to)) fs.unlinkSync(to)
+      fs.renameSync(from, to)
+      console.log('[build-win] Renamed', path.basename(from), '->', path.basename(to))
+    }
+    yml = yml.split(name).join(dotted)
+  }
+  fs.writeFileSync(latestPath, yml)
+}
+
+console.log('[build-win] Installer ready in installer-release')
