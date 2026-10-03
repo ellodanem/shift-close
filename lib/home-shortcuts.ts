@@ -375,7 +375,12 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
   if (href === SCANS_MOBILE_PATH) return canAccessScansMobile(role)
   if (r === 'admin' || r === 'manager') return true
   if (r === 'accountant') {
-    return href === '/accounting' || href.startsWith('/accounting/') || isAccountantPayrollPath(href)
+    return (
+      href === '/accounting' ||
+      href.startsWith('/accounting/') ||
+      isAccountantPayrollPath(href) ||
+      isStakeholderFuelComparisonPath(href)
+    )
   }
   if (r === 'stakeholder') {
     return (

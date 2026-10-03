@@ -114,6 +114,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
   if (isAccountantRole(role)) {
     if (isAccountantBooksPath(pathname)) return true
     if (isAccountantPayrollPath(pathname)) return true
+    if (isStakeholderFuelComparisonPath(pathname)) return true
     if (pathname === '/api/financial/cashbook/categories') return true
     if (pathname.startsWith('/api/auth/')) return true
     if (pathname.startsWith('/api/rent-due/')) return true

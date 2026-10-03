@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
+import { useAuth } from '@/app/components/AuthContext'
 import { litresToGallons } from '@/lib/fuel-constants'
+import { isAccountantRole, roleHomePath } from '@/lib/roles'
 
 type ViewMode = 'day' | 'month'
 
@@ -103,6 +105,10 @@ function varianceClass(n: number): string {
 
 export default function FuelComparisonPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const accountant = isAccountantRole(user?.role ?? '')
+  const backHref = accountant ? roleHomePath(user?.role ?? '') : '/reports'
+  const backLabel = accountant ? 'Accounting' : 'Reports'
   const today = new Date()
   const [view, setView] = useState<ViewMode>('day')
   const [year, setYear] = useState(today.getFullYear())
@@ -412,10 +418,10 @@ export default function FuelComparisonPage() {
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:flex-wrap sm:justify-between sm:items-center">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => router.push('/reports')}
+              onClick={() => router.push(backHref)}
               className="text-gray-600 hover:text-gray-900 flex items-center gap-1 min-h-[44px] sm:min-h-0"
             >
-              ← Reports
+              ← {backLabel}
             </button>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Comparative Fuel Data</h1>
           </div>

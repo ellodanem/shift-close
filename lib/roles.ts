@@ -186,7 +186,7 @@ export function isStakeholderBooksPath(pathname: string): boolean {
   )
 }
 
-/** Fuel Comparison report tile, its page, and the read API. Not the rest of Reports. */
+/** Fuel Comparison report page and its read API. Not the rest of Reports. */
 export function isStakeholderFuelComparisonPath(pathname: string): boolean {
   return (
     pathMatchesPrefix(pathname, '/reports/fuel-comparison') ||
