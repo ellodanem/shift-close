@@ -40,6 +40,7 @@
     "test:fuel-comparison": "tsx --test scripts/test-fuel-comparison.ts",
     "test:inbox-compose": "tsx --test scripts/test-inbox-compose.ts",
     "test:deposit-comparisons": "tsx --test scripts/test-deposit-comparison-rows.ts",
+    "test:bank-reconcile": "tsx --test scripts/test-bank-reconcile.ts",
     "test:harvest-checks": "tsx --test scripts/test-harvest-vendor-checks.ts"
   },
   "dependencies": {

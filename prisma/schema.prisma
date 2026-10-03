@@ -986,11 +986,46 @@ model CashbookEntry {
 
   allocations CashbookAllocation[]
   customerArPayment CustomerArPayment? @relation(fields: [customerArPaymentId], references: [id], onDelete: Cascade)
+  reconciliationLines BankReconciliationLine[]
 
   @@unique([shiftId, depositLineIndex], name: "cashbook_entries_shift_deposit_line")
   @@unique([shiftId, shiftIncomeKind], name: "cashbook_entries_shift_income_kind")
   @@index([date])
   @@map("cashbook_entries")
+}
+
+/// One bank statement matched to 101 Westline. Stays in progress until the difference is zero.
+model BankReconciliation {
+  id                  String    @id @default(cuid())
+  account             String    @default("westline")
+  statementEndDate    String    @map("statement_end_date")
+  statementEndBalance Float     @map("statement_end_balance")
+  openingBalance      Float     @map("opening_balance")
+  status              String    @default("in_progress") // in_progress | finished
+  finishedAt          DateTime? @map("finished_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  lines BankReconciliationLine[]
+
+  @@index([account, status])
+  @@index([account, statementEndDate])
+  @@map("bank_reconciliations")
+}
+
+/// A ticked cashbook line on a reconciliation. Finished + cleared lines stay off the next statement.
+model BankReconciliationLine {
+  id               String  @id @default(cuid())
+  reconciliationId String  @map("reconciliation_id")
+  cashbookEntryId  String  @map("cashbook_entry_id")
+  cleared          Boolean @default(true)
+
+  reconciliation BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  entry          CashbookEntry      @relation(fields: [cashbookEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([reconciliationId, cashbookEntryId])
+  @@index([cashbookEntryId])
+  @@map("bank_reconciliation_lines")
 }
 
 model CashbookAllocation {
