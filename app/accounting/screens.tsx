@@ -302,6 +302,9 @@ export function CustomersScreen() {
   const books = useBooks()
   return (
     <div>
+      <Link href="/accounting" className="mb-3 inline-block text-sm text-indigo-700 hover:underline">
+        ← Back
+      </Link>
       <PageTitle
         title="Customers"
         note="Monthly account activity. Charges come from the customer accounts already imported. A payment still posts as a deposit."
