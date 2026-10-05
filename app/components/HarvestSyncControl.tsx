@@ -104,21 +104,47 @@ export default function HarvestSyncControl() {
 
   const active = view?.run && isActiveStatus(view.run.status) ? view.run : null
 
+  const reportLoadError = useCallback((err: unknown) => {
+    setError(err instanceof Error ? err.message : 'Failed to load sync')
+  }, [])
+
   useEffect(() => {
     if (!allowed) return
     let cancelled = false
-    const tick = () => {
-      load().catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load sync')
-      })
+    load().catch((err) => {
+      if (!cancelled) reportLoadError(err)
+    })
+    return () => {
+      cancelled = true
     }
-    tick()
-    const timer = setInterval(tick, active ? 3000 : 30000)
+  }, [allowed, load, reportLoadError])
+
+  const activeKey = active ? `${active.id}:${active.status}` : null
+
+  useEffect(() => {
+    if (!allowed || !activeKey) return
+    let cancelled = false
+    const timer = setInterval(() => {
+      load().catch((err) => {
+        if (!cancelled) reportLoadError(err)
+      })
+    }, 3000)
     return () => {
       cancelled = true
       clearInterval(timer)
     }
-  }, [allowed, active?.id, active?.status, load])
+  }, [allowed, activeKey, load, reportLoadError])
+
+  useEffect(() => {
+    if (!allowed || !open) return
+    let cancelled = false
+    load().catch((err) => {
+      if (!cancelled) reportLoadError(err)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [allowed, open, load, reportLoadError])
 
   useEffect(() => {
     if (!open) return
