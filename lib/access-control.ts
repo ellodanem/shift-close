@@ -82,9 +82,7 @@ export function isPublicPath(pathname: string): boolean {
     pathname === '/api/harvest-agent/sync/claim' ||
     pathname === '/api/harvest-agent/sync/claim/' ||
     pathname === '/api/harvest-agent/sync/step' ||
-    pathname === '/api/harvest-agent/sync/step/' ||
-    pathname === '/api/harvest-agent/maintenance/pending-vendor-invoices' ||
-    pathname === '/api/harvest-agent/maintenance/pending-vendor-invoices/'
+    pathname === '/api/harvest-agent/sync/step/'
   ) {
     return true
   }
