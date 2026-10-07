@@ -2,6 +2,7 @@
 
 **Audience:** an agent implementing payroll inside Simple Roster Plus (SRP).  
 **Source:** the working payroll in Shift Close, as of 28 September 2026. It is in daily use and still unfinished.  
+**Later changes:** rules below that mention PAYE, vacation, who is on a run, or the printed reports have moved. Apply `docs/payroll-changes-for-simple-roster-plus.md` (7 October 2026) on top of this spec.  
 **Purpose:** reproduce the **rules, money, and outputs**. Build the screens in SRP’s own layout. Do not copy Shift Close’s colors, spacing, or page chrome.
 
 Shift Close is one station (Total Auto, Cul de Sac). SRP should use the company, banks, and department labels already configured for that SRP site. The formulas below are the St. Lucia rules.
