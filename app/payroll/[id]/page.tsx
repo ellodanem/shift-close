@@ -40,6 +40,7 @@ import {
   printPayrollPreview,
   renderGlHtml,
   renderNisHtml,
+  renderPayeHtml,
   renderPayslipsHtml,
   type PayrollPreviewInput,
   type PayrollPreviewLine,
@@ -1375,6 +1376,32 @@ export default function PayrollRunPage() {
     })
   }
 
+  const openPayePreview = () => {
+    if (!run) return
+    setError(null)
+    setPrintDoc({
+      title: 'P.A.Y.E. preview',
+      subtitle: periodLine(run),
+      filename: `paye-${run.startDate}-${run.endDate}.pdf`,
+      html: renderPayeHtml({
+        startDate: run.startDate,
+        endDate: run.endDate,
+        payDate: run.payDate,
+        cycle: String(shownCycleNumber(run.cycleNumber, run.endDate)),
+        voided: run.status === 'void',
+        lines: run.lines.map((line) => ({
+          staffName: line.staffName,
+          staffNo: line.staffNo,
+          taxCode: line.taxCode,
+          grossPay: line.grossPay,
+          extraLines: line.extraLines,
+          nisEmployee: line.nisEmployee,
+          paye: line.paye
+        }))
+      })
+    })
+  }
+
   const openBankingPreview = () => {
     if (!run) return
     setError(null)
@@ -1808,9 +1835,8 @@ export default function PayrollRunPage() {
               </button>
               <button
                 type="button"
-                disabled
-                title="Coming soon"
-                className="min-h-[44px] cursor-not-allowed rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 disabled:border-violet-700 disabled:text-violet-700 sm:min-h-0"
+                onClick={openPayePreview}
+                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
               >
                 Print PAYE
               </button>

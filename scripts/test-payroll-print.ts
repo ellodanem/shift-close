@@ -10,6 +10,7 @@ import {
   buildPayslipPeriodTotals,
   renderGlHtml,
   renderNisHtml,
+  renderPayeHtml,
   renderPayrollPreviewHtml,
   renderPayslipsHtml,
   renderStaffPayslipsHtml,
@@ -572,5 +573,64 @@ describe('N.I.C. report', () => {
     assert.match(html, /STAFF/)
     assert.match(html, /25\.75/)
     assert.match(html, /CYCLE: 15/)
+  })
+})
+
+describe('P.A.Y.E. report', () => {
+  it('lists calculated PAYE and excludes untaxed extras from taxable pay', () => {
+    const html = renderPayeHtml({
+      startDate: '2026-09-14',
+      endDate: '2026-09-28',
+      payDate: '2026-09-30',
+      cycle: '18',
+      lines: [
+        {
+          staffName: 'Jane & Sons',
+          staffNo: '100',
+          taxCode: '220',
+          grossPay: 3800,
+          extraLines: [
+            { label: 'Bonus', amount: 300 },
+            { label: 'Travel allowance', amount: 500, taxable: false }
+          ],
+          nisEmployee: 190,
+          paye: 91.5
+        },
+        {
+          staffName: 'Zero Pay',
+          staffNo: null,
+          taxCode: '',
+          grossPay: 0,
+          nisEmployee: 0,
+          paye: 0
+        }
+      ]
+    })
+
+    assert.match(html, /P\.A\.Y\.E\./)
+    assert.match(html, /100 - Jane &amp; Sons/)
+    assert.match(html, /TAX CODE/)
+    assert.match(html, /3300\.00/)
+    assert.match(html, /190\.00/)
+    assert.match(html, /91\.50/)
+    assert.match(html, /PAY DATE: 09\/30\/2026/)
+    assert.match(html, /FOR: SEPTEMBER/)
+    assert.match(html, /15% of taxable pay after NIC/)
+    assert.match(html, /\$2,500 a month/)
+    assert.doesNotMatch(html, /Zero Pay/)
+  })
+
+  it('marks a voided PAYE report as record only', () => {
+    const html = renderPayeHtml({
+      startDate: '2026-09-14',
+      endDate: '2026-09-28',
+      payDate: '2026-09-30',
+      cycle: '18',
+      voided: true,
+      lines: []
+    })
+
+    assert.match(html, /VOIDED/)
+    assert.match(html, /record only/)
   })
 })

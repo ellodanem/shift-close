@@ -3,7 +3,15 @@ import autoTable from 'jspdf-autotable'
 import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import { normalizePayslipCompany } from '@/lib/payroll-settings'
-import { formatMoney, parseMoney, parsePayType, visibleExtraLines, type PayRunExtraLine } from '@/lib/pay-run'
+import { PAYE_MONTHLY_FREE, PAYE_RATE } from '@/lib/pay-run-deductions'
+import {
+  formatMoney,
+  parseMoney,
+  parsePayType,
+  taxablePayFromGross,
+  visibleExtraLines,
+  type PayRunExtraLine
+} from '@/lib/pay-run'
 
 export type NisPrintLine = {
   staffName: string
@@ -181,6 +189,127 @@ export function printNisReport(input: NisReportInput) {
   const printWin = window.open('', '_blank')
   if (!printWin) return
   printWin.document.write(renderNisHtml(input))
+  printWin.document.close()
+  printWin.focus()
+  printWin.print()
+}
+
+export type PayePrintLine = {
+  staffName: string
+  staffNo: string | null
+  taxCode?: string | null
+  grossPay: number
+  extraLines?: PayRunExtraLine[]
+  nisEmployee: number
+  paye?: number
+}
+
+export type PayeReportInput = {
+  startDate: string
+  endDate: string
+  payDate: string
+  cycle: string
+  lines: PayePrintLine[]
+  voided?: boolean
+}
+
+function payeRuleNote(): string {
+  const percent = Math.round(PAYE_RATE * 100)
+  const free = PAYE_MONTHLY_FREE.toLocaleString('en-US')
+  return `PAYE is ${percent}% of taxable pay after NIC, above $${free} a month. A later pay in that month uses what is left of the free amount.`
+}
+
+export function renderPayeHtml(input: PayeReportInput): string {
+  const rows = input.lines
+    .map((line) => {
+      const taxable = taxablePayFromGross(line.grossPay, line.extraLines ?? [])
+      return {
+        name: line.staffNo ? `${line.staffNo} - ${line.staffName}` : line.staffName,
+        taxCode: (line.taxCode ?? '').trim(),
+        gross: line.grossPay,
+        taxable,
+        nic: line.nisEmployee,
+        paye: parseMoney(line.paye)
+      }
+    })
+    .filter((line) => line.gross !== 0 || line.taxable !== 0 || line.nic !== 0 || line.paye !== 0)
+  const body = rows
+    .map(
+      (line) => `<tr>
+        <td>${escapePayPeriodHtml(line.name)}</td>
+        <td>${escapePayPeriodHtml(line.taxCode)}</td>
+        <td class="num">${usd(line.gross)}</td>
+        <td class="num">${usd(line.taxable)}</td>
+        <td class="num">${usd(line.nic)}</td>
+        <td class="num">${usd(line.paye)}</td>
+      </tr>`
+    )
+    .join('')
+  const gross = round2(rows.reduce((sum, line) => sum + line.gross, 0))
+  const taxable = round2(rows.reduce((sum, line) => sum + line.taxable, 0))
+  const nic = round2(rows.reduce((sum, line) => sum + line.nic, 0))
+  const paye = round2(rows.reduce((sum, line) => sum + line.paye, 0))
+  const printed = new Date().toLocaleDateString('en-US')
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <title>P.A.Y.E. ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; margin: 32px; }
+      h1 { display: inline-block; border: 3px solid #111; padding: 4px 14px; letter-spacing: 0.08em; }
+      .meta { display: flex; justify-content: space-between; gap: 16px; margin: 8px 0 28px; font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th { text-align: right; font-weight: 600; padding: 4px 8px 8px; }
+      th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+      td { padding: 3px 8px; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
+      tfoot td { border-top: 2px solid #111; font-weight: 600; padding-top: 6px; }
+      .note { margin-top: 28px; font-size: 12px; }
+      .foot { margin-top: 24px; text-align: right; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>P.A.Y.E.</h1>
+    ${input.voided ? '<p><strong>VOIDED.</strong> This report is a record only and is not filed.</p>' : ''}
+    <div class="meta">
+      <span>PERIOD: ${escapePayPeriodHtml(mdy(input.startDate))} - ${escapePayPeriodHtml(mdy(input.endDate))}</span>
+      <span>PAY DATE: ${escapePayPeriodHtml(mdy(input.payDate))}</span>
+      <span>CYCLE: ${escapePayPeriodHtml(input.cycle)}</span>
+      <span>FOR: ${escapePayPeriodHtml(monthLabel(input.payDate))}</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>NAME</th>
+          <th>TAX CODE</th>
+          <th>GROSS</th>
+          <th>TAXABLE</th>
+          <th>NIC</th>
+          <th>PAYE</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+      <tfoot>
+        <tr>
+          <td></td>
+          <td></td>
+          <td class="num">${usd(gross)}</td>
+          <td class="num">${usd(taxable)}</td>
+          <td class="num">${usd(nic)}</td>
+          <td class="num">${usd(paye)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="note">${escapePayPeriodHtml(payeRuleNote())}</p>
+    <p class="foot">PRINTED: ${escapePayPeriodHtml(printed)}</p>
+  </body>
+</html>`
+}
+
+export function printPayeReport(input: PayeReportInput) {
+  const printWin = window.open('', '_blank')
+  if (!printWin) return
+  printWin.document.write(renderPayeHtml(input))
   printWin.document.close()
   printWin.focus()
   printWin.print()
