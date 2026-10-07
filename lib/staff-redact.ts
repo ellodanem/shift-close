@@ -10,6 +10,7 @@ export function redactStaffRecord<
     staffLoan?: unknown
     medicalAmount?: unknown
     taxCode?: unknown
+    taxNumber?: unknown
   }
 >(staff: T, role: string): T {
   if (canViewStaffSensitiveFields(role)) return staff
@@ -22,6 +23,7 @@ export function redactStaffRecord<
     salariedAmount: null,
     staffLoan: null,
     medicalAmount: null,
-    taxCode: null
+    taxCode: null,
+    taxNumber: null
   }
 }

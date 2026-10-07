@@ -49,7 +49,8 @@ export default function NewStaffPage() {
     hourlyRate: '',
     salariedAmount: '',
     medicalAmount: '',
-    taxCode: ''
+    taxCode: '',
+    taxNumber: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
@@ -467,6 +468,16 @@ export default function NewStaffPage() {
                     onChange={(e) => setFormData({ ...formData, taxCode: e.target.value })}
                     className={inputClass}
                     placeholder="Pay+ tax code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax number</label>
+                  <input
+                    type="text"
+                    value={formData.taxNumber}
+                    onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
+                    className={inputClass}
+                    placeholder="Inland Revenue tax number"
                   />
                 </div>
                 <div>

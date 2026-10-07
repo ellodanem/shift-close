@@ -46,6 +46,8 @@ model Staff {
   medicalAmount Float?  @map("medical_amount")
   /// PAYE tax code used in Pay+. Stored here so payroll can update it with the rate.
   taxCode      String   @default("") @map("tax_code")
+  /// Inland Revenue tax number printed on the TD5 / TD4.
+  taxNumber    String   @default("") @map("tax_number")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

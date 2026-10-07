@@ -16,6 +16,7 @@ import {
   shownCycleNumber,
   type PayRunSort
 } from '@/lib/pay-run-list'
+import { PayeCertificateButton } from '@/app/payroll/PayeCertificateButton'
 import { PayrollSettingsButton } from '@/app/payroll/PayrollSettingsButton'
 
 type SavedPeriod = {
@@ -236,6 +237,10 @@ export default function PayrollStartPage() {
             <p className="mt-1 text-sm text-slate-500">Westline Enterprise Ltd · Main · Saint Lucia</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <PayeCertificateButton
+              year={year === 'all' ? activePayrollYear() : year}
+              years={payrollYears(runs)}
+            />
             <PayrollSettingsButton labeled />
             <button
               type="button"
@@ -243,7 +248,7 @@ export default function PayrollStartPage() {
                 setError(null)
                 setCreateOpen(true)
               }}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800 sm:h-10 sm:min-h-0 sm:w-auto"
+              className="col-span-2 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
                 <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
