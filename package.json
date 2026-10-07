@@ -42,7 +42,8 @@
     "test:inbox-compose": "tsx --test scripts/test-inbox-compose.ts",
     "test:deposit-comparisons": "tsx --test scripts/test-deposit-comparison-rows.ts",
     "test:bank-reconcile": "tsx --test scripts/test-bank-reconcile.ts",
-    "test:harvest-checks": "tsx --test scripts/test-harvest-vendor-checks.ts"
+    "test:harvest-checks": "tsx --test scripts/test-harvest-vendor-checks.ts",
+    "test:harvest-vendor-invoices": "tsx --test scripts/test-harvest-vendor-invoices.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1143.0",

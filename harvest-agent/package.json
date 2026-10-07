@@ -22,7 +22,7 @@
     "build": "node scripts/build-win.js",
     "install-task": "powershell -ExecutionPolicy Bypass -File scripts/install-scheduled-task.ps1",
     "postinstall": "npx playwright install chromium",
-    "test": "node --test src/vendorChecks.test.js src/syncRunner.test.js"
+    "test": "node --test src/vendorChecks.test.js src/syncRunner.test.js src/lpgRows.test.js src/vendorInvoiceRows.test.js"
   },
   "engines": {
     "node": ">=20"

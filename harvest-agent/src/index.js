@@ -37,6 +37,7 @@ const vendorQuery = vendorArg ? vendorArg.slice('--vendor='.length).trim() : ''
 const fromArg = process.argv.find((a) => a.startsWith('--from='))
 const fromQuery = fromArg ? fromArg.slice('--from='.length).trim() : ''
 const harvestAll = process.argv.includes('--all')
+const invoicesOnly = process.argv.includes('--invoices-only')
 
 let httpServer = null
 let stopSlotWatcher = null
@@ -614,7 +615,7 @@ async function runVendorInvoicesCycle(reason, options = {}) {
       vendor: vendorName || undefined,
       all: harvestVendorsAll || !vendorName,
       onVendor: importCaptured,
-      onVendorChecks: importChecks,
+      onVendorChecks: invoicesOnly ? undefined : importChecks,
       hooks: createLoginHooks(config)
     })
   } catch (err) {

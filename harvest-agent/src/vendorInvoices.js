@@ -8,6 +8,8 @@ const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
 const { groupVendorChecks } = require('./vendorChecks')
+const { isRubisWestIndiesVendor, rowsForLpgImport } = require('./lpgRows')
+const { rowsForVendorImport } = require('./vendorInvoiceRows')
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -71,7 +73,7 @@ function normalizeVendorKey(value) {
 
 /** Rubis West Indies = fuel/LPG; always skip in vendor invoice harvest. */
 function isSkippedVendor(name) {
-  return /rubis\s*west\s*indies/i.test(String(name || '').trim())
+  return isRubisWestIndiesVendor(name)
 }
 
 const SKIPPED_VENDOR_MESSAGE =
@@ -316,6 +318,19 @@ async function listVendorOptions(scope) {
   return [...new Set(options)].filter(usableVendorName)
 }
 
+async function readSelectedVendor(scope) {
+  const native = scope.locator('#GroceryPurchases_Form_VendorID')
+  if ((await native.count()) === 0) return ''
+  return native
+    .first()
+    .evaluate((el) => {
+      if (!el || el.tagName !== 'SELECT') return ''
+      const opt = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null
+      return opt ? String(opt.textContent || '').trim() : ''
+    })
+    .catch(() => '')
+}
+
 async function selectVendor(scope, vendorName) {
   const key = normalizeVendorKey(vendorName)
   const native = scope.locator('#GroceryPurchases_Form_VendorID')
@@ -412,6 +427,7 @@ function parseScrapedRows(rows) {
       invoiceNumber,
       invoiceDate,
       amount,
+      vendor: row.vendor ? String(row.vendor).trim() : '',
       paymentType: row.paymentType ? String(row.paymentType).trim() : null
     })
   }
@@ -582,7 +598,7 @@ async function harvestVendorChecks(page, scope, vendorName, year, month, debugDi
   }
 }
 
-async function harvestOneVendor(page, scope, vendorName, year, month, debugDir) {
+async function harvestOneVendor(page, scope, vendorName, year, month, debugDir, options = {}) {
   const selected = await selectVendor(scope, vendorName)
   if (!selected.ok) {
     await saveDebug(page, debugDir, 'vendor-invoices-vendor-missing')
@@ -596,11 +612,48 @@ async function harvestOneVendor(page, scope, vendorName, year, month, debugDir) 
       message: `${vendorName} is not in the Cstore vendor list`
     }
   }
+  if (options.rubisLpg) {
+    const selectedNow = await readSelectedVendor(scope)
+    if (!selectedNow || !isRubisWestIndiesVendor(selectedNow)) {
+      const shown = selectedNow || 'not set'
+      return {
+        ok: false,
+        loginRequired: false,
+        vendor: vendorName,
+        year,
+        month,
+        invoices: [],
+        message: `${vendorName}: vendor filter is "${shown}", so the invoice list was not read`
+      }
+    }
+  }
+
   console.log(
     `[Cstore] Vendor invoices "${selected.matched}" (${year}-${String(month).padStart(2, '0')})`
   )
   await clickSearch(scope)
-  const invoices = await scrapeAllInvoicePages(scope)
+  let invoices = await scrapeAllInvoicePages(scope)
+  let leftOut = 0
+  if (options.rubisLpg) {
+    const selectedNow = await readSelectedVendor(scope)
+    const filtered = rowsForLpgImport(invoices, {
+      year,
+      month,
+      confirmedVendor: selectedNow
+    })
+    invoices = filtered.kept
+    leftOut = filtered.rejected
+  } else {
+    const filtered = rowsForVendorImport(invoices, { year, month })
+    invoices = filtered.kept
+    leftOut = filtered.rejected
+  }
+  const monthLabel = `${MONTH_SHORT[month - 1]} ${year}`
+  const leftOutNote = leftOut
+    ? options.rubisLpg
+      ? `; left out ${leftOut} that were not Rubis in this month`
+      : `; left out ${leftOut} outside ${monthLabel}`
+    : ''
   return {
     ok: true,
     loginRequired: false,
@@ -610,8 +663,8 @@ async function harvestOneVendor(page, scope, vendorName, year, month, debugDir) 
     invoices,
     message:
       invoices.length === 0
-        ? `${selected.matched}: no invoices this month`
-        : `${selected.matched}: read ${invoices.length} invoice(s)`
+        ? `${selected.matched}: no invoices this month${leftOutNote}`
+        : `${selected.matched}: read ${invoices.length} invoice(s)${leftOutNote}`
   }
 }
 
@@ -662,6 +715,22 @@ async function runVendorInvoices(config, options = {}) {
     console.log(`[Cstore] Purchase invoices ready at ${page.url()}`)
     await clickAllPurchasesTab(form)
     await setInvoiceMonth(form, year, month)
+    if (!(await monthAlreadySet(form, year, month))) {
+      const label = `${MONTH_SHORT[month - 1]} ${year}`
+      const message = options.rubisLpg
+        ? `LPG invoices stopped: purchase dates were not limited to ${label}`
+        : `Vendor invoices stopped: purchase dates were not limited to ${label}`
+      return {
+        ok: false,
+        loginRequired: false,
+        url: page.url(),
+        year,
+        month,
+        results: [],
+        invoices: [],
+        message
+      }
+    }
 
     let names = []
     try {
@@ -730,7 +799,9 @@ async function runVendorInvoices(config, options = {}) {
       }
       let captured
       try {
-        captured = await harvestOneVendor(page, form, vendorName, year, month, debugDir)
+        captured = await harvestOneVendor(page, form, vendorName, year, month, debugDir, {
+          rubisLpg: Boolean(options.rubisLpg)
+        })
       } catch (err) {
         captured = {
           ok: false,
@@ -766,25 +837,39 @@ async function runVendorInvoices(config, options = {}) {
         })
       } else {
         await setInvoiceMonth(form, year, month)
-        for (const vendorName of targets) {
-          if (isSkippedVendor(vendorName)) continue
-          let captured
-          try {
-            captured = await harvestVendorChecks(page, form, vendorName, year, month, debugDir)
-          } catch (err) {
-            captured = {
-              ok: false,
-              vendor: vendorName,
-              year,
-              month,
-              checks: [],
-              skippedEft: 0,
-              skippedOther: 0,
-              message: err.message || String(err)
+        if (!(await monthAlreadySet(form, year, month))) {
+          const label = `${MONTH_SHORT[month - 1]} ${year}`
+          await options.onVendorChecks({
+            ok: false,
+            vendor: null,
+            year,
+            month,
+            checks: [],
+            skippedEft: 0,
+            skippedOther: 0,
+            message: `Vendor checks stopped: purchase dates were not limited to ${label}`
+          })
+        } else {
+          for (const vendorName of targets) {
+            if (isSkippedVendor(vendorName)) continue
+            let captured
+            try {
+              captured = await harvestVendorChecks(page, form, vendorName, year, month, debugDir)
+            } catch (err) {
+              captured = {
+                ok: false,
+                vendor: vendorName,
+                year,
+                month,
+                checks: [],
+                skippedEft: 0,
+                skippedOther: 0,
+                message: err.message || String(err)
+              }
+              await saveDebug(page, debugDir, 'vendor-checks-error')
             }
-            await saveDebug(page, debugDir, 'vendor-checks-error')
+            await options.onVendorChecks(captured)
           }
-          await options.onVendorChecks(captured)
         }
       }
     }

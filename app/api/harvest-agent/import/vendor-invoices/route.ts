@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
         shiftCloseCount: 0,
         created: 0,
         skipped: invoices.length,
+        leftOut: 0,
         suffixed: [],
         errors: [],
         message: `${vendor}: skipped (${RUBIS_VENDOR_SKIP_REASON})`
@@ -71,6 +72,13 @@ export async function POST(request: NextRequest) {
       const parts = [
         `${result.vendorName}: Cstore ${result.cstoreCount}, Shift Close ${result.shiftCloseCount}, added ${result.created}, skipped ${result.skipped}`
       ]
+      if (result.leftOut > 0) {
+        const label =
+          Number.isFinite(year) && Number.isFinite(month)
+            ? `${year}-${String(month).padStart(2, '0')}`
+            : 'the selected month'
+        parts.push(`left out ${result.leftOut} outside ${label}`)
+      }
       if (result.suffixed.length) {
         parts.push(
           `${result.suffixed.length} numbered with a letter (${result.suffixed

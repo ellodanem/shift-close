@@ -38,6 +38,7 @@ export type HarvestVendorInvoiceImportResult = {
   shiftCloseCount: number
   created: number
   skipped: number
+  leftOut: number
   suffixed: HarvestSuffixedInvoice[]
   errors: HarvestVendorInvoiceError[]
 }
@@ -47,6 +48,29 @@ type ExistingInvoice = {
   invoiceDate: Date
   amount: number
   vat: number | null
+  status: string
+}
+
+export function vendorInvoiceOutsideMonth(
+  dateYmd: string,
+  year?: number,
+  month?: number
+): boolean {
+  if (!year || !month || month < 1 || month > 12) return false
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd)
+  if (!match) return true
+  return Number(match[1]) !== year || Number(match[2]) !== month
+}
+
+/** A paid invoice with this number on the same purchase date is left as paid. */
+export function paidVendorInvoiceCovers(
+  existing: { invoiceNumber: string; invoiceDateYmd: string; status: string },
+  invoiceNumber: string,
+  dateYmd: string
+): boolean {
+  if (existing.status !== 'paid') return false
+  if (existing.invoiceDateYmd !== dateYmd) return false
+  return isOriginalOrSuffixed(existing.invoiceNumber, invoiceNumber)
 }
 
 export function normalizeVendorKey(value: string): string {
@@ -166,6 +190,7 @@ export async function importHarvestVendorInvoices(params: {
       shiftCloseCount: 0,
       created: 0,
       skipped: cstoreCount,
+      leftOut: 0,
       suffixed: [],
       errors: []
     }
@@ -189,6 +214,7 @@ export async function importHarvestVendorInvoices(params: {
       shiftCloseCount: 0,
       created: 0,
       skipped: 0,
+      leftOut: 0,
       suffixed: [],
       errors: [
         {
@@ -208,7 +234,7 @@ export async function importHarvestVendorInvoices(params: {
   const vatRate = vendor.isVatRegistered ? await getVendorVatRate() : 0
   const existing = await prisma.vendorInvoice.findMany({
     where: { vendorId: vendor.id },
-    select: { invoiceNumber: true, invoiceDate: true, amount: true, vat: true }
+    select: { invoiceNumber: true, invoiceDate: true, amount: true, vat: true, status: true }
   })
   const existingNumbers = new Set(existing.map((row) => row.invoiceNumber))
 
@@ -216,6 +242,7 @@ export async function importHarvestVendorInvoices(params: {
   const errors: HarvestVendorInvoiceError[] = []
   let created = 0
   let skipped = 0
+  let leftOut = 0
 
   for (const raw of params.invoices) {
     const invoiceNumber = String(raw.invoiceNumber || '').trim()
@@ -233,6 +260,27 @@ export async function importHarvestVendorInvoices(params: {
     const total = roundMoney(Number(raw.amount))
     if (!Number.isFinite(total) || total <= 0) {
       errors.push({ invoiceNumber, message: 'Invalid or zero amount' })
+      continue
+    }
+
+    if (vendorInvoiceOutsideMonth(dateYmd, params.year, params.month)) {
+      leftOut += 1
+      continue
+    }
+
+    const paid = existing.find((row) =>
+      paidVendorInvoiceCovers(
+        {
+          invoiceNumber: row.invoiceNumber,
+          invoiceDateYmd: invoiceDateToInputValue(row.invoiceDate),
+          status: row.status
+        },
+        invoiceNumber,
+        dateYmd
+      )
+    )
+    if (paid) {
+      skipped += 1
       continue
     }
 
@@ -321,7 +369,8 @@ export async function importHarvestVendorInvoices(params: {
       invoiceNumber: storedNumber,
       invoiceDate: parseInvoiceDateToUTC(dateYmd),
       amount: split.amount,
-      vat: split.vat
+      vat: split.vat,
+      status: 'pending'
     })
     created += 1
     if (storedNumber !== invoiceNumber) {
@@ -344,6 +393,7 @@ export async function importHarvestVendorInvoices(params: {
     shiftCloseCount,
     created,
     skipped,
+    leftOut,
     suffixed,
     errors
   }
