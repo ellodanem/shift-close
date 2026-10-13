@@ -83,6 +83,12 @@ type PayRunLine = {
   otHours: number
   hourlyRate: number
   salariedAmount: number
+  sickDays: number
+  sickDayRate: number
+  sickDeduction: number
+  sickEmployerPay: number
+  nicSicknessBenefit: number
+  paySickEmployerShare: boolean
   extraLines: PayRunExtraLine[]
   extraDeductions: PayRunExtraLine[]
   basicPay: number
@@ -160,6 +166,7 @@ type Draft = {
   custom: Record<string, string>
   /** Extra labels left out of PAYE. */
   untaxedExtras: string[]
+  paySickEmployerShare: boolean
 }
 
 function mdy(ymd: string): string {
@@ -227,7 +234,8 @@ function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
     custom,
     untaxedExtras: visibleExtraLines(line.extraLines)
       .filter((extra) => extra.taxable === false)
-      .map((extra) => extra.label)
+      .map((extra) => extra.label),
+    paySickEmployerShare: line.paySickEmployerShare
   }
 }
 
@@ -312,7 +320,8 @@ function payrollEntryPayload(
         extraDeductions: deductionLines(line, draft, categories),
         shortageReady: parseMoney(draft.shortage),
         staffLoan: parseMoney(draft.loan),
-        medical: parseMoney(draft.medical)
+        medical: parseMoney(draft.medical),
+        paySickEmployerShare: draft.paySickEmployerShare
       }
     })
   }
@@ -484,7 +493,8 @@ function HoursEntryCards({
   categoryTotal,
   groupGross,
   onEdit,
-  onFlush
+  onFlush,
+  onSickEmployerShareChange
 }: {
   title: string
   empty: string
@@ -502,6 +512,7 @@ function HoursEntryCards({
   groupGross: number
   onEdit: (lineId: string) => void
   onFlush: () => void
+  onSickEmployerShareChange: (lineId: string, checked: boolean) => void
 }) {
   return (
     <section className="space-y-3">
@@ -553,6 +564,22 @@ function HoursEntryCards({
                   </label>
                 ))}
               </div>
+              {parsePayType(line.payType) === 'salaried' && line.sickDays > 0 ? (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                  <label className="flex min-h-[44px] items-center gap-2 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={draft.paySickEmployerShare}
+                      disabled={locked || busy}
+                      onChange={(event) => onSickEmployerShareChange(line.id, event.target.checked)}
+                    />
+                    Pay employer 35% sick-pay share
+                  </label>
+                  <p className="mt-1 text-xs">
+                    {formatMoney(line.sickDeduction)} sick-day value; NIC benefit {formatMoney(line.nicSicknessBenefit)}.
+                  </p>
+                </div>
+              ) : null}
               <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
                 <span className="text-sm font-medium text-slate-600">Total</span>
                 <span className="text-base font-semibold tabular-nums text-slate-900">{formatMoney(grossFor(line))}</span>
@@ -750,7 +777,9 @@ export default function PayrollRunPage() {
         extraLines: extraLinesFor(line, draft, categories),
         otMultiplier,
         vacationDays: parseMoney(draft.vacationDays),
-        vacationHoursPerDay
+        vacationHoursPerDay,
+        sickDays: line.sickDays,
+        paySickEmployerShare: draft.paySickEmployerShare
       }).grossPay
     },
     [drafts, categories, locked, otMultiplier, vacationHoursPerDay]
@@ -1590,6 +1619,10 @@ export default function PayrollRunPage() {
                 attendanceText={attendanceText}
                 categoryValue={categoryValue}
                 setCategoryValue={setCategoryValue}
+                onSickEmployerShareChange={(lineId, checked) => {
+                  patchDraft(lineId, { paySickEmployerShare: checked })
+                  flushSave()
+                }}
                 grossFor={grossFor}
                 categoryTotal={categoryTotal}
                 groupGross={sumGross(hourly)}
@@ -1608,6 +1641,10 @@ export default function PayrollRunPage() {
                 attendanceText={attendanceText}
                 categoryValue={categoryValue}
                 setCategoryValue={setCategoryValue}
+                onSickEmployerShareChange={(lineId, checked) => {
+                  patchDraft(lineId, { paySickEmployerShare: checked })
+                  flushSave()
+                }}
                 grossFor={grossFor}
                 categoryTotal={categoryTotal}
                 groupGross={sumGross(salaried)}

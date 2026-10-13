@@ -14,6 +14,7 @@ import {
   payPeriodSourceHash,
   serializePayRunLine,
   taxablePayFromGross,
+  withSickPayLine,
   type BuiltPayRunLine,
   type DeductionOverride,
   type NisTaken,
@@ -46,7 +47,9 @@ export function parsePayPeriodHoursRows(raw: string): PayRunHoursRow[] {
         transTtl: typeof r.transTtl === 'number' ? r.transTtl : Number(r.transTtl) || 0,
         shortage: typeof r.shortage === 'number' ? r.shortage : Number(r.shortage) || 0,
         payCycle: typeof r.payCycle === 'string' ? r.payCycle : undefined,
-        staffNo: typeof r.staffNo === 'string' ? r.staffNo : null
+        staffNo: typeof r.staffNo === 'string' ? r.staffNo : null,
+        sickLeaveDays:
+          typeof r.sickLeaveDays === 'number' ? r.sickLeaveDays : Number(r.sickLeaveDays) || 0
       })
     }
     return rows
@@ -180,7 +183,8 @@ export async function rebuildPayRunLines(
         hourlyRate: line.hourlyRate,
         salariedAmount: line.salariedAmount,
         taxCode: line.taxCode,
-        payType: line.payType
+        payType: line.payType,
+        paySickEmployerShare: line.paySickEmployerShare
       }
       if (line.staffId) rateOverrides[line.staffId] = rateOverrides[key]
       deductionOverrides[key] = {
@@ -329,7 +333,9 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
       extraLines,
       otMultiplier,
       vacationDays,
-      vacationHoursPerDay
+      vacationHoursPerDay,
+      sickDays: line.sickDays,
+      paySickEmployerShare: line.paySickEmployerShare
     })
     const taken = nisTaken[line.staffId]
     const deducted = computePayRunDeductions({
@@ -358,6 +364,13 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
         vacationDays: pay.vacationDays,
         vacationHours: pay.vacationHours,
         vacationPay: pay.vacationPay,
+        sickDays: pay.sickDays,
+        sickDayRate: pay.sickDayRate,
+        sickDeduction: pay.sickDeduction,
+        sickEmployerPay: pay.sickEmployerPay,
+        nicSicknessBenefit: pay.nicSicknessBenefit,
+        paySickEmployerShare: pay.paySickEmployerShare,
+        extraLines: JSON.stringify(withSickPayLine(extraLines, pay.sickEmployerPay)),
         extraPay: pay.extraPay,
         grossPay: pay.grossPay,
         extraDeductions: JSON.stringify(deducted.extraDeductions),

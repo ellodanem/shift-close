@@ -55,7 +55,7 @@ Before a run can start, someone has already saved an attendance pay period. That
 
 Rows that exist only on the report (not a real staff record) use a staff id starting with `report-only:`. They are still paid if they have a name.
 
-Vacation and sick are **shown** on the hours grid. They are **not paid**. Sick cannot be edited on the payroll grid. Paying vacation or sick is an open decision.
+Vacation and sick are shown on the hours grid. Sick cannot be edited on the payroll grid. Hourly sick days are unpaid. For salaried staff, a sick day is valued at salary divided by 26 working days: the full value is removed from basic pay, NIC's external sickness benefit is shown at 65%, and payroll can optionally add the employer's 35% share.
 
 **Reload hours** replaces edited basic and overtime with a fresh split of the extracted total, after a confirm. Other typed amounts stay unless the user clears entries.
 
@@ -318,7 +318,7 @@ Carry these forward as known gaps, not as bugs to silently “fix” into differ
 
 - PAYE is typed, not calculated. There is no tax table.
 - Print PAYE does nothing.
-- Vacation and sick are notes, not earnings.
+- Vacation is recorded separately. Hourly sick is unpaid; salaried sick reduces basic pay and can add the employer's optional 35% share as an earning.
 - Hour and money column layout lives in the browser.
 - GL centre and department are one station’s constants.
 - Credit-union letterhead is complete for one union only.
@@ -373,5 +373,5 @@ Change to match SRP:
 Leave out until someone asks:
 
 - A PAYE calculation.
-- Paid vacation or paid sick.
+- Confirm whether NIC sickness-benefit reporting needs a dedicated export in addition to the payroll detail.
 - US payroll taxes.

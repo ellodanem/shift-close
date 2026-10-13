@@ -53,6 +53,32 @@ describe('pay run gross', () => {
     assert.equal(pay.grossPay, 1000)
   })
 
+  it('deducts salaried sick days over 26 working days and optionally pays the employer 35%', () => {
+    const paid = computeGrossPay({
+      payType: 'salaried',
+      salariedAmount: 900,
+      sickDays: 5,
+      paySickEmployerShare: true
+    })
+    assert.equal(paid.sickDayRate, 34.62)
+    assert.equal(paid.sickDeduction, 173.08)
+    assert.equal(paid.sickEmployerPay, 60.58)
+    assert.equal(paid.nicSicknessBenefit, 112.5)
+    assert.equal(paid.basicPay, 726.92)
+    assert.equal(paid.extraPay, 60.58)
+    assert.equal(paid.grossPay, 787.5)
+
+    const unpaid = computeGrossPay({
+      payType: 'salaried',
+      salariedAmount: 900,
+      sickDays: 5,
+      paySickEmployerShare: false
+    })
+    assert.equal(unpaid.sickEmployerPay, 0)
+    assert.equal(unpaid.nicSicknessBenefit, 112.5)
+    assert.equal(unpaid.grossPay, 726.92)
+  })
+
   it('pays salaried amount and ignores a leftover skip marker', () => {
     const pay = computeGrossPay({
       payType: 'salaried',

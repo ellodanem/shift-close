@@ -14,6 +14,10 @@ export const PAY_TYPE_VALUES = ['hourly', 'salaried', 'excluded'] as const
 export type PayType = (typeof PAY_TYPE_VALUES)[number]
 export const DEFAULT_PAY_TYPE: PayType = 'hourly'
 export const OT_MULTIPLIER = 1.5
+export const SALARIED_WORK_DAYS_PER_MONTH = 26
+export const SICK_EMPLOYER_RATE = 0.35
+export const NIC_SICKNESS_RATE = 0.65
+export const SICK_PAY_LABEL = 'Sick pay (35%)'
 
 export const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
@@ -40,6 +44,7 @@ export type PayRunHoursRow = {
   shortage?: number
   payCycle?: string
   staffNo?: string | null
+  sickLeaveDays?: number
 }
 
 export type PayRunStaffProfile = {
@@ -69,6 +74,7 @@ export type PayRateOverride = {
   taxCode?: string
   /** Pay type stored on the line. A mismatch means the staff record has since changed. */
   payType?: string
+  paySickEmployerShare?: boolean
 }
 
 export type BuiltPayRunLine = {
@@ -87,6 +93,12 @@ export type BuiltPayRunLine = {
   vacationDays: number
   vacationHours: number
   vacationPay: number
+  sickDays: number
+  sickDayRate: number
+  sickDeduction: number
+  sickEmployerPay: number
+  nicSicknessBenefit: number
+  paySickEmployerShare: boolean
   extraPay: number
   extraLines: PayRunExtraLine[]
   extraDeductions: PayRunExtraLine[]
@@ -179,6 +191,26 @@ export function extraPayTotal(lines: PayRunExtraLine[]): number {
   return round2(visibleExtraLines(lines).reduce((s, line) => s + line.amount, 0))
 }
 
+export function withSickPayLine(lines: PayRunExtraLine[], amount: number): PayRunExtraLine[] {
+  const others = lines.filter((line) => line.label !== SICK_PAY_LABEL)
+  return amount > 0 ? [...others, { label: SICK_PAY_LABEL, amount }] : others
+}
+
+export function salariedSickPay(salaryValue: unknown, daysValue: unknown, payEmployerShare: boolean) {
+  const salary = parseMoney(salaryValue)
+  const sickDays = Math.max(0, parseMoney(daysValue))
+  const exactDayRate = salary / SALARIED_WORK_DAYS_PER_MONTH
+  const sickDayRate = round2(exactDayRate)
+  const sickDeduction = round2(exactDayRate * sickDays)
+  return {
+    sickDays,
+    sickDayRate,
+    sickDeduction,
+    sickEmployerPay: payEmployerShare ? round2(sickDeduction * SICK_EMPLOYER_RATE) : 0,
+    nicSicknessBenefit: round2(sickDeduction * NIC_SICKNESS_RATE)
+  }
+}
+
 /** Gross minus extras marked not taxed. Basic pay and overtime stay taxable. */
 export function taxablePayFromGross(grossPay: number, lines: PayRunExtraLine[]): number {
   const excluded = visibleExtraLines(lines)
@@ -204,6 +236,8 @@ export function computeGrossPay(input: {
   vacationDays?: number
   /** Straight-time hours paid for each vacation day. Defaults to 6. */
   vacationHoursPerDay?: number
+  sickDays?: number
+  paySickEmployerShare?: boolean
 }): {
   payType: PayType
   basicPay: number
@@ -212,6 +246,12 @@ export function computeGrossPay(input: {
   vacationDays: number
   vacationHours: number
   vacationPay: number
+  sickDays: number
+  sickDayRate: number
+  sickDeduction: number
+  sickEmployerPay: number
+  nicSicknessBenefit: number
+  paySickEmployerShare: boolean
   grossPay: number
 } {
   const payType = parsePayType(input.payType)
@@ -224,6 +264,12 @@ export function computeGrossPay(input: {
       vacationDays: 0,
       vacationHours: 0,
       vacationPay: 0,
+      sickDays: 0,
+      sickDayRate: 0,
+      sickDeduction: 0,
+      sickEmployerPay: 0,
+      nicSicknessBenefit: 0,
+      paySickEmployerShare: false,
       grossPay: 0
     }
   }
@@ -235,8 +281,20 @@ export function computeGrossPay(input: {
     hoursPerDay: input.vacationHoursPerDay ?? DEFAULT_VACATION_HOURS_PER_DAY
   })
   if (payType === 'salaried') {
-    const basicPay = parseMoney(input.salariedAmount)
-    return { payType, basicPay, otPay: 0, extraPay, ...vacation, grossPay: round2(basicPay + extraPay) }
+    const paySickEmployerShare = input.paySickEmployerShare === true
+    const sick = salariedSickPay(input.salariedAmount, input.sickDays, paySickEmployerShare)
+    const basicPay = round2(Math.max(0, parseMoney(input.salariedAmount) - sick.sickDeduction))
+    const adjustedExtraPay = extraPayTotal(withSickPayLine(input.extraLines ?? [], sick.sickEmployerPay))
+    return {
+      payType,
+      basicPay,
+      otPay: 0,
+      extraPay: adjustedExtraPay,
+      ...vacation,
+      ...sick,
+      paySickEmployerShare,
+      grossPay: round2(basicPay + adjustedExtraPay)
+    }
   }
   const rate = parseMoney(input.hourlyRate)
   const multiplier = normalizeOvertimeMultiplier(input.otMultiplier ?? OT_MULTIPLIER)
@@ -248,6 +306,12 @@ export function computeGrossPay(input: {
     otPay,
     extraPay,
     ...vacation,
+    sickDays: 0,
+    sickDayRate: 0,
+    sickDeduction: 0,
+    sickEmployerPay: 0,
+    nicSicknessBenefit: 0,
+    paySickEmployerShare: false,
     grossPay: round2(basicPay + otPay + extraPay + vacation.vacationPay)
   }
 }
@@ -398,7 +462,8 @@ function lineFromHoursRow(
   nisTaken?: NisTaken,
   otMultiplier?: number,
   payeTaken?: PayeMonthTaken,
-  vacation?: { days: number; hoursPerDay: number }
+  vacation?: { days: number; hoursPerDay: number },
+  sick?: { days: number; payEmployerShare: boolean }
 ): BuiltPayRunLine {
   const payCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
   const payType = parsePayType(profile?.payType)
@@ -422,7 +487,9 @@ function lineFromHoursRow(
     extraLines: extras,
     otMultiplier,
     vacationDays: vacation?.days,
-    vacationHoursPerDay: vacation?.hoursPerDay
+    vacationHoursPerDay: vacation?.hoursPerDay,
+    sickDays: sick?.days,
+    paySickEmployerShare: sick?.payEmployerShare
   })
   const base = {
     staffId: isReportOnlyPayPeriodRow(row) ? null : row.staffId,
@@ -440,8 +507,14 @@ function lineFromHoursRow(
     vacationDays: pay.vacationDays,
     vacationHours: pay.vacationHours,
     vacationPay: pay.vacationPay,
+    sickDays: pay.sickDays,
+    sickDayRate: pay.sickDayRate,
+    sickDeduction: pay.sickDeduction,
+    sickEmployerPay: pay.sickEmployerPay,
+    nicSicknessBenefit: pay.nicSicknessBenefit,
+    paySickEmployerShare: pay.paySickEmployerShare,
     extraPay: pay.extraPay,
-    extraLines: extras,
+    extraLines: withSickPayLine(extras, pay.sickEmployerPay),
     grossPay: pay.grossPay,
     shortageReady: parseMoney(row.shortage),
     taxCode: (rateOverride?.taxCode ?? profile?.taxCode ?? '').trim()
@@ -455,7 +528,8 @@ function salariedLine(
   rateOverride?: PayRateOverride,
   deductionOverride?: DeductionOverride,
   nisTaken?: NisTaken,
-  payeTaken?: PayeMonthTaken
+  payeTaken?: PayeMonthTaken,
+  sick?: { days: number; payEmployerShare: boolean }
 ): BuiltPayRunLine {
   if (profile.salariedAmount == null || parseMoney(profile.salariedAmount) <= 0) {
     throw new Error(`Salaried amount is missing for ${profile.name}`)
@@ -469,7 +543,9 @@ function salariedLine(
   const pay = computeGrossPay({
     payType: 'salaried',
     salariedAmount,
-    extraLines: extras
+    extraLines: extras,
+    sickDays: sick?.days,
+    paySickEmployerShare: sick?.payEmployerShare
   })
   return withDeductions(
     {
@@ -488,8 +564,14 @@ function salariedLine(
       vacationDays: 0,
       vacationHours: 0,
       vacationPay: 0,
+      sickDays: pay.sickDays,
+      sickDayRate: pay.sickDayRate,
+      sickDeduction: pay.sickDeduction,
+      sickEmployerPay: pay.sickEmployerPay,
+      nicSicknessBenefit: pay.nicSicknessBenefit,
+      paySickEmployerShare: pay.paySickEmployerShare,
       extraPay: pay.extraPay,
-      extraLines: extras,
+      extraLines: withSickPayLine(extras, pay.sickEmployerPay),
       grossPay: pay.grossPay,
       shortageReady: 0,
       taxCode: (rateOverride?.taxCode ?? profile.taxCode ?? '').trim()
@@ -549,7 +631,11 @@ export function buildPayRunLines(input: {
         input.nisTakenByStaffId?.[row.staffId],
         input.otMultiplier,
         input.payeTakenByStaffId?.[row.staffId],
-        { days: vacationDays, hoursPerDay: input.vacationHoursPerDay ?? DEFAULT_VACATION_HOURS_PER_DAY }
+        { days: vacationDays, hoursPerDay: input.vacationHoursPerDay ?? DEFAULT_VACATION_HOURS_PER_DAY },
+        {
+          days: row.sickLeaveDays ?? 0,
+          payEmployerShare: input.rateOverrides?.[key]?.paySickEmployerShare ?? true
+        }
       )
     )
   }
@@ -567,7 +653,8 @@ export function buildPayRunLines(input: {
         input.rateOverrides?.[profile.id],
         input.deductionOverrides?.[profile.id],
         input.nisTakenByStaffId?.[profile.id],
-        input.payeTakenByStaffId?.[profile.id]
+        input.payeTakenByStaffId?.[profile.id],
+        { days: 0, payEmployerShare: true }
       )
     )
   }
@@ -596,6 +683,12 @@ export function serializePayRunLine(line: BuiltPayRunLine, sortOrder: number) {
     vacationDays: line.vacationDays,
     vacationHours: line.vacationHours,
     vacationPay: line.vacationPay,
+    sickDays: line.sickDays,
+    sickDayRate: line.sickDayRate,
+    sickDeduction: line.sickDeduction,
+    sickEmployerPay: line.sickEmployerPay,
+    nicSicknessBenefit: line.nicSicknessBenefit,
+    paySickEmployerShare: line.paySickEmployerShare,
     extraPay: line.extraPay,
     extraLines: JSON.stringify(line.extraLines),
     extraDeductions: JSON.stringify(line.extraDeductions),
