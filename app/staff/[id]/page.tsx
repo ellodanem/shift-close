@@ -220,6 +220,7 @@ function EditStaffPageInner() {
     () => roles.find((r) => r.id === formData.roleId) ?? null,
     [roles, formData.roleId]
   )
+  const managerStaff = selectedRole?.name.trim().toLowerCase() === 'manager'
 
   const visibleTabs = useMemo(
     () => STAFF_TABS.filter((tab) => tab.id !== 'payroll' || canViewStaffSensitive),
@@ -1629,7 +1630,7 @@ function EditStaffPageInner() {
                         placeholder="e.g. 6.75"
                       />
                     </div>
-                  ) : (
+                  ) : parsePayType(formData.payType) === 'salaried' && !managerStaff ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Salaried amount
@@ -1644,7 +1645,7 @@ function EditStaffPageInner() {
                         placeholder="Basic for one cycle"
                       />
                     </div>
-                  )}
+                  ) : null}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                     <BankSelect
@@ -1712,7 +1713,7 @@ function EditStaffPageInner() {
                 ) : parsePayType(formData.payType) === 'salaried' ? (
                   <FieldDisplay
                     label="Salaried amount"
-                    value={formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
+                    value={managerStaff ? '••••••' : formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
                   />
                 ) : null}
                 <FieldDisplay label="Tax code" value={formData.taxCode || null} />

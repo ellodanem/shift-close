@@ -30,7 +30,11 @@ export async function GET(
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     }
 
-    return NextResponse.json(session ? redactStaffRecord(staff, role) : staff)
+    if (!session) return NextResponse.json(staff)
+    const safeStaff = redactStaffRecord(staff, role)
+    // Manager salaries are intentionally never exposed on the staff profile.
+    if (staff.role === 'manager') safeStaff.salariedAmount = null
+    return NextResponse.json(safeStaff)
   } catch (error) {
     console.error('Error fetching staff:', error)
     return NextResponse.json({ error: 'Failed to fetch staff' }, { status: 500 })
@@ -76,6 +80,13 @@ export async function PATCH(
       taxNumber
     } = body
 
+    const existingStaff = await prisma.staff.findUnique({
+      where: { id: params.id },
+      select: { role: true }
+    })
+    if (!existingStaff) return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
+    const managerStaff = existingStaff.role === 'manager'
+
     const data: Record<string, unknown> = {
       ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
       ...(startDate !== undefined && { startDate: startDate || null }),
@@ -95,7 +106,7 @@ export async function PATCH(
       ...(canViewStaffSensitiveFields(appRole) && payType !== undefined && { payType: parsePayType(payType) }),
       ...(canViewStaffSensitiveFields(appRole) &&
         hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
+      ...(canViewStaffSensitiveFields(appRole) && !managerStaff &&
         salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) }),
       ...(canViewStaffSensitiveFields(appRole) &&
         staffLoan !== undefined && { staffLoan: parseOptionalMoney(staffLoan) }),
