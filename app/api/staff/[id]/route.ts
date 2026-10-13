@@ -32,8 +32,8 @@ export async function GET(
 
     if (!session) return NextResponse.json(staff)
     const safeStaff = redactStaffRecord(staff, role)
-    // Manager salaries are intentionally never exposed on the staff profile.
-    if (staff.role === 'manager') safeStaff.salariedAmount = null
+    // Manager salaries are available only to roles already authorized for sensitive payroll fields.
+    if (staff.role === 'manager' && !canViewStaffSensitiveFields(role)) safeStaff.salariedAmount = null
     return NextResponse.json(safeStaff)
   } catch (error) {
     console.error('Error fetching staff:', error)
@@ -106,7 +106,7 @@ export async function PATCH(
       ...(canViewStaffSensitiveFields(appRole) && payType !== undefined && { payType: parsePayType(payType) }),
       ...(canViewStaffSensitiveFields(appRole) &&
         hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
-      ...(canViewStaffSensitiveFields(appRole) && !managerStaff &&
+      ...(canViewStaffSensitiveFields(appRole) &&
         salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) }),
       ...(canViewStaffSensitiveFields(appRole) &&
         staffLoan !== undefined && { staffLoan: parseOptionalMoney(staffLoan) }),

@@ -215,6 +215,7 @@ function EditStaffPageInner() {
   const [formSnapshot, setFormSnapshot] = useState<typeof formData | null>(null)
   const [documentMenuId, setDocumentMenuId] = useState<string | null>(null)
   const [showUploadPanel, setShowUploadPanel] = useState(false)
+  const [managerSalaryRevealed, setManagerSalaryRevealed] = useState(false)
 
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === formData.roleId) ?? null,
@@ -446,6 +447,7 @@ function EditStaffPageInner() {
         taxNumber: (data as any).taxNumber || ''
       }
       setFormData(next)
+      setManagerSalaryRevealed(false)
       setShiftCount(data._count?.shifts || 0)
     } catch (error) {
       console.error('Error fetching staff:', error)
@@ -457,6 +459,7 @@ function EditStaffPageInner() {
 
   const startEditing = () => {
     setFormSnapshot({ ...formData })
+    setManagerSalaryRevealed(false)
     setEditing(true)
     setError(null)
   }
@@ -1630,7 +1633,7 @@ function EditStaffPageInner() {
                         placeholder="e.g. 6.75"
                       />
                     </div>
-                  ) : parsePayType(formData.payType) === 'salaried' && !managerStaff ? (
+                ) : parsePayType(formData.payType) === 'salaried' && !managerStaff ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Salaried amount
@@ -1643,6 +1646,20 @@ function EditStaffPageInner() {
                         onChange={(e) => setFormData({ ...formData, salariedAmount: e.target.value })}
                         className={inputClass}
                         placeholder="Basic for one cycle"
+                      />
+                    </div>
+                  ) : managerStaff && parsePayType(formData.payType) === 'salaried' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Salaried amount</label>
+                      <input
+                        type={managerSalaryRevealed ? 'number' : 'password'}
+                        step="0.01"
+                        min="0"
+                        value={formData.salariedAmount}
+                        onChange={(e) => setFormData({ ...formData, salariedAmount: e.target.value })}
+                        onDoubleClick={() => setManagerSalaryRevealed((shown) => !shown)}
+                        className={inputClass}
+                        placeholder="Salaried amount"
                       />
                     </div>
                   ) : null}
@@ -1713,7 +1730,18 @@ function EditStaffPageInner() {
                 ) : parsePayType(formData.payType) === 'salaried' ? (
                   <FieldDisplay
                     label="Salaried amount"
-                    value={managerStaff ? '••••••' : formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
+                    value={
+                      <span
+                        onDoubleClick={() => managerStaff && canViewStaffSensitive && setManagerSalaryRevealed((shown) => !shown)}
+                        className={managerStaff && canViewStaffSensitive ? 'cursor-default select-none' : undefined}
+                      >
+                        {managerStaff && !managerSalaryRevealed
+                          ? '••••••'
+                          : formData.salariedAmount
+                            ? formatMoney(Number(formData.salariedAmount))
+                            : '—'}
+                      </span>
+                    }
                   />
                 ) : null}
                 <FieldDisplay label="Tax code" value={formData.taxCode || null} />
