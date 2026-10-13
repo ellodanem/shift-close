@@ -19,6 +19,7 @@ import {
   parseExtraLines,
   parseMoney,
   parsePayType,
+  payCyclesDueOnCycleNumber,
   payCyclesDueOnRange,
   payPeriodSourceHash,
   presentPayRunLine,
@@ -119,7 +120,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
     const currentHash = payPeriodSourceHash(hoursRows)
-    const due = new Set(payCyclesDueOnRange(run.startDate, run.endDate))
+    const due = new Set(payCyclesDueOnCycleNumber(run.cycleNumber) ?? payCyclesDueOnRange(run.startDate, run.endDate))
+    const cycleDue = payCyclesDueOnCycleNumber(run.cycleNumber)
+    const rangeDue = payCyclesDueOnRange(run.startDate, run.endDate)
     const eligibility = (await loadPayRunStaffProfiles())
       .filter((profile) => profile.status === 'active')
       .map((profile) => {
@@ -146,6 +149,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       ...(await presentRun(run)),
       eligibility,
+      cycleRangeMismatch: cycleDue
+        ? cycleDue.length !== rangeDue.length || cycleDue.some((value) => !rangeDue.includes(value))
+        : false,
       hoursOutOfDate: run.status === 'draft' && run.sourceHash !== currentHash
     })
   } catch (error) {
@@ -351,7 +357,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         hoursRows,
         cycle: frequency,
         payDate: run.payDate,
-        keepOverrides: true
+        keepOverrides: true,
+        cycleNumber: run.cycleNumber
       })
       const updated = await prisma.$transaction(async (tx) => {
         await tx.payRunLine.deleteMany({ where: { payRunId: id } })
@@ -431,7 +438,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         hoursRows,
         cycle: frequency,
         payDate: run.payDate,
-        keepOverrides: true
+        keepOverrides: true,
+        cycleNumber: run.cycleNumber
       })
       const processed = await prisma.$transaction(async (tx) => {
         await tx.payRunLine.deleteMany({ where: { payRunId: id } })

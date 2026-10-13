@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
       payDate,
       keepOverrides: false,
       periodStart: startDate,
-      periodEnd: endDate
+      periodEnd: endDate,
+      cycleNumber
     })
 
     const run = await prisma.payRun.create({

@@ -143,6 +143,7 @@ type PayRun = {
     eligible: boolean
     reason: string
   }>
+  cycleRangeMismatch?: boolean
 }
 
 type Draft = {
@@ -1566,6 +1567,13 @@ export default function PayrollRunPage() {
                     </label>
                   ))}
                 </div>
+              </div>
+            ) : null}
+
+            {run?.cycleRangeMismatch ? (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                This cycle number and date range do not match the standard calendar window. Cycle number controls
+                payroll eligibility; the date range controls hours and attendance calculations.
               </div>
             ) : null}
 

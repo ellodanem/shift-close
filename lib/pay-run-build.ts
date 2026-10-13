@@ -6,6 +6,7 @@ import {
   buildPayRunLines,
   computeGrossPay,
   inferPayCycleFromRange,
+  payCyclesDueOnCycleNumber,
   payCyclesDueOnRange,
   parseExtraLines,
   parseMoney,
@@ -156,6 +157,7 @@ export async function rebuildPayRunLines(
     keepOverrides?: boolean
     periodStart?: string
     periodEnd?: string
+    cycleNumber?: number
   }
 ) {
   const staff = await loadPayRunStaffProfiles()
@@ -223,6 +225,7 @@ export async function rebuildPayRunLines(
     otMultiplier,
     periodStart,
     periodEnd,
+    cycleNumber: options.cycleNumber,
     vacationHoursPerDay
   })
   const staffById = new Map(staff.map((s) => [s.id, s]))
@@ -252,7 +255,7 @@ export async function updatePayRunSchedule(
     cycle: frequency,
     cycleNumber: input.cycleNumber
   }
-  if (parsePayCycle(run.cycle) === frequency) {
+  if (parsePayCycle(run.cycle) === frequency && run.cycleNumber === input.cycleNumber) {
     await prisma.payRun.update({ where: { id: payRunId }, data: header })
     return { rebuilt: false }
   }
@@ -263,7 +266,8 @@ export async function updatePayRunSchedule(
     payDate: input.payDate,
     keepOverrides: true,
     periodStart: input.startDate,
-    periodEnd: input.endDate
+    periodEnd: input.endDate,
+    cycleNumber: input.cycleNumber
   })
   await prisma.$transaction(async (tx) => {
     await tx.payRunLine.deleteMany({ where: { payRunId } })
@@ -378,7 +382,7 @@ export async function syncDraftDueStaff(payRunId: string): Promise<void> {
     include: { lines: { select: { id: true, staffId: true, staffName: true } } }
   })
   if (!run || run.status !== 'draft') return
-  const due = new Set(payCyclesDueOnRange(run.startDate, run.endDate))
+  const due = new Set(payCyclesDueOnCycleNumber(run.cycleNumber) ?? payCyclesDueOnRange(run.startDate, run.endDate))
   const presentIds = new Set(run.lines.map((line) => line.staffId).filter((id): id is string => Boolean(id)))
   const presentNames = new Set(run.lines.map((line) => line.staffName.trim().toLowerCase()))
   const staff = await loadPayRunStaffProfiles()
@@ -405,6 +409,7 @@ export async function syncDraftDueStaff(payRunId: string): Promise<void> {
     staff: missing,
     periodStart: run.startDate,
     periodEnd: run.endDate,
+    cycleNumber: run.cycleNumber,
     nisTakenByStaffId,
     payeTakenByStaffId,
     otMultiplier

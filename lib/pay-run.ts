@@ -290,6 +290,12 @@ export function payCyclesDueOnRange(startDate: string, endDate: string): PayCycl
   return [primary]
 }
 
+/** Cycle-number eligibility for the standard 24-cycle semi-monthly calendar. */
+export function payCyclesDueOnCycleNumber(cycleNumber: number): PayCycle[] | null {
+  if (!Number.isInteger(cycleNumber) || cycleNumber < 1 || cycleNumber > 24) return null
+  return cycleNumber % 2 === 0 ? ['semimonthly', 'monthly'] : ['semimonthly']
+}
+
 /** Prefer the cycle most staff on the hours list actually use. */
 export function inferPayRunCycle(
   startDate: string,
@@ -508,12 +514,13 @@ export function buildPayRunLines(input: {
   otMultiplier?: number
   periodStart?: string
   periodEnd?: string
+  cycleNumber?: number
   vacationHoursPerDay?: number
 }): BuiltPayRunLine[] {
   const cycle = parsePayCycle(input.cycle)
   const due = new Set<PayCycle>(
     input.periodStart && input.periodEnd
-      ? payCyclesDueOnRange(input.periodStart, input.periodEnd)
+      ? payCyclesDueOnCycleNumber(input.cycleNumber ?? 0) ?? payCyclesDueOnRange(input.periodStart, input.periodEnd)
       : [cycle]
   )
   const staffById = new Map(input.staff.map((s) => [s.id, s]))
