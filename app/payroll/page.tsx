@@ -184,17 +184,6 @@ export default function PayrollStartPage() {
     }
   }
 
-  const clearAllRuns = async () => {
-    if (!window.confirm('Delete every saved pay run, including approved and voided history? This cannot be undone.')) return
-    setBusy(true); setError(null)
-    try {
-      const res = await fetch('/api/pay-runs', { method: 'DELETE' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to clear payroll')
-      setRuns([])
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to clear payroll') } finally { setBusy(false) }
-  }
-
   const testPayroll = async () => {
     if (!periodId || !startDate || !endDate) { setError('Choose an attendance period and pay range first.'); return }
     const cycle = Number(cycleNumber)
@@ -279,7 +268,6 @@ export default function PayrollStartPage() {
               </svg>
               Create pay run
             </button>
-            <button type="button" onClick={() => void clearAllRuns()} disabled={busy || runs.length === 0} className="col-span-2 inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-4 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto">Clear saved runs</button>
           </div>
         </div>
 
