@@ -63,11 +63,7 @@ export async function GET(
     )
 
     const proposedBalances = balanceRecord
-      ? proposedPaymentBalances(
-          balanceRecord.availableFunds,
-          balanceRecord.totalAutoAvailable ?? 0,
-          planned
-        )
+      ? proposedPaymentBalances(balanceRecord.availableFunds, planned)
       : null
 
     // Optional image/PDF omissions. These stay unpaid; they are only left off this draft.
@@ -162,8 +158,31 @@ export async function GET(
     doc.text('Ref pending', col3Start, yPos)
     yPos += 0.5 // Two lines of spacing before Balance Information
 
-    // Balance Information — Westline and the combined suggestion sit side by side.
+    // Balance Information uses Westline available funds only.
     if (proposedBalances) {
+      doc.setFont('courier', 'bold')
+      doc.setFontSize(16)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Balance Information', margin, yPos)
+      yPos += 0.25
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(14)
+      doc.text(
+        `Balance Before (Available): ${formatAmount(proposedBalances.westlineBefore)}`,
+        margin,
+        yPos
+      )
+      yPos += 0.2
+      doc.text(
+        `Balance After (Available - Planned): ${formatAmount(proposedBalances.westlineAfter)}`,
+        margin,
+        yPos
+      )
+      yPos += 0.48
+    }
+
+    /* Legacy card layout retained temporarily for reference; no longer rendered. */
+    if (proposedBalances && (false as boolean)) {
       doc.setFont('courier', 'bold')
       doc.setFontSize(16)
       doc.setTextColor(0, 0, 0)

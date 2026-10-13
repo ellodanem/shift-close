@@ -38,86 +38,10 @@ function ProposedBalanceCards({
 }: {
   balance: ReturnType<typeof proposedPaymentBalances>
 }) {
-  const westlineAfterColor = balance.westlineAfter >= 0 ? '#15803d' : '#dc2626'
-  const rowStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px',
-    marginTop: '6px',
-    fontSize: '13px',
-    color: '#1f2937'
-  } as const
-
   return (
-    <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
-      <div
-        style={{
-          flex: 1,
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderLeft: '4px solid #2563eb',
-          borderRadius: '8px',
-          padding: '12px 14px'
-        }}
-      >
-        <div style={{ fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.04em', color: '#1d4ed8' }}>
-          WESTLINE
-        </div>
-        <div style={{ fontSize: '12px', color: '#1e40af', marginTop: '2px' }}>Used for payment</div>
-        <div style={rowStyle}>
-          <span>Balance before</span>
-          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.westlineBefore)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span>Balance after</span>
-          <span style={{ fontWeight: 'bold', color: westlineAfterColor }}>
-            {formatAmount(balance.westlineAfter)}
-          </span>
-        </div>
-      </div>
-      <div
-        style={{
-          flex: 1,
-          backgroundColor: '#fffbeb',
-          border: '1px dashed #d97706',
-          borderRadius: '8px',
-          padding: '12px 14px'
-        }}
-      >
-        <div style={{ fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.04em', color: '#92400e' }}>
-          SUGGESTION ONLY
-        </div>
-        <div style={{ fontSize: '12px', color: '#92400e', marginTop: '2px' }}>
-          Combined · Westline + Total Auto
-        </div>
-        <div style={rowStyle}>
-          <span>Total Auto</span>
-          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.totalAutoAvailable)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span>Balance before</span>
-          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.combinedBefore)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span>Balance after</span>
-          <span style={{ fontWeight: 'bold' }}>{formatAmount(balance.combinedAfter)}</span>
-        </div>
-        <div style={{ fontSize: '11px', color: '#92400e', marginTop: '10px' }}>
-          Fuel is still paid from Westline.
-        </div>
-        <div style={{ fontSize: '11px', color: '#92400e', marginTop: '6px' }}>
-          Checks pending transactions not shown.{' '}
-          <a
-            href="/vendor-payments/uncashed-checks"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Show check management"
-            style={{ color: '#1d4ed8', textDecoration: 'underline' }}
-          >
-            Click here
-          </a>
-        </div>
-      </div>
+    <div>
+      <div>Balance Before (Available): {formatAmount(balance.westlineBefore)}</div>
+      <div>Balance After (Available - Planned): {formatAmount(balance.westlineAfter)}</div>
     </div>
   )
 }
@@ -154,6 +78,7 @@ export function FuelMakePaymentModal({
   const [simulation, setSimulation] = useState<Simulation | null>(null)
   const [simulatedKey, setSimulatedKey] = useState('')
   const imageRef = useRef<HTMLDivElement>(null)
+  const holdOutImageRef = useRef<HTMLDivElement>(null)
   const [balance, setBalance] = useState<ReturnType<typeof proposedPaymentBalances> | null>(null)
   const [otherUnpaidInvoices, setOtherUnpaidInvoices] = useState<Invoice[]>([])
   const [hiddenFromImageIds, setHiddenFromImageIds] = useState<Set<string>>(new Set())
@@ -387,13 +312,7 @@ export function FuelMakePaymentModal({
         const res = await fetch('/api/fuel-payments/balance')
         if (res.ok) {
           const data = await res.json()
-          setBalance(
-            proposedPaymentBalances(
-              data.availableFunds,
-              data.totalAutoAvailable ?? 0,
-              simulation.totalAmount
-            )
-          )
+          setBalance(proposedPaymentBalances(data.availableFunds, simulation.totalAmount))
         }
       } catch (error) {
         console.error('Error fetching balance:', error)
@@ -434,6 +353,28 @@ export function FuelMakePaymentModal({
     } catch (error) {
       console.error('Error copying PNG:', error)
       alert('Failed to copy PNG')
+    }
+  }
+
+  const handleHoldOut = async () => {
+    if (!bankRef.trim()) {
+      alert('Please enter a bank reference number for the Hold Out image')
+      return
+    }
+    if (!holdOutImageRef.current || !simulation) return
+
+    try {
+      const canvas = await html2canvas(holdOutImageRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false
+      })
+      const blob = await (await fetch(canvas.toDataURL('image/png'))).blob()
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      alert('Hold Out image copied. No invoices were marked as paid.')
+    } catch (error) {
+      console.error('Error copying Hold Out PNG:', error)
+      alert('Failed to copy Hold Out PNG')
     }
   }
 
@@ -519,6 +460,15 @@ export function FuelMakePaymentModal({
                   className="rounded bg-gray-600 px-4 py-2 font-semibold text-white hover:bg-gray-700"
                 >
                   Copy PNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleHoldOut()}
+                  disabled={!bankRef.trim()}
+                  title={!bankRef.trim() ? 'Enter a bank reference first' : 'Copy a paid-looking PNG without changing invoice status'}
+                  className="rounded bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hold Out
                 </button>
                 <button
                   type="button"
@@ -981,6 +931,56 @@ export function FuelMakePaymentModal({
                 })}
               </div>
             )}
+          </div>
+        )}
+        {simulation && balance && (
+          <div
+            ref={holdOutImageRef}
+            className="fixed -left-[9999px] top-0 w-[800px] bg-white p-8"
+            style={{
+              fontFamily: 'monospace, Courier, monospace',
+              fontSize: '14px',
+              lineHeight: '1.5',
+              color: '#000000'
+            }}
+          >
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+                Fuel Payment - {formatInvoiceDate(simulation.simulationDate)}
+              </div>
+              {simulation.invoices.map((inv) => (
+                <div key={inv.id} style={{ marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 'bold', display: 'inline-block', width: '70px' }}>
+                    {inv.invoiceNumber}
+                  </span>
+                  <span style={{ display: 'inline-block', width: '100px', textAlign: 'right' }}>
+                    {formatAmount(inv.amount)}
+                  </span>
+                  <span style={{ display: 'inline-block', width: '80px', marginLeft: '20px' }}>
+                    {inv.type}
+                  </span>
+                </div>
+              ))}
+              <div style={{ marginTop: '4px', marginBottom: '4px' }}>
+                <span style={{ display: 'inline-block', width: '70px' }} />
+                <span style={{ display: 'inline-block', width: '100px', textAlign: 'right', fontWeight: 'bold' }}>
+                  {formatAmount(simulation.totalAmount)}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', fontWeight: 'bold', marginLeft: '190px' }}>
+                paid {formatInvoiceDate(simulation.simulationDate)}
+              </div>
+              <div style={{ fontSize: '12px', color: '#666', fontWeight: 'bold', marginLeft: '190px' }}>
+                Ref <span style={{ color: '#1d4ed8' }}>{bankRef.trim()}</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+                Balance Information
+              </div>
+              <div>Balance Before (Available): {formatAmount(balance.westlineBefore)}</div>
+              <div>Balance After (Available - Paid): {formatAmount(balance.westlineAfter)}</div>
+            </div>
           </div>
         )}
       </div>
