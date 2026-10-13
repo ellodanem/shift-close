@@ -111,6 +111,7 @@ async function loadRun(id: string) {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (id === 'test') return NextResponse.json({ error: 'Test payrolls use the isolated test endpoint.' }, { status: 400 })
     const loaded = await loadRun(id)
     if (!loaded) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     if (loaded.status === 'draft') {
@@ -165,6 +166,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (id === 'test') return NextResponse.json({ error: 'Test payrolls cannot write to saved payroll.' }, { status: 403 })
     const run = await loadRun(id)
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
 
@@ -352,6 +354,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (id === 'test') return NextResponse.json({ error: 'Test payrolls cannot be processed.' }, { status: 403 })
     const run = await loadRun(id)
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     if (run.status === 'void') {
@@ -486,6 +489,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    if (id === 'test') return NextResponse.json({ error: 'Test payrolls cannot delete saved payroll.' }, { status: 403 })
     const run = await loadRun(id)
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     if (run.status !== 'draft') {

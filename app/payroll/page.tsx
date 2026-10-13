@@ -86,7 +86,6 @@ export default function PayrollStartPage() {
   const [month, setMonth] = useState<number | 'all'>('all')
   const [cycle, setCycle] = useState<number | 'all'>('all')
   const [sort, setSort] = useState<PayRunSort>('latest')
-  const [testResult, setTestResult] = useState<any>(null)
 
   useEffect(() => {
     Promise.all([
@@ -190,8 +189,6 @@ export default function PayrollStartPage() {
     if (!Number.isInteger(cycle) || cycle < 1 || cycle > 53) { setError('Pay cycle must be a number from 1 to 53.'); return }
     setBusy(true); setError(null)
     try {
-      const res = await fetch('/api/pay-runs/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payPeriodId: periodId, startDate, endDate, payDate: payDate || endDate, cycleNumber: cycle }) })
-      const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Test run failed')
       sessionStorage.setItem('payroll-test-request', JSON.stringify({ payPeriodId: periodId, startDate, endDate, payDate: payDate || endDate, cycleNumber: cycle }))
       router.push('/payroll/test')
     } catch (err) { setError(err instanceof Error ? err.message : 'Test run failed') } finally { setBusy(false) }
@@ -555,7 +552,6 @@ export default function PayrollStartPage() {
           onTest={() => void testPayroll()}
         />
       ) : null}
-      {testResult ? <TestRunDialog result={testResult} onClose={() => setTestResult(null)} /> : null}
     </div>
   )
 }
@@ -829,8 +825,4 @@ function CreatePayRunDialog({
       </div>
     </div>
   )
-}
-
-function TestRunDialog({ result, onClose }: { result: any; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-6 shadow-xl"><div className="flex items-start justify-between"><div><h2 className="text-lg font-semibold text-slate-900">Full payroll test run</h2><p className="mt-1 text-sm text-amber-700">TEST MODE — every payroll stage was simulated; nothing was saved, approved, processed, or paid.</p></div><button type="button" onClick={onClose} className="rounded border px-3 py-1 text-sm">Close</button></div><div className="mt-4 grid gap-2 sm:grid-cols-5">{(result.stages || []).map((stage: any) => <div key={stage.id} className={`rounded border p-2 text-xs ${stage.status === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="font-medium">{stage.status === 'warning' ? 'Warning' : 'Passed'}</div><div>{stage.label}</div></div>)}</div>{result.warnings?.length ? <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{result.warnings.join(' · ')}</div> : null}<div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Employee</th><th className="p-2">Type</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Net</th></tr></thead><tbody>{(result.lines || []).map((line: any, i: number) => <tr key={line.staffId || i} className="border-b"><td className="p-2">{line.staffName}</td><td className="p-2">{line.payType}</td><td className="p-2 text-right">{formatCurrency(Number(line.grossPay || 0))}</td><td className="p-2 text-right">{formatCurrency(Number(line.netPay || 0))}</td></tr>)}</tbody></table></div></div></div>
 }

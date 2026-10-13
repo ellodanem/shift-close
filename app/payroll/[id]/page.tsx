@@ -69,9 +69,11 @@ import {
   parseMoney,
   parsePayType,
   salarySkipped,
+  taxablePayFromGross,
   visibleExtraLines,
   type PayRunExtraLine
 } from '@/lib/pay-run'
+import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 
 type PayRunLine = {
   id: string
@@ -614,6 +616,7 @@ function categoryAlign(category: PayrollCategory): string {
 
 export default function PayrollRunPage() {
   const { id } = useParams<{ id: string }>()
+  const testMode = id === 'test'
   const router = useRouter()
   const [run, setRun] = useState<PayRun | null>(null)
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
@@ -666,7 +669,11 @@ export default function PayrollRunPage() {
   const saveChain = useRef<Promise<unknown>>(Promise.resolve())
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/pay-runs/${id}`, { cache: 'no-store' })
+    const testRequest = testMode ? sessionStorage.getItem('payroll-test-request') : null
+    if (testMode && !testRequest) throw new Error('This test payroll session has expired. Start a new test run.')
+    const res = await fetch(testMode ? '/api/pay-runs/test' : `/api/pay-runs/${id}`, testMode
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: testRequest! }
+      : { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to load payroll')
     const next = data as PayRun
@@ -701,7 +708,7 @@ export default function PayrollRunPage() {
     setError(null)
     if (next.status === 'processed' || next.status === 'void') setStep(3)
     return next
-  }, [id])
+  }, [id, testMode])
 
   useEffect(() => {
     setLoading(true)
@@ -807,6 +814,45 @@ export default function PayrollRunPage() {
       return current
     }
     setSaveStatus('saving')
+    if (testMode) {
+      const patches = new Map(body.lines.map((line) => [line.id, line]))
+      const nextLines = current.lines.map((line) => {
+        const patch = patches.get(line.id)
+        if (!patch) return line
+        const pay = computeGrossPay({
+          payType: line.payType,
+          basicHours: patch.basicHours,
+          otHours: patch.otHours,
+          hourlyRate: patch.hourlyRate,
+          salariedAmount: patch.salariedAmount,
+          extraLines: patch.extraLines,
+          otMultiplier,
+          vacationDays: patch.vacationDays,
+          vacationHoursPerDay,
+          sickDays: line.sickDays,
+          paySickEmployerShare: patch.paySickEmployerShare
+        })
+        const deductions = computePayRunDeductions({
+          grossPay: pay.grossPay,
+          taxablePay: taxablePayFromGross(pay.grossPay, patch.extraLines),
+          staffLoan: patch.staffLoan,
+          medical: patch.medical,
+          shortage: patch.shortageReady,
+          extraDeductions: patch.extraDeductions
+        })
+        return { ...line, ...patch, basicPay: pay.basicPay, otPay: pay.otPay, vacationPay: pay.vacationPay,
+          extraPay: pay.extraPay, grossPay: pay.grossPay, sickDeduction: pay.sickDeduction,
+          extraDeductionPay: deductions.extraDeductionPay, nisEmployee: deductions.nisEmployee,
+          nisEmployer: deductions.nisEmployer, paye: deductions.paye, totalDeductions: deductions.totalDeductions,
+          netPay: deductions.netPay }
+      })
+      const saved = { ...current, ...header, cycleNumber: Number(header.cycleNumber), lines: nextLines }
+      runRef.current = saved
+      setRun(saved)
+      savedSignature.current = payload
+      setSaveStatus('saved')
+      return saved
+    }
     const res = await fetch(`/api/pay-runs/${current.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -847,7 +893,7 @@ export default function PayrollRunPage() {
     setSaveStatus('saved')
     setError(null)
     return saved
-  }, [])
+  }, [testMode, otMultiplier, vacationHoursPerDay])
 
   const persistNow = useCallback(
     (opts?: { header?: PayrollEntryHeader; reseed?: boolean }) => {
@@ -988,6 +1034,13 @@ export default function PayrollRunPage() {
     setError(null)
     try {
       await persistNow({ reseed: true })
+      if (testMode) {
+        const approved = { ...runRef.current!, status: 'processed' }
+        runRef.current = approved
+        setRun(approved)
+        setStep(3)
+        return
+      }
       const res = await fetch(`/api/pay-runs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1005,6 +1058,11 @@ export default function PayrollRunPage() {
   }
 
   const deleteDraft = async () => {
+    if (testMode) {
+      sessionStorage.removeItem('payroll-test-request')
+      router.push('/payroll')
+      return
+    }
     if (!window.confirm('Delete this draft? This cannot be undone.')) return
     holdAutosave.current = true
     saveEpoch.current += 1
@@ -1065,6 +1123,10 @@ export default function PayrollRunPage() {
     setBusy(true)
     setError(null)
     try {
+      if (testMode) {
+        await load()
+        return
+      }
       await saveChain.current
       const res = await fetch(`/api/pay-runs/${id}`, {
         method: 'PUT',
@@ -1168,7 +1230,7 @@ export default function PayrollRunPage() {
     setError(null)
     try {
       await persistNow()
-      if (rateScope === 'future' && line.staffId) {
+      if (!testMode && rateScope === 'future' && line.staffId) {
         const res = await fetch(`/api/staff/${line.staffId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1208,6 +1270,10 @@ export default function PayrollRunPage() {
 
   const sendCuEmail = async () => {
     if (!run || !cuDraft) return
+    if (testMode) {
+      setCuError('Email is disabled in test mode.')
+      return
+    }
     if (!cuDraft.to.trim()) {
       setCuError('Enter the credit union email address.')
       return
@@ -1359,6 +1425,9 @@ export default function PayrollRunPage() {
 
   const periodLine = (saved: PayRun) =>
     `Pay period ${mdy(saved.startDate)} – ${mdy(saved.endDate)} · Pay date ${mdy(saved.payDate)}`
+  const testHtml = (html: string) => testMode
+    ? html.replace(/<body([^>]*)>/i, '<body$1><div style="padding:10px;text-align:center;font:bold 18px sans-serif;color:#92400e;border:2px solid #f59e0b">TEST RUN — NOT AN APPROVED PAYROLL</div>')
+    : html
 
   const openPayslipPreview = async () => {
     if (!run) return
@@ -1370,12 +1439,12 @@ export default function PayrollRunPage() {
         title: 'Payslip preview',
         subtitle: periodLine(run),
         filename: `payslips-${run.startDate}-${run.endDate}.pdf`,
-        html: renderPayslipsHtml({
+        html: testHtml(renderPayslipsHtml({
           ...payslipsFromRun(run),
           companyName: company.companyName,
           companyAddress: company.address,
           companyPhone: company.phone
-        })
+        }))
       })
     } finally {
       setOpeningDoc(null)
@@ -1389,7 +1458,7 @@ export default function PayrollRunPage() {
       title: 'G/L preview',
       subtitle: periodLine(run),
       filename: `gl-${run.startDate}-${run.endDate}.pdf`,
-      html: renderGlHtml(payslipsFromRun(run))
+      html: testHtml(renderGlHtml(payslipsFromRun(run)))
     })
   }
 
@@ -1400,7 +1469,7 @@ export default function PayrollRunPage() {
       title: 'N.I.C. preview',
       subtitle: periodLine(run),
       filename: `nic-${run.startDate}-${run.endDate}.pdf`,
-      html: renderNisHtml({
+      html: testHtml(renderNisHtml({
         startDate: run.startDate,
         endDate: run.endDate,
         cycle: String(shownCycleNumber(run.cycleNumber, run.endDate)),
@@ -1412,7 +1481,7 @@ export default function PayrollRunPage() {
           nisEmployer: line.nisEmployer,
           grossPay: line.grossPay
         }))
-      })
+      }))
     })
   }
 
@@ -1423,7 +1492,7 @@ export default function PayrollRunPage() {
       title: 'P.A.Y.E. preview',
       subtitle: periodLine(run),
       filename: `paye-${run.startDate}-${run.endDate}.pdf`,
-      html: renderPayeHtml({
+      html: testHtml(renderPayeHtml({
         startDate: run.startDate,
         endDate: run.endDate,
         payDate: run.payDate,
@@ -1438,7 +1507,7 @@ export default function PayrollRunPage() {
           nisEmployee: line.nisEmployee,
           paye: line.paye
         }))
-      })
+      }))
     })
   }
 
@@ -1449,8 +1518,8 @@ export default function PayrollRunPage() {
       title: 'Banking pack preview',
       subtitle: periodLine(run),
       filename: `banks-listing-${run.payDate}.pdf`,
-      html: renderBankingPackHtml(banking, run.payDate),
-      onExcel: () => downloadBankingPackExcel(banking, run.payDate)
+      html: testHtml(renderBankingPackHtml(banking, run.payDate)),
+      onExcel: testMode ? undefined : () => downloadBankingPackExcel(banking, run.payDate)
     })
   }
 
@@ -1466,6 +1535,7 @@ export default function PayrollRunPage() {
   return (
     <div className="min-h-full bg-white">
       <div className="mx-auto max-w-6xl px-4 py-4 pb-28 sm:px-6 sm:py-8 sm:pb-28">
+        {testMode ? <div className="mb-5 rounded-md border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">TEST RUN — this payroll is isolated. Nothing here will be saved, approved, processed, emailed, or paid.</div> : null}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Pay employees</h1>
@@ -1486,7 +1556,9 @@ export default function PayrollRunPage() {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
-            <PayrollSettingsButton />
+            {testMode ? (
+              <button type="button" disabled title="Payroll settings cannot be changed in test mode" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-400">⚙</button>
+            ) : <PayrollSettingsButton />}
             {run.status === 'draft' ? (
               <button
                 type="button"
@@ -1494,7 +1566,7 @@ export default function PayrollRunPage() {
                 disabled={busy}
                 className="inline-flex min-h-[44px] items-center justify-center text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-40 sm:min-h-0 sm:justify-start"
               >
-                Delete draft
+                {testMode ? 'Exit test' : 'Delete draft'}
               </button>
             ) : null}
             {run.status === 'processed' ? (
@@ -1878,7 +1950,7 @@ export default function PayrollRunPage() {
               </div>
             ) : (
               <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                This payroll is approved. Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}.
+                {testMode ? 'Test approval completed. No payroll was approved or saved.' : 'This payroll is approved.'} Pay period {mdy(run.startDate)} – {mdy(run.endDate)} · Pay date {mdy(run.payDate)}.
               </div>
             )}
             <h2 className="mt-8 text-lg font-semibold text-slate-900">What would you like to do next?</h2>
@@ -1930,7 +2002,7 @@ export default function PayrollRunPage() {
                 Print Banking List
               </button>
             </div>
-            {letters.length > 0 ? (
+            {!testMode && letters.length > 0 ? (
               <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 {letters.map((letter) => (
                   <button
@@ -2054,7 +2126,7 @@ export default function PayrollRunPage() {
                 disabled={busy}
                 className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
-                {busy ? 'Approving…' : 'Approve payroll'}
+                {busy ? 'Approving…' : testMode ? 'Simulate approval' : 'Approve payroll'}
               </button>
             )}
           </div>
@@ -2317,7 +2389,7 @@ export default function PayrollRunPage() {
                 />
                 Only this payroll
               </label>
-              <label className="mt-2 flex min-h-[44px] items-center gap-2 sm:min-h-0">
+              {!testMode ? <label className="mt-2 flex min-h-[44px] items-center gap-2 sm:min-h-0">
                 <input
                   type="radio"
                   name="rate-scope"
@@ -2325,7 +2397,7 @@ export default function PayrollRunPage() {
                   onChange={() => setRateScope('future')}
                 />
                 This payroll and future payrolls
-              </label>
+              </label> : null}
             </fieldset>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
               <button

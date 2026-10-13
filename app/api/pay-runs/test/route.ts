@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parseCycleNumber } from '@/lib/pay-cycle'
-import { parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
-import { inferPayCycleFromRange } from '@/lib/pay-run'
+import { parseCycleNumber, parsePayCycle, payCycleLabel } from '@/lib/pay-cycle'
+import { loadPayRunStaffProfiles, parsePayPeriodHoursRows, rebuildPayRunLines } from '@/lib/pay-run-build'
+import { inferPayCycleFromRange, parsePayType, payCyclesDueOnCycleNumber, payCyclesDueOnRange } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -31,14 +31,27 @@ export async function POST(request: NextRequest) {
       periodEnd: endDate,
       cycleNumber
     })
-    const lines = built.lines
+    const lines = built.lines.map((line, index) => ({ ...line, id: `test-line-${line.staffId || index}` }))
+    const due = new Set(payCyclesDueOnCycleNumber(cycleNumber) ?? payCyclesDueOnRange(startDate, endDate))
+    const cycleDue = payCyclesDueOnCycleNumber(cycleNumber)
+    const rangeDue = payCyclesDueOnRange(startDate, endDate)
+    const eligibility = (await loadPayRunStaffProfiles()).filter((profile) => profile.status === 'active').map((profile) => {
+      const payType = parsePayType(profile.payType)
+      const payCycle = parsePayCycle(profile.payCycle)
+      const isDue = due.has(payCycle)
+      const salaryMissing = payType === 'salaried' && (!profile.salariedAmount || profile.salariedAmount <= 0)
+      return { id: profile.id, name: profile.name, payType, payCycle, eligible: payType !== 'excluded' && isDue && !salaryMissing, reason: payType === 'excluded' ? 'Excluded from payroll' : salaryMissing ? 'Salaried amount is missing' : isDue ? 'Eligible for this period' : `${payCycleLabel(payCycle)} staff — not due this period` }
+    })
     const gross = lines.reduce((sum, line) => sum + Number(line.grossPay || 0), 0)
     const net = lines.reduce((sum, line) => sum + Number(line.netPay || 0), 0)
     const warnings = lines
       .filter((line) => line.payType !== 'excluded' && !line.bankCode)
       .map((line) => `${line.staffName}: missing bank code`)
     return NextResponse.json({
+      id: 'test', status: 'draft', cycle: inferPayCycleFromRange(startDate, endDate),
       startDate, endDate, payDate, cycleNumber, lines, sourceHash: built.sourceHash,
+      payPeriod: { id: period.id, rows: period.rows }, eligibility,
+      cycleRangeMismatch: cycleDue ? cycleDue.length !== rangeDue.length || cycleDue.some((value) => !rangeDue.includes(value)) : false,
       totals: { employees: lines.length, grossPay: Math.round(gross * 100) / 100, netPay: Math.round(net * 100) / 100 },
       stages: [
         { id: 'calculate', label: 'Calculate hours and earnings', status: 'passed' },
