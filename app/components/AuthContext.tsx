@@ -39,6 +39,7 @@ interface AuthContextValue {
   loading: boolean
   refresh: (force?: boolean) => Promise<void>
   logout: () => Promise<void>
+  logoutEverywhere: () => Promise<void>
   canEditRoster: boolean
   canManageUsers: boolean
   canViewStaffSensitive: boolean
@@ -105,6 +106,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await endSession('manual')
   }, [endSession])
 
+  const logoutEverywhere = useCallback(async () => {
+    const res = await fetch('/api/auth/logout-everywhere', { method: 'POST' })
+    if (!res.ok) throw new Error('Failed to sign out everywhere')
+    authMeCacheRef.current = null
+    setUser(null)
+    writeRememberedUsername(null)
+    window.location.href = '/login?signedOutEverywhere=1'
+  }, [])
+
   useEffect(() => {
     if (!user) return
     // "Remember me" extends the cookie/JWT; skip the strict idle timer so it actually keeps you signed in.
@@ -150,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     refresh,
     logout,
+    logoutEverywhere,
     canEditRoster: canEditRoster(role),
     canManageUsers: canManageAppUsers(role),
     canViewStaffSensitive: canViewStaffSensitiveFields(role),

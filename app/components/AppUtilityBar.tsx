@@ -18,7 +18,7 @@ import {
 export default function AppUtilityBar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout } = useAuth()
+  const { user, logout, logoutEverywhere } = useAuth()
   const role = user?.role ?? ''
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -119,6 +119,19 @@ export default function AppUtilityBar() {
           </div>
         ) : null}
       </div>
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm('Sign out of this account on every computer and device?')) {
+            void logoutEverywhere().catch(() => alert('Failed to sign out everywhere'))
+          }
+        }}
+        className="flex-shrink-0 rounded-md px-2 py-1 text-sm font-medium text-amber-200 hover:bg-slate-700 hover:text-amber-100"
+        title="Sign out on every computer and device"
+      >
+        <span className="sm:hidden">All devices</span>
+        <span className="hidden sm:inline">Sign out everywhere</span>
+      </button>
       <button
         type="button"
         onClick={toggleFavorite}

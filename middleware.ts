@@ -6,7 +6,7 @@ import {
   apiWriteAllowedForRole
 } from '@/lib/access-control'
 import { roleHomePath } from '@/lib/roles'
-import { verifySessionToken, SESSION_COOKIE } from '@/lib/session'
+import { verifySessionToken, SESSION_COOKIE } from '@/lib/session-token'
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl

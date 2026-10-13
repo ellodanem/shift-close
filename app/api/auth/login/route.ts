@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
       {
         id: user.id,
         role: roleNorm,
-        isSuperAdmin: user.isSuperAdmin
+        isSuperAdmin: user.isSuperAdmin,
+        sessionVersion: user.sessionVersion
       },
       { rememberMe }
     )

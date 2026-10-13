@@ -1296,6 +1296,7 @@ model AppUser {
   passwordHash String   @map("password_hash")
   role         String // admin | manager | senior_supervisor | supervisor | stakeholder | accountant
   isSuperAdmin Boolean  @default(false) @map("is_super_admin")
+  sessionVersion Int    @default(0) @map("session_version")
   /// Post-login landing path (e.g. /attendance/viewer). Must be an app-relative path.
   homePath     String?  @map("home_path")
   createdAt    DateTime @default(now()) @map("created_at")

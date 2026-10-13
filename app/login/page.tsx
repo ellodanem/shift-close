@@ -14,6 +14,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const next = searchParams.get('next') || '/dashboard'
   const timedOut = searchParams.get('timeout') === '1'
+  const signedOutEverywhere = searchParams.get('signedOutEverywhere') === '1'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -85,6 +86,11 @@ function LoginForm() {
         {timedOut && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             You were signed out after 15 minutes of inactivity.
+          </div>
+        )}
+        {signedOutEverywhere && (
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+            You have been signed out on all computers and devices.
           </div>
         )}
         {error && (
