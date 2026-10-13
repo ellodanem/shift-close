@@ -135,6 +135,14 @@ type PayRun = {
   voidReason?: string
   voidedByName?: string
   lines: PayRunLine[]
+  eligibility?: Array<{
+    id: string
+    name: string
+    payType: string
+    payCycle: string
+    eligible: boolean
+    reason: string
+  }>
 }
 
 type Draft = {
@@ -616,6 +624,7 @@ export default function PayrollRunPage() {
   const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
   const [cuError, setCuError] = useState<string | null>(null)
   const [cuSent, setCuSent] = useState<string | null>(null)
+  const [eligibility, setEligibility] = useState<PayRun['eligibility']>([])
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
   const draftsRef = useRef(drafts)
   const runRef = useRef(run)
@@ -653,6 +662,7 @@ export default function PayrollRunPage() {
     savedSignature.current = draftStillSkipsSalary ? '' : payload
     autosaveReady.current = true
     setRun(next)
+    setEligibility(next.eligibility ?? [])
     setPayDate(nextHeader.payDate)
     setStartDate(nextHeader.startDate)
     setEndDate(nextHeader.endDate)
@@ -1539,6 +1549,25 @@ export default function PayrollRunPage() {
                 Hours & money types
               </button>
             </div>
+
+            {eligibility && eligibility.length > 0 ? (
+              <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">Payroll eligibility</p>
+                <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {eligibility.map((person) => (
+                    <label
+                      key={person.id}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${person.eligible ? 'text-slate-800' : 'text-slate-400'}`}
+                      title={person.reason}
+                    >
+                      <input type="checkbox" checked={person.eligible} disabled className="rounded" readOnly />
+                      <span>{person.name}</span>
+                      {!person.eligible ? <span className="text-xs">({person.reason})</span> : null}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-8 md:hidden">
               <HoursEntryCards

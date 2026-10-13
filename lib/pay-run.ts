@@ -10,14 +10,15 @@ import {
   type PayCycle
 } from './pay-cycle'
 
-export const PAY_TYPE_VALUES = ['hourly', 'salaried'] as const
+export const PAY_TYPE_VALUES = ['hourly', 'salaried', 'excluded'] as const
 export type PayType = (typeof PAY_TYPE_VALUES)[number]
 export const DEFAULT_PAY_TYPE: PayType = 'hourly'
 export const OT_MULTIPLIER = 1.5
 
 export const PAY_TYPE_LABELS: Record<PayType, string> = {
   hourly: 'Hourly',
-  salaried: 'Salaried'
+  salaried: 'Salaried',
+  excluded: 'Excluded'
 }
 
 /** Marks a salaried line that is unchecked for this run. Not an earning. */
@@ -214,6 +215,18 @@ export function computeGrossPay(input: {
   grossPay: number
 } {
   const payType = parsePayType(input.payType)
+  if (payType === 'excluded') {
+    return {
+      payType,
+      basicPay: 0,
+      otPay: 0,
+      extraPay: 0,
+      vacationDays: 0,
+      vacationHours: 0,
+      vacationPay: 0,
+      grossPay: 0
+    }
+  }
   const extraPay = extraPayTotal(input.extraLines ?? [])
   const vacation = vacationEarning({
     payType,
@@ -438,6 +451,9 @@ function salariedLine(
   nisTaken?: NisTaken,
   payeTaken?: PayeMonthTaken
 ): BuiltPayRunLine {
+  if (profile.salariedAmount == null || parseMoney(profile.salariedAmount) <= 0) {
+    throw new Error(`Salaried amount is missing for ${profile.name}`)
+  }
   const payCycle = parsePayCycle(profile.payCycle)
   const keepLineAmounts =
     !!rateOverride && (!rateOverride.payType || parsePayType(rateOverride.payType) === 'salaried')
@@ -508,6 +524,7 @@ export function buildPayRunLines(input: {
     const reportOnly = isReportOnlyPayPeriodRow(row)
     const profile = reportOnly ? undefined : staffById.get(row.staffId)
     const rowCycle = parsePayCycle(profile?.payCycle ?? row.payCycle)
+    if (!reportOnly && profile && parsePayType(profile.payType) === 'excluded') continue
     if (!reportOnly && !due.has(rowCycle)) continue
     if (!reportOnly) used.add(row.staffId)
     const key = reportOnly ? row.staffId : row.staffId
@@ -532,6 +549,7 @@ export function buildPayRunLines(input: {
 
   for (const profile of input.staff) {
     if (profile.status !== 'active') continue
+    if (parsePayType(profile.payType) === 'excluded') continue
     if (parsePayType(profile.payType) !== 'salaried') continue
     if (!due.has(parsePayCycle(profile.payCycle))) continue
     if (used.has(profile.id)) continue

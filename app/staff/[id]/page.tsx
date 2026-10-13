@@ -1709,12 +1709,12 @@ function EditStaffPageInner() {
                     label="Hourly rate"
                     value={formData.hourlyRate ? formatMoney(Number(formData.hourlyRate)) : null}
                   />
-                ) : (
+                ) : parsePayType(formData.payType) === 'salaried' ? (
                   <FieldDisplay
                     label="Salaried amount"
                     value={formData.salariedAmount ? formatMoney(Number(formData.salariedAmount)) : null}
                   />
-                )}
+                ) : null}
                 <FieldDisplay label="Tax code" value={formData.taxCode || null} />
                 <FieldDisplay label="Tax number" value={formData.taxNumber || null} />
                 <FieldDisplay label="Bank" value={formData.bankName || null} />

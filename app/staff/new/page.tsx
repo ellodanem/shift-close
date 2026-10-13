@@ -426,7 +426,7 @@ export default function NewStaffPage() {
                       placeholder="e.g. 6.75"
                     />
                   </div>
-                ) : (
+                ) : parsePayType(formData.payType) === 'salaried' ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Salaried amount
@@ -441,7 +441,7 @@ export default function NewStaffPage() {
                       placeholder="Basic for one cycle"
                     />
                   </div>
-                )}
+                ) : null}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
                   <BankSelect

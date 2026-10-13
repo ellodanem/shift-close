@@ -299,6 +299,10 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
     const profile = staffById.get(line.staffId)
     if (!profile) continue
     const nextType = parsePayType(profile.payType)
+    if (nextType === 'excluded') {
+      await prisma.payRunLine.delete({ where: { id: line.id } })
+      continue
+    }
     if (nextType === parsePayType(line.payType)) continue
     const hoursRow = hoursRows.find((row) => row.staffId === line.staffId)
     const split = splitPayPeriodHours(hoursRow?.transTtl ?? line.transTtl, profile.payCycle)
@@ -382,6 +386,8 @@ export async function syncDraftDueStaff(payRunId: string): Promise<void> {
     (profile) =>
       profile.status === 'active' &&
       parsePayType(profile.payType) === 'salaried' &&
+      profile.salariedAmount != null &&
+      profile.salariedAmount > 0 &&
       due.has(parsePayCycle(profile.payCycle)) &&
       !presentIds.has(profile.id) &&
       !presentNames.has(profile.name.trim().toLowerCase())

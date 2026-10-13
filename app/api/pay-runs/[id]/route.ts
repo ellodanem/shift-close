@@ -19,6 +19,7 @@ import {
   parseExtraLines,
   parseMoney,
   parsePayType,
+  payCyclesDueOnRange,
   payPeriodSourceHash,
   presentPayRunLine,
   serializePayRunLine,
@@ -27,7 +28,7 @@ import {
 import { readOvertimeMultiplier, readVacationHoursPerDay } from '@/lib/payroll-settings-store'
 import { vacationDaysInPeriod } from '@/lib/vacation-pay'
 import { prisma } from '@/lib/prisma'
-import { parseCycleNumber } from '@/lib/pay-cycle'
+import { parseCycleNumber, parsePayCycle, payCycleLabel } from '@/lib/pay-cycle'
 import { getSessionFromRequest } from '@/lib/session'
 import { capStaffLoanDeduction } from '@/lib/staff-loan'
 import { loadStaffLoanSnapshots, syncStaffLoanStatuses } from '@/lib/staff-loan-store'
@@ -118,8 +119,33 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!run) return NextResponse.json({ error: 'Pay run not found' }, { status: 404 })
     const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
     const currentHash = payPeriodSourceHash(hoursRows)
+    const due = new Set(payCyclesDueOnRange(run.startDate, run.endDate))
+    const eligibility = (await loadPayRunStaffProfiles())
+      .filter((profile) => profile.status === 'active')
+      .map((profile) => {
+        const payType = parsePayType(profile.payType)
+        const cycle = parsePayCycle(profile.payCycle)
+        const cycleDue = due.has(cycle)
+        const salaryMissing = payType === 'salaried' && (!profile.salariedAmount || profile.salariedAmount <= 0)
+        return {
+          id: profile.id,
+          name: profile.name,
+          payType,
+          payCycle: cycle,
+          eligible: payType !== 'excluded' && cycleDue && !salaryMissing,
+          reason:
+            payType === 'excluded'
+              ? 'Excluded from payroll'
+              : salaryMissing
+                ? 'Salaried amount is missing'
+                : cycleDue
+                  ? 'Eligible for this period'
+                  : `${payCycleLabel(cycle)} staff — not due this period`
+        }
+      })
     return NextResponse.json({
       ...(await presentRun(run)),
+      eligibility,
       hoursOutOfDate: run.status === 'draft' && run.sourceHash !== currentHash
     })
   } catch (error) {
