@@ -86,6 +86,7 @@ export default function PayrollStartPage() {
   const [month, setMonth] = useState<number | 'all'>('all')
   const [cycle, setCycle] = useState<number | 'all'>('all')
   const [sort, setSort] = useState<PayRunSort>('latest')
+  const [testResult, setTestResult] = useState<any>(null)
 
   useEffect(() => {
     Promise.all([
@@ -183,6 +184,29 @@ export default function PayrollStartPage() {
     }
   }
 
+  const clearAllRuns = async () => {
+    if (!window.confirm('Delete every saved pay run, including approved and voided history? This cannot be undone.')) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch('/api/pay-runs', { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to clear payroll')
+      setRuns([])
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to clear payroll') } finally { setBusy(false) }
+  }
+
+  const testPayroll = async () => {
+    if (!periodId || !startDate || !endDate) { setError('Choose an attendance period and pay range first.'); return }
+    const cycle = Number(cycleNumber)
+    if (!Number.isInteger(cycle) || cycle < 1 || cycle > 53) { setError('Pay cycle must be a number from 1 to 53.'); return }
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch('/api/pay-runs/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payPeriodId: periodId, startDate, endDate, payDate: payDate || endDate, cycleNumber: cycle }) })
+      const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Test run failed')
+      setTestResult(data); setCreateOpen(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Test run failed') } finally { setBusy(false) }
+  }
+
   const openRun = (runId: string) => {
     router.push(`/payroll/${runId}`)
   }
@@ -255,6 +279,7 @@ export default function PayrollStartPage() {
               </svg>
               Create pay run
             </button>
+            <button type="button" onClick={() => void clearAllRuns()} disabled={busy || runs.length === 0} className="col-span-2 inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-4 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 sm:col-span-1 sm:h-10 sm:min-h-0 sm:w-auto">Clear saved runs</button>
           </div>
         </div>
 
@@ -538,8 +563,10 @@ export default function PayrollStartPage() {
             setCycleNumber(value)
           }}
           onSubmit={() => void enterPayroll()}
+          onTest={() => void testPayroll()}
         />
       ) : null}
+      {testResult ? <TestRunDialog result={testResult} onClose={() => setTestResult(null)} /> : null}
     </div>
   )
 }
@@ -668,7 +695,8 @@ function CreatePayRunDialog({
   onEndDate,
   onPayDate,
   onCycleNumber,
-  onSubmit
+  onSubmit,
+  onTest
 }: {
   periods: SavedPeriod[]
   periodId: string
@@ -686,6 +714,7 @@ function CreatePayRunDialog({
   onPayDate: (value: string) => void
   onCycleNumber: (value: string) => void
   onSubmit: () => void
+  onTest: () => void
 }) {
   const titleId = useId()
 
@@ -792,6 +821,14 @@ function CreatePayRunDialog({
               Cancel
             </button>
             <button
+              type="button"
+              onClick={onTest}
+              disabled={busy || loading || !periodId}
+              className="min-h-[44px] w-full rounded-md border border-violet-300 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50 sm:min-h-0 sm:w-auto"
+            >
+              {busy ? 'Testing…' : 'Test run'}
+            </button>
+            <button
               type="submit"
               disabled={busy || loading || !periodId}
               className="min-h-[44px] w-full rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0 sm:w-auto"
@@ -803,4 +840,8 @@ function CreatePayRunDialog({
       </div>
     </div>
   )
+}
+
+function TestRunDialog({ result, onClose }: { result: any; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-6 shadow-xl"><div className="flex items-start justify-between"><div><h2 className="text-lg font-semibold text-slate-900">Test payroll preview</h2><p className="mt-1 text-sm text-amber-700">TEST RUN — nothing was saved or approved.</p></div><button type="button" onClick={onClose} className="rounded border px-3 py-1 text-sm">Close</button></div><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Employee</th><th className="p-2">Type</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Net</th></tr></thead><tbody>{(result.lines || []).map((line: any, i: number) => <tr key={line.staffId || i} className="border-b"><td className="p-2">{line.staffName}</td><td className="p-2">{line.payType}</td><td className="p-2 text-right">{formatCurrency(Number(line.grossPay || 0))}</td><td className="p-2 text-right">{formatCurrency(Number(line.netPay || 0))}</td></tr>)}</tbody></table></div></div></div>
 }

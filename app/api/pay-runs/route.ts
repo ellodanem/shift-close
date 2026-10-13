@@ -42,6 +42,17 @@ export async function GET() {
   }
 }
 
+/** DELETE /api/pay-runs — remove the saved payroll history, preserving periods and staff. */
+export async function DELETE() {
+  try {
+    const result = await prisma.payRun.deleteMany({})
+    return NextResponse.json({ deleted: result.count })
+  } catch (error) {
+    console.error('Pay run clean-slate error:', error)
+    return NextResponse.json({ error: 'Failed to clear saved pay runs' }, { status: 500 })
+  }
+}
+
 /** POST /api/pay-runs — create or open the payroll for a saved attendance period. */
 export async function POST(request: NextRequest) {
   try {
