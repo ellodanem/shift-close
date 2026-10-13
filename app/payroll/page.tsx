@@ -192,7 +192,8 @@ export default function PayrollStartPage() {
     try {
       const res = await fetch('/api/pay-runs/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payPeriodId: periodId, startDate, endDate, payDate: payDate || endDate, cycleNumber: cycle }) })
       const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Test run failed')
-      setTestResult(data); setCreateOpen(false)
+      sessionStorage.setItem('payroll-test-request', JSON.stringify({ payPeriodId: periodId, startDate, endDate, payDate: payDate || endDate, cycleNumber: cycle }))
+      router.push('/payroll/test')
     } catch (err) { setError(err instanceof Error ? err.message : 'Test run failed') } finally { setBusy(false) }
   }
 
