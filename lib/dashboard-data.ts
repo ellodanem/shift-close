@@ -880,6 +880,19 @@ export async function fetchFuelComparisonWidgetDay(
   )
 }
 
+async function loadDashboardWidget<T>(
+  name: string,
+  load: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await load()
+  } catch (error) {
+    console.error(`dashboard ${name}`, error)
+    return fallback
+  }
+}
+
 export async function buildDashboardBootstrap(role: string, year: number, month: number) {
   const norm = normalizeAppRole(role)
   const stakeholder = norm === 'stakeholder'
@@ -910,27 +923,35 @@ export async function buildDashboardBootstrap(role: string, year: number, month:
     nightSheet,
     fuelComparisonRecordedDay
   ] = await Promise.all([
-    fetchDashboardMonthSummary({ year, month }),
-    fetchDashboardUpcoming(),
-    fetchRecentFuelPayment(),
-    fetchDashboardToday(),
-    skipFuelCharts ? Promise.resolve(null) : fetchDashboardAverageDeposit(),
-    skipFinancial ? Promise.resolve(null) : fetchCustomerArSummaryFirst(year, month),
-    skipCashbookMtd ? Promise.resolve(null) : fetchCashbookSummary(startDate, endDate),
-    fetchDashboardFuelMtdSold(year, month),
-    fullFinancialAccess ? fetchStaleArAccounts() : Promise.resolve(null),
-    loadFuelExpectancy({ canManage: isFullAccessRole(role) })
-      .then(toFuelExpectancyGlance)
-      .catch((err) => {
-        console.error('fuel expectancy bootstrap', err)
-        return null
-      }),
+    loadDashboardWidget('month summary', () => fetchDashboardMonthSummary({ year, month }), null),
+    loadDashboardWidget('upcoming', fetchDashboardUpcoming, []),
+    loadDashboardWidget('recent fuel payment', fetchRecentFuelPayment, null),
+    loadDashboardWidget('today roster', fetchDashboardToday, null),
+    skipFuelCharts
+      ? Promise.resolve(null)
+      : loadDashboardWidget('average deposit', fetchDashboardAverageDeposit, null),
+    skipFinancial
+      ? Promise.resolve(null)
+      : loadDashboardWidget('customer accounts', () => fetchCustomerArSummaryFirst(year, month), null),
+    skipCashbookMtd
+      ? Promise.resolve(null)
+      : loadDashboardWidget('cashbook summary', () => fetchCashbookSummary(startDate, endDate), null),
+    loadDashboardWidget('fuel MTD sold', () => fetchDashboardFuelMtdSold(year, month), null),
+    fullFinancialAccess
+      ? loadDashboardWidget('stale customer accounts', fetchStaleArAccounts, null)
+      : Promise.resolve(null),
+    loadDashboardWidget(
+      'fuel expectancy',
+      () => loadFuelExpectancy({ canManage: isFullAccessRole(role) }).then(toFuelExpectancyGlance),
+      null
+    ),
     Promise.resolve({ lastClosedDay: null, cashbookLatest: null }),
     includeFuelComparisonWidget
-      ? fetchFuelComparisonWidgetDay(year, month).catch((err) => {
-          console.error('fuel comparison widget day', err)
-          return null
-        })
+      ? loadDashboardWidget(
+          'fuel comparison widget day',
+          () => fetchFuelComparisonWidgetDay(year, month),
+          null
+        )
       : Promise.resolve(null)
   ])
 
