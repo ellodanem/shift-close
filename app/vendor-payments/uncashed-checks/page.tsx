@@ -30,6 +30,13 @@ interface CheckRow {
   balanceAccount?: CheckBalanceAccount | null
 }
 
+interface CashbookCategory {
+  id: string
+  name: string
+  type: string
+  active: boolean
+}
+
 type TabType = 'uncashed' | 'cleared'
 
 function formatDate(d: string) {
@@ -148,12 +155,14 @@ export default function CheckManagementPage() {
   const [manualCheckOpen, setManualCheckOpen] = useState(false)
   const [manualCheckSaving, setManualCheckSaving] = useState(false)
   const [manualCheckError, setManualCheckError] = useState<string | null>(null)
+  const [expenseCategories, setExpenseCategories] = useState<CashbookCategory[]>([])
   const [manualCheckForm, setManualCheckForm] = useState({
     date: businessTodayYmd(),
     payee: '',
     checkNumber: '',
     amount: '',
-    notes: ''
+    notes: '',
+    categoryId: ''
   })
   const [balanceAccount, setBalanceAccount] = useState<CheckBalanceAccount>(
     DEFAULT_VENDOR_CHECK_BALANCE
@@ -184,6 +193,15 @@ export default function CheckManagementPage() {
 
   useEffect(() => {
     fetchChecks()
+    fetch('/api/financial/cashbook/categories', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: unknown) => {
+        const categories = Array.isArray(data)
+          ? (data as CashbookCategory[]).filter((category) => category.active && category.type === 'expense')
+          : []
+        setExpenseCategories(categories)
+      })
+      .catch(() => setExpenseCategories([]))
   }, [])
 
   const activeChecks = activeTab === 'uncashed' ? uncashedChecks : clearedChecks
@@ -257,7 +275,14 @@ export default function CheckManagementPage() {
 
   const openManualCheck = () => {
     setManualCheckError(null)
-    setManualCheckForm({ date: businessTodayYmd(), payee: '', checkNumber: '', amount: '', notes: '' })
+    setManualCheckForm({
+      date: businessTodayYmd(),
+      payee: '',
+      checkNumber: '',
+      amount: '',
+      notes: '',
+      categoryId: expenseCategories[0]?.id ?? ''
+    })
     setManualCheckOpen(true)
   }
 
@@ -744,12 +769,17 @@ export default function CheckManagementPage() {
                 <label className="block text-sm font-medium text-gray-700">Check #<input value={manualCheckForm.checkNumber} onChange={(e) => setManualCheckForm((f) => ({ ...f, checkNumber: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
                 <label className="block text-sm font-medium text-gray-700">Amount<input type="number" min="0.01" step="0.01" value={manualCheckForm.amount} onChange={(e) => setManualCheckForm((f) => ({ ...f, amount: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
               </div>
+              <label className="block text-sm font-medium text-gray-700">Expense category<select required value={manualCheckForm.categoryId} onChange={(e) => setManualCheckForm((f) => ({ ...f, categoryId: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 bg-white px-3 py-2">
+                <option value="">Choose a category</option>
+                {expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select></label>
               <label className="block text-sm font-medium text-gray-700">Notes (optional)<textarea value={manualCheckForm.notes} onChange={(e) => setManualCheckForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="mt-1 w-full rounded border border-gray-300 px-3 py-2" /></label>
             </div>
+            {expenseCategories.length === 0 ? <p className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">No active expense categories are available. Add one in Cashbook settings first.</p> : null}
             {manualCheckError ? <p className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{manualCheckError}</p> : null}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" disabled={manualCheckSaving} onClick={() => setManualCheckOpen(false)} className="rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
-              <button type="button" disabled={manualCheckSaving} onClick={() => void saveManualCheck()} className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{manualCheckSaving ? 'Adding…' : 'Add check'}</button>
+              <button type="button" disabled={manualCheckSaving || !manualCheckForm.categoryId || expenseCategories.length === 0} onClick={() => void saveManualCheck()} className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{manualCheckSaving ? 'Adding…' : 'Add check'}</button>
             </div>
           </div>
         </div>

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getOrCreateExpenseCategory } from '@/lib/cashbook-expense'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +12,7 @@ export async function POST(request: NextRequest) {
       checkNumber?: unknown
       amount?: unknown
       notes?: unknown
+      categoryId?: unknown
     }
 
     const date = typeof body.date === 'string' ? body.date.trim() : ''
@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     const checkNumber = typeof body.checkNumber === 'string' ? body.checkNumber.trim() : ''
     const amount = typeof body.amount === 'number' ? body.amount : Number(body.amount)
     const notes = typeof body.notes === 'string' ? body.notes.trim() : ''
+    const categoryId = typeof body.categoryId === 'string' ? body.categoryId.trim() : ''
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'A valid check date is required' }, { status: 400 })
@@ -33,8 +34,16 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 })
     }
+    if (!categoryId) {
+      return NextResponse.json({ error: 'An expense category is required' }, { status: 400 })
+    }
 
-    const category = await getOrCreateExpenseCategory('Manual checks', null)
+    const category = await prisma.cashbookCategory.findFirst({
+      where: { id: categoryId, active: true, type: 'expense' }
+    })
+    if (!category) {
+      return NextResponse.json({ error: 'Choose a valid active expense category' }, { status: 400 })
+    }
     const description = notes ? `${payee} — ${notes}` : payee
     const entry = await prisma.cashbookEntry.create({
       data: {
