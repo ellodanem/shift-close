@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount, roundMoney } from '@/lib/fuelPayments'
 import { formatInvoiceDate, invoiceDateToInputValue } from '@/lib/invoiceHelpers'
+import { businessTodayYmd } from '@/lib/datetime-policy'
 import {
   type MonthFilterType,
   matchesMonthFilter,
@@ -144,6 +145,16 @@ export default function CheckManagementPage() {
   const [pendingClear, setPendingClear] = useState<CheckRow | null>(null)
   const [pendingDateEdit, setPendingDateEdit] = useState<CheckRow | null>(null)
   const [clearedDate, setClearedDate] = useState('')
+  const [manualCheckOpen, setManualCheckOpen] = useState(false)
+  const [manualCheckSaving, setManualCheckSaving] = useState(false)
+  const [manualCheckError, setManualCheckError] = useState<string | null>(null)
+  const [manualCheckForm, setManualCheckForm] = useState({
+    date: businessTodayYmd(),
+    payee: '',
+    checkNumber: '',
+    amount: '',
+    notes: ''
+  })
   const [balanceAccount, setBalanceAccount] = useState<CheckBalanceAccount>(
     DEFAULT_VENDOR_CHECK_BALANCE
   )
@@ -242,6 +253,38 @@ export default function CheckManagementPage() {
     setPendingClear(null)
     setPendingDateEdit(null)
     setClearedDate('')
+  }
+
+  const openManualCheck = () => {
+    setManualCheckError(null)
+    setManualCheckForm({ date: businessTodayYmd(), payee: '', checkNumber: '', amount: '', notes: '' })
+    setManualCheckOpen(true)
+  }
+
+  const saveManualCheck = async () => {
+    setManualCheckSaving(true)
+    setManualCheckError(null)
+    try {
+      const res = await fetch('/api/vendor-payments/uncashed-checks/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...manualCheckForm,
+          amount: Number(manualCheckForm.amount)
+        })
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setManualCheckError(payload.error || 'Failed to add check')
+        return
+      }
+      setManualCheckOpen(false)
+      await fetchChecks({ silent: true })
+    } catch (error) {
+      setManualCheckError(error instanceof Error ? error.message : 'Failed to add check')
+    } finally {
+      setManualCheckSaving(false)
+    }
   }
 
   const handleConfirmClear = async () => {
@@ -370,6 +413,13 @@ export default function CheckManagementPage() {
             <p className="mt-1 text-sm text-gray-600">{summaryText}</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-4">
+            <button
+              type="button"
+              onClick={openManualCheck}
+              className="min-h-[44px] rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 sm:min-h-0"
+            >
+              Add Check
+            </button>
             <button
               type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
@@ -681,6 +731,29 @@ export default function CheckManagementPage() {
           </>
         )}
       </div>
+
+      {manualCheckOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => !manualCheckSaving && setManualCheckOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="manual-check-title" className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 id="manual-check-title" className="text-lg font-bold text-gray-900">Add check</h2>
+            <p className="mt-1 text-sm text-gray-600">This creates an outstanding cashbook check and will appear in Check Management.</p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Date<input type="date" value={manualCheckForm.date} onChange={(e) => setManualCheckForm((f) => ({ ...f, date: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
+              <label className="block text-sm font-medium text-gray-700">Payee / description<input autoFocus value={manualCheckForm.payee} onChange={(e) => setManualCheckForm((f) => ({ ...f, payee: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-gray-700">Check #<input value={manualCheckForm.checkNumber} onChange={(e) => setManualCheckForm((f) => ({ ...f, checkNumber: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
+                <label className="block text-sm font-medium text-gray-700">Amount<input type="number" min="0.01" step="0.01" value={manualCheckForm.amount} onChange={(e) => setManualCheckForm((f) => ({ ...f, amount: e.target.value }))} className="mt-1 min-h-[42px] w-full rounded border border-gray-300 px-3 py-2" /></label>
+              </div>
+              <label className="block text-sm font-medium text-gray-700">Notes (optional)<textarea value={manualCheckForm.notes} onChange={(e) => setManualCheckForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="mt-1 w-full rounded border border-gray-300 px-3 py-2" /></label>
+            </div>
+            {manualCheckError ? <p className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{manualCheckError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={manualCheckSaving} onClick={() => setManualCheckOpen(false)} className="rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
+              <button type="button" disabled={manualCheckSaving} onClick={() => void saveManualCheck()} className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{manualCheckSaving ? 'Adding…' : 'Add check'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendingCheck && (
         <div
