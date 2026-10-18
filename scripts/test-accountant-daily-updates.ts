@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildAccountantDailyUpdates, type AccountantDailyShiftSource } from '../lib/accountant-daily-updates'
+import {
+  autoReviewOlderAccountantDailyUpdates,
+  buildAccountantDailyUpdates,
+  type AccountantDailyShiftSource
+} from '../lib/accountant-daily-updates'
 
 function shift(overrides: Partial<AccountantDailyShiftSource> = {}): AccountantDailyShiftSource {
   return {
@@ -51,4 +55,12 @@ test('fingerprint changes when another shift completes', () => {
   const first = buildAccountantDailyUpdates([shift()])[0].fingerprint
   const second = buildAccountantDailyUpdates([shift(), shift({ id: 'shift-2', shift: '1-9' })])[0].fingerprint
   assert.notEqual(first, second)
+})
+
+test('automatically reviews updates more than three calendar days old', () => {
+  const updates = buildAccountantDailyUpdates([shift({ date: '2026-10-14' }), shift({ id: 'recent', date: '2026-10-15' })])
+  const reviewed = autoReviewOlderAccountantDailyUpdates(updates, {}, new Date(2026, 9, 18))
+
+  assert.equal(reviewed['2026-10-14'], updates.find((day) => day.date === '2026-10-14')?.fingerprint)
+  assert.equal(reviewed['2026-10-15'], undefined)
 })

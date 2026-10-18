@@ -21,6 +21,7 @@ import { formatAppUserDisplayName, isAccountantRole } from '@/lib/roles'
 import {
   ACCOUNTANT_DAILY_REVIEWED_EVENT,
   ACCOUNTANT_DAILY_REVIEWED_KEY,
+  autoReviewOlderAccountantDailyUpdates,
   type AccountantDailyUpdate
 } from '@/lib/accountant-daily-updates'
 
@@ -169,7 +170,15 @@ export default function AppNav({
           } catch {
             // Treat unreadable browser state as no reviewed days.
           }
-          setDailyUpdateAttention(days.some((day) => reviewed[day.date] !== day.fingerprint))
+          const autoReviewed = autoReviewOlderAccountantDailyUpdates(days, reviewed)
+          if (autoReviewed !== reviewed) {
+            try {
+              localStorage.setItem(ACCOUNTANT_DAILY_REVIEWED_KEY, JSON.stringify(autoReviewed))
+            } catch {
+              // The notification state still reflects the automatic review in this session.
+            }
+          }
+          setDailyUpdateAttention(days.some((day) => autoReviewed[day.date] !== day.fingerprint))
         })
         .catch(() => {
           if (!cancelled) setDailyUpdateAttention(false)

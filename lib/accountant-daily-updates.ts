@@ -32,6 +32,37 @@ export type AccountantDailyUpdate = {
   diesel: number
 }
 
+const AUTO_REVIEW_AFTER_DAYS = 3
+
+export function isAccountantDailyUpdateOlderThan(
+  date: string,
+  days: number = AUTO_REVIEW_AFTER_DAYS,
+  today: Date = new Date()
+): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!match) return false
+
+  const [, year, month, day] = match
+  const dateValue = Date.UTC(Number(year), Number(month) - 1, Number(day))
+  const todayValue = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  return (todayValue - dateValue) / 86_400_000 > days
+}
+
+export function autoReviewOlderAccountantDailyUpdates(
+  days: AccountantDailyUpdate[],
+  reviewed: Record<string, string>,
+  today: Date = new Date()
+): Record<string, string> {
+  let next = reviewed
+  for (const day of days) {
+    if (isAccountantDailyUpdateOlderThan(day.date, AUTO_REVIEW_AFTER_DAYS, today) && reviewed[day.date] !== day.fingerprint) {
+      if (next === reviewed) next = { ...reviewed }
+      next[day.date] = day.fingerprint
+    }
+  }
+  return next
+}
+
 function round2(value: number): number {
   return Math.round((Number(value) || 0) * 100) / 100
 }

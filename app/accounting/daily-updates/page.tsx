@@ -7,6 +7,7 @@ import { formatAccountingDate } from '@/lib/accounting-date-format'
 import {
   ACCOUNTANT_DAILY_REVIEWED_EVENT,
   ACCOUNTANT_DAILY_REVIEWED_KEY,
+  autoReviewOlderAccountantDailyUpdates,
   type AccountantDailyLine,
   type AccountantDailyUpdate
 } from '@/lib/accountant-daily-updates'
@@ -54,10 +55,9 @@ export default function AccountantDailyUpdatesPage() {
   const { month } = useAccountingBooks()
   const [days, setDays] = useState<AccountantDailyUpdate[]>([])
   const [reviewed, setReviewed] = useState<Record<string, string>>({})
+  const [expandedReviewedDays, setExpandedReviewedDays] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => setReviewed(readReviewed()), [])
 
   useEffect(() => {
     let cancelled = false
@@ -67,7 +67,21 @@ export default function AccountantDailyUpdatesPage() {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Could not load daily updates')
-        if (!cancelled) setDays(Array.isArray(data) ? data : [])
+        if (cancelled) return
+
+        const loadedDays = Array.isArray(data) ? data : []
+        const currentReviewed = readReviewed()
+        const nextReviewed = autoReviewOlderAccountantDailyUpdates(loadedDays, currentReviewed)
+        if (nextReviewed !== currentReviewed) {
+          try {
+            localStorage.setItem(ACCOUNTANT_DAILY_REVIEWED_KEY, JSON.stringify(nextReviewed))
+            window.dispatchEvent(new Event(ACCOUNTANT_DAILY_REVIEWED_EVENT))
+          } catch {
+            // The visual state still updates when browser storage is unavailable.
+          }
+        }
+        setReviewed(nextReviewed)
+        setDays(loadedDays)
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : 'Could not load daily updates')
@@ -94,6 +108,15 @@ export default function AccountantDailyUpdatesPage() {
       } catch {
         // The visual state still updates when browser storage is unavailable.
       }
+      return next
+    })
+  }
+
+  function toggleReviewedDay(date: string) {
+    setExpandedReviewedDays((current) => {
+      const next = new Set(current)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
       return next
     })
   }
@@ -129,9 +152,10 @@ export default function AccountantDailyUpdatesPage() {
       <div className="space-y-5">
         {days.map((day) => {
           const unread = reviewed[day.date] !== day.fingerprint
+          const collapsed = !unread && !expandedReviewedDays.has(day.date)
           return (
             <article key={day.date} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${unread ? 'border-rose-300 ring-2 ring-rose-100' : 'border-slate-200'}`}>
-              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
+              <header className={`flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-3 sm:px-5 ${collapsed ? '' : 'border-b border-slate-100'}`}>
                 <div className="flex items-center gap-3">
                   <h2 className="text-lg font-bold text-slate-900">{formatAccountingDate(day.date)}</h2>
                   {unread ? <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 font-bold text-white" aria-label="New or updated day">!</span> : null}
@@ -142,28 +166,44 @@ export default function AccountantDailyUpdatesPage() {
                     <button type="button" onClick={() => markReviewed(day)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                       Mark reviewed
                     </button>
-                  ) : <span className="text-xs font-medium text-emerald-700">Reviewed</span>}
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium text-emerald-700">Reviewed</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleReviewedDay(day.date)}
+                        aria-expanded={!collapsed}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        {collapsed ? 'Show details' : 'Hide details'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </header>
 
-              <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
-                <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-blue-800">Deposits</h3>
-                  <AmountList lines={day.deposits} />
-                </section>
-                <section className="rounded-xl border border-violet-100 bg-violet-50/60 p-4">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-violet-800">Credit</h3>
-                  <AmountList lines={day.credits} />
-                </section>
-                <section className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-cyan-800">Debit</h3>
-                  <AmountList lines={day.debits} />
-                </section>
-              </div>
-              <div className="grid gap-3 border-t border-slate-100 bg-slate-50/60 p-4 sm:grid-cols-2 sm:px-5">
-                <TotalCard label="Gasoline sold" value={day.gasoline} tone="border-emerald-200 bg-emerald-50 text-emerald-900" />
-                <TotalCard label="Diesel sold" value={day.diesel} tone="border-amber-200 bg-amber-50 text-amber-900" />
-              </div>
+              {!collapsed ? (
+                <>
+                  <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
+                    <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-blue-800">Deposits</h3>
+                      <AmountList lines={day.deposits} />
+                    </section>
+                    <section className="rounded-xl border border-violet-100 bg-violet-50/60 p-4">
+                      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-violet-800">Credit</h3>
+                      <AmountList lines={day.credits} />
+                    </section>
+                    <section className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+                      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-cyan-800">Debit</h3>
+                      <AmountList lines={day.debits} />
+                    </section>
+                  </div>
+                  <div className="grid gap-3 border-t border-slate-100 bg-slate-50/60 p-4 sm:grid-cols-2 sm:px-5">
+                    <TotalCard label="Gasoline sold" value={day.gasoline} tone="border-emerald-200 bg-emerald-50 text-emerald-900" />
+                    <TotalCard label="Diesel sold" value={day.diesel} tone="border-amber-200 bg-amber-50 text-amber-900" />
+                  </div>
+                </>
+              ) : null}
             </article>
           )
         })}
