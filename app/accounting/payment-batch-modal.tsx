@@ -117,7 +117,7 @@ export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; 
         </div>
         <div className="p-5 sm:p-6">
           {error ? <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p> : !detail ? <p className="py-10 text-center text-sm text-gray-500">Loading payment details…</p> : (
-            <div ref={summaryRef} className="batch-print-area bg-white p-1 text-gray-900">
+            <div ref={summaryRef} className="batch-print-area bg-white p-1 text-left text-gray-900">
               <div className="mb-5 flex items-start justify-between gap-4 border-b-2 border-gray-900 pb-4">
                 <div><p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Payment summary</p><h3 className="mt-1 text-2xl font-bold">{detail.payee}</h3></div>
                 <div className="text-right text-sm"><p className="text-gray-500">Date paid</p><p className="font-semibold">{displayDate(detail.date)}</p></div>
