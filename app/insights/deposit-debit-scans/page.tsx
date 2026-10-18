@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { pdfIframeSrc } from '@/lib/pdf-iframe-src'
-import { shareScansViaWhatsApp, type SelectableScan } from '@/lib/scan-share'
+import { downloadScanPdf, shareScansViaWhatsApp, type SelectableScan } from '@/lib/scan-share'
 
 interface ScanRow {
   date: string
@@ -76,7 +76,9 @@ function ScanLinkList({
   onToggleAll,
   selectedIds,
   onToggleOne,
-  onPreview
+  onPreview,
+  onDownload,
+  downloadingId
 }: {
   scans: SelectableScan[]
   accentClass: string
@@ -86,6 +88,8 @@ function ScanLinkList({
   selectedIds: Set<string>
   onToggleOne: (scan: SelectableScan) => void
   onPreview: (scan: SelectableScan) => void
+  onDownload: (scan: SelectableScan) => void
+  downloadingId: string | null
 }) {
   return (
     <div className={`rounded-lg border border-gray-100 bg-gray-50/80 pl-3 pr-2 py-3 ${accentClass}`}>
@@ -128,6 +132,15 @@ function ScanLinkList({
                   className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                 >
                   View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDownload(scan)}
+                  disabled={downloadingId === scan.id}
+                  title={`Download ${scan.label}`}
+                  className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {downloadingId === scan.id ? 'Downloading…' : 'Download'}
                 </button>
               </div>
             </li>
@@ -178,6 +191,7 @@ export default function DepositDebitScansPage() {
   const [sharingWhatsApp, setSharingWhatsApp] = useState(false)
   const [shareMessage, setShareMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [previewScan, setPreviewScan] = useState<SelectableScan | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const selectedIds = useMemo(() => new Set(Object.keys(selectedById)), [selectedById])
   const selectedScans = useMemo(() => Object.values(selectedById), [selectedById])
@@ -329,6 +343,19 @@ export default function DepositDebitScansPage() {
       setSharingWhatsApp(false)
     }
   }, [selectedScans])
+
+  const handleDownload = useCallback(async (scan: SelectableScan) => {
+    setDownloadingId(scan.id)
+    setShareMessage(null)
+    try {
+      await downloadScanPdf(scan)
+      setShareMessage({ type: 'ok', text: `Downloaded ${scan.label}.` })
+    } catch (e) {
+      setShareMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to download PDF' })
+    } finally {
+      setDownloadingId(null)
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100/80 to-gray-50 p-4 sm:p-6">
@@ -564,6 +591,8 @@ export default function DepositDebitScansPage() {
                         selectedIds={selectedIds}
                         onToggleOne={upsertSelection}
                         onPreview={setPreviewScan}
+                        onDownload={handleDownload}
+                        downloadingId={downloadingId}
                       />
                     )}
                     {deb.length > 0 && (
@@ -576,6 +605,8 @@ export default function DepositDebitScansPage() {
                         selectedIds={selectedIds}
                         onToggleOne={upsertSelection}
                         onPreview={setPreviewScan}
+                        onDownload={handleDownload}
+                        downloadingId={downloadingId}
                       />
                     )}
                     {sec.length > 0 && (
@@ -588,6 +619,8 @@ export default function DepositDebitScansPage() {
                         selectedIds={selectedIds}
                         onToggleOne={upsertSelection}
                         onPreview={setPreviewScan}
+                        onDownload={handleDownload}
+                        downloadingId={downloadingId}
                       />
                     )}
                   </div>

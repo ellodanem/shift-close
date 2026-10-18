@@ -147,6 +147,20 @@ export async function fetchScanPdfFile(scan: SelectableScan): Promise<File> {
   return new File([blob], sanitizePdfFilename(scan.label), { type })
 }
 
+/** Download one scan through the authenticated proxy so the browser saves the file. */
+export async function downloadScanPdf(scan: SelectableScan): Promise<void> {
+  const file = await fetchScanPdfFile(scan)
+  const objectUrl = URL.createObjectURL(file)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = file.name
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
 export type WhatsAppShareResult = 'files'
 
 /**
