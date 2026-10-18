@@ -166,6 +166,12 @@ const ACCOUNTING_NAV_ITEMS: NavItemConfig[] = [
   { label: 'A/R aging', href: '/accounting/aging', permission: 'accounting', section: 'Receivables' },
   { label: 'Enter & pay bills', href: '/accounting/bills', permission: 'accounting', section: 'Payables' },
   { label: 'Vendors', href: '/accounting/vendors', permission: 'accounting', section: 'Payables' },
+  {
+    label: 'Check Management',
+    href: '/vendor-payments/uncashed-checks',
+    permission: 'financial.vendor',
+    section: 'Payables'
+  },
   { label: 'Journal entry', href: '/accounting/journal', permission: 'accounting', section: 'Tasks' },
   { label: 'Reconcile', href: '/accounting/reconcile', permission: 'accounting', section: 'Tasks' },
   { label: 'Receipts', href: '/accounting/receipts', permission: 'accounting', section: 'Tasks' },
@@ -480,16 +486,6 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
             label: 'Fuel comparison',
             href: '/reports/fuel-comparison',
             permission: 'reports.center'
-          }
-        ]
-      },
-      {
-        label: 'Check Management',
-        items: [
-          {
-            label: 'Check Management',
-            href: '/vendor-payments/uncashed-checks',
-            permission: 'financial.vendor'
           }
         ]
       },

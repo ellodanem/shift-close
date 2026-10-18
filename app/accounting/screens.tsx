@@ -155,6 +155,9 @@ export function OverviewScreen() {
         <Link href="/customer-accounts" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Customer Accounts
         </Link>
+        <Link href="/accounting/vendors" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+          Vendors
+        </Link>
         <Link href="/accounting/bills" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Enter & pay bills
         </Link>
