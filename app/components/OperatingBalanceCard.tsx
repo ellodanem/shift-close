@@ -3,13 +3,13 @@ import { formatAmount } from '@/lib/fuelPayments'
 
 const WESTLINE_ACCOUNT = {
   name: 'Westline Ent',
-  kind: 'Chequing Account',
+  kind: 'Chequing account',
   number: '200000316928'
 }
 
 const SERVICE_STATION_ACCOUNT = {
   name: 'Service Station',
-  kind: 'Total Auto · Chequing Account',
+  kind: 'Total Auto · Chequing account',
   number: '200000102146'
 }
 
@@ -53,11 +53,7 @@ function UncashedPhantom({
       </Link>
       <span title={title}>
         <span className="font-semibold text-slate-700">Phantom</span>{' '}
-        <span
-          className={`tabular-nums font-semibold ${
-            phantom >= 0 ? 'text-green-600' : 'text-red-600'
-          }`}
-        >
+        <span className={`tabular-nums font-semibold ${phantom >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
           {money(phantom)}
         </span>
       </span>
@@ -65,122 +61,88 @@ function UncashedPhantom({
   )
 }
 
-function AccountRow({
+function AccountSummary({
   name,
   kind,
   number,
   currentBalance,
-  available
+  available,
+  children
 }: {
   name: string
   kind: string
   number: string
   currentBalance: number
   available: number
+  children?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-lg font-semibold text-white"
-          aria-hidden
-        >
-          $
-        </div>
+    <section className="min-w-0 p-4" aria-label={`${name} balance`}>
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-lg font-semibold text-slate-800">{name}</p>
-          <p className="text-sm text-slate-500">{kind}</p>
-          <p className="text-sm text-slate-400">{number}</p>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-semibold text-white" aria-hidden>$</div>
+            <p className="truncate font-semibold text-slate-900">{name}</p>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{kind} · {number}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Available</p>
+          <p className="mt-1 text-base font-bold tabular-nums text-slate-900">{money(available)}</p>
+          <p className="mt-1 text-xs tabular-nums text-slate-500">Balance {money(currentBalance)}</p>
         </div>
       </div>
-
-      <div className="grid grid-cols-2 border-t border-gray-200 pt-3 sm:min-w-[22rem] sm:border-t-0 sm:pt-0">
-        <div className="border-r border-gray-200 pr-3 text-right sm:pr-4">
-          <p className="text-xs font-medium text-slate-500">Current Balance</p>
-          <p className="mt-1 text-sm tabular-nums text-slate-700 sm:text-base">
-            {money(currentBalance)}
-          </p>
-        </div>
-        <div className="pl-3 text-right sm:pl-4">
-          <p className="text-xs font-medium text-slate-500">Available</p>
-          <p className="mt-1 text-sm font-bold tabular-nums text-slate-800 sm:text-base">{money(available)}</p>
-        </div>
-      </div>
-    </div>
+      {children ? <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-slate-100 pt-2.5 text-xs text-slate-600">{children}</div> : null}
+    </section>
   )
 }
 
-export function OperatingBalanceCard({
-  balance,
-  note
-}: {
-  balance: OperatingBalance
-  note?: string
-}) {
+export function OperatingBalanceCard({ balance, note }: { balance: OperatingBalance; note?: string }) {
   const uncashed = balance.uncashedChecksTotal ?? 0
   const phantom = balance.phantom ?? 0
   const serviceStationUncashed = balance.serviceStationUncashedChecksTotal ?? 0
   const serviceStationPhantom = balance.serviceStationPhantom ?? 0
 
   return (
-    <div className="mb-4 space-y-3">
-    <section
-      className="overflow-hidden rounded-lg border border-gray-200 bg-white"
-      aria-label={`${SERVICE_STATION_ACCOUNT.name} balance`}
-    >
-      <AccountRow
-        name={SERVICE_STATION_ACCOUNT.name}
-        kind={SERVICE_STATION_ACCOUNT.kind}
-        number={SERVICE_STATION_ACCOUNT.number}
-        currentBalance={balance.totalAutoCurrentBalance ?? 0}
-        available={balance.totalAutoAvailable ?? 0}
-      />
-      {serviceStationUncashed > 0 && (
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-gray-200 px-4 py-2.5 text-sm text-slate-600">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Funding accounts">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Funding accounts</h2>
+          <p className="text-xs text-slate-500">Available funds for fuel and vendor payments</p>
+        </div>
+        <Link href="/vendor-payments/uncashed-checks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">Check status</Link>
+      </div>
+      <div className="grid divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <AccountSummary
+          name={SERVICE_STATION_ACCOUNT.name}
+          kind={SERVICE_STATION_ACCOUNT.kind}
+          number={SERVICE_STATION_ACCOUNT.number}
+          currentBalance={balance.totalAutoCurrentBalance ?? 0}
+          available={balance.totalAutoAvailable ?? 0}
+        >
           <UncashedPhantom
             uncashed={serviceStationUncashed}
             phantom={serviceStationPhantom}
             title="Phantom = Service Station available − uncashed vendor checks. Outstanding vendor checks are reserved on both accounts until the check clears."
           />
-        </div>
-      )}
-    </section>
-
-    <section
-      className="overflow-hidden rounded-lg border border-gray-200 bg-white"
-      aria-label={`${WESTLINE_ACCOUNT.name} balance`}
-    >
-      <AccountRow
-        name={WESTLINE_ACCOUNT.name}
-        kind={WESTLINE_ACCOUNT.kind}
-        number={WESTLINE_ACCOUNT.number}
-        currentBalance={balance.currentBalance}
-        available={balance.availableFunds}
-      />
-
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-gray-200 px-4 py-2.5 text-sm text-slate-600">
-        <span>
-          <span className="font-semibold text-slate-700">Planned</span>{' '}
-          <span className="tabular-nums">{money(balance.planned)}</span>
-        </span>
-        <span>
-          <span className="font-semibold text-slate-700">After</span>{' '}
-          <span
-            className={`tabular-nums font-semibold ${
-              balance.balanceAfter >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
-            {money(balance.balanceAfter)}
-          </span>
-        </span>
-        <UncashedPhantom
-          uncashed={uncashed}
-          phantom={phantom}
-          title="Phantom = Westline available − uncashed checks. Outstanding vendor checks are reserved on both accounts until the check clears. Cashbook checks are reserved on Westline only."
-        />
-        {note && <span className="text-xs text-slate-400">{note}</span>}
+        </AccountSummary>
+        <AccountSummary
+          name={WESTLINE_ACCOUNT.name}
+          kind={WESTLINE_ACCOUNT.kind}
+          number={WESTLINE_ACCOUNT.number}
+          currentBalance={balance.currentBalance}
+          available={balance.availableFunds}
+        >
+          <span><span className="font-semibold text-slate-700">Planned</span> <span className="tabular-nums">{money(balance.planned)}</span></span>
+          <span><span className="font-semibold text-slate-700">After</span> <span className={`tabular-nums font-semibold ${balance.balanceAfter >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(balance.balanceAfter)}</span></span>
+          <UncashedPhantom
+            uncashed={uncashed}
+            phantom={phantom}
+            title="Phantom = Westline available − uncashed checks. Outstanding vendor checks are reserved on both accounts until the check clears. Cashbook checks are reserved on Westline only."
+          />
+          {note ? <span className="text-slate-400">{note}</span> : null}
+        </AccountSummary>
       </div>
     </section>
-    </div>
   )
 }
