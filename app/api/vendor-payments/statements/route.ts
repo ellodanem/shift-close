@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { businessTodayYmd, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { vendorInvoiceTotal } from '@/lib/vendorVat'
 
+export const dynamic = 'force-dynamic'
+
 type StatementRow = {
   date: string
   description: string

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { parseAccountingMonth } from '@/lib/accounting-books'
 import { buildReceivableAging } from '@/lib/receivable-aging'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/customer-accounts/aging?year=2026&month=10
 export async function GET(request: NextRequest) {
   try {

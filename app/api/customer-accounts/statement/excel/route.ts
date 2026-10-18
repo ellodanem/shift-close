@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateCustomerStatementExcelBuffer } from '@/lib/customer-statement-excel'
 import type { StatementMode } from '@/lib/customer-statement'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/customer-accounts/statement/excel?account=&startDate=&endDate=&mode=summary|detail
 export async function GET(request: NextRequest) {
   try {

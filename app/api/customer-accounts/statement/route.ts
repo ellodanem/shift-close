@@ -5,6 +5,8 @@ import {
   type StatementMode
 } from '@/lib/customer-statement'
 
+export const dynamic = 'force-dynamic'
+
 function parseDateParam(value: string | null): string | null {
   if (!value?.trim()) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : null

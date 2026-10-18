@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateCustomerStatementPdfBuffer } from '@/lib/customer-statement-pdf'
 import type { StatementMode } from '@/lib/customer-statement'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/customer-accounts/statement/pdf?account=&startDate=&endDate=&mode=summary|detail
 export async function GET(request: NextRequest) {
   try {
