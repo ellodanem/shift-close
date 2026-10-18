@@ -134,7 +134,16 @@ export function OverviewScreen() {
   const assets = books.westlineOnFile + books.serviceStationOnFile + books.accountsReceivable
   const liabilities = books.accountsPayableFuel + books.accountsPayableVendors + books.payrollPayable
   const asOfLabel = journalDateLabel(books.asOf) || books.asOf
-  const receivables = books.customers.filter((customer) => customer.closing !== 0)
+  // Keep customers who paid their balance in the selected month visible too.
+  // They are useful collection records even when their month-end balance is zero.
+  const receivables = books.customers.filter((customer) => customer.closing !== 0 || customer.payments !== 0)
+  const receivableTotals = receivables.reduce(
+    (totals, customer) => ({
+      payments: totals.payments + customer.payments,
+      closing: totals.closing + customer.closing
+    }),
+    { payments: 0, closing: 0 }
+  )
   const fuelHref = isFullAccessRole(role) ? '/fuel-payments/invoices' : '/accounting/bills'
   const vendorHref = isFullAccessRole(role) ? '/vendor-payments/invoices' : '/accounting/vendors'
   const payrollHref = '/payroll'
@@ -225,11 +234,17 @@ export function OverviewScreen() {
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="mb-2 text-lg font-semibold text-gray-900">Receivable balances</h2>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Receivables for {books.month}</h2>
+          <p className="mb-2 text-sm text-gray-600">
+            Payments received during the selected month and the balance remaining at month-end.
+          </p>
           <DataTable
-            headers={['Customer', 'Balance']}
-            align={['left', 'right']}
-            rows={receivables.map((customer) => [customer.name, money(customer.closing)])}
+            headers={['Customer', 'Payments this month', 'Closing balance']}
+            align={['left', 'right', 'right']}
+            rows={[
+              ...receivables.map((customer) => [customer.name, money(customer.payments), money(customer.closing)]),
+              ['Total', money(receivableTotals.payments), money(receivableTotals.closing)]
+            ]}
           />
         </div>
         <div>
