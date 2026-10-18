@@ -4,7 +4,7 @@ import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { roundMoney } from '@/lib/fuelPayments'
 import { listUncashedChecks } from '@/lib/uncashedChecks'
 import { type AccountingBooks, type VendorRow } from '@/lib/accounting-types'
-import { cashbookAccountLabel } from '@/lib/overhead-categories'
+import { cashbookAccountLabel, isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { isOverheadPayeeNote } from '@/lib/overhead-payee'
 import { buildReceivableAging } from '@/lib/receivable-aging'
 
@@ -294,7 +294,10 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
       .filter((batch) => ymdInRange(toYmdInBusinessTz(batch.paymentDate), start, end))
       .map((batch) => ({
         id: batch.id,
-        kind: 'vendor' as const,
+        kind: batch.invoices.length > 0 && batch.invoices.every((invoice) =>
+          isOverheadCashbookCategory(invoice.vendorInvoice?.category ?? { name: 'Rec. Gen' })
+        ) ? 'overhead' as const : 'vendor' as const,
+        vendorId: batch.vendorId,
         date: toYmdInBusinessTz(batch.paymentDate),
         name: batch.vendor.name,
         ref: batch.bankRef,

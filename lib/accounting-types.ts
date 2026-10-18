@@ -51,7 +51,9 @@ export type OpenBill = {
 
 export type PaidBill = {
   id: string
-  kind: 'fuel' | 'vendor'
+  kind: 'fuel' | 'vendor' | 'overhead'
+  /** Required to revert a vendor or overhead payment batch. */
+  vendorId?: string | null
   date: string
   name: string
   ref: string
