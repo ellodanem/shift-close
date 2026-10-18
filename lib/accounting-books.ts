@@ -64,7 +64,10 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
   const range = parseAccountingMonth(month)
   if (!range) return null
   const { start, end, year, monthNum } = range
-  const asOf = businessTodayYmd()
+  // Historical months close at month-end; the current (or a future) month
+  // cannot report balances later than today.
+  const today = businessTodayYmd()
+  const asOf = end < today ? end : today
   const rangeStart = new Date(`${start}T00:00:00.000Z`)
   const rangeEnd = new Date(`${end}T23:59:59.999Z`)
 
