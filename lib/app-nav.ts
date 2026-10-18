@@ -81,6 +81,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         permission: 'financial.accounts',
         section: 'Customers'
       },
+      {
+        label: 'Payment Desk',
+        href: '/payment-desk',
+        permission: 'financial.fuel',
+        section: 'Payables'
+      },
       { label: 'Fuel Invoices', href: '/fuel-payments/invoices', permission: 'financial.fuel', section: 'Fuel' },
       { label: 'Fuel Batches', href: '/fuel-payments/batches', permission: 'financial.fuel', section: 'Fuel' },
       {
