@@ -1155,6 +1155,7 @@ export function JournalScreen() {
   const accountName = categories.find((category) => category.id === categoryId)?.name ?? 'Expense account'
   const line = description.trim()
   const entryDate = journalDateLabel(date)
+  const automaticEntries = (books?.ledger ?? []).filter((entry) => entry.source !== 'Entered here')
 
   async function save() {
     setSaving(true)
@@ -1178,7 +1179,7 @@ export function JournalScreen() {
       setDescription('')
       setRef('')
       setAmount('')
-      setMessage('Posted to the cashbook. Westline is credited and the expense account is debited.')
+      setMessage('Manual adjustment posted. Westline is credited and the expense account is debited.')
       reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post')
@@ -1192,12 +1193,61 @@ export function JournalScreen() {
       <BooksBackLink />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Journal entry</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Manual journal adjustment</h1>
           <p className="mt-1 text-sm text-gray-600">
-            The expense is debited and 101 Westline is credited for the same amount. It posts when the difference is zero, and it does not change a shift.
+            Payments, customer receipts, and shift activity post automatically. Use this form only for a direct expense or an accounting adjustment that did not originate elsewhere.
           </p>
         </div>
         <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700">Debits and credits</span>
+      </div>
+      <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-950">
+        <p className="font-semibold">Automatic postings</p>
+        <p className="mt-1">
+          A posted customer payment, fuel payment, vendor payment, or shift deposit creates its own linked cashbook entry. Review those entries below or in the{' '}
+          <Link href="/accounting/ledger" className="font-semibold underline">
+            general ledger
+          </Link>
+          ; do not enter them again here. Correct an automatic entry from its original payment or shift.
+        </p>
+      </div>
+      <div className="mb-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+          <div>
+            <h2 className="font-semibold text-gray-900">Automatic postings this month</h2>
+            <p className="text-xs text-gray-500">Generated from the source transaction; not editable here.</p>
+          </div>
+          <span className="text-sm font-semibold tabular-nums text-gray-700">{automaticEntries.length}</span>
+        </div>
+        <div className="max-h-64 overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-2">Date</th>
+                <th className="px-4 py-2">Description</th>
+                <th className="px-4 py-2">Source</th>
+                <th className="px-4 py-2 text-right">In</th>
+                <th className="px-4 py-2 text-right">Out</th>
+              </tr>
+            </thead>
+            <tbody>
+              {automaticEntries.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-5 text-center text-gray-500">No automatic postings for this month.</td>
+                </tr>
+              ) : (
+                automaticEntries.map((entry, index) => (
+                  <tr key={`${entry.date}-${entry.description}-${index}`} className="border-t border-gray-100">
+                    <td className="px-4 py-2 whitespace-nowrap">{journalDateLabel(entry.date)}</td>
+                    <td className="px-4 py-2">{entry.description}</td>
+                    <td className="px-4 py-2 text-gray-600">{entry.source}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{entry.debit ? money(entry.debit) : '—'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{entry.credit ? money(entry.credit) : '—'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:grid-cols-2">
         <label className="block text-sm">
