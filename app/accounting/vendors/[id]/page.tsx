@@ -7,7 +7,7 @@ import { useAccountingBooks } from '../../books-context'
 import { money, PageTitle, StatStrip } from '../../screens'
 import { PayBillsModal, type PayBillsInput } from '../../pay-bills-modal'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { formatInvoiceDate } from '@/lib/invoiceHelpers'
+import { formatAccountingDate } from '@/lib/accounting-date-format'
 
 type PaidBatch = {
   paymentDate: string
@@ -53,7 +53,7 @@ function invoiceTotal(amount: number, vat: number | null): number {
 
 function showDate(value: string | null | undefined): string {
   if (!value) return '—'
-  return formatInvoiceDate(value)
+  return formatAccountingDate(value)
 }
 
 function methodLabel(method: string): string {
@@ -294,7 +294,7 @@ export default function AccountantVendorPage() {
       {showAdd && (
         <div className="mb-4 max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <label className="block text-sm">
-            <span className="text-gray-600">Number</span>
+            <span className="text-gray-600">Invoice Number</span>
             <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
           </label>
           <label className="block text-sm">
@@ -381,7 +381,7 @@ export default function AccountantVendorPage() {
                   aria-label="Select all open bills"
                 />
               </th>
-              <th className="px-3 py-2">Number</th>
+              <th className="px-3 py-2">Invoice Number</th>
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Due</th>
               <th className="px-3 py-2 text-right">Amount</th>
@@ -486,7 +486,7 @@ export default function AccountantVendorPage() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-3 py-2">Number</th>
+              <th className="px-3 py-2">Invoice Number</th>
               <th className="px-3 py-2">Bill date</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2">Paid</th>

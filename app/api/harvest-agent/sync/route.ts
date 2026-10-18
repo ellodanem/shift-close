@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pathnameAllowedForRole } from '@/lib/access-control'
+import { canUseHarvestSync } from '@/lib/roles'
 import {
   HarvestSyncActiveError,
   createHarvestSyncRun,
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 async function requireHarvestSettings(request: NextRequest) {
   const session = await getSessionFromRequest(request)
-  if (!session || !pathnameAllowedForRole('/settings/harvest-agent', session.role)) {
+  if (!session || !canUseHarvestSync(session.role)) {
     return null
   }
   return session

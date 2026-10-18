@@ -8,6 +8,8 @@ import {
   isAccountantPayrollPath,
   isAccountantPayrollWrite,
   isAccountantRole,
+  canAccessInsightsPages,
+  canUseHarvestSync,
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
@@ -41,6 +43,25 @@ function isAccountantBillWrite(pathname: string, method: string): boolean {
   if (pathname === '/api/vendor-payments/vendors') return true
   if (pathname === '/api/vendor-payments/overhead-bills') return true
   return /^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)
+}
+
+/** Check Management page and the check lists it loads. */
+function isAccountantCheckManagementPath(pathname: string): boolean {
+  return (
+    pathname === '/vendor-payments/uncashed-checks' ||
+    pathname.startsWith('/api/vendor-payments/uncashed-checks') ||
+    pathname === '/api/vendor-payments/cleared-checks'
+  )
+}
+
+/** Check Management mutations: add a standalone check or record its clearing date. */
+function isAccountantCheckManagementWrite(pathname: string, method: string): boolean {
+  if (method !== 'POST' && method !== 'PATCH') return false
+  if (pathname === '/api/vendor-payments/uncashed-checks/manual') return method === 'POST'
+  return (
+    method === 'PATCH' &&
+    /^\/api\/vendor-payments\/uncashed-checks\/[^/]+\/(clear|cleared-at)$/.test(pathname)
+  )
 }
 
 /** Paths that never require auth */
@@ -111,10 +132,14 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
 
   if (isFullAccessRole(role)) return true
 
+  if (pathname === '/api/harvest-agent/sync') return canUseHarvestSync(role)
+
   if (isAccountantRole(role)) {
     if (isAccountantBooksPath(pathname)) return true
     if (isAccountantPayrollPath(pathname)) return true
     if (isStakeholderFuelComparisonPath(pathname)) return true
+    if (isAccountantCheckManagementPath(pathname)) return true
+    if (pathname.startsWith('/insights/') || pathname.startsWith('/api/insights/')) return true
     if (pathname === '/api/financial/cashbook/categories') return true
     if (pathname.startsWith('/api/auth/')) return true
     if (pathname.startsWith('/api/rent-due/')) return true
@@ -201,12 +226,15 @@ export function apiWriteAllowedForRole(
     return pathnameAllowedForRole(pathname, role)
   }
   if (isFullAccessRole(role)) return true
+  if (pathname === '/api/harvest-agent/sync') return canUseHarvestSync(role)
   if (pathname.startsWith('/api/fuel-inventory')) return false
   if (isAccountantRole(role)) {
     if (pathname.startsWith('/api/accounting')) return true
     if (isAccountantPayrollWrite(pathname, method)) return true
     if (pathname.startsWith('/api/auth/')) return true
     if (isAccountantBillWrite(pathname, method)) return true
+    if (isAccountantCheckManagementWrite(pathname, method)) return true
+    if (pathname.startsWith('/api/insights/') && canAccessInsightsPages(role)) return true
     return false
   }
   if (normalizeAppRole(role) === 'stakeholder') {

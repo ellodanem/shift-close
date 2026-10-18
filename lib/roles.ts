@@ -217,6 +217,17 @@ export function canManageFuelPrices(role: string): boolean {
   return isFullAccessRole(role) || isOperationsManagerRole(role)
 }
 
+/** Start and monitor Harvest imports from the app utility bar. */
+export function canUseHarvestSync(role: string): boolean {
+  const r = normalizeAppRole(role)
+  return (
+    isFullAccessRole(role) ||
+    isOperationsManagerRole(role) ||
+    r === 'stakeholder' ||
+    isAccountantRole(role)
+  )
+}
+
 /** Extracted / filed attendance punches — only these roles may load them in the log API (includeExtracted). */
 export function canViewArchivedAttendanceLogs(role: string): boolean {
   const r = normalizeAppRole(role)
@@ -226,7 +237,12 @@ export function canViewArchivedAttendanceLogs(role: string): boolean {
 /** Expected revenue / deposit scans insights pages. */
 export function canAccessInsightsPages(role: string): boolean {
   const r = normalizeAppRole(role)
-  return r === 'stakeholder' || isFullAccessRole(role) || isOperationsManagerRole(role)
+  return (
+    r === 'stakeholder' ||
+    isAccountantRole(role) ||
+    isFullAccessRole(role) ||
+    isOperationsManagerRole(role)
+  )
 }
 
 /** Roles this actor may set when creating or editing a user. */

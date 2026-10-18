@@ -18,6 +18,11 @@ import {
   type NavGroupConfig
 } from '@/lib/app-nav'
 import { formatAppUserDisplayName, isAccountantRole } from '@/lib/roles'
+import {
+  ACCOUNTANT_DAILY_REVIEWED_EVENT,
+  ACCOUNTANT_DAILY_REVIEWED_KEY,
+  type AccountantDailyUpdate
+} from '@/lib/accountant-daily-updates'
 
 const SIDEBAR_COLLAPSED_KEY = 'shift-close-sidebar-collapsed'
 
@@ -35,12 +40,14 @@ function NavGroupRow({
   group,
   isSelected,
   onClick,
-  expanded
+  expanded,
+  attention
 }: {
   group: NavGroupConfig
   isSelected: boolean
   onClick: () => void
   expanded?: boolean
+  attention?: boolean
 }) {
   const usesPicker = groupUsesTilePicker(group)
   const highlighted = isSelected || expanded
@@ -57,6 +64,11 @@ function NavGroupRow({
     >
       <GroupIcon label={group.label} />
       <span className="min-w-0 flex-1 truncate">{group.label}</span>
+      {attention ? (
+        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white" aria-label="New daily update">
+          !
+        </span>
+      ) : null}
       {usesPicker ? (
         <svg
           className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -88,6 +100,7 @@ export default function AppNav({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [todayPayDays, setTodayPayDays] = useState<Array<{ id: string; date: string; notes: string | null }>>([])
   const [showFeaturesModal, setShowFeaturesModal] = useState(false)
+  const [dailyUpdateAttention, setDailyUpdateAttention] = useState(false)
   const prevPathRef = useRef(pathname)
 
   const closeMobile = useCallback(() => {
@@ -131,6 +144,48 @@ export default function AppNav({
 
   const role = user?.role ?? ''
 
+  useEffect(() => {
+    if (!isAccountantRole(role)) {
+      setDailyUpdateAttention(false)
+      return
+    }
+
+    let cancelled = false
+    const refresh = () => {
+      const today = new Date()
+      const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+      void fetch(`/api/accounting/daily-updates?month=${month}`, { cache: 'no-store' })
+        .then(async (res) => {
+          if (!res.ok) return []
+          const data = await res.json()
+          return Array.isArray(data) ? (data as AccountantDailyUpdate[]) : []
+        })
+        .then((days) => {
+          if (cancelled) return
+          let reviewed: Record<string, string> = {}
+          try {
+            const parsed = JSON.parse(localStorage.getItem(ACCOUNTANT_DAILY_REVIEWED_KEY) || '{}')
+            if (parsed && typeof parsed === 'object') reviewed = parsed
+          } catch {
+            // Treat unreadable browser state as no reviewed days.
+          }
+          setDailyUpdateAttention(days.some((day) => reviewed[day.date] !== day.fingerprint))
+        })
+        .catch(() => {
+          if (!cancelled) setDailyUpdateAttention(false)
+        })
+    }
+
+    refresh()
+    const timer = window.setInterval(refresh, 60_000)
+    window.addEventListener(ACCOUNTANT_DAILY_REVIEWED_EVENT, refresh)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener(ACCOUNTANT_DAILY_REVIEWED_EVENT, refresh)
+    }
+  }, [role])
+
   const filteredNav = useMemo(() => buildFilteredNavGroups(role), [role])
 
   const toggleSidebar = () => {
@@ -166,6 +221,9 @@ export default function AppNav({
   const isGroupHighlighted = (group: NavGroupConfig) => {
     if (pickerGroup) return pickerGroup === group.label
     if (mobileDrillGroup) return mobileDrillGroup === group.label
+    if (isAccountantRole(role) && group.label === 'Accounting' && pathname === '/accounting') {
+      return false
+    }
     return isGroupActive(group, pathname ?? '')
   }
 
@@ -242,6 +300,7 @@ export default function AppNav({
                 group={group}
                 isSelected={isGroupHighlighted(group)}
                 expanded={pickerGroup === group.label || mobileDrillGroup === group.label}
+                attention={group.label === 'Custom Area' && dailyUpdateAttention}
                 onClick={() => handleGroupClick(group)}
               />
             ))}

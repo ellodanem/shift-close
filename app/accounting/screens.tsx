@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatAccountingDate } from '@/lib/accounting-date-format'
 import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { isFullAccessRole } from '@/lib/roles'
 import type { AccountingBooks } from '@/lib/accounting-types'
@@ -689,7 +690,7 @@ export function BillsScreen() {
             </label>
           )}
           <label className="block text-sm">
-            <span className="text-gray-600">Number</span>
+            <span className="text-gray-600">Invoice Number</span>
             <input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} className="mt-1 w-full rounded border border-gray-300 px-2 py-1" />
           </label>
           <label className="block text-sm">
@@ -856,7 +857,7 @@ export function BillsScreen() {
               <tr>
                 <th className="px-3 py-2" />
                 <th className="px-3 py-2">Payee</th>
-                <th className="px-3 py-2">Number</th>
+                <th className="px-3 py-2">Invoice Number</th>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">Due</th>
                 <th className="px-3 py-2">Account</th>
@@ -883,8 +884,8 @@ export function BillsScreen() {
                       </td>
                       <td className="px-3 py-2">{bill.name}{!canPay ? <span className="ml-2 text-xs text-amber-700">{bill.status}</span> : null}</td>
                       <td className="px-3 py-2">{bill.number}</td>
-                      <td className="px-3 py-2">{bill.date}</td>
-                      <td className="px-3 py-2">{bill.due ?? '—'}</td>
+                      <td className="px-3 py-2">{formatAccountingDate(bill.date)}</td>
+                      <td className="px-3 py-2">{formatAccountingDate(bill.due)}</td>
                       <td className="px-3 py-2">{bill.account}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
                     </tr>
@@ -900,7 +901,7 @@ export function BillsScreen() {
           <DataTable
             headers={['Date', 'Payee', 'Ref', 'Account', 'Amount']}
             align={['left', 'left', 'left', 'left', 'right']}
-            rows={visiblePaid.map((bill) => [bill.date, bill.name, bill.ref, bill.account, money(bill.amount)])}
+            rows={visiblePaid.map((bill) => [formatAccountingDate(bill.date), bill.name, bill.ref, bill.account, money(bill.amount)])}
           />
         </>
       )}

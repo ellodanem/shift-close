@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
 import { harvestSyncMonthLabel, previousHarvestSyncMonth } from '@/lib/harvest-sync-month'
-import { isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
+import { canUseHarvestSync, isFullAccessRole, isOperationsManagerRole } from '@/lib/roles'
 
 type SyncStep = {
   taskKey: string
@@ -79,14 +79,11 @@ function dotClass(active: boolean, lastFinished: SyncRun | null) {
   return 'bg-slate-500'
 }
 
-function canUseHarvestSync(role: string) {
-  return isFullAccessRole(role) || isOperationsManagerRole(role)
-}
-
 export default function HarvestSyncControl() {
   const { user } = useAuth()
   const role = user?.role ?? ''
   const allowed = Boolean(user) && canUseHarvestSync(role)
+  const canManageSettings = isFullAccessRole(role) || isOperationsManagerRole(role)
   const [view, setView] = useState<SyncView | null>(null)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -253,14 +250,16 @@ export default function HarvestSyncControl() {
           ) : (
             <p className="px-2 py-1.5 text-sm text-slate-400">Loading…</p>
           )}
-          <Link
-            href="/settings/harvest-agent"
-            prefetch={false}
-            onClick={() => setOpen(false)}
-            className="mt-1 block rounded px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-slate-100"
-          >
-            Harvest agent
-          </Link>
+          {canManageSettings ? (
+            <Link
+              href="/settings/harvest-agent"
+              prefetch={false}
+              onClick={() => setOpen(false)}
+              className="mt-1 block rounded px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-slate-100"
+            >
+              Harvest agent
+            </Link>
+          ) : null}
         </div>
       )}
     </div>

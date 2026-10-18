@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { formatAccountingDate } from '@/lib/accounting-date-format'
 
 export type PayBillLine = {
   number: string
@@ -137,7 +138,7 @@ export function PayBillsModal({
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-3 py-2">Number</th>
+                <th className="px-3 py-2">Invoice Number</th>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2 text-right">Amount</th>
               </tr>
@@ -146,7 +147,7 @@ export function PayBillsModal({
               {bills.map((bill, index) => (
                 <tr key={`${bill.number}:${bill.date}:${index}`} className="border-t border-gray-100">
                   <td className="px-3 py-2 font-mono">{bill.number}</td>
-                  <td className="px-3 py-2">{bill.date}</td>
+                  <td className="px-3 py-2">{formatAccountingDate(bill.date)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
                 </tr>
               ))}

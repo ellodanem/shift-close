@@ -289,7 +289,9 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       href === '/accounting' ||
       href.startsWith('/accounting/') ||
       isAccountantPayrollPath(href) ||
-      isStakeholderFuelComparisonPath(href)
+      isStakeholderFuelComparisonPath(href) ||
+      href === '/vendor-payments/uncashed-checks' ||
+      href.startsWith('/insights/')
     )
   }
   if (r === 'stakeholder') {
@@ -449,7 +451,24 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   const nr = normalizeAppRole(role)
   if (nr === 'accountant') {
     return [
-      { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS },
+      {
+        label: 'Overview',
+        items: [{ label: 'Overview', href: '/accounting', permission: 'accounting' }]
+      },
+      {
+        label: 'Accounting',
+        items: ACCOUNTING_NAV_ITEMS
+      },
+      {
+        label: 'Custom Area',
+        items: [
+          {
+            label: 'Daily updates',
+            href: '/accounting/daily-updates',
+            permission: 'accounting'
+          }
+        ]
+      },
       {
         label: 'Payroll',
         items: [{ label: 'Payroll', href: '/payroll', permission: 'people.staff' }]
@@ -461,6 +480,28 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
             label: 'Fuel comparison',
             href: '/reports/fuel-comparison',
             permission: 'reports.center'
+          }
+        ]
+      },
+      {
+        label: 'Check Management',
+        items: [
+          {
+            label: 'Check Management',
+            href: '/vendor-payments/uncashed-checks',
+            permission: 'financial.vendor'
+          }
+        ]
+      },
+      {
+        label: 'Insights',
+        items: [
+          { label: 'Fuel expectancy', href: '/insights/fuel-expectancy', permission: 'insights' },
+          { label: 'Expected revenue', href: '/insights/expected-revenue', permission: 'insights' },
+          {
+            label: 'Deposit & debit scans',
+            href: '/insights/deposit-debit-scans',
+            permission: 'insights'
           }
         ]
       }
