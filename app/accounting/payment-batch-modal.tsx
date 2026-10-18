@@ -128,9 +128,9 @@ export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; 
                 <div><p className="text-gray-500">Invoices</p><p className="font-semibold">{detail.lines.length}</p></div>
                 <div><p className="text-gray-500">Total paid</p><p className="font-bold">{money(detail.total)}</p></div>
               </div>
-              <table className="w-full text-sm"><thead><tr className="border-b border-gray-300 text-left text-xs uppercase text-gray-500"><th className="py-2">Invoice</th><th className="py-2">Date</th><th className="py-2">Type</th><th className="py-2 text-right">Amount</th></tr></thead>
+              <table className="w-full table-fixed text-sm"><colgroup><col className="w-[25%]" /><col className="w-[25%]" /><col className="w-[25%]" /><col className="w-[25%]" /></colgroup><thead><tr className="border-b border-gray-300 text-left text-xs uppercase text-gray-500"><th className="py-2 pr-2">Invoice</th><th className="py-2 pr-2">Date</th><th className="py-2 pr-2">Type</th><th className="py-2 text-right">Amount</th></tr></thead>
                 <tbody>{detail.lines.map((line, index) => <tr key={`${line.number}:${index}`} className="border-b border-gray-100"><td className="py-2 pr-2 font-medium">{line.number}</td><td className="py-2 pr-2">{displayDate(line.date)}</td><td className="py-2 pr-2">{line.type || '—'}</td><td className="py-2 text-right tabular-nums">{money(line.amount)}</td></tr>)}</tbody>
-                <tfoot><tr className="font-bold"><td colSpan={3} className="pt-3 text-right">Total</td><td className="pt-3 text-right tabular-nums">{money(detail.total)}</td></tr></tfoot>
+                <tfoot><tr className="font-bold"><td colSpan={3} className="pt-3 pr-2 text-right">Total</td><td className="pt-3 text-right tabular-nums">{money(detail.total)}</td></tr></tfoot>
               </table>
               {(detail.balanceBefore || detail.balanceAfter) && <div className="mt-6 flex flex-wrap justify-end gap-x-8 gap-y-2 border-t border-gray-200 pt-3 text-xs text-gray-600"><span>Balance before: <strong className="text-gray-900">{detail.balanceBefore ?? '—'}</strong></span><span>Balance after: <strong className="text-gray-900">{detail.balanceAfter ?? '—'}</strong></span></div>}
             </div>
