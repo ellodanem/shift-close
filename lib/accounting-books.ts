@@ -100,11 +100,17 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
       select: { account: true, date: true }
     }),
     prisma.invoice.findMany({
-      where: { status: { in: ['pending', 'simulated'] } },
+      where: {
+        status: { in: ['pending', 'simulated'] },
+        invoiceDate: { gte: rangeStart, lte: rangeEnd }
+      },
       orderBy: { invoiceDate: 'asc' }
     }),
     prisma.vendorInvoice.findMany({
-      where: { status: 'pending' },
+      where: {
+        status: 'pending',
+        invoiceDate: { gte: rangeStart, lte: rangeEnd }
+      },
       include: { vendor: true, category: true },
       orderBy: { invoiceDate: 'asc' }
     }),
@@ -123,7 +129,12 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     }),
     prisma.vendor.findMany({
       include: {
-        invoices: { where: { status: 'pending' } },
+        invoices: {
+          where: {
+            status: 'pending',
+            invoiceDate: { gte: rangeStart, lte: rangeEnd }
+          }
+        },
         batches: { orderBy: { paymentDate: 'desc' }, take: 1 }
       },
       orderBy: { name: 'asc' }
