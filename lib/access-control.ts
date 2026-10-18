@@ -23,6 +23,10 @@ import {
 
 /** Vendor and fuel bill routes the accountant may open. Writes are narrower. */
 function isAccountantBillPath(pathname: string): boolean {
+  // The accounting Paid tab opens these existing batch summaries read-only.
+  // Mutations remain restricted by isAccountantBillWrite below.
+  if (/^\/api\/fuel-payments\/batches\/[^/]+$/.test(pathname)) return true
+  if (/^\/api\/vendor-payments\/batches\/[^/]+$/.test(pathname)) return true
   if (pathname === '/api/fuel-payments/make-payment') return true
   if (pathname === '/api/fuel-payments/invoices') return true
   if (pathname === '/api/vendor-payments/make-payment') return true
