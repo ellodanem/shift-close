@@ -456,6 +456,7 @@ export function BillsScreen() {
   const [billDue, setBillDue] = useState('')
   const [billTab, setBillTab] = useState<'unpaid' | 'paid'>('unpaid')
   const [paidSearch, setPaidSearch] = useState('')
+  const [paidKindFilter, setPaidKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [vendorFilter, setVendorFilter] = useState('')
   const [unpaidSearch, setUnpaidSearch] = useState('')
@@ -499,11 +500,17 @@ export function BillsScreen() {
     }
   }, [showEnter])
   const paidQuery = paidSearch.trim().toLowerCase()
-  const visiblePaid = paidQuery
-    ? books.paidBills.filter((bill) =>
-        [bill.date, bill.name, bill.ref, bill.account].some((value) => value.toLowerCase().includes(paidQuery))
-      )
-    : books.paidBills
+  const visiblePaid = books.paidBills.filter((bill) => {
+    if (paidKindFilter !== 'all' && bill.kind !== paidKindFilter) return false
+    if (!paidQuery) return true
+    return [bill.date, bill.name, bill.ref, bill.account].some((value) => value.toLowerCase().includes(paidQuery))
+  })
+  const paidKindCounts = {
+    all: books.paidBills.length,
+    fuel: books.paidBills.filter((bill) => bill.kind === 'fuel').length,
+    vendor: books.paidBills.filter((bill) => bill.kind === 'vendor').length,
+    overhead: books.paidBills.filter((bill) => bill.kind === 'overhead').length
+  }
   const kindCounts = {
     all: books.openBills.length,
     fuel: books.openBills.filter((bill) => bill.kind === 'fuel').length,
@@ -829,18 +836,6 @@ export function BillsScreen() {
             Paid ({books.paidBills.length})
           </button>
         </div>
-        {billTab === 'paid' && (
-          <div className="w-full md:w-64">
-            <label className="mb-1 block text-xs font-medium text-gray-500">Search paid</label>
-            <input
-              type="text"
-              value={paidSearch}
-              onChange={(e) => setPaidSearch(e.target.value)}
-              placeholder="Payee, ref, or account"
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
-            />
-          </div>
-        )}
       </div>
       {billTab === 'unpaid' && (
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -893,6 +888,39 @@ export function BillsScreen() {
               value={unpaidSearch}
               onChange={(e) => setUnpaidSearch(e.target.value)}
               placeholder="Payee, number, or account"
+              className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
+            />
+          </div>
+        </div>
+      )}
+      {billTab === 'paid' && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {kindChips.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setPaidKindFilter(chip.id)}
+                className={`rounded-full px-3 py-1 text-sm font-medium ${
+                  paidKindFilter === chip.id
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {chip.label} ({paidKindCounts[chip.id]})
+              </button>
+            ))}
+          </div>
+          <div className="w-full sm:w-64">
+            <label className="sr-only" htmlFor="paid-bill-search">
+              Search paid bills
+            </label>
+            <input
+              id="paid-bill-search"
+              type="text"
+              value={paidSearch}
+              onChange={(e) => setPaidSearch(e.target.value)}
+              placeholder="Payee, ref, or account"
               className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
             />
           </div>
