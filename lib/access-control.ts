@@ -14,6 +14,7 @@ import {
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
+  isCustomerAccountsPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   isSupervisorLike,
@@ -138,6 +139,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (isAccountantBooksPath(pathname)) return true
     if (isAccountantPayrollPath(pathname)) return true
     if (isStakeholderFuelComparisonPath(pathname)) return true
+    if (isCustomerAccountsPath(pathname)) return true
     if (isAccountantCheckManagementPath(pathname)) return true
     if (pathname.startsWith('/insights/') || pathname.startsWith('/api/insights/')) return true
     if (pathname === '/api/financial/cashbook/categories') return true

@@ -13,7 +13,7 @@ import {
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
 import { formatAmount } from '@/lib/fuelPayments'
-import { canUseAccountingModule } from '@/lib/roles'
+import { canUseAccountingModule, isAccountantRole } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
 import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
@@ -142,7 +142,7 @@ function AgingStat({
 
 export default function CustomerAccountsPage() {
   const { isStakeholder, user } = useAuth()
-  const readOnly = isStakeholder
+  const readOnly = isStakeholder || isAccountantRole(user?.role ?? '')
   const today = new Date()
   const defaultMonth = `${today.getFullYear()}-${String(
     today.getMonth() + 1

@@ -152,8 +152,8 @@ export function OverviewScreen() {
     <div>
       <PageTitle title="Accounting overview" note="What would you like to do today?" />
       <div className="mb-3 flex flex-wrap gap-2">
-        <Link href="/accounting/customers" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
-          Customers
+        <Link href="/customer-accounts" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+          Customer Accounts
         </Link>
         <Link href="/accounting/bills" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Enter & pay bills

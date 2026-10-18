@@ -181,6 +181,13 @@ export function isStakeholderBooksPath(pathname: string): boolean {
   return (
     pathMatchesPrefix(pathname, '/financial/cashbook') ||
     pathMatchesPrefix(pathname, '/api/financial/cashbook') ||
+    isCustomerAccountsPath(pathname)
+  )
+}
+
+/** Customer accounts, ledgers, statements, and their read APIs. */
+export function isCustomerAccountsPath(pathname: string): boolean {
+  return (
     pathMatchesPrefix(pathname, '/customer-accounts') ||
     pathMatchesPrefix(pathname, '/api/customer-accounts')
   )
