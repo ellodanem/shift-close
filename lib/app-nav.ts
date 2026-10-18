@@ -82,7 +82,7 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         section: 'Customers'
       },
       {
-        label: 'Payment Desk',
+        label: 'Invoices & Payment',
         href: '/payment-desk',
         permission: 'financial.fuel',
         section: 'Payables'
