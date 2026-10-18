@@ -78,6 +78,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     ledgerLines,
     payments,
     fuelOpen,
+    fuelSimulated,
     vendorOpen,
     fuelPaid,
     vendorPaid,
@@ -95,24 +96,31 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     }),
     prisma.customerArAccountSnapshot.findMany({ where: { year, month: monthNum } }),
     prisma.customerArLedgerLine.findMany({
-      where: { date: { lte: end } },
+      where: { date: { lte: asOf } },
       select: { account: true, date: true, lineType: true, amount: true }
     }),
     prisma.customerArPayment.findMany({
-      where: { date: { lte: end } },
+      where: { date: { lte: asOf } },
       select: { account: true, date: true }
     }),
     prisma.invoice.findMany({
       where: {
-        status: { in: ['pending', 'simulated'] },
-        invoiceDate: { gte: rangeStart, lte: rangeEnd }
+        status: 'pending',
+        invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    }),
+    prisma.invoice.findMany({
+      where: {
+        status: 'simulated',
+        invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
       },
       orderBy: { invoiceDate: 'asc' }
     }),
     prisma.vendorInvoice.findMany({
       where: {
         status: 'pending',
-        invoiceDate: { gte: rangeStart, lte: rangeEnd }
+        invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
       },
       include: { vendor: true, category: true },
       orderBy: { invoiceDate: 'asc' }
@@ -135,7 +143,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
         invoices: {
           where: {
             status: 'pending',
-            invoiceDate: { gte: rangeStart, lte: rangeEnd }
+            invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
           }
         },
         batches: { orderBy: { paymentDate: 'desc' }, take: 1 }
@@ -222,7 +230,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
   }
 
   const receivable = buildReceivableAging({
-    end,
+    end: asOf,
     snapshots,
     lines: ledgerLines,
     lastPaymentByAccount: lastPay
@@ -233,6 +241,18 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
 
   const openBills = [
     ...fuelOpen.map((invoice) => ({
+      id: invoice.id,
+      kind: 'fuel' as const,
+      vendorId: null,
+      name: invoice.type || 'Fuel',
+      number: invoice.invoiceNumber,
+      date: toYmdInBusinessTz(invoice.invoiceDate),
+      due: invoice.dueDate ? toYmdInBusinessTz(invoice.dueDate) : null,
+      amount: roundMoney(invoice.amount),
+      account: fuelAccount(invoice.type),
+      status: invoice.status
+    })),
+    ...fuelSimulated.map((invoice) => ({
       id: invoice.id,
       kind: 'fuel' as const,
       vendorId: null,
@@ -284,7 +304,10 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   const fuelOpenTotal = roundMoney(fuelOpen.reduce((sum, invoice) => sum + invoice.amount, 0))
-  const lastFuel = await prisma.paymentBatch.findFirst({ orderBy: { paymentDate: 'desc' } })
+  const lastFuel = await prisma.paymentBatch.findFirst({
+    where: { paymentDate: { lte: new Date(`${asOf}T23:59:59.999Z`) } },
+    orderBy: { paymentDate: 'desc' }
+  })
   const vendorRows: VendorRow[] = vendors.map((vendor) => ({
     id: vendor.id,
     name: vendor.name,
@@ -347,7 +370,8 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     serviceStationOnFile: roundMoney(balance?.totalAutoCurrentBalance ?? 0),
     accountsReceivable,
     accountsPayableFuel: fuelOpenTotal,
-    accountsPayableVendors: roundMoney(vendorOpen.reduce((sum, invoice) => sum + invoice.amount, 0)),
+    accountsPayableFuelForecast: roundMoney(fuelSimulated.reduce((sum, invoice) => sum + invoice.amount, 0)),
+    accountsPayableVendors: roundMoney(vendorOpen.reduce((sum, invoice) => sum + invoice.amount + (invoice.vat ?? 0), 0)),
     payrollPayable: roundMoney(
       payableRuns.reduce(
         (sum, run) => sum + run.lines.reduce((lineSum, line) => lineSum + (line.netPay || 0), 0),

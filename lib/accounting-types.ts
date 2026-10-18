@@ -45,7 +45,7 @@ export type OpenBill = {
   due: string | null
   amount: number
   account: string
-  /** pending bills can be paid. simulated fuel bills are listed and not payable. */
+  /** Simulated fuel bills are listed for forecast visibility but are not payable. */
   status: string
 }
 
@@ -111,6 +111,8 @@ export type AccountingBooks = {
   serviceStationOnFile: number
   accountsReceivable: number
   accountsPayableFuel: number
+  /** Simulated fuel invoices are forecasts, not posted liabilities. */
+  accountsPayableFuelForecast: number
   accountsPayableVendors: number
   payrollPayable: number
   monthIncome: number

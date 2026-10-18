@@ -184,13 +184,13 @@ export function OverviewScreen() {
       <p className="mb-6 text-sm text-gray-600">
         Deposits and card totals already arrive from closed shifts. House-account charges already arrive from the close. This overview reads those balances.
       </p>
-      <h2 className="mb-2 text-lg font-semibold text-gray-900">Payables</h2>
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">Outstanding payables</h2>
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <PayableLink
           href={fuelHref}
           title="Fuel"
           amount={books.accountsPayableFuel}
-          note="Unpaid and simulated invoices"
+          note={books.accountsPayableFuelForecast > 0 ? `Posted unpaid · ${money(books.accountsPayableFuelForecast)} forecast` : 'Posted unpaid invoices'}
           link={fuelHref.startsWith('/accounting') ? 'Enter & pay bills' : 'Open fuel invoices'}
         />
         <PayableLink
@@ -230,7 +230,7 @@ export function OverviewScreen() {
         </table>
       </div>
       <p className="mt-3 text-sm text-gray-600">
-        Westline and Service Station are the balances on file, not a sum of the ledger. Receivable, payable, and payroll come from open customer balances, open invoices, and approved pay runs whose pay date is still ahead.
+        Westline and Service Station are the latest balances on file. Receivable and payable balances include posted items outstanding as of this date; simulated invoices are shown only as forecasts.
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div>
