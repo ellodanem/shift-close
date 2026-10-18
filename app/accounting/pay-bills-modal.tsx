@@ -14,6 +14,7 @@ export type PayBillsInput = {
   paymentDate: string
   bankRef: string
   paymentMethod: 'check' | 'eft'
+  addToCashbook: boolean
 }
 
 function money(amount: number): string {
@@ -86,6 +87,7 @@ export function PayBillsModal({
   const [paymentDate, setPaymentDate] = useState(defaultDate)
   const [bankRef, setBankRef] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'check' | 'eft'>('check')
+  const [addToCashbook, setAddToCashbook] = useState(true)
   const wasOpen = useRef(false)
   const total = bills.reduce((sum, bill) => sum + bill.amount, 0)
   const refLabel = fuel || paymentMethod === 'eft' ? 'Bank ref' : 'Check number'
@@ -97,6 +99,7 @@ export function PayBillsModal({
       setPaymentDate(defaultDate)
       setBankRef('')
       setPaymentMethod('check')
+      setAddToCashbook(true)
     }
     wasOpen.current = open
   }, [open, defaultDate])
@@ -160,7 +163,7 @@ export function PayBillsModal({
           onSubmit={(event) => {
             event.preventDefault()
             if (!canSubmit) return
-            onPay({ paymentDate, bankRef: bankRef.trim(), paymentMethod })
+            onPay({ paymentDate, bankRef: bankRef.trim(), paymentMethod, addToCashbook })
           }}
         >
           <label className="block text-sm">
@@ -204,6 +207,18 @@ export function PayBillsModal({
               />
             </div>
           )}
+          <label className="flex items-start gap-2 text-sm text-gray-700 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={addToCashbook}
+              onChange={(event) => setAddToCashbook(event.target.checked)}
+              className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>
+              <span className="font-medium">Post to Cashbook</span>
+              <span className="block text-xs text-gray-500">Record this payment against the selected payable account.</span>
+            </span>
+          </label>
 
         {error ? <p className="text-sm text-red-700 sm:col-span-2">{error}</p> : null}
 

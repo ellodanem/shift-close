@@ -407,6 +407,31 @@ function overheadCategoryLabel(category: OverheadCategory): string {
   return category.code ? `${category.code} · ${category.name}` : category.name
 }
 
+function billGroup(bill: { kind: string; vendorId: string | null }): string | null {
+  if (bill.kind === 'fuel') return 'fuel'
+  return bill.vendorId ? `vendor:${bill.vendorId}` : null
+}
+
+function billKindStyle(kind: 'fuel' | 'vendor' | 'overhead') {
+  if (kind === 'fuel') return { label: 'Fuel', className: 'bg-sky-100 text-sky-800 ring-sky-200' }
+  if (kind === 'overhead') return { label: 'Overhead', className: 'bg-amber-100 text-amber-800 ring-amber-200' }
+  return { label: 'Vendor', className: 'bg-violet-100 text-violet-800 ring-violet-200' }
+}
+
+function dueStyle(due: string | null, asOf: string): { label: string; className: string } | null {
+  if (!due) return null
+  const days = Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / 86400000)
+  if (Number.isNaN(days)) return null
+  if (days < 0) return { label: `${Math.abs(days)}d overdue`, className: 'bg-red-50 text-red-700 ring-red-200' }
+  if (days === 0) return { label: 'Due today', className: 'bg-red-50 text-red-700 ring-red-200' }
+  if (days <= 2) return { label: `Due in ${days}d`, className: 'bg-orange-50 text-orange-700 ring-orange-200' }
+  return { label: formatAccountingDate(due), className: 'bg-slate-100 text-slate-600 ring-slate-200' }
+}
+
+function BillSummary({ label, value, detail, className }: { label: string; value: string; detail: string; className: string }) {
+  return <div className={`rounded-xl border p-4 ${className}`}><p className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p><p className="mt-1 text-2xl font-bold tabular-nums">{value}</p><p className="mt-1 text-sm opacity-80">{detail}</p></div>
+}
+
 export function BillsScreen() {
   const books = useBooks()
   const { reload } = useAccountingBooks()
@@ -485,6 +510,9 @@ export function BillsScreen() {
     vendor: books.openBills.filter((bill) => bill.kind === 'vendor').length,
     overhead: books.openBills.filter((bill) => bill.kind === 'overhead').length
   }
+  const payableTotal = payable.reduce((sum, bill) => sum + bill.amount, 0)
+  const dueSoon = payable.filter((bill) => bill.due && bill.due >= books.asOf && bill.due <= new Date(Date.parse(`${books.asOf}T00:00:00Z`) + 2 * 86400000).toISOString().slice(0, 10))
+  const overdue = payable.filter((bill) => bill.due && bill.due < books.asOf)
   const openVendors = (() => {
     const byId = new Map<string, { id: string; name: string; count: number }>()
     for (const bill of books.openBills) {
@@ -524,9 +552,15 @@ export function BillsScreen() {
   ]
 
   function toggle(key: string) {
-    setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
+    const bill = payable.find((item) => `${item.kind}:${item.id}` === key)
+    if (!bill) return
+    setSelected((current) => {
+      if (current.includes(key)) return current.filter((item) => item !== key)
+      const currentGroups = new Set(payable.filter((item) => current.includes(`${item.kind}:${item.id}`)).map(billGroup).filter(Boolean))
+      return currentGroups.size === 0 || currentGroups.has(billGroup(bill)) ? [...current, key] : [key]
+    })
     setError(null)
-    setMessage(null)
+    setMessage(selected.length > 0 && !selected.includes(key) ? 'Selection switched to this payment group.' : null)
   }
 
   function toggleAllVisible() {
@@ -559,7 +593,7 @@ export function BillsScreen() {
                 paymentDate: input.paymentDate,
                 bankRef: input.bankRef,
                 selectedInvoiceIds: ids,
-                addToCashbook: true
+                addToCashbook: input.addToCashbook
               })
             })
           : await fetch('/api/vendor-payments/make-payment', {
@@ -571,7 +605,7 @@ export function BillsScreen() {
                 paymentMethod: input.paymentMethod,
                 bankRef: input.bankRef,
                 selectedInvoiceIds: ids,
-                addToCashbook: true
+                addToCashbook: input.addToCashbook
               })
             })
       const data = await res.json().catch(() => ({}))
@@ -653,25 +687,31 @@ export function BillsScreen() {
   return (
     <div>
       <BooksBackLink />
-      <PageTitle
-        title="Enter and pay bills"
-        note="Select open bills for one payee, then pay them. Fuel bills pay together. A vendor’s bills pay together. An overhead item is a regular cashbook account, and bills for that item pay together."
-      />
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageTitle title="Enter and pay bills" note="One payables desk for fuel, vendors, and overhead. Select one payment group at a time." />
         <button
           type="button"
           onClick={() => setShowEnter((open) => !open)}
-          className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800"
+          className="min-h-[44px] shrink-0 rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
         >
-          {showEnter ? 'Close' : 'Enter a bill'}
+          {showEnter ? 'Close entry' : '+ Enter a bill'}
         </button>
       </div>
+      {billTab === 'unpaid' && (
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <BillSummary label="Open bills" value={`${payable.length}`} detail={money(payableTotal)} className="border-slate-200 bg-white text-slate-900" />
+          <BillSummary label="Due soon" value={`${dueSoon.length}`} detail={dueSoon.length ? money(dueSoon.reduce((sum, bill) => sum + bill.amount, 0)) : 'Nothing urgent'} className="border-orange-200 bg-orange-50 text-orange-900" />
+          <BillSummary label="Overdue" value={`${overdue.length}`} detail={overdue.length ? money(overdue.reduce((sum, bill) => sum + bill.amount, 0)) : 'All clear'} className="border-red-200 bg-red-50 text-red-900" />
+          <BillSummary label="Ready to pay" value={chosen.length ? money(payTotal) : '—'} detail={chosen.length ? `${chosen.length} selected for ${payeeName}` : 'Choose a payment group'} className="border-indigo-200 bg-indigo-50 text-indigo-900" />
+        </div>
+      )}
       {showEnter && (
-        <div className="mb-4 max-w-xl space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setBillKind('vendor')} className={`rounded px-3 py-1 text-sm ${billKind === 'vendor' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Vendor</button>
-            <button type="button" onClick={() => setBillKind('fuel')} className={`rounded px-3 py-1 text-sm ${billKind === 'fuel' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Fuel</button>
-            <button type="button" onClick={() => setBillKind('overhead')} className={`rounded px-3 py-1 text-sm ${billKind === 'overhead' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Overhead</button>
+        <div className="mb-5 max-w-3xl space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+          <div><h2 className="font-semibold text-gray-900">Enter a bill</h2><p className="mt-1 text-sm text-gray-500">Choose its type first; the form keeps the appropriate accounting details in view.</p></div>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => setBillKind('vendor')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'vendor' ? 'border-violet-600 bg-violet-600 text-white' : 'border-violet-200 bg-violet-50 text-violet-800'}`}>Vendor</button>
+            <button type="button" onClick={() => setBillKind('fuel')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'fuel' ? 'border-sky-600 bg-sky-600 text-white' : 'border-sky-200 bg-sky-50 text-sky-800'}`}>Fuel</button>
+            <button type="button" onClick={() => setBillKind('overhead')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'overhead' ? 'border-amber-600 bg-amber-500 text-white' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>Overhead</button>
           </div>
           {billKind === 'overhead' ? (
             <>
@@ -911,7 +951,7 @@ export function BillsScreen() {
       {error && !showPay ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="mb-3 text-sm text-green-700">{message}</p> : null}
       {billTab === 'unpaid' ? (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
@@ -938,16 +978,16 @@ export function BillsScreen() {
                   const key = `${bill.kind}:${bill.id}`
                   const canPay = bill.status === 'pending'
                   return (
-                    <tr key={key} className="border-t border-gray-100">
+                    <tr key={key} className="border-t border-gray-100 transition-colors hover:bg-slate-50">
                       <td className="px-3 py-2">
                         <input type="checkbox" checked={selected.includes(key)} disabled={!canPay} onChange={() => toggle(key)} aria-label={`Select ${bill.name} ${bill.number}`} />
                       </td>
-                      <td className="px-3 py-2">{bill.name}{!canPay ? <span className="ml-2 text-xs text-amber-700">{bill.status}</span> : null}</td>
-                      <td className="px-3 py-2">{bill.number}</td>
-                      <td className="px-3 py-2">{formatAccountingDate(bill.date)}</td>
-                      <td className="px-3 py-2">{formatAccountingDate(bill.due)}</td>
-                      <td className="px-3 py-2">{bill.account}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
+                      <td className="px-3 py-3"><div className="flex flex-wrap items-center gap-2"><span className="font-medium text-gray-900">{bill.name}</span><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${billKindStyle(bill.kind).className}`}>{billKindStyle(bill.kind).label}</span>{!canPay ? <span className="text-xs text-amber-700">{bill.status}</span> : null}</div></td>
+                      <td className="px-3 py-3 font-mono text-gray-700">{bill.number}</td>
+                      <td className="px-3 py-3">{formatAccountingDate(bill.date)}</td>
+                      <td className="px-3 py-3">{dueStyle(bill.due, books.asOf) ? <span className={`rounded-full px-2 py-1 text-xs font-semibold ring-1 ring-inset ${dueStyle(bill.due, books.asOf)!.className}`}>{dueStyle(bill.due, books.asOf)!.label}</span> : <span className="text-gray-400">—</span>}</td>
+                      <td className="px-3 py-3 text-gray-600">{bill.account}</td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{money(bill.amount)}</td>
                     </tr>
                   )
                 })
