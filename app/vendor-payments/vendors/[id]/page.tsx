@@ -410,6 +410,13 @@ function VendorDetailPageInner() {
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
             <button
               type="button"
+              onClick={() => router.push(`/vendor-payments/statements?vendorId=${id}`)}
+              className="min-h-[44px] rounded border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 sm:min-h-0"
+            >
+              Statement
+            </button>
+            <button
+              type="button"
               onClick={() => router.push(`/vendor-payments/vendors/${id}/edit`)}
               className="min-h-[44px] rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:min-h-0"
             >

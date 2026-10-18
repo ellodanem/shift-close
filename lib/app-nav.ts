@@ -120,6 +120,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         section: 'Vendors'
       },
       {
+        label: 'Vendor Statements',
+        href: '/vendor-payments/statements',
+        permission: 'financial.vendor',
+        section: 'Vendors'
+      },
+      {
         label: 'Accountant books',
         href: '/accounting',
         permission: 'financial.cashbook',
