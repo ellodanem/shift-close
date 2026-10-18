@@ -381,6 +381,7 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       isAccountantPayrollPath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
+      href === '/financial/deposit-comparisons' ||
       href.startsWith('/insights/')
     )
   }

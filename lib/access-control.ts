@@ -141,6 +141,8 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (isStakeholderFuelComparisonPath(pathname)) return true
     if (isCustomerAccountsPath(pathname)) return true
     if (isAccountantCheckManagementPath(pathname)) return true
+    if (pathname.startsWith('/financial/deposit-comparisons')) return true
+    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/insights/') || pathname.startsWith('/api/insights/')) return true
     if (pathname === '/api/financial/cashbook/categories') return true
     if (pathname.startsWith('/api/auth/')) return true
@@ -236,6 +238,7 @@ export function apiWriteAllowedForRole(
     if (pathname.startsWith('/api/auth/')) return true
     if (isAccountantBillWrite(pathname, method)) return true
     if (isAccountantCheckManagementWrite(pathname, method)) return true
+    if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/api/insights/') && canAccessInsightsPages(role)) return true
     return false
   }

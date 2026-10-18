@@ -152,12 +152,6 @@ export function OverviewScreen() {
     <div>
       <PageTitle title="Accounting overview" note="What would you like to do today?" />
       <div className="mb-3 flex flex-wrap gap-2">
-        <Link href="/customer-accounts" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
-          Customer Accounts
-        </Link>
-        <Link href="/accounting/vendors" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
-          Vendors
-        </Link>
         <Link href="/accounting/bills" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Enter & pay bills
         </Link>
@@ -169,6 +163,12 @@ export function OverviewScreen() {
         </Link>
         <Link href="/payroll" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
           Pay runs
+        </Link>
+        <Link href="/customer-accounts" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+          Customer Accounts
+        </Link>
+        <Link href="/accounting/vendors" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+          Vendors
         </Link>
       </div>
       <p className="mb-6 text-sm text-gray-600">
@@ -486,6 +486,19 @@ export function BillsScreen() {
     if (!unpaidQuery) return true
     return [bill.name, bill.number, bill.account].some((value) => value.toLowerCase().includes(unpaidQuery))
   })
+  const selectableVisibleBills = visibleOpen.filter((bill) => bill.status === 'pending')
+  const visiblePaymentGroups = new Set(
+    selectableVisibleBills.map((bill) =>
+      bill.kind === 'fuel' ? 'fuel' : bill.vendorId ? `vendor:${bill.vendorId}` : ''
+    )
+  )
+  const canSelectAllVisible =
+    selectableVisibleBills.length > 0 &&
+    visiblePaymentGroups.size === 1 &&
+    !visiblePaymentGroups.has('')
+  const allVisibleSelected =
+    canSelectAllVisible &&
+    selectableVisibleBills.every((bill) => selected.includes(`${bill.kind}:${bill.id}`))
   const kindChips: Array<{ id: 'all' | 'fuel' | 'vendor' | 'overhead'; label: string }> = [
     { id: 'all', label: 'All' },
     { id: 'fuel', label: 'Fuel' },
@@ -495,6 +508,20 @@ export function BillsScreen() {
 
   function toggle(key: string) {
     setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]))
+    setError(null)
+    setMessage(null)
+  }
+
+  function toggleAllVisible() {
+    if (!canSelectAllVisible) return
+    setSelected(
+      allVisibleSelected
+        ? (current) =>
+            current.filter(
+              (key) => !selectableVisibleBills.some((bill) => `${bill.kind}:${bill.id}` === key)
+            )
+        : selectableVisibleBills.map((bill) => `${bill.kind}:${bill.id}`)
+    )
     setError(null)
     setMessage(null)
   }
@@ -826,6 +853,19 @@ export function BillsScreen() {
             className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             {onePayee ? `Pay ${payeeName} ${money(payTotal)}` : 'Pay selected'}
+          </button>
+          <button
+            type="button"
+            disabled={!canSelectAllVisible}
+            onClick={toggleAllVisible}
+            title={
+              canSelectAllVisible
+                ? 'Select every bill in the current payment group'
+                : 'Filter to one vendor or Fuel to select all'
+            }
+            className="rounded border border-indigo-300 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 disabled:hover:bg-white"
+          >
+            {allVisibleSelected ? 'Deselect all' : 'Select all'}
           </button>
           <p className="text-sm text-gray-600">
             {chosen.length === 0

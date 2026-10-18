@@ -297,6 +297,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       isAccountantPayrollPath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
+      href === '/financial/deposit-comparisons' ||
       href.startsWith('/insights/')
     )
   }
@@ -463,7 +464,11 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
       },
       {
         label: 'Accounting',
-        items: ACCOUNTING_NAV_ITEMS
+        items: ACCOUNTING_NAV_ITEMS.map((item) =>
+          item.href === '/accounting/customers'
+            ? { ...item, label: 'Customer Accounts', href: '/customer-accounts' }
+            : item
+        )
       },
       {
         label: 'Shift Data',
@@ -498,6 +503,11 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
             label: 'Deposit & debit scans',
             href: '/insights/deposit-debit-scans',
             permission: 'insights'
+          },
+          {
+            label: 'Deposit comparisons',
+            href: '/financial/deposit-comparisons',
+            permission: 'financial.depositComparisons'
           }
         ]
       }
