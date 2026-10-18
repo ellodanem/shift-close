@@ -23,6 +23,8 @@ function readReviewed(): Record<string, string> {
 
 function AmountList({ lines }: { lines: AccountantDailyLine[] }) {
   if (lines.length === 0) return <p className="text-sm text-slate-400">None recorded</p>
+  const total = lines.reduce((sum, line) => sum + line.amount, 0)
+
   return (
     <div className="space-y-1.5">
       {lines.map((line, index) => (
@@ -31,6 +33,10 @@ function AmountList({ lines }: { lines: AccountantDailyLine[] }) {
           <span className="font-semibold tabular-nums text-slate-900">{formatAmount(line.amount)}</span>
         </div>
       ))}
+      <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-current/10 pt-2 text-xs">
+        <span className="font-medium text-slate-500">Total</span>
+        <span className="font-semibold tabular-nums text-slate-700">{formatAmount(total)}</span>
+      </div>
     </div>
   )
 }

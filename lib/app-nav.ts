@@ -460,7 +460,7 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
         items: ACCOUNTING_NAV_ITEMS
       },
       {
-        label: 'Custom Area',
+        label: 'Shift Data',
         items: [
           {
             label: 'Daily updates',
@@ -588,6 +588,7 @@ export const NAV_GROUP_ICON: Record<string, string> = {
     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   Accounting:
     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  'Shift Data': 'M4 5h16v14H4z M4 10h16 M10 5v14 M16 5v14',
   Reports:
     'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
   People:

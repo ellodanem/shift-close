@@ -300,7 +300,7 @@ export default function AppNav({
                 group={group}
                 isSelected={isGroupHighlighted(group)}
                 expanded={pickerGroup === group.label || mobileDrillGroup === group.label}
-                attention={group.label === 'Custom Area' && dailyUpdateAttention}
+                attention={group.label === 'Shift Data' && dailyUpdateAttention}
                 onClick={() => handleGroupClick(group)}
               />
             ))}
