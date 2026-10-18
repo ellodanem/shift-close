@@ -20,7 +20,7 @@ type BatchDetail = {
   lines: BatchLine[]
 }
 
-export function PaymentBatchModal({ batch, mode = 'view', onClose }: { batch: PaidBill | null; mode?: 'view' | 'share'; onClose: () => void }) {
+export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; onClose: () => void }) {
   const [detail, setDetail] = useState<BatchDetail | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<'copy' | 'share' | null>(null)
@@ -112,7 +112,7 @@ export function PaymentBatchModal({ batch, mode = 'view', onClose }: { batch: Pa
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 print:static print:block print:bg-white print:p-0" role="dialog" aria-modal="true" aria-labelledby="batch-view-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white shadow-xl print:max-h-none print:max-w-none print:overflow-visible print:rounded-none print:shadow-none">
         <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4 print:hidden">
-          <div><h2 id="batch-view-title" className="text-xl font-bold text-gray-900">{mode === 'share' ? 'Share payment batch' : 'Payment batch'}</h2><p className="text-sm text-gray-500">{mode === 'share' ? 'Copy or share this payment summary without leaving the Payment Desk.' : 'View, print, copy, or share this payment.'}</p></div>
+          <div><h2 id="batch-view-title" className="text-xl font-bold text-gray-900">Payment batch</h2><p className="text-sm text-gray-500">View, print, copy, or share this payment.</p></div>
           <button type="button" onClick={onClose} className="rounded px-2 py-1 text-2xl leading-none text-gray-500 hover:bg-gray-100" aria-label="Close">×</button>
         </div>
         <div className="p-5 sm:p-6">
