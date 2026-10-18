@@ -150,3 +150,13 @@ input[type="number"] {
 table.min-w-full.text-sm thead th {
   padding: 0.75rem 1rem;
 }
+
+/* The invoice/payment workspace keeps its funding controls in the main flow.
+   The legacy explanatory sidebar is intentionally omitted. */
+main > .mx-auto.max-w-7xl:has(a[href="/vendor-payments/statements"]) > div[class*="xl:grid-cols"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+main > .mx-auto.max-w-7xl:has(a[href="/vendor-payments/statements"]) > div[class*="xl:grid-cols"] > :last-child {
+  display: none;
+}
