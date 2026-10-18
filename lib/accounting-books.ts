@@ -259,6 +259,8 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     ...fuelPaid
       .filter((batch) => ymdInRange(toYmdInBusinessTz(batch.paymentDate), start, end))
       .map((batch) => ({
+        id: batch.id,
+        kind: 'fuel' as const,
         date: toYmdInBusinessTz(batch.paymentDate),
         name: batch.invoices[0]?.type || 'Fuel',
         ref: batch.bankRef,
@@ -268,6 +270,8 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     ...vendorPaid
       .filter((batch) => ymdInRange(toYmdInBusinessTz(batch.paymentDate), start, end))
       .map((batch) => ({
+        id: batch.id,
+        kind: 'vendor' as const,
         date: toYmdInBusinessTz(batch.paymentDate),
         name: batch.vendor.name,
         ref: batch.bankRef,

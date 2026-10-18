@@ -50,6 +50,8 @@ export type OpenBill = {
 }
 
 export type PaidBill = {
+  id: string
+  kind: 'fuel' | 'vendor'
   date: string
   name: string
   ref: string

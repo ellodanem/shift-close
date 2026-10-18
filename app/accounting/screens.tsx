@@ -6,10 +6,11 @@ import { formatAmount } from '@/lib/fuelPayments'
 import { formatAccountingDate } from '@/lib/accounting-date-format'
 import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { isFullAccessRole } from '@/lib/roles'
-import type { AccountingBooks } from '@/lib/accounting-types'
+import type { AccountingBooks, PaidBill } from '@/lib/accounting-types'
 import { useAuth } from '@/app/components/AuthContext'
 import { useAccountingBooks } from './books-context'
 import { PayBillsModal, type PayBillsInput } from './pay-bills-modal'
+import { PaymentBatchModal } from './payment-batch-modal'
 
 export function money(amount: number): string {
   return formatAmount(amount)
@@ -418,6 +419,7 @@ export function BillsScreen() {
   const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [vendorFilter, setVendorFilter] = useState('')
   const [unpaidSearch, setUnpaidSearch] = useState('')
+  const [viewingBatch, setViewingBatch] = useState<PaidBill | null>(null)
 
   const payable = books.openBills.filter((bill) => bill.status === 'pending')
   const chosen = payable.filter((bill) => selected.includes(`${bill.kind}:${bill.id}`))
@@ -941,11 +943,33 @@ export function BillsScreen() {
       ) : (
         <>
           <p className="mb-2 text-sm text-gray-600">Payments recorded in the month selected above.</p>
-          <DataTable
-            headers={['Date', 'Payee', 'Ref', 'Account', 'Amount']}
-            align={['left', 'left', 'left', 'left', 'right']}
-            rows={visiblePaid.map((bill) => [formatAccountingDate(bill.date), bill.name, bill.ref, bill.account, money(bill.amount)])}
-          />
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-3 py-2">Date</th><th className="px-3 py-2">Payee</th>
+                  <th className="px-3 py-2">Ref</th><th className="px-3 py-2">Account</th>
+                  <th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visiblePaid.length === 0 ? (
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No payments to show.</td></tr>
+                ) : visiblePaid.map((bill) => (
+                  <tr key={`${bill.kind}:${bill.id}`} className="border-t border-gray-100">
+                    <td className="px-3 py-2">{formatAccountingDate(bill.date)}</td>
+                    <td className="px-3 py-2">{bill.name}</td><td className="px-3 py-2">{bill.ref}</td>
+                    <td className="px-3 py-2">{bill.account}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{money(bill.amount)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button type="button" onClick={() => setViewingBatch(bill)} className="font-semibold text-indigo-700 hover:underline">View</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <PaymentBatchModal batch={viewingBatch} onClose={() => setViewingBatch(null)} />
         </>
       )}
     </div>
