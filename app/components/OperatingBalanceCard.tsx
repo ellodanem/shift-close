@@ -1,5 +1,9 @@
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
+import { QuickBalanceEntryModal, type BalanceEntryForm } from '@/app/components/QuickBalanceEntryModal'
 
 const WESTLINE_ACCOUNT = { name: 'Westline Ent', kind: 'Chequing account', number: '200000316928' }
 const SERVICE_STATION_ACCOUNT = { name: 'Service Station', kind: 'Total Auto / Chequing account', number: '200000102146' }
@@ -77,6 +81,32 @@ export function OperatingBalanceCard({ balance, note }: { balance: OperatingBala
   const phantom = balance.phantom ?? 0
   const serviceStationUncashed = balance.serviceStationUncashedChecksTotal ?? 0
   const serviceStationPhantom = balance.serviceStationPhantom ?? 0
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<BalanceEntryForm>({ currentBalance: '', availableFunds: '', totalAutoCurrentBalance: '', totalAutoAvailable: '' })
+
+  const openEditor = () => {
+    setForm({ currentBalance: String(balance.currentBalance), availableFunds: String(balance.availableFunds), totalAutoCurrentBalance: String(balance.totalAutoCurrentBalance ?? 0), totalAutoAvailable: String(balance.totalAutoAvailable ?? 0) })
+    setEditorOpen(true)
+  }
+
+  const saveBalance = async () => {
+    setSaving(true)
+    try {
+      const result = await fetch('/api/fuel-payments/balance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentBalance: Number(form.currentBalance) || 0, availableFunds: Number(form.availableFunds) || 0, totalAutoCurrentBalance: Number(form.totalAutoCurrentBalance) || 0, totalAutoAvailable: Number(form.totalAutoAvailable) || 0 })
+      })
+      const data = await result.json().catch(() => ({}))
+      if (!result.ok) throw new Error(data.error || 'Could not update balances.')
+      window.location.reload()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Could not update balances.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Funding accounts">
     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
@@ -95,7 +125,10 @@ export function OperatingBalanceCard({ balance, note }: { balance: OperatingBala
         <span className="shrink-0 text-xs font-semibold text-indigo-600 group-open:hidden">Details</span>
         <span className="hidden shrink-0 text-xs font-semibold text-indigo-600 group-open:inline">Hide</span>
       </summary>
-      <div className="grid divide-y divide-slate-200 border-t border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+      <div className="flex items-center justify-end border-t border-slate-200 px-4 py-2">
+        <button type="button" onClick={openEditor} className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">Update balances</button>
+      </div>
+      <div className="grid divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         <AccountDetails name={SERVICE_STATION_ACCOUNT.name} kind={SERVICE_STATION_ACCOUNT.kind} number={SERVICE_STATION_ACCOUNT.number} currentBalance={balance.totalAutoCurrentBalance ?? 0} available={balance.totalAutoAvailable ?? 0}>
           <UncashedPhantom uncashed={serviceStationUncashed} phantom={serviceStationPhantom} title="Phantom equals Service Station available minus uncashed vendor checks. Outstanding vendor checks are reserved on both accounts until the check clears." />
         </AccountDetails>
@@ -107,5 +140,6 @@ export function OperatingBalanceCard({ balance, note }: { balance: OperatingBala
         </AccountDetails>
       </div>
     </details>
+    <QuickBalanceEntryModal open={editorOpen} saving={saving} form={form} onFormChange={setForm} planned={balance.planned} balanceAfter={balance.balanceAfter} note={note} onClose={() => setEditorOpen(false)} onSave={() => void saveBalance()} />
   </section>
 }
