@@ -197,7 +197,7 @@ export function OverviewScreen() {
           href={vendorHref}
           title="Vendors"
           amount={books.accountsPayableVendors}
-          note="Pending vendor and overhead bills"
+          note="Pending vendor and expense bills"
           link={vendorHref.startsWith('/accounting') ? 'Open vendors' : 'Open vendor bills'}
         />
         <PayableLink
@@ -414,7 +414,7 @@ function billGroup(bill: { kind: string; vendorId: string | null }): string | nu
 
 function billKindStyle(kind: 'fuel' | 'vendor' | 'overhead') {
   if (kind === 'fuel') return { label: 'Fuel', className: 'bg-sky-100 text-sky-800 ring-sky-200' }
-  if (kind === 'overhead') return { label: 'Overhead', className: 'bg-amber-100 text-amber-800 ring-amber-200' }
+  if (kind === 'overhead') return { label: 'Expense', className: 'bg-amber-100 text-amber-800 ring-amber-200' }
   return { label: 'Vendor', className: 'bg-violet-100 text-violet-800 ring-violet-200' }
 }
 
@@ -555,7 +555,7 @@ export function BillsScreen() {
     { id: 'all', label: 'All' },
     { id: 'fuel', label: 'Fuel' },
     { id: 'vendor', label: 'Vendor' },
-    { id: 'overhead', label: 'Overhead' }
+    { id: 'overhead', label: 'Expense' }
   ]
 
   function toggle(key: string) {
@@ -695,7 +695,7 @@ export function BillsScreen() {
     <div>
       <BooksBackLink />
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Enter and pay bills" note="One payables desk for fuel, vendors, and overhead. Select one payment group at a time." />
+        <PageTitle title="Enter and pay bills" note="One payables desk for fuel, vendors, and expenses. Select one payment group at a time." />
         <button
           type="button"
           onClick={() => setShowEnter((open) => !open)}
@@ -718,7 +718,7 @@ export function BillsScreen() {
           <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={() => setBillKind('vendor')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'vendor' ? 'border-violet-600 bg-violet-600 text-white' : 'border-violet-200 bg-violet-50 text-violet-800'}`}>Vendor</button>
             <button type="button" onClick={() => setBillKind('fuel')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'fuel' ? 'border-sky-600 bg-sky-600 text-white' : 'border-sky-200 bg-sky-50 text-sky-800'}`}>Fuel</button>
-            <button type="button" onClick={() => setBillKind('overhead')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'overhead' ? 'border-amber-600 bg-amber-500 text-white' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>Overhead</button>
+            <button type="button" onClick={() => setBillKind('overhead')} className={`min-h-[54px] rounded-lg border px-3 py-2 text-sm font-semibold ${billKind === 'overhead' ? 'border-amber-600 bg-amber-500 text-white' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>Expense</button>
           </div>
           {billKind === 'overhead' ? (
             <>
@@ -957,7 +957,7 @@ export function BillsScreen() {
               ? 'Select pending bills for one payee.'
               : onePayee
                 ? `${chosen.length} bill${chosen.length === 1 ? '' : 's'} for ${payeeName}.`
-                : 'Fuel bills pay as one group. A vendor’s bills pay together. Overhead bills for the same item pay together.'}
+                : 'Fuel bills pay as one group. A vendor’s bills pay together. Expense bills for the same item pay together.'}
           </p>
         </div>
       )}

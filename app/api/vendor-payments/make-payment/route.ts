@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         if (drift !== 0 && allocations[0]) allocations[0].amount = roundMoney(allocations[0].amount + drift)
         const overheadOnly = invoices.every((inv) => inv.categoryId)
         const description = overheadOnly
-          ? `Overhead (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`
+          ? `Expense (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`
           : `Vendor payment (${method}) – ${vendor.name} – Ref ${String(bankRef).trim()}`
 
         await prisma.cashbookEntry.create({

@@ -11,7 +11,7 @@ type OverheadMakePaymentModalProps = {
   onSuccess: (batchId: string) => void
 }
 
-/** Dedicated payment entry point for bills posted to an overhead account. */
+/** Dedicated payment entry point for bills posted to an expense account. */
 export function OverheadMakePaymentModal({
   open,
   onClose,

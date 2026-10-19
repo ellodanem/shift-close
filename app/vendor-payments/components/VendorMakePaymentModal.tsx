@@ -25,6 +25,8 @@ interface VendorInvoice {
   vat: number | null
   status: string
   notes?: string | null
+  categoryId?: string | null
+  payeeName?: string
 }
 
 interface RecentVendorBatch {
@@ -98,7 +100,9 @@ export function VendorMakePaymentModal({
   initialVendorId,
   initialSelectedCsv,
   initialApplyBatchId = '',
-  onSuccess
+  onSuccess,
+  paymentKind = 'vendor',
+  initialPayeeName = ''
 }: {
   open: boolean
   onClose: () => void
@@ -106,6 +110,8 @@ export function VendorMakePaymentModal({
   initialSelectedCsv: string
   initialApplyBatchId?: string
   onSuccess: (batchId: string) => void
+  paymentKind?: 'vendor' | 'overhead'
+  initialPayeeName?: string
 }) {
   const router = useRouter()
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -134,6 +140,9 @@ export function VendorMakePaymentModal({
   const [editingInvoice, setEditingInvoice] = useState<VendorQuickEditInvoice | null>(null)
 
   const applyingToExisting = Boolean(applyBatchId)
+  const isOverhead = paymentKind === 'overhead' || (invoices.length > 0 && invoices.every((invoice) => Boolean(invoice.categoryId)))
+  const partyLabel = isOverhead ? 'Payee' : 'Vendor'
+  const partyName = initialPayeeName || invoices[0]?.payeeName || (isOverhead ? 'Expense payee' : '')
 
   useEffect(() => {
     if (!open) return
@@ -151,6 +160,11 @@ export function VendorMakePaymentModal({
 
   useEffect(() => {
     if (!open) return
+    if (isOverhead) {
+      setVendors(initialVendorId ? [{ id: initialVendorId, name: partyName, notificationEmail: '' }] : [])
+      setVendorsLoading(false)
+      return
+    }
     let cancelled = false
     setVendorsLoading(true)
     void (async () => {
@@ -169,7 +183,7 @@ export function VendorMakePaymentModal({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, isOverhead, initialVendorId, partyName])
 
   useEffect(() => {
     if (!open) return
@@ -384,7 +398,7 @@ export function VendorMakePaymentModal({
 
   const handleMakePayment = async () => {
     if (!selectedVendorId) {
-      alert('Please select a vendor')
+      alert(`Please select a ${partyLabel.toLowerCase()}`)
       return
     }
     if (selectedInvoiceIds.size === 0) {
@@ -397,10 +411,11 @@ export function VendorMakePaymentModal({
     }
 
     const vendor = vendors.find((v) => v.id === selectedVendorId)
+    const displayName = vendor?.name || partyName
     const confirmed = window.confirm(
       applyingToExisting
-        ? `Add ${selectedInvoiceIds.size} invoice(s) to the existing payment?\n\nVendor: ${vendor?.name}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}`
-        : `Mark ${selectedInvoiceIds.size} invoice(s) as paid?\n\nVendor: ${vendor?.name}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}\n${addToCashbook ? '\nAdd to Cashbook: Yes' : ''}`
+        ? `Add ${selectedInvoiceIds.size} invoice(s) to the existing payment?\n\n${partyLabel}: ${displayName}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}`
+        : `Mark ${selectedInvoiceIds.size} invoice(s) as paid?\n\n${partyLabel}: ${displayName}\nPayment: ${paymentMethod.toUpperCase()}\nDate: ${paymentDate}\nRef: ${bankRef.trim()}\n${addToCashbook ? '\nAdd to Cashbook: Yes' : ''}`
     )
     if (!confirmed) return
 
@@ -470,22 +485,24 @@ export function VendorMakePaymentModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="vendor-make-payment-title"
+        aria-labelledby={`${paymentKind}-make-payment-title`}
         className="my-4 max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2
-              id="vendor-make-payment-title"
+              id={`${paymentKind}-make-payment-title`}
               className="text-xl font-bold text-gray-900 sm:text-2xl"
             >
-              {applyingToExisting ? 'Add invoices to payment' : 'Make vendor payment'}
+              {applyingToExisting ? 'Add invoices to payment' : isOverhead ? 'Make expense payment' : 'Make vendor payment'}
             </h2>
             <p className="text-sm text-gray-600">
               {applyingToExisting
                 ? 'Select the missed invoices to attach to this existing payment.'
-                : 'Select vendor and invoices, then choose EFT or check. You can also add invoices to a previous payment.'}
+                : isOverhead
+                  ? 'Review the expense payee and bills, then choose EFT or check.'
+                  : 'Select vendor and invoices, then choose EFT or check. You can also add invoices to a previous payment.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -549,9 +566,13 @@ export function VendorMakePaymentModal({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Vendor
+                    {partyLabel}
                   </label>
-                  <select
+                  {isOverhead ? (
+                    <div className="min-h-[44px] w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 font-medium text-amber-900 sm:min-h-0">
+                      {partyName}
+                    </div>
+                  ) : <select
                     value={selectedVendorId}
                     onChange={(e) => {
                       setSelectedVendorId(e.target.value)
@@ -565,7 +586,7 @@ export function VendorMakePaymentModal({
                         {v.name}
                       </option>
                     ))}
-                  </select>
+                  </select>}
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -658,13 +679,13 @@ export function VendorMakePaymentModal({
                   <div className="md:col-span-2 flex items-center gap-2">
                     <input
                       type="checkbox"
-                      id="vendorPayAddCashbook"
+                      id={`${paymentKind}PayAddCashbook`}
                       checked={addToCashbook}
                       onChange={(e) => setAddToCashbook(e.target.checked)}
                       className="rounded border-gray-300"
                     />
-                    <label htmlFor="vendorPayAddCashbook" className="text-sm text-gray-700">
-                      Add to Cashbook (Rec. Gen)
+                    <label htmlFor={`${paymentKind}PayAddCashbook`} className="text-sm text-gray-700">
+                      {isOverhead ? 'Add to Cashbook (selected expense account)' : 'Add to Cashbook (Rec. Gen)'}
                     </label>
                   </div>
                 )}
@@ -700,7 +721,7 @@ export function VendorMakePaymentModal({
 
                 {pendingInvoices.length === 0 ? (
                   <p className="text-sm text-gray-500">
-                    No pending invoices for this vendor.
+                    No pending {isOverhead ? 'expense bills for this payee' : 'invoices for this vendor'}.
                   </p>
                 ) : (
                   <>

@@ -155,7 +155,7 @@ export function buildRentDueEmailHtml(status: RentDueStatus, kind: 'first' | 'da
 <html>
 <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
   <p>${intro}</p>
-  <p>No rent bill was found for this month. Enter it as Overhead on Enter and pay bills, using the rent account from the cashbook
+  <p>No rent bill was found for this month. Enter it as Expense on Enter and pay bills, using the rent account from the cashbook
   (or a Fuel Payments invoice of type Rent).</p>
   <p><a href="${billsUrl}">Open Enter and pay bills</a></p>
   <p style="color:#666;font-size:12px;margin-top:24px">Automated reminder from Shift Close.</p>
