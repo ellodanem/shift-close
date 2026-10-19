@@ -78,7 +78,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { invoiceNumber, amount, type, invoiceDate, notes } = body
 
-    if (!invoiceNumber || amount === undefined || !type || !invoiceDate) {
+    const normalizedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : ''
+
+    if (!normalizedInvoiceNumber || amount === undefined || !type || !invoiceDate) {
       return NextResponse.json(
         { error: 'invoiceNumber, amount, type, and invoiceDate are required' },
         { status: 400 }
@@ -114,17 +116,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check for duplicate invoice number (pending only)
+    // Invoice numbers are unique for all fuel invoices, including paid ones.
     const existing = await prisma.invoice.findFirst({
       where: {
-        invoiceNumber: invoiceNumber.trim(),
-        status: 'pending'
+        invoiceNumber: normalizedInvoiceNumber
       }
     })
 
     if (existing) {
       return NextResponse.json(
-        { error: 'An invoice with this number already exists (pending)' },
+        { error: `An invoice with this number already exists (${existing.status})` },
         { status: 409 }
       )
     }
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
     // Create invoice
     const invoice = await prisma.invoice.create({
       data: {
-        invoiceNumber: invoiceNumber.trim(),
+        invoiceNumber: normalizedInvoiceNumber,
         amount: roundMoney(Number(amount)),
         type,
         invoiceDate: invoiceDateObj,

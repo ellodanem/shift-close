@@ -388,7 +388,7 @@ model HistoricalFuelData {
 // Invoice model for pending/simulated invoices (before payment)
 model Invoice {
   id            String   @id @default(cuid())
-  invoiceNumber String   @map("invoice_number")
+  invoiceNumber String   @unique @map("invoice_number")
   amount        Float
   // NOTE: Using Float for SQLite compatibility. When migrating to PostgreSQL, change to Decimal @db.Decimal(18, 2)
   type          String // 'Fuel' | 'LPG' | 'Lubricants' | 'Rent' | 'Uniforms' | 'Loyalty' | 'Balance Payment'

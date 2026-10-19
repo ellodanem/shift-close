@@ -174,13 +174,30 @@ export async function PATCH(
     const updateData: any = {}
     const corrections: any[] = []
 
-    if (invoiceNumber !== undefined && invoiceNumber.trim() !== existing.invoiceNumber) {
-      updateData.invoiceNumber = invoiceNumber.trim()
+    if (invoiceNumber !== undefined && (typeof invoiceNumber !== 'string' || invoiceNumber.trim() !== existing.invoiceNumber)) {
+      const normalizedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : ''
+      if (!normalizedInvoiceNumber) {
+        return NextResponse.json({ error: 'invoiceNumber cannot be blank' }, { status: 400 })
+      }
+      const duplicate = await prisma.invoice.findFirst({
+        where: {
+          invoiceNumber: normalizedInvoiceNumber,
+          id: { not: id }
+        },
+        select: { status: true }
+      })
+      if (duplicate) {
+        return NextResponse.json(
+          { error: `An invoice with this number already exists (${duplicate.status})` },
+          { status: 409 }
+        )
+      }
+      updateData.invoiceNumber = normalizedInvoiceNumber
       corrections.push({
         invoiceId: id,
         field: 'invoiceNumber',
         oldValue: existing.invoiceNumber,
-        newValue: invoiceNumber.trim(),
+        newValue: normalizedInvoiceNumber,
         reason: reason || 'Invoice updated',
         changedBy: changedBy || 'admin'
       })
