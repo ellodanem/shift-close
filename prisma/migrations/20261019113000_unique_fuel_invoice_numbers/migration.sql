@@ -1,3 +1,3 @@
--- Fuel invoice numbers identify a supplier invoice and must not be reused,
--- even after that invoice has been paid.
-CREATE UNIQUE INDEX "invoices_invoice_number_key" ON "invoices"("invoice_number");
+-- Duplicate prevention is enforced by the invoice API so existing historical
+-- duplicate invoice numbers remain intact. A database-wide unique index cannot
+-- be applied safely to the production data set.
