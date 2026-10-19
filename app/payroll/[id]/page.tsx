@@ -142,6 +142,7 @@ type PayRun = {
   voidedAt?: string | null
   voidReason?: string
   voidedByName?: string
+  payrollCheckCount?: number
   lines: PayRunLine[]
   eligibility?: Array<{
     id: string
@@ -652,6 +653,7 @@ export default function PayrollRunPage() {
   const [openingPreview, setOpeningPreview] = useState(false)
   const [printDoc, setPrintDoc] = useState<PrintDocumentPreview | null>(null)
   const [openingDoc, setOpeningDoc] = useState<'payslips' | 'gl' | 'nis' | 'banking' | null>(null)
+  const [generatingChecks, setGeneratingChecks] = useState(false)
   const [cuDraft, setCuDraft] = useState<CreditUnionLetterDraft | null>(null)
   const [cuError, setCuError] = useState<string | null>(null)
   const [cuSent, setCuSent] = useState<string | null>(null)
@@ -1109,6 +1111,27 @@ export default function PayrollRunPage() {
       setError(err instanceof Error ? err.message : 'Failed to void payroll')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const generatePayrollChecks = async () => {
+    if (testMode || !run) return
+    setGeneratingChecks(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pay-runs/${run.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate-checks' })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to generate payroll checks')
+      runRef.current = data as PayRun
+      setRun(data as PayRun)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate payroll checks')
+    } finally {
+      setGeneratingChecks(false)
     }
   }
 
@@ -2003,7 +2026,28 @@ export default function PayrollRunPage() {
               >
                 Print Banking List
               </button>
+              {!testMode && !voided && run.lines.some((line) => (line.bankCode || '').toUpperCase() === 'CHQ' && line.netPay > 0) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void generatePayrollChecks()
+                  }}
+                  disabled={generatingChecks}
+                  className="min-h-[44px] rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50 sm:min-h-0"
+                >
+                  {generatingChecks
+                    ? 'Generating…'
+                    : run.payrollCheckCount
+                      ? `Checks generated (${run.payrollCheckCount})`
+                      : 'Generate Payroll Checks'}
+                </button>
+              ) : null}
             </div>
+            {!testMode && !voided && run.payrollCheckCount ? (
+              <p className="mt-3 text-sm text-slate-600">
+                {run.payrollCheckCount} draft {run.payrollCheckCount === 1 ? 'check is' : 'checks are'} in Check Management with a pending number. Voiding this payroll removes them.
+              </p>
+            ) : null}
             {!testMode && letters.length > 0 ? (
               <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 {letters.map((letter) => (

@@ -74,10 +74,14 @@ async function presentRun<
       : Promise.resolve([]),
     loadPriorYtdByStaffId(run.payDate, run.id)
   ])
+  const payrollCheckCount = await prisma.cashbookEntry.count({
+    where: { payrollPayRunId: run.id, payrollCheckStatus: 'draft' }
+  })
   const staffById = new Map(staff.map((s) => [s.id, s]))
   const loans = await loadStaffLoanSnapshots(staffIds)
   return {
     ...run,
+    payrollCheckCount,
     extraDisbursements: parseExtraLines(run.extraDisbursements ?? '[]'),
     lines: attachBankingToLines(lines.map((line) => presentPayRunLine(line)), staffById).map((line) => ({
       ...line,
@@ -412,16 +416,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         : null
       const voidedByName =
         [actor?.firstName, actor?.lastName].filter(Boolean).join(' ').trim() || actor?.username || 'Unknown'
-      const voided = await prisma.payRun.update({
-        where: { id },
-        data: {
-          status: 'void',
-          voidedAt: new Date(),
-          voidReason: reason,
-          voidedById: actor?.id ?? null,
-          voidedByName
-        },
-        include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+      const voided = await prisma.$transaction(async (tx) => {
+        // Only draft payroll checks exist here: no real check number is assigned by this feature.
+        // Removing them keeps Check Management free of checks from a voided payroll.
+        await tx.cashbookEntry.deleteMany({
+          where: { payrollPayRunId: id, payrollCheckStatus: 'draft' }
+        })
+        return tx.payRun.update({
+          where: { id },
+          data: {
+            status: 'void',
+            voidedAt: new Date(),
+            voidReason: reason,
+            voidedById: actor?.id ?? null,
+            voidedByName
+          },
+          include: { lines: { orderBy: { sortOrder: 'asc' } }, payPeriod: true }
+        })
       })
       await syncStaffLoanStatuses(
         voided.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
@@ -442,6 +453,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         processed.lines.map((line) => line.staffId).filter((staffId): staffId is string => Boolean(staffId))
       )
       return NextResponse.json(await presentRun(processed))
+    }
+
+    if (action === 'generate-checks') {
+      if (run.status !== 'processed') {
+        return NextResponse.json({ error: 'Only an approved payroll can generate checks.' }, { status: 409 })
+      }
+      const checks = run.lines.filter((line) => {
+        const code = (line.bankCode || '').trim().toUpperCase()
+        return code === 'CHQ' && line.netPay > 0
+      })
+      const result = await prisma.$transaction(async (tx) => {
+        const created = await tx.cashbookEntry.createMany({
+          data: checks.map((line) => ({
+              date: run.payDate,
+              ref: 'PENDING',
+              description: `Payroll check — ${line.staffName}`,
+              debitCheck: line.netPay,
+              paymentMethod: 'check',
+              payrollPayRunId: id,
+              payrollPayRunLineId: line.id,
+              payrollCheckStatus: 'draft'
+            })),
+          skipDuplicates: true
+        })
+        return { created: created.count, total: checks.length }
+      })
+      const updated = await loadRun(id)
+      return NextResponse.json({ ...(await presentRun(updated!)), generated: result })
     }
 
     if (action === 'process') {

@@ -987,6 +987,10 @@ model CashbookEntry {
   vendorPaymentBatchId String?  @map("vendor_payment_batch_id") // If related to a vendor VendorPaymentBatch
   customerArPaymentId  String?  @unique @map("customer_ar_payment_id") // Customer A/R payment booked as a deposit
   clearedAt            DateTime? @map("cleared_at") // When a check expense was cashed at the bank
+  /// Links draft payroll checks to their source so generation is idempotent and voids can remove them.
+  payrollPayRunId      String?  @map("payroll_pay_run_id")
+  payrollPayRunLineId  String?  @unique @map("payroll_pay_run_line_id")
+  payrollCheckStatus   String?  @map("payroll_check_status") // draft while no physical check number has been issued
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -998,6 +1002,7 @@ model CashbookEntry {
   @@unique([shiftId, depositLineIndex], name: "cashbook_entries_shift_deposit_line")
   @@unique([shiftId, shiftIncomeKind], name: "cashbook_entries_shift_income_kind")
   @@index([date])
+  @@index([payrollPayRunId])
   @@map("cashbook_entries")
 }
 
