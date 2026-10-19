@@ -232,7 +232,7 @@ export function renderPayeHtml(input: PayeReportInput): string {
         paye: parseMoney(line.paye)
       }
     })
-    .filter((line) => line.gross !== 0 || line.taxable !== 0 || line.nic !== 0 || line.paye !== 0)
+    .filter((line) => line.paye !== 0)
   const body = rows
     .map(
       (line) => `<tr>

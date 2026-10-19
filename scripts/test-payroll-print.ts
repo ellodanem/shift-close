@@ -597,11 +597,11 @@ describe('P.A.Y.E. report', () => {
           paye: 91.5
         },
         {
-          staffName: 'Zero Pay',
-          staffNo: null,
-          taxCode: '',
-          grossPay: 0,
-          nisEmployee: 0,
+          staffName: 'No PAYE Employee',
+          staffNo: '200',
+          taxCode: '220',
+          grossPay: 2400,
+          nisEmployee: 120,
           paye: 0
         }
       ]
@@ -617,7 +617,9 @@ describe('P.A.Y.E. report', () => {
     assert.match(html, /FOR: SEPTEMBER/)
     assert.match(html, /15% of taxable pay after NIC/)
     assert.match(html, /\$2,500 a month/)
-    assert.doesNotMatch(html, /Zero Pay/)
+    assert.doesNotMatch(html, /No PAYE Employee/)
+    assert.doesNotMatch(html, /2400\.00/)
+    assert.doesNotMatch(html, /120\.00/)
   })
 
   it('marks a voided PAYE report as record only', () => {

@@ -1486,7 +1486,7 @@ export default function PayrollRunPage() {
   }
 
   const openPayePreview = () => {
-    if (!run) return
+    if (!run || !run.lines.some((line) => (line.paye ?? 0) !== 0)) return
     setError(null)
     setPrintDoc({
       title: 'P.A.Y.E. preview',
@@ -1979,13 +1979,15 @@ export default function PayrollRunPage() {
               >
                 Print NIC
               </button>
-              <button
-                type="button"
-                onClick={openPayePreview}
-                className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
-              >
-                Print PAYE
-              </button>
+              {run.lines.some((line) => (line.paye ?? 0) !== 0) ? (
+                <button
+                  type="button"
+                  onClick={openPayePreview}
+                  className="min-h-[44px] rounded-md border border-violet-700 px-4 py-2 text-sm font-semibold text-violet-700 sm:min-h-0"
+                >
+                  Print PAYE
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={openPreview}
