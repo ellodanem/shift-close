@@ -10,6 +10,8 @@ export function redactStaffRecord<
     staffLoan?: unknown
     medicalAmount?: unknown
     taxCode?: unknown
+    nisExempt?: unknown
+    payeExempt?: unknown
     taxNumber?: unknown
   }
 >(staff: T, role: string): T {
@@ -24,6 +26,8 @@ export function redactStaffRecord<
     staffLoan: null,
     medicalAmount: null,
     taxCode: null,
+    nisExempt: null,
+    payeExempt: null,
     taxNumber: null
   }
 }

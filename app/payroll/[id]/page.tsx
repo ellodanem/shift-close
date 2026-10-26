@@ -68,6 +68,7 @@ import {
   formatMoney,
   parseMoney,
   parsePayType,
+  nisEligiblePayFromGross,
   salarySkipped,
   taxablePayFromGross,
   visibleExtraLines,
@@ -81,6 +82,9 @@ type PayRunLine = {
   staffName: string
   staffNo: string | null
   payType: string
+  payCycle: string
+  nisExempt?: boolean
+  payeExempt?: boolean
   basicHours: number
   otHours: number
   hourlyRate: number
@@ -169,6 +173,8 @@ type Draft = {
   custom: Record<string, string>
   /** Extra labels left out of PAYE. */
   untaxedExtras: string[]
+  /** Extra labels left out of NIS. */
+  nonNisExtras: string[]
   paySickEmployerShare: boolean
 }
 
@@ -238,6 +244,9 @@ function draftFromLine(line: PayRunLine, categories: PayrollCategory[]): Draft {
     untaxedExtras: visibleExtraLines(line.extraLines)
       .filter((extra) => extra.taxable === false)
       .map((extra) => extra.label),
+    nonNisExtras: visibleExtraLines(line.extraLines)
+      .filter((extra) => extra.nisEligible === false)
+      .map((extra) => extra.label),
     paySickEmployerShare: line.paySickEmployerShare
   }
 }
@@ -249,7 +258,8 @@ function extraLinesFor(line: PayRunLine, draft: Draft, categories: PayrollCatego
     hourlyRate: parseMoney(draft.rate),
     categories,
     values: draft.custom,
-    untaxedLabels: draft.untaxedExtras ?? []
+    untaxedLabels: draft.untaxedExtras ?? [],
+    nonNisLabels: draft.nonNisExtras ?? []
   })
 }
 
@@ -837,6 +847,11 @@ export default function PayrollRunPage() {
         const deductions = computePayRunDeductions({
           grossPay: pay.grossPay,
           taxablePay: taxablePayFromGross(pay.grossPay, patch.extraLines),
+          nisEligiblePay: nisEligiblePayFromGross(pay.grossPay, patch.extraLines),
+          nisExempt: line.nisExempt,
+          payeExempt: line.payeExempt,
+          payCycle: line.payCycle,
+          taxCode: line.taxCode,
           staffLoan: patch.staffLoan,
           medical: patch.medical,
           shortage: patch.shortageReady,
@@ -1112,6 +1127,16 @@ export default function PayrollRunPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  const toggleExtraNis = (lineId: string, label: string, eligible: boolean) => {
+    const draft = draftsRef.current[lineId]
+    if (!draft) return
+    const next = new Set(draft.nonNisExtras ?? [])
+    if (eligible) next.delete(label)
+    else next.add(label)
+    patchDraft(lineId, { nonNisExtras: [...next] })
+    flushSave()
   }
 
   const generatePayrollChecks = async () => {
@@ -1953,6 +1978,7 @@ export default function PayrollRunPage() {
             onFlush={flushSave}
             onEditName={openPayInfo}
             onToggleExtraTax={toggleExtraTax}
+            onToggleExtraNis={toggleExtraNis}
             locked={Boolean(locked)}
           />
         ) : null}
@@ -2541,7 +2567,8 @@ function PayrollPreviewModal({ preview, onClose }: { preview: PayrollPreviewInpu
               <span className="font-semibold">Net</span> {formatMoney(net)}
             </p>
             <p className="mt-2 text-sm text-slate-500">
-              PAYE is 15% of taxable pay after NIC, above $2,500 a month.
+              PAYE annualizes this pay by frequency, subtracts annualized NIS (up to $3,000) and the
+              tax-code allowance (code × $100, minimum code 254), then applies the 15%, 20%, and 30% bands.
             </p>
           </div>
         </div>
@@ -2661,6 +2688,7 @@ function ReviewStep({
   onFlush,
   onEditName,
   onToggleExtraTax,
+  onToggleExtraNis,
   locked
 }: {
   run: PayRun
@@ -2671,6 +2699,7 @@ function ReviewStep({
   onFlush: () => void
   onEditName: (lineId: string) => void
   onToggleExtraTax: (lineId: string, label: string, taxed: boolean) => void
+  onToggleExtraNis: (lineId: string, label: string, eligible: boolean) => void
   locked: boolean
 }) {
   const [openDeductions, setOpenDeductions] = useState<Record<string, true>>({})
@@ -2687,7 +2716,7 @@ function ReviewStep({
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-slate-900">{details ? 'Payroll details' : 'Payroll summary'}</h2>
           <HelpTip label="About this payroll">
-            {`Pay period ${mdy(run.startDate)} – ${mdy(run.endDate)} · Pay date ${mdy(run.payDate)}. Net is gross minus PAYE, employee NIS, loan, medical, shortage, and other deductions. PAYE is 15% of taxable pay after NIC, above $2,500 for the month. Uncheck Tax on an extra to leave that amount out. Employer NIS is a memo. YTD is approved pay in ${run.payDate.slice(0, 4)} through this pay date, including this payroll.`}
+            {`Pay period ${mdy(run.startDate)} – ${mdy(run.endDate)} · Pay date ${mdy(run.payDate)}. Net is gross minus PAYE, employee NIS, loan, medical, shortage, and other deductions. PAYE uses PayMS annualization by pay frequency, annualized NIS up to $3,000, the employee tax-code allowance, and the 15%, 20%, and 30% bands. Tax and NIS can be switched off separately for an extra. Employer NIS is a memo. YTD is approved pay in ${run.payDate.slice(0, 4)} through this pay date, including this payroll.`}
           </HelpTip>
         </div>
         <button
@@ -2776,10 +2805,13 @@ function ReviewStep({
                         {visibleExtraLines(line.extraLines).map((extra) => {
                           const untaxed = new Set(draft?.untaxedExtras ?? [])
                           const taxed = !untaxed.has(extra.label)
+                          const nonNis = new Set(draft?.nonNisExtras ?? [])
+                          const nisEligible = !nonNis.has(extra.label)
                           return (
                             <tr key={`${line.id}-${extra.label}`}>
                               <td className="py-1 pl-3" colSpan={2}>
-                                <label className="inline-flex min-h-[44px] items-center gap-2 text-slate-600 sm:min-h-0">
+                                <div className="flex flex-wrap gap-x-4 text-slate-600">
+                                <label className="inline-flex min-h-[44px] items-center gap-2 sm:min-h-0">
                                   <input
                                     type="checkbox"
                                     checked={taxed}
@@ -2788,8 +2820,18 @@ function ReviewStep({
                                     onChange={(e) => onToggleExtraTax(line.id, extra.label, e.target.checked)}
                                   />
                                   Tax {extra.label}
-                                  {taxed ? '' : ' · not taxed'}
                                 </label>
+                                <label className="inline-flex min-h-[44px] items-center gap-2 sm:min-h-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={nisEligible}
+                                    disabled={locked}
+                                    aria-label={'NIS on ' + extra.label + ' for ' + line.staffName}
+                                    onChange={(e) => onToggleExtraNis(line.id, extra.label, e.target.checked)}
+                                  />
+                                  NIS
+                                </label>
+                                </div>
                               </td>
                               <td className="py-1 text-right tabular-nums text-slate-600">{formatMoney(extra.amount)}</td>
                               <td />

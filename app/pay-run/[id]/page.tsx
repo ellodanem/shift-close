@@ -116,6 +116,7 @@ function ExtraLineEditor({
             className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
           />
           {showTax ? (
+            <>
             <label className="flex items-center gap-1 text-xs text-gray-600">
               <input
                 type="checkbox"
@@ -136,6 +137,27 @@ function ExtraLineEditor({
               />
               Tax
             </label>
+            <label className="flex items-center gap-1 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={extra.nisEligible !== false}
+                aria-label={'NIS on ' + (extra.label || 'extra')}
+                onChange={(e) =>
+                  updateVisible(
+                    visible.map((row, i) => {
+                      if (i !== index) return row
+                      if (e.target.checked) {
+                        const { nisEligible: _drop, ...rest } = row
+                        return rest
+                      }
+                      return { ...row, nisEligible: false }
+                    })
+                  )
+                }
+              />
+              NIS
+            </label>
+            </>
           ) : null}
           <button
             type="button"
@@ -480,7 +502,8 @@ export default function PayRunDetailPage() {
               </div>
               <p className="text-sm text-gray-600">
                 Net is gross minus employee NIS (5%, $250 monthly cap), staff loan, medical, shortage,
-                and extra deductions. PAYE is 15% of taxable pay after NIC, above $2,500 a month.
+                and extra deductions. PAYE uses PayMS annualization, NIS and tax-code allowances, and the
+                15%, 20%, and 30% annual bands.
                 Employer NIS is a memo only.
               </p>
             </div>
@@ -682,7 +705,8 @@ export default function PayRunDetailPage() {
 
             <p className="text-sm text-gray-600 mb-6">
               Employer NIS this run: <span className="font-medium">{formatMoney(totals.employerNis)}</span>{' '}
-              (memo only — not taken from net). PAYE is 15% of taxable pay after NIC, above $2,500 a month.
+              (memo only — not taken from net). PAYE uses PayMS annualization, NIS and tax-code allowances,
+              and the 15%, 20%, and 30% annual bands.
             </p>
 
             <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">

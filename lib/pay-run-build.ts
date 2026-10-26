@@ -1,6 +1,6 @@
 import { isReportOnlyPayPeriodRow } from '@/lib/pay-period-rows'
 import { payrollBankCode } from '@/lib/pay-run-banking'
-import { payMonthKey, type PayeMonthTaken } from '@/lib/pay-run-deductions'
+import { payMonthKey } from '@/lib/pay-run-deductions'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
 import {
   buildPayRunLines,
@@ -13,6 +13,7 @@ import {
   parsePayType,
   payPeriodSourceHash,
   serializePayRunLine,
+  nisEligiblePayFromGross,
   taxablePayFromGross,
   withSickPayLine,
   type BuiltPayRunLine,
@@ -75,6 +76,8 @@ export async function loadPayRunStaffProfiles(): Promise<PayRunStaffProfile[]> {
       vacationStart: true,
       vacationEnd: true,
       taxCode: true,
+      nisExempt: true,
+      payeExempt: true,
       bankName: true,
       accountNumber: true
     }
@@ -120,37 +123,6 @@ export async function loadNisTakenByStaffId(
   return taken
 }
 
-/** Taxable pay, employee NIC, and PAYE already taken this pay-date month on other processed runs. */
-export async function loadPayeTakenByStaffId(
-  payDate: string,
-  excludePayRunId?: string
-): Promise<Record<string, PayeMonthTaken>> {
-  const month = payMonthKey(payDate)
-  if (!month) return {}
-  const lines = await prisma.payRunLine.findMany({
-    where: {
-      staffId: { not: null },
-      payRun: {
-        status: 'processed',
-        payDate: { startsWith: month },
-        ...(excludePayRunId ? { id: { not: excludePayRunId } } : {})
-      }
-    },
-    select: { staffId: true, grossPay: true, extraLines: true, nisEmployee: true, paye: true }
-  })
-  const taken: Record<string, PayeMonthTaken> = {}
-  for (const line of lines) {
-    if (!line.staffId) continue
-    const prev = taken[line.staffId] ?? { taxablePay: 0, employeeNic: 0, paye: 0 }
-    taken[line.staffId] = {
-      taxablePay: round2(prev.taxablePay + taxablePayFromGross(line.grossPay, parseExtraLines(line.extraLines))),
-      employeeNic: round2(prev.employeeNic + line.nisEmployee),
-      paye: round2(prev.paye + line.paye)
-    }
-  }
-  return taken
-}
-
 export async function rebuildPayRunLines(
   payRunId: string,
   options: {
@@ -169,7 +141,6 @@ export async function rebuildPayRunLines(
   const deductionOverrides: Record<string, DeductionOverride> = {}
   const excludePayRunId = payRunId === 'new' ? undefined : payRunId
   const nisTakenByStaffId = await loadNisTakenByStaffId(options.payDate, excludePayRunId)
-  const payeTakenByStaffId = await loadPayeTakenByStaffId(options.payDate, excludePayRunId)
 
   if (options.keepOverrides) {
     const existing = await prisma.payRunLine.findMany({ where: { payRunId } })
@@ -183,6 +154,8 @@ export async function rebuildPayRunLines(
         hourlyRate: line.hourlyRate,
         salariedAmount: line.salariedAmount,
         taxCode: line.taxCode,
+        nisExempt: line.nisExempt,
+        payeExempt: line.payeExempt,
         payType: line.payType,
         paySickEmployerShare: line.paySickEmployerShare
       }
@@ -225,7 +198,6 @@ export async function rebuildPayRunLines(
     rateOverrides: options.keepOverrides ? rateOverrides : undefined,
     deductionOverrides: options.keepOverrides ? deductionOverrides : undefined,
     nisTakenByStaffId,
-    payeTakenByStaffId,
     otMultiplier,
     periodStart,
     periodEnd,
@@ -298,7 +270,6 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
   const staffById = new Map(staff.map((person) => [person.id, person]))
   const hoursRows = parsePayPeriodHoursRows(run.payPeriod.rows)
   const nisTaken = await loadNisTakenByStaffId(run.payDate, payRunId)
-  const payeTaken = await loadPayeTakenByStaffId(run.payDate, payRunId)
   const otMultiplier = await readOvertimeMultiplier()
   const vacationHoursPerDay = await readVacationHoursPerDay()
 
@@ -341,19 +312,26 @@ export async function syncDraftPayTypes(payRunId: string): Promise<void> {
     const deducted = computePayRunDeductions({
       grossPay: pay.grossPay,
       taxablePay: taxablePayFromGross(pay.grossPay, extraLines),
+      nisEligiblePay: nisEligiblePayFromGross(pay.grossPay, extraLines),
+      nisExempt: profile.nisExempt,
+      payeExempt: profile.payeExempt,
+      payCycle: profile.payCycle,
+      taxCode: profile.taxCode,
       staffLoan: line.staffLoan,
       medical: line.medical,
       shortage: line.shortageReady,
       extraDeductions,
       nisEmployeeTaken: taken?.employee,
-      nisEmployerTaken: taken?.employer,
-      payeTaken: payeTaken[line.staffId]
+      nisEmployerTaken: taken?.employer
     })
     await prisma.payRunLine.update({
       where: { id: line.id },
       data: {
         payType: nextType,
         payCycle: parsePayCycle(profile.payCycle),
+        nisExempt: profile.nisExempt,
+        payeExempt: profile.payeExempt,
+        taxCode: profile.taxCode ?? '',
         basicHours,
         otHours,
         transTtl: nextType === 'salaried' ? line.transTtl : round2(basicHours + otHours),
@@ -411,9 +389,8 @@ export async function syncDraftDueStaff(payRunId: string): Promise<void> {
   )
   if (missing.length === 0) return
 
-  const [nisTakenByStaffId, payeTakenByStaffId, otMultiplier] = await Promise.all([
+  const [nisTakenByStaffId, otMultiplier] = await Promise.all([
     loadNisTakenByStaffId(run.payDate, payRunId),
-    loadPayeTakenByStaffId(run.payDate, payRunId),
     readOvertimeMultiplier()
   ])
   const built = buildPayRunLines({
@@ -424,7 +401,6 @@ export async function syncDraftDueStaff(payRunId: string): Promise<void> {
     periodEnd: run.endDate,
     cycleNumber: run.cycleNumber,
     nisTakenByStaffId,
-    payeTakenByStaffId,
     otMultiplier
   })
   if (built.length === 0) return

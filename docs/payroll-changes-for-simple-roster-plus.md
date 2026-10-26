@@ -70,24 +70,26 @@ net          = 580 − 29 − 5 = 546
 
 **September rule.** PAYE is not calculated. A clerk can type it as an extra deduction. Print PAYE is disabled. The payroll summary says PAYE is handled outside the app.
 
-**Current rule.** Each line stores a calculated PAYE amount. The tax code is still printed and still does not change the rate. There is no tax table and no annualization. One flat rule is used for every person.
+**Current rule.** Each line stores PAYE calculated with the PayMS annualization method. The employee's pay frequency, tax code, current employee NIS, and PAYE-taxable earnings determine the amount.
 
 ```
-rate        = 15%
-free amount = $2,500 for the pay date’s calendar month
+periods per year = weekly 52, bi-weekly 26, semi-monthly 24, monthly 12
+code allowance   = max(numeric tax code, 254) × $100
+annual NIS       = current employee NIS × periods per year, capped at $3,000
+annual bands     = first $15,000 at 15%, next $15,000 at 20%, remainder at 30%
 ```
 
-Employee NIC comes off taxable pay first. Then whatever is left of the $2,500. Then 15% of the rest. A second pay in that month uses what is left of the free amount and does not tax the first pay again.
+The current period's PAYE-taxable earnings are annualized. PayMS then subtracts annualized employee NIS and the tax-code allowance, applies the annual bands, and divides the result by the number of periods.
 
 ```
-month taxable   = this run’s taxable pay + taxable pay already taken this month
-month NIC       = this run’s employee NIC + employee NIC already taken this month
-chargeable      = max(0, month taxable − month NIC − 2,500)
-month PAYE      = round to cents(chargeable × 0.15)
-this run’s PAYE = max(0, month PAYE − PAYE already taken this month)
+annual earnings = this period's PAYE-taxable earnings × periods per year
+annual NIS      = min(current employee NIS × periods per year, $3,000)
+chargeable      = max(0, annual earnings − annual NIS − code allowance)
+this run's PAYE = annual tax on chargeable income ÷ periods per year
 ```
 
-“Already taken” is other **approved** runs whose pay date falls in the same calendar month. Drafts and voided runs do not count. The month is the pay date, the same month the NIC cap uses.
+PAYE does not aggregate earlier pays in the month. NIS still uses the remaining monthly $250 employee/employer cap across approved runs.
+Staff can be marked NIS exempt or PAYE exempt. NIS-exempt staff have zero employee/employer NIS and no annual NIS allowance; PAYE-exempt staff have zero PAYE.
 
 Taxable pay defaults to the full gross, including vacation. An extra earning can be marked not taxed (section 4). Basic, overtime, and vacation stay taxable.
 
@@ -100,16 +102,9 @@ Employer NIC is still a memo and is still not subtracted.
 
 Worked examples, no loan, no medical, no shortage:
 
-One pay, gross and taxable $3,000. NIC is $150. Chargeable is `3000 − 150 − 2500 = 350`. PAYE is $52.50. Net is $2,797.50. Taxable of $2,500 with NIC of $125 gives PAYE of $0.
+Monthly taxable earnings of $5,000, employee NIS of $250, and tax code 254 produce annual chargeable income of $31,600 and period PAYE of $477.50.
 
-Two pays in the same month:
-
-| Pay | Taxable | Employee NIC | PAYE |
-|---|---:|---:|---:|
-| First | 1,500 | 75 | 0 |
-| Second | 1,800 | 90 | 95.25 |
-
-The second pay sees month taxable $3,300 and month NIC $165, so chargeable is $635 and month PAYE is $95.25. Nothing was taken on the first pay, so this run takes all $95.25.
+Semi-monthly taxable earnings of $3,200, current employee NIS of $125, and tax code 280 produce annual chargeable income of $45,800 and period PAYE of $416.25.
 
 A typed deduction whose label is `PAYE` or `PAYE tax` is used only when the calculated PAYE on that line is zero. If the calculation produced an amount, the typed line is not shown again as P.A.Y.E. on the payslip or the certificate.
 
@@ -117,9 +112,9 @@ A typed deduction whose label is `PAYE` or `PAYE tax` is used only when the calc
 
 ## 4. An extra can be left out of PAYE
 
-Each extra earning defaults to taxed. Unchecking Tax on that extra removes its amount from taxable pay. It is still paid, and NIC is still taken on the full gross.
+Each extra earning defaults to both PAYE-taxable and NIS-eligible. Tax and NIS can be switched off separately. This supports allowances such as travel that are paid but excluded from either calculation.
 
-Example. Salary $3,300 plus a $500 travel extra marked not taxed. Gross is $3,800. NIC is 5% of $3,800 = $190. Taxable pay is $3,300. Chargeable is `3300 − 190 − 2500 = 610`. PAYE is $91.50. Net is `3800 − 190 − 91.50 = 3518.50`.
+Example. Salary $3,200 plus $500 travel excluded from both PAYE and NIS gives gross $3,700 but taxable/NIS-eligible pay of $3,200.
 
 ---
 
@@ -143,7 +138,7 @@ Header **P.A.Y.E.** Period start–end, pay date, cycle number, and the month of
 |---|---|---:|---:|---:|---:|
 | `{NIC} - {name}` | tax code | gross | taxable pay | employee NIC | calculated PAYE |
 
-People with zero gross, taxable pay, NIC, and PAYE are omitted. Totals sit under the money columns. A note under the table states the 15% / $2,500 rule. The payroll summary carries the same one-line note, in place of the old “handled outside this app” line.
+People with zero gross, taxable pay, NIC, and PAYE are omitted. Totals sit under the money columns. A note under the table states the progressive-band and standard-allowance rule.
 
 ---
 
@@ -203,13 +198,13 @@ The attendance pay-period extract no longer calculates a shortage. The field sta
 Carry these forward. Do not invent a rule for them:
 
 - Sick days are shown and are not paid.
-- The tax code does not select a rate. PAYE is the single 15% rule above. There is no tax table.
+- The numeric part of the tax code sets the allowance. Blank or lower codes use the PayMS minimum code 254.
 - Hour and money column layout can still live in the browser. Whether SRP stores it per user or per company is unchanged.
 - GL centre and department stay that site’s own values.
 - Credit-union letterhead is still data, complete for one union in Shift Close.
 - Third-party cash disbursements are still absent from the current payroll screen.
 - Employer NIC is still reported and is still not taken from the employee.
-- The NIC cap and the PAYE free amount are both monthly on the pay date. Neither is split in half for a semi-monthly period.
+- The NIS cap applies once for the pay-date month. PAYE is annualized independently for each payroll period.
 
 ---
 

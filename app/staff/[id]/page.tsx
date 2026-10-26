@@ -178,6 +178,8 @@ function EditStaffPageInner() {
     staffLoan: '' as string,
     medicalAmount: '' as string,
     taxCode: '',
+    nisExempt: false,
+    payeExempt: false,
     taxNumber: ''
   })
   const staffName = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim() || 'Staff'
@@ -444,6 +446,8 @@ function EditStaffPageInner() {
             ? String((data as any).medicalAmount)
             : '',
         taxCode: (data as any).taxCode || '',
+        nisExempt: (data as any).nisExempt === true,
+        payeExempt: (data as any).payeExempt === true,
         taxNumber: (data as any).taxNumber || ''
       }
       setFormData(next)
@@ -1703,6 +1707,22 @@ function EditStaffPageInner() {
                       placeholder="Inland Revenue tax number"
                     />
                   </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={formData.nisExempt}
+                      onChange={(e) => setFormData({ ...formData, nisExempt: e.target.checked })}
+                    />
+                    NIS exempt for payroll
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={formData.payeExempt}
+                      onChange={(e) => setFormData({ ...formData, payeExempt: e.target.checked })}
+                    />
+                    PAYE exempt for payroll
+                  </label>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
                     <input
@@ -1745,6 +1765,8 @@ function EditStaffPageInner() {
                   />
                 ) : null}
                 <FieldDisplay label="Tax code" value={formData.taxCode || null} />
+                <FieldDisplay label="NIS exempt" value={formData.nisExempt ? 'Yes' : 'No'} />
+                <FieldDisplay label="PAYE exempt" value={formData.payeExempt ? 'Yes' : 'No'} />
                 <FieldDisplay label="Tax number" value={formData.taxNumber || null} />
                 <FieldDisplay label="Bank" value={formData.bankName || null} />
                 <FieldDisplay label="Account number" value={formData.accountNumber || null} />

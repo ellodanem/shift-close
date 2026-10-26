@@ -3,7 +3,6 @@ import autoTable from 'jspdf-autotable'
 import { parsePayCycle, payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { escapePayPeriodHtml } from '@/lib/pay-period-email'
 import { normalizePayslipCompany } from '@/lib/payroll-settings'
-import { PAYE_MONTHLY_FREE, PAYE_RATE } from '@/lib/pay-run-deductions'
 import {
   formatMoney,
   parseMoney,
@@ -214,9 +213,7 @@ export type PayeReportInput = {
 }
 
 function payeRuleNote(): string {
-  const percent = Math.round(PAYE_RATE * 100)
-  const free = PAYE_MONTHLY_FREE.toLocaleString('en-US')
-  return `PAYE is ${percent}% of taxable pay after NIC, above $${free} a month. A later pay in that month uses what is left of the free amount.`
+  return 'PAYE annualizes taxable pay by frequency, subtracts annualized NIS up to $3,000 and Tax Code × $100 (minimum code 254), then applies the 15%, 20%, and 30% annual bands.'
 }
 
 export function renderPayeHtml(input: PayeReportInput): string {
@@ -1422,7 +1419,7 @@ export function renderPayrollPreviewHtml(input: PayrollPreviewInput): string {
           ${summaryMoneyRow('Total', usd(totals.hours), totals, 'grand')}
         </tbody>
       </table>
-      <p class="note">PAYE is 15% of taxable pay after NIC, above $2,500 a month.</p>
+      <p class="note">PAYE uses PayMS annualization, NIS and tax-code allowances, and the 15%, 20%, and 30% annual bands.</p>
     </section>
     <section class="page">
       <h1>Payroll details</h1>
@@ -1732,7 +1729,7 @@ export function buildPayrollPreviewPdf(input: PayrollPreviewInput): jsPDF {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100)
-  doc.text('PAYE is 15% of taxable pay after NIC, above $2,500 a month.', PREVIEW_MARGIN, noteY)
+  doc.text('PAYE uses PayMS annualization, NIS and tax-code allowances, and the 15%, 20%, and 30% annual bands.', PREVIEW_MARGIN, noteY)
 
   drawPreviewDetails(doc, input)
   stampPreviewPages(doc)

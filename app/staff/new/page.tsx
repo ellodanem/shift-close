@@ -50,6 +50,8 @@ export default function NewStaffPage() {
     salariedAmount: '',
     medicalAmount: '',
     taxCode: '',
+    nisExempt: false,
+    payeExempt: false,
     taxNumber: ''
   })
   const [roles, setRoles] = useState<StaffRole[]>([])
@@ -480,6 +482,22 @@ export default function NewStaffPage() {
                     placeholder="Inland Revenue tax number"
                   />
                 </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.nisExempt}
+                    onChange={(e) => setFormData({ ...formData, nisExempt: e.target.checked })}
+                  />
+                  NIS exempt for payroll
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.payeExempt}
+                    onChange={(e) => setFormData({ ...formData, payeExempt: e.target.checked })}
+                  />
+                  PAYE exempt for payroll
+                </label>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Medical</label>
                     <input

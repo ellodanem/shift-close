@@ -77,6 +77,8 @@ export async function PATCH(
       staffLoan,
       medicalAmount,
       taxCode,
+      nisExempt,
+      payeExempt,
       taxNumber
     } = body
 
@@ -114,6 +116,10 @@ export async function PATCH(
         medicalAmount !== undefined && { medicalAmount: parseOptionalMoney(medicalAmount) }),
       ...(canViewStaffSensitiveFields(appRole) &&
         taxCode !== undefined && { taxCode: String(taxCode ?? '').trim() }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        nisExempt !== undefined && { nisExempt: nisExempt === true }),
+      ...(canViewStaffSensitiveFields(appRole) &&
+        payeExempt !== undefined && { payeExempt: payeExempt === true }),
       ...(canViewStaffSensitiveFields(appRole) &&
         taxNumber !== undefined && { taxNumber: String(taxNumber ?? '').trim() })
     }

@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       staffLoan: staffLoanBody,
       medicalAmount: medicalAmountBody,
       taxCode: taxCodeBody,
+      nisExempt: nisExemptBody,
+      payeExempt: payeExemptBody,
       taxNumber: taxNumberBody
     } = body
 
@@ -187,6 +189,8 @@ export async function POST(request: NextRequest) {
                 staffLoan: parseOptionalMoney(staffLoanBody),
                 medicalAmount: parseOptionalMoney(medicalAmountBody),
                 taxCode: String(taxCodeBody ?? '').trim(),
+                nisExempt: nisExemptBody === true,
+                payeExempt: payeExemptBody === true,
                 taxNumber: String(taxNumberBody ?? '').trim()
               }
             })

@@ -1,5 +1,5 @@
 import { capStaffLoanDeduction } from './staff-loan'
-import { computePayRunDeductions, type PayeMonthTaken } from './pay-run-deductions'
+import { computePayRunDeductions } from './pay-run-deductions'
 import { normalizeOvertimeMultiplier } from './payroll-settings'
 import { DEFAULT_VACATION_HOURS_PER_DAY, vacationDaysInPeriod, vacationEarning } from './vacation-pay'
 import { isReportOnlyPayPeriodRow } from './pay-period-rows'
@@ -33,8 +33,10 @@ export type PayRunExtraLine = {
   amount: number
   /** Set when this line is an added hour category. Amount is the pay for those hours. */
   hours?: number
-  /** False leaves this amount out of PAYE. It is still paid, and it still counts for NIC. */
+  /** False leaves this amount out of PAYE. */
   taxable?: boolean
+  /** False leaves this amount out of NIS. */
+  nisEligible?: boolean
 }
 
 export type PayRunHoursRow = {
@@ -64,6 +66,8 @@ export type PayRunStaffProfile = {
   vacationStart?: string | null
   vacationEnd?: string | null
   taxCode?: string | null
+  nisExempt?: boolean
+  payeExempt?: boolean
   bankName?: string | null
   accountNumber?: string | null
 }
@@ -72,6 +76,8 @@ export type PayRateOverride = {
   hourlyRate?: number
   salariedAmount?: number
   taxCode?: string
+  nisExempt?: boolean
+  payeExempt?: boolean
   /** Pay type stored on the line. A mismatch means the staff record has since changed. */
   payType?: string
   paySickEmployerShare?: boolean
@@ -113,6 +119,8 @@ export type BuiltPayRunLine = {
   totalDeductions: number
   netPay: number
   taxCode: string
+  nisExempt: boolean
+  payeExempt: boolean
   bankCode?: string
   accountNo?: string | null
 }
@@ -166,7 +174,13 @@ export function parseExtraLines(raw: unknown): PayRunExtraLine[] {
   const lines: PayRunExtraLine[] = []
   for (const line of raw) {
     if (!line || typeof line !== 'object') continue
-    const o = line as { label?: unknown; amount?: unknown; hours?: unknown; taxable?: unknown }
+    const o = line as {
+      label?: unknown
+      amount?: unknown
+      hours?: unknown
+      taxable?: unknown
+      nisEligible?: unknown
+    }
     const label = typeof o.label === 'string' ? o.label.trim() : ''
     const amount = parseMoney(o.amount)
     const hours = typeof o.hours === 'number' && Number.isFinite(o.hours) ? parseMoney(o.hours) : undefined
@@ -174,6 +188,7 @@ export function parseExtraLines(raw: unknown): PayRunExtraLine[] {
     const parsed: PayRunExtraLine = { label: label || 'Extra', amount }
     if (hours) parsed.hours = hours
     if (o.taxable === false) parsed.taxable = false
+    if (o.nisEligible === false) parsed.nisEligible = false
     lines.push(parsed)
   }
   return lines
@@ -215,6 +230,14 @@ export function salariedSickPay(salaryValue: unknown, daysValue: unknown, payEmp
 export function taxablePayFromGross(grossPay: number, lines: PayRunExtraLine[]): number {
   const excluded = visibleExtraLines(lines)
     .filter((line) => line.taxable === false)
+    .reduce((sum, line) => sum + line.amount, 0)
+  return round2(Math.max(0, parseMoney(grossPay) - excluded))
+}
+
+/** Gross minus extras marked as outside NIS. Basic pay and overtime stay NIS-eligible. */
+export function nisEligiblePayFromGross(grossPay: number, lines: PayRunExtraLine[]): number {
+  const excluded = visibleExtraLines(lines)
+    .filter((line) => line.nisEligible === false)
     .reduce((sum, line) => sum + line.amount, 0)
   return round2(Math.max(0, parseMoney(grossPay) - excluded))
 }
@@ -414,12 +437,16 @@ function withDeductions(
   > & { shortageReady: number },
   profile: PayRunStaffProfile | undefined,
   deductionOverride?: DeductionOverride,
-  nisTaken?: NisTaken,
-  payeTaken?: PayeMonthTaken
+  nisTaken?: NisTaken
 ): BuiltPayRunLine {
   const deducted = computePayRunDeductions({
     grossPay: line.grossPay,
     taxablePay: taxablePayFromGross(line.grossPay, line.extraLines),
+    nisEligiblePay: nisEligiblePayFromGross(line.grossPay, line.extraLines),
+    nisExempt: line.nisExempt,
+    payeExempt: line.payeExempt,
+    payCycle: line.payCycle,
+    taxCode: line.taxCode,
     staffLoan: capStaffLoanDeduction(
       deductionOverride?.staffLoan ?? parseMoney(profile?.staffLoan),
       profile?.loanRemaining
@@ -428,8 +455,7 @@ function withDeductions(
     shortage: deductionOverride?.shortageReady ?? line.shortageReady,
     extraDeductions: deductionOverride?.extraDeductions ?? [],
     nisEmployeeTaken: nisTaken?.employee,
-    nisEmployerTaken: nisTaken?.employer,
-    payeTaken
+    nisEmployerTaken: nisTaken?.employer
   })
   return {
     ...line,
@@ -461,7 +487,6 @@ function lineFromHoursRow(
   deductionOverride?: DeductionOverride,
   nisTaken?: NisTaken,
   otMultiplier?: number,
-  payeTaken?: PayeMonthTaken,
   vacation?: { days: number; hoursPerDay: number },
   sick?: { days: number; payEmployerShare: boolean }
 ): BuiltPayRunLine {
@@ -517,9 +542,11 @@ function lineFromHoursRow(
     extraLines: withSickPayLine(extras, pay.sickEmployerPay),
     grossPay: pay.grossPay,
     shortageReady: parseMoney(row.shortage),
-    taxCode: (rateOverride?.taxCode ?? profile?.taxCode ?? '').trim()
+    taxCode: (rateOverride?.taxCode ?? profile?.taxCode ?? '').trim(),
+    nisExempt: rateOverride?.nisExempt ?? profile?.nisExempt ?? false,
+    payeExempt: rateOverride?.payeExempt ?? profile?.payeExempt ?? false
   }
-  return withDeductions(base, profile, deductionOverride, nisTaken, payeTaken)
+  return withDeductions(base, profile, deductionOverride, nisTaken)
 }
 
 function salariedLine(
@@ -528,7 +555,6 @@ function salariedLine(
   rateOverride?: PayRateOverride,
   deductionOverride?: DeductionOverride,
   nisTaken?: NisTaken,
-  payeTaken?: PayeMonthTaken,
   sick?: { days: number; payEmployerShare: boolean }
 ): BuiltPayRunLine {
   if (profile.salariedAmount == null || parseMoney(profile.salariedAmount) <= 0) {
@@ -574,12 +600,13 @@ function salariedLine(
       extraLines: withSickPayLine(extras, pay.sickEmployerPay),
       grossPay: pay.grossPay,
       shortageReady: 0,
-      taxCode: (rateOverride?.taxCode ?? profile.taxCode ?? '').trim()
+      taxCode: (rateOverride?.taxCode ?? profile.taxCode ?? '').trim(),
+      nisExempt: rateOverride?.nisExempt ?? profile.nisExempt ?? false,
+      payeExempt: rateOverride?.payeExempt ?? profile.payeExempt ?? false
     },
     profile,
     deductionOverride,
-    nisTaken,
-    payeTaken
+    nisTaken
   )
 }
 
@@ -592,7 +619,6 @@ export function buildPayRunLines(input: {
   rateOverrides?: Record<string, PayRateOverride>
   deductionOverrides?: Record<string, DeductionOverride>
   nisTakenByStaffId?: Record<string, NisTaken>
-  payeTakenByStaffId?: Record<string, PayeMonthTaken>
   otMultiplier?: number
   periodStart?: string
   periodEnd?: string
@@ -630,7 +656,6 @@ export function buildPayRunLines(input: {
         input.deductionOverrides?.[key],
         input.nisTakenByStaffId?.[row.staffId],
         input.otMultiplier,
-        input.payeTakenByStaffId?.[row.staffId],
         { days: vacationDays, hoursPerDay: input.vacationHoursPerDay ?? DEFAULT_VACATION_HOURS_PER_DAY },
         {
           days: row.sickLeaveDays ?? 0,
@@ -653,7 +678,6 @@ export function buildPayRunLines(input: {
         input.rateOverrides?.[profile.id],
         input.deductionOverrides?.[profile.id],
         input.nisTakenByStaffId?.[profile.id],
-        input.payeTakenByStaffId?.[profile.id],
         { days: 0, payEmployerShare: true }
       )
     )
@@ -703,6 +727,8 @@ export function serializePayRunLine(line: BuiltPayRunLine, sortOrder: number) {
     totalDeductions: line.totalDeductions,
     netPay: line.netPay,
     taxCode: line.taxCode ?? '',
+    nisExempt: line.nisExempt,
+    payeExempt: line.payeExempt,
     sortOrder
   }
 }

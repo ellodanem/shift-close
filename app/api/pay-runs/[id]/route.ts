@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   attachBankingToLines,
   loadNisTakenByStaffId,
-  loadPayeTakenByStaffId,
   loadPayRunStaffProfiles,
   loadPriorYtdByStaffId,
   parsePayPeriodHoursRows,
@@ -24,6 +23,7 @@ import {
   payPeriodSourceHash,
   presentPayRunLine,
   serializePayRunLine,
+  nisEligiblePayFromGross,
   taxablePayFromGross,
   withSickPayLine
 } from '@/lib/pay-run'
@@ -239,7 +239,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const vacationHoursPerDay = await readVacationHoursPerDay()
     const datesChanged = startDate !== run.startDate || endDate !== run.endDate
     const staffById = new Map((await loadPayRunStaffProfiles()).map((person) => [person.id, person]))
-    const payeTakenByStaff = await loadPayeTakenByStaffId(payDate, id)
     for (const lineBody of linePatches) {
       if (!lineBody || typeof lineBody !== 'object') continue
       const lineId = typeof lineBody.id === 'string' ? lineBody.id : ''
@@ -272,6 +271,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : existing.paySickEmployerShare
       const taxCode =
         typeof lineBody.taxCode === 'string' ? lineBody.taxCode.trim() : existing.taxCode
+      const nisExempt =
+        typeof lineBody.nisExempt === 'boolean' ? lineBody.nisExempt : existing.nisExempt
+      const payeExempt =
+        typeof lineBody.payeExempt === 'boolean' ? lineBody.payeExempt : existing.payeExempt
       const basicHours =
         lineBody.basicHours !== undefined ? parseMoney(lineBody.basicHours) : existing.basicHours
       const otHours = lineBody.otHours !== undefined ? parseMoney(lineBody.otHours) : existing.otHours
@@ -300,13 +303,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const deducted = computePayRunDeductions({
         grossPay: pay.grossPay,
         taxablePay: taxablePayFromGross(pay.grossPay, extraLines),
+        nisEligiblePay: nisEligiblePayFromGross(pay.grossPay, extraLines),
+        nisExempt,
+        payeExempt,
+        payCycle: existing.payCycle,
+        taxCode,
         staffLoan,
         medical,
         shortage: shortageReady,
         extraDeductions,
         nisEmployeeTaken: nisTaken?.employee,
-        nisEmployerTaken: nisTaken?.employer,
-        payeTaken: existing.staffId ? payeTakenByStaff[existing.staffId] : undefined
+        nisEmployerTaken: nisTaken?.employer
       })
       await prisma.payRunLine.update({
         where: { id: lineId },
@@ -341,7 +348,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           medical: deducted.medical,
           totalDeductions: deducted.totalDeductions,
           netPay: deducted.netPay,
-          taxCode
+          taxCode,
+          nisExempt,
+          payeExempt
         }
       })
     }

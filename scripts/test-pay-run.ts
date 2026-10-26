@@ -5,6 +5,7 @@ import {
   computeGrossPay,
   inferPayCycleFromRange,
   inferPayRunCycle,
+  nisEligiblePayFromGross,
   payCyclesDueOnRange,
   OT_MULTIPLIER,
   parseExtraLines,
@@ -296,12 +297,17 @@ describe('pay run gross', () => {
     assert.equal(lines[0]?.netPay, 608.74)
   })
 
-  it('leaves an untaxed extra out of PAYE', () => {
-    const lines = parseExtraLines([{ label: 'Travel', amount: 500, taxable: false }, { label: 'Extra', amount: 20 }])
+  it('can leave a travel extra out of PAYE and NIS', () => {
+    const lines = parseExtraLines([
+      { label: 'Travel', amount: 500, taxable: false, nisEligible: false },
+      { label: 'Extra', amount: 20 }
+    ])
     assert.equal(lines[0]?.taxable, false)
-    assert.equal(taxablePayFromGross(3800, lines), 3300)
+    assert.equal(lines[0]?.nisEligible, false)
+    assert.equal(taxablePayFromGross(3700, lines), 3200)
+    assert.equal(nisEligiblePayFromGross(3700, lines), 3200)
     const built = buildPayRunLines({
-      cycle: 'monthly',
+      cycle: 'semimonthly',
       hoursRows: [],
       staff: [
         {
@@ -310,20 +316,23 @@ describe('pay run gross', () => {
           status: 'active',
           role: 'cashier',
           nicNumber: '250987',
-          payCycle: 'monthly',
+          payCycle: 'semimonthly',
           payType: 'salaried',
           hourlyRate: null,
-          salariedAmount: 3300,
+          salariedAmount: 3200,
           staffLoan: null,
-          medicalAmount: null
+          medicalAmount: null,
+          taxCode: '280'
         }
       ],
-      extrasByStaffId: { m1: [{ label: 'Travel', amount: 500, taxable: false }] }
+      extrasByStaffId: {
+        m1: [{ label: 'Travel', amount: 500, taxable: false, nisEligible: false }]
+      }
     })
-    assert.equal(built[0]?.grossPay, 3800)
-    assert.equal(built[0]?.nisEmployee, 190)
-    assert.equal(built[0]?.paye, 91.5)
-    assert.equal(built[0]?.netPay, 3518.5)
+    assert.equal(built[0]?.grossPay, 3700)
+    assert.equal(built[0]?.nisEmployee, 160)
+    assert.equal(built[0]?.paye, 416.25)
+    assert.equal(built[0]?.netPay, 3123.75)
   })
 
   it('counts vacation days that fall inside the pay period', () => {

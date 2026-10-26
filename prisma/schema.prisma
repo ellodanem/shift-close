@@ -46,6 +46,10 @@ model Staff {
   medicalAmount Float?  @map("medical_amount")
   /// PAYE tax code used in Pay+. Stored here so payroll can update it with the rate.
   taxCode      String   @default("") @map("tax_code")
+  /// No employee/employer NIS on payroll for this staff member.
+  nisExempt    Boolean  @default(false) @map("nis_exempt")
+  /// PAYE is not deducted for this staff member.
+  payeExempt   Boolean  @default(false) @map("paye_exempt")
   /// Inland Revenue tax number printed on the TD5 / TD4.
   taxNumber    String   @default("") @map("tax_number")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1228,13 +1232,15 @@ model PayRunLine {
   shortageReady  Float   @default(0) @map("shortage_ready")
   nisEmployee    Float   @default(0) @map("nis_employee")
   nisEmployer    Float   @default(0) @map("nis_employer")
-  /// PAYE for this pay, after NIC and the monthly free amount.
+  /// PAYE for this pay using PayMS annualization, tax-code allowance, and annual bands.
   paye           Float   @default(0)
   staffLoan      Float   @default(0) @map("staff_loan")
   medical        Float   @default(0)
   totalDeductions Float  @default(0) @map("total_deductions")
   netPay         Float   @default(0) @map("net_pay")
   taxCode        String  @default("") @map("tax_code")
+  nisExempt      Boolean @default(false) @map("nis_exempt")
+  payeExempt     Boolean @default(false) @map("paye_exempt")
   sortOrder      Int     @default(0) @map("sort_order")
 
   payRun PayRun @relation(fields: [payRunId], references: [id], onDelete: Cascade)

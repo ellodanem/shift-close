@@ -20,6 +20,14 @@ export const PAY_CYCLE_HOUR_CAPS: Record<PayCycle, number> = {
   monthly: 173.33
 }
 
+/** PayMS annualization factor for each payroll frequency. */
+export const PAY_CYCLE_PERIODS_PER_YEAR: Record<PayCycle, number> = {
+  weekly: 52,
+  biweekly: 26,
+  semimonthly: 24,
+  monthly: 12
+}
+
 export type PayPeriodHoursSplit = {
   cycle: PayCycle
   cap: number
@@ -41,6 +49,10 @@ export function parsePayCycle(value: unknown): PayCycle {
 
 export function payCycleLabel(value: unknown): string {
   return PAY_CYCLE_LABELS[parsePayCycle(value)]
+}
+
+export function payPeriodsPerYear(value: unknown): number {
+  return PAY_CYCLE_PERIODS_PER_YEAR[parsePayCycle(value)]
 }
 
 /**
