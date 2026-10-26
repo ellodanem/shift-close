@@ -8,6 +8,55 @@ import {
 } from '@/lib/fuelBalance'
 import { phantomBalances } from '@/lib/checkBalanceAccount'
 import { sumUncashedChecksBySource } from '@/lib/uncashedChecks'
+import { sendMail } from '@/lib/email'
+import { getSessionFromRequest } from '@/lib/session'
+import { isAccountantRole } from '@/lib/roles'
+
+const ACCOUNTANT_BALANCE_NOTICE_RECIPIENT = 'dane.elrus1@gmail.com'
+
+type BalanceNoticeValues = {
+  currentBalance: number
+  availableFunds: number
+  totalAutoCurrentBalance: number
+  totalAutoAvailable: number
+}
+
+function money(value: number): string {
+  return `XCD ${roundMoney(value).toFixed(2)}`
+}
+
+async function sendAccountantBalanceUpdateEmail({
+  userId,
+  before,
+  after
+}: {
+  userId: string
+  before: BalanceNoticeValues
+  after: BalanceNoticeValues
+}): Promise<void> {
+  const user = await prisma.appUser.findUnique({
+    where: { id: userId },
+    select: { username: true, firstName: true, lastName: true, email: true }
+  })
+  const name = [user?.firstName?.trim(), user?.lastName?.trim()].filter(Boolean).join(' ') || user?.username || 'Accountant'
+  const actor = user?.email ? `${name} (${user.email})` : name
+  const lines = [
+    'Bank balances updated in Shift Close',
+    '',
+    `Updated by: ${actor}`,
+    '',
+    `Westline Ent current balance: ${money(before.currentBalance)} to ${money(after.currentBalance)}`,
+    `Westline Ent available funds: ${money(before.availableFunds)} to ${money(after.availableFunds)}`,
+    `Service Station current balance: ${money(before.totalAutoCurrentBalance)} to ${money(after.totalAutoCurrentBalance)}`,
+    `Service Station available funds: ${money(before.totalAutoAvailable)} to ${money(after.totalAutoAvailable)}`
+  ]
+
+  await sendMail({
+    to: ACCOUNTANT_BALANCE_NOTICE_RECIPIENT,
+    subject: `Bank balances updated by ${name}`,
+    text: lines.join('\n')
+  })
+}
 
 // GET current balance
 export async function GET() {
@@ -39,6 +88,11 @@ export async function GET() {
 // PATCH update balance (Westline and Service Station / Total Auto current + available)
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { currentBalance, availableFunds, totalAutoCurrentBalance, totalAutoAvailable } = body
 
@@ -62,9 +116,17 @@ export async function PATCH(request: NextRequest) {
       where: { id: 'balance' }
     })
 
+    const before: BalanceNoticeValues = {
+      currentBalance: existingBalance?.currentBalance ?? 0,
+      availableFunds: existingBalance?.availableFunds ?? 0,
+      totalAutoCurrentBalance: existingBalance?.totalAutoCurrentBalance ?? 0,
+      totalAutoAvailable: existingBalance?.totalAutoAvailable ?? 0
+    }
+    let balance
+
     if (!existingBalance) {
       // Create initial balance
-      const newBalance = await prisma.balance.create({
+      balance = await prisma.balance.create({
         data: {
           id: 'balance',
           currentBalance: currentBalance ?? 0,
@@ -75,7 +137,6 @@ export async function PATCH(request: NextRequest) {
           balanceAfter: (availableFunds ?? currentBalance ?? 0) - 0
         }
       })
-      return NextResponse.json(newBalance)
     } else {
       const updateData: any = {}
       if (currentBalance !== undefined) {
@@ -95,12 +156,17 @@ export async function PATCH(request: NextRequest) {
       updateData.planned = await sumPendingFuelInvoiceAmounts()
       updateData.balanceAfter = balanceAfterFromAvailable(finalAvailableFunds)
 
-      const balance = await prisma.balance.update({
+      balance = await prisma.balance.update({
         where: { id: 'balance' },
         data: updateData
       })
-      return NextResponse.json(balance)
     }
+
+    if (isAccountantRole(session.role)) {
+      await sendAccountantBalanceUpdateEmail({ userId: session.userId, before, after: balance })
+    }
+
+    return NextResponse.json(balance)
   } catch (error) {
     console.error('Error updating balance:', error)
     return NextResponse.json(

@@ -29,6 +29,7 @@ function isAccountantBillPath(pathname: string): boolean {
   if (/^\/api\/vendor-payments\/batches\/[^/]+$/.test(pathname)) return true
   if (pathname === '/api/fuel-payments/make-payment') return true
   if (pathname === '/api/fuel-payments/invoices') return true
+  if (/^\/api\/fuel-payments\/invoices\/[^/]+$/.test(pathname)) return true
   if (pathname === '/api/vendor-payments/make-payment') return true
   if (pathname === '/api/vendor-payments/vendors') return true
   if (/^\/api\/vendor-payments\/vendors\/[^/]+$/.test(pathname)) return true
@@ -39,12 +40,17 @@ function isAccountantBillPath(pathname: string): boolean {
 }
 
 function isAccountantBillWrite(pathname: string, method: string): boolean {
-  if (method !== 'POST' && method !== 'PATCH') return false
-  if (method === 'PATCH' && /^\/api\/vendor-payments\/invoices\/[^/]+$/.test(pathname)) return true
-  if (method === 'PATCH') return false
+  if (method !== 'POST' && method !== 'PATCH' && method !== 'DELETE') return false
+  if (
+    (method === 'PATCH' || method === 'DELETE') &&
+    (/^\/api\/fuel-payments\/invoices\/[^/]+$/.test(pathname) || /^\/api\/vendor-payments\/invoices\/[^/]+$/.test(pathname))
+  ) return true
+  if (method !== 'POST') return false
   if (pathname === '/api/fuel-payments/make-payment') return true
   if (pathname === '/api/fuel-payments/invoices') return true
+  if (pathname === '/api/fuel-payments/revert') return true
   if (pathname === '/api/vendor-payments/make-payment') return true
+  if (pathname === '/api/vendor-payments/revert') return true
   if (pathname === '/api/vendor-payments/vendors') return true
   if (pathname === '/api/vendor-payments/overhead-bills') return true
   return /^\/api\/vendor-payments\/vendors\/[^/]+\/invoices$/.test(pathname)
@@ -67,6 +73,11 @@ function isAccountantCheckManagementWrite(pathname: string, method: string): boo
     method === 'PATCH' &&
     /^\/api\/vendor-payments\/uncashed-checks\/[^/]+\/(clear|cleared-at)$/.test(pathname)
   )
+}
+
+/** The accountant may view and update the shared funding-account balances. */
+function isAccountantBalancePath(pathname: string): boolean {
+  return pathname === '/api/fuel-payments/balance'
 }
 
 /** Paths that never require auth */
@@ -145,6 +156,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (isStakeholderFuelComparisonPath(pathname)) return true
     if (isCustomerAccountsPath(pathname)) return true
     if (isAccountantCheckManagementPath(pathname)) return true
+    if (isAccountantBalancePath(pathname)) return true
     if (pathname.startsWith('/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/insights/') || pathname.startsWith('/api/insights/')) return true
@@ -242,6 +254,7 @@ export function apiWriteAllowedForRole(
     if (pathname.startsWith('/api/auth/')) return true
     if (isAccountantBillWrite(pathname, method)) return true
     if (isAccountantCheckManagementWrite(pathname, method)) return true
+    if (method === 'PATCH' && isAccountantBalancePath(pathname)) return true
     if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/api/insights/') && canAccessInsightsPages(role)) return true
     return false

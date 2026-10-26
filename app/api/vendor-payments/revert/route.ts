@@ -12,14 +12,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const vendorId = String(body.vendorId || '').trim()
     const bankRef = String(body.bankRef || '').trim()
+    const batchId = String(body.batchId || '').trim()
 
-    if (!vendorId || !bankRef) {
-      return NextResponse.json({ error: 'vendorId and bankRef are required' }, { status: 400 })
+    if (!vendorId || (!bankRef && !batchId)) {
+      return NextResponse.json({ error: 'vendorId and batchId or bankRef are required' }, { status: 400 })
     }
 
     // Find most recent matching batch for this vendor + reference
     const batch = await prisma.vendorPaymentBatch.findFirst({
-      where: { vendorId, bankRef },
+      where: batchId ? { id: batchId, vendorId } : { vendorId, bankRef },
       orderBy: { paymentDate: 'desc' }
     })
 

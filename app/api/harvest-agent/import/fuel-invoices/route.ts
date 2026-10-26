@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
         amount: typeof r.amount === 'number' ? r.amount : Number(r.amount),
         unleadedLitres: litres(r.unleadedLitres),
         dieselLitres: litres(r.dieselLitres),
+        vendor: typeof r.vendor === 'string' ? r.vendor : '',
         ...(rowType ? { type: rowType } : {})
       }
     })
@@ -69,6 +70,10 @@ export async function POST(request: NextRequest) {
       message = `${result.type}: Cstore ${result.cstoreCount}, added ${result.created}, skipped ${result.skipped}`
       if (result.volumesUpdated) {
         message += `, volumes ${result.volumesUpdated}`
+      }
+      if (result.rejected) {
+        message += `, left out ${result.rejected}`
+        if (result.rejectedNote) message += ` (${result.rejectedNote})`
       }
     }
 

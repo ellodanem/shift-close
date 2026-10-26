@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { harvestFuelVolumePatch, tryParseOptionalLitres } from '@/lib/fuel-inventory'
+import { harvestInvoiceRejectReason } from '@/lib/harvest-fuel-invoice-rules'
 
 const FUEL_INVOICE_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment'] as const
 export type HarvestFuelInvoiceType = (typeof FUEL_INVOICE_TYPES)[number]
@@ -13,6 +14,7 @@ export type HarvestFuelInvoiceRow = {
   type?: HarvestFuelInvoiceType
   unleadedLitres?: number | null
   dieselLitres?: number | null
+  vendor?: string | null
 }
 
 export type ImportHarvestFuelInvoicesResult = {
@@ -20,6 +22,8 @@ export type ImportHarvestFuelInvoicesResult = {
   shiftCloseCount: number
   created: number
   skipped: number
+  rejected: number
+  rejectedNote: string
   volumesUpdated: number
   type: HarvestFuelInvoiceType
   errors: { invoiceNumber?: string; message: string }[]
@@ -57,6 +61,8 @@ export { harvestFuelVolumePatch }
  * Default type Fuel (Gas Delivery). Rubis grocery harvest uses type LPG.
  * Existing invoice numbers are not created again. Fuel invoices with blank litres
  * are backfilled from Cstore; litres already stored are left alone.
+ * When a month is set, dates outside that month are left out.
+ * LPG rows are left out unless the vendor is Rubis West Indies.
  */
 export async function importHarvestFuelInvoices(params: {
   invoices: HarvestFuelInvoiceRow[]
@@ -76,7 +82,9 @@ export async function importHarvestFuelInvoices(params: {
   const createdNumbers: string[] = []
   let created = 0
   let skipped = 0
+  let rejected = 0
   let volumesUpdated = 0
+  const rejectedNotes: string[] = []
 
   const normalized = params.invoices
     .map((row) => {
@@ -90,7 +98,17 @@ export async function importHarvestFuelInvoices(params: {
       const type = resolveType(row.type, invoiceType)
       const unleadedLitres = type === 'Fuel' ? litresFromHarvestField(row.unleadedLitres) : null
       const dieselLitres = type === 'Fuel' ? litresFromHarvestField(row.dieselLitres) : null
-      return { invoiceNumber, amount, ymd, rawDate: row.invoiceDate, type, unleadedLitres, dieselLitres }
+      const vendor = typeof row.vendor === 'string' ? row.vendor.trim() : ''
+      return {
+        invoiceNumber,
+        amount,
+        ymd,
+        rawDate: row.invoiceDate,
+        type,
+        unleadedLitres,
+        dieselLitres,
+        vendor
+      }
     })
     .filter((row) => {
       if (!row.invoiceNumber || !row.ymd || !Number.isFinite(row.amount) || row.amount <= 0) {
@@ -144,6 +162,16 @@ export async function importHarvestFuelInvoices(params: {
   }
 
   for (const row of normalized) {
+    const rejectReason = harvestInvoiceRejectReason(
+      { ymd: row.ymd, type: row.type, vendor: row.vendor },
+      { year: params.year, month: params.month }
+    )
+    if (rejectReason) {
+      rejected++
+      if (!rejectedNotes.includes(rejectReason)) rejectedNotes.push(rejectReason)
+      continue
+    }
+
     if (known.has(row.invoiceNumber)) {
       skipped++
       const existing = existingByNumber.get(row.invoiceNumber)
@@ -202,6 +230,8 @@ export async function importHarvestFuelInvoices(params: {
     shiftCloseCount,
     created,
     skipped,
+    rejected,
+    rejectedNote: rejectedNotes.join('; '),
     volumesUpdated,
     type: invoiceType,
     errors,

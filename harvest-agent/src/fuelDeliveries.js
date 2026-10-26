@@ -10,6 +10,7 @@ const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
 const { mergeDeliveryVolumes } = require('./fuelVolumes')
+const { usDateInMonth } = require('./invoiceMonth')
 
 /** Menu id from Cstore Gas → Delivery (PastGasDelivery). Guessed GasDelivery.aspx URLs bounce to login. */
 const GAS_DELIVERY_PATH =
@@ -702,7 +703,9 @@ async function runFuelDeliveries(config, options = {}) {
     const scope = await deliveryScope(page)
     console.log(`[Cstore] Gas delivery ready at ${page.url()}`)
 
-    const invoices = await scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir)
+    const scraped = await scrapeUnpaidFuelInvoices(page, scope, year, month, debugDir)
+    const invoices = scraped.filter((row) => usDateInMonth(row.invoiceDate, year, month))
+    const leftOut = scraped.length - invoices.length
     if (isCstoreLoginUrl(page.url()) || !(await onGasDelivery(page))) {
       throw new Error(
         isCstoreLoginUrl(page.url())
@@ -710,10 +713,12 @@ async function runFuelDeliveries(config, options = {}) {
           : `Gas Delivery list was not open after the scrape (${page.url() || 'unknown page'})`
       )
     }
+    const monthLabel = `${year}-${String(month).padStart(2, '0')}`
+    const leftOutNote = leftOut ? `; left out ${leftOut} outside ${monthLabel}` : ''
     const message =
       invoices.length === 0
-        ? `Fuel: no unpaid gas deliveries for ${year}-${String(month).padStart(2, '0')}`
-        : `Fuel: read ${invoices.length} unpaid delivery invoice(s)`
+        ? `Fuel: no unpaid gas deliveries for ${monthLabel}${leftOutNote}`
+        : `Fuel: read ${invoices.length} unpaid delivery invoice(s)${leftOutNote}`
 
     return {
       ok: true,

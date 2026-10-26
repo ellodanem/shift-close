@@ -1,16 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatAccountingDate } from '@/lib/accounting-date-format'
 import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
-import { isFullAccessRole } from '@/lib/roles'
-import type { AccountingBooks, PaidBill } from '@/lib/accounting-types'
+import { isAccountantRole, isFullAccessRole } from '@/lib/roles'
+import type { AccountingBooks, OpenBill, PaidBill } from '@/lib/accounting-types'
 import { useAuth } from '@/app/components/AuthContext'
+import { OperatingBalanceCard, type OperatingBalance } from '@/app/components/OperatingBalanceCard'
 import { useAccountingBooks } from './books-context'
 import { PayBillsModal, type PayBillsInput } from './pay-bills-modal'
 import { PaymentBatchModal } from './payment-batch-modal'
+import { InvoiceEditModal } from '@/app/payment-desk/InvoiceEditModal'
 
 export function money(amount: number): string {
   return formatAmount(amount)
@@ -131,6 +133,30 @@ export function OverviewScreen() {
   const books = useBooks()
   const { user } = useAuth()
   const role = user?.role ?? ''
+  const [bankBalance, setBankBalance] = useState<OperatingBalance | null>(null)
+  const [bankBalanceError, setBankBalanceError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isAccountantRole(role)) return
+
+    let cancelled = false
+    void fetch('/api/fuel-payments/balance', { cache: 'no-store' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Could not load bank balances.')
+        if (!cancelled) setBankBalance(data as OperatingBalance)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setBankBalanceError(error instanceof Error ? error.message : 'Could not load bank balances.')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [role])
+
   const assets = books.westlineOnFile + books.serviceStationOnFile + books.accountsReceivable
   const liabilities = books.accountsPayableFuel + books.accountsPayableVendors + books.payrollPayable
   const asOfLabel = journalDateLabel(books.asOf) || books.asOf
@@ -157,6 +183,25 @@ export function OverviewScreen() {
     { account: '204 · Payroll payable', debit: null, credit: books.payrollPayable },
     { account: 'Total liabilities', debit: null, credit: liabilities, total: true }
   ]
+  const accountantBalanceSection = isAccountantRole(role)
+    ? createElement(
+        'div',
+        { className: 'mb-6' },
+        bankBalance
+          ? createElement(OperatingBalanceCard, {
+              balance: bankBalance,
+              note: 'Changes are emailed to Dane.'
+            })
+          : null,
+        bankBalanceError
+          ? createElement(
+              'p',
+              { className: 'rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700' },
+              bankBalanceError
+            )
+          : null
+      )
+    : null
 
   return (
     <div>
@@ -184,6 +229,7 @@ export function OverviewScreen() {
       <p className="mb-6 text-sm text-gray-600">
         Deposits and card totals already arrive from closed shifts. House-account charges already arrive from the close. This overview reads those balances.
       </p>
+      {accountantBalanceSection}
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Outstanding payables</h2>
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <PayableLink
@@ -454,13 +500,15 @@ export function BillsScreen() {
   const [billAmount, setBillAmount] = useState('')
   const [billDate, setBillDate] = useState(books.asOf)
   const [billDue, setBillDue] = useState('')
-  const [billTab, setBillTab] = useState<'unpaid' | 'paid'>('unpaid')
+  const [billTab, setBillTab] = useState<'unpaid' | 'paid' | 'batches'>('unpaid')
   const [paidSearch, setPaidSearch] = useState('')
   const [paidKindFilter, setPaidKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [vendorFilter, setVendorFilter] = useState('')
   const [unpaidSearch, setUnpaidSearch] = useState('')
   const [viewingBatch, setViewingBatch] = useState<PaidBill | null>(null)
+  const [editingBill, setEditingBill] = useState<OpenBill | null>(null)
+  const [revertingBatchId, setRevertingBatchId] = useState<string | null>(null)
 
   const payable = books.openBills.filter((bill) => bill.status === 'pending')
   const chosen = payable.filter((bill) => selected.includes(`${bill.kind}:${bill.id}`))
@@ -691,6 +739,33 @@ export function BillsScreen() {
     }
   }
 
+  async function revertBatch(batch: PaidBill) {
+    if (!window.confirm(`Revert payment batch ${batch.ref}? All invoices in this batch will return to unpaid status.`)) return
+    if (batch.kind !== 'fuel' && !batch.vendorId) {
+      setError('This payment batch is missing its vendor and cannot be reverted.')
+      return
+    }
+
+    setRevertingBatchId(batch.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const res = await fetch(batch.kind === 'fuel' ? '/api/fuel-payments/revert' : '/api/vendor-payments/revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch.kind === 'fuel' ? { batchId: batch.id, bankRef: batch.ref } : { batchId: batch.id, vendorId: batch.vendorId, bankRef: batch.ref })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not revert this payment batch.')
+      setMessage(`Reverted ${data.revertedInvoiceIds?.length || 0} invoice${data.revertedInvoiceIds?.length === 1 ? '' : 's'} to unpaid.`)
+      reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not revert this payment batch.')
+    } finally {
+      setRevertingBatchId(null)
+    }
+  }
+
   return (
     <div>
       <BooksBackLink />
@@ -834,6 +909,17 @@ export function BillsScreen() {
             }`}
           >
             Paid ({books.paidBills.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillTab('batches')}
+            className={`min-h-[44px] border-b-2 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-0 sm:px-4 ${
+              billTab === 'batches'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Batches ({books.paidBills.length})
           </button>
         </div>
       </div>
@@ -990,16 +1076,17 @@ export function BillsScreen() {
                 <th className="px-3 py-2">Due</th>
                 <th className="px-3 py-2">Account</th>
                 <th className="px-3 py-2 text-right">Amount</th>
+                <th className="px-3 py-2 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {books.openBills.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
+                  <td colSpan={8} className="px-3 py-6 text-center text-gray-500">No open bills.</td>
                 </tr>
               ) : visibleOpen.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-gray-500">No bills match this filter.</td>
+                  <td colSpan={8} className="px-3 py-6 text-center text-gray-500">No bills match this filter.</td>
                 </tr>
               ) : (
                 visibleOpen.map((bill) => {
@@ -1016,6 +1103,9 @@ export function BillsScreen() {
                       <td className="px-3 py-3">{dueStyle(bill.due, books.asOf) ? <span className={`rounded-full px-2 py-1 text-xs font-semibold ring-1 ring-inset ${dueStyle(bill.due, books.asOf)!.className}`}>{dueStyle(bill.due, books.asOf)!.label}</span> : <span className="text-gray-400">—</span>}</td>
                       <td className="px-3 py-3 text-gray-600">{bill.account}</td>
                       <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{money(bill.amount)}</td>
+                      <td className="px-3 py-3 text-right">
+                        {canPay ? <button type="button" onClick={() => setEditingBill(bill)} className="font-semibold text-indigo-700 hover:underline">Edit</button> : null}
+                      </td>
                     </tr>
                   )
                 })
@@ -1023,7 +1113,7 @@ export function BillsScreen() {
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : billTab === 'paid' ? (
         <>
           <p className="mb-2 text-sm text-gray-600">Payments recorded in the month selected above.</p>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
@@ -1052,9 +1142,45 @@ export function BillsScreen() {
               </tbody>
             </table>
           </div>
-          <PaymentBatchModal batch={viewingBatch} onClose={() => setViewingBatch(null)} />
+        </>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-gray-600">Payment batches recorded in the month selected above. Reverting a batch moves all of its invoices back to unpaid.</p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-3 py-2">Date</th><th className="px-3 py-2">Payee</th>
+                  <th className="px-3 py-2">Type</th><th className="px-3 py-2">Ref</th>
+                  <th className="px-3 py-2">Account</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {books.paidBills.length === 0 ? (
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No payment batches to show.</td></tr>
+                ) : books.paidBills.map((batch) => (
+                  <tr key={`${batch.kind}:${batch.id}`} className="border-t border-gray-100">
+                    <td className="px-3 py-2">{formatAccountingDate(batch.date)}</td>
+                    <td className="px-3 py-2">{batch.name}</td>
+                    <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${billKindStyle(batch.kind).className}`}>{billKindStyle(batch.kind).label}</span></td>
+                    <td className="px-3 py-2 font-mono">{batch.ref}</td>
+                    <td className="px-3 py-2">{batch.account}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{money(batch.amount)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button type="button" onClick={() => setViewingBatch(batch)} className="font-semibold text-indigo-700 hover:underline">View</button>
+                        <button type="button" disabled={revertingBatchId === batch.id} onClick={() => void revertBatch(batch)} className="font-semibold text-red-700 hover:underline disabled:opacity-50">{revertingBatchId === batch.id ? 'Reverting…' : 'Revert'}</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
+      <PaymentBatchModal batch={viewingBatch} onClose={() => setViewingBatch(null)} />
+      <InvoiceEditModal bill={editingBill} onClose={() => setEditingBill(null)} onSaved={() => { setEditingBill(null); reload() }} />
     </div>
   )
 }

@@ -5,20 +5,19 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { bankRef } = body
+    const bankRef = String(body.bankRef || '').trim()
+    const batchId = String(body.batchId || '').trim()
 
-    if (!bankRef) {
+    if (!bankRef && !batchId) {
       return NextResponse.json(
-        { error: 'bankRef is required' },
+        { error: 'batchId or bankRef is required' },
         { status: 400 }
       )
     }
 
     // Find batch by bank reference (most recent if multiple)
     const batches = await prisma.paymentBatch.findMany({
-      where: {
-        bankRef: bankRef.trim()
-      },
+      where: batchId ? { id: batchId } : { bankRef },
       include: {
         invoices: true
       },

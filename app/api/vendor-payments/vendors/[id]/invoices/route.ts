@@ -11,11 +11,11 @@ export async function GET(
   try {
     const { id: vendorId } = await params
     const accountantRequest = await isAccountantRequest(request)
-    const invoices = await prisma.vendorInvoice.findMany({
+    const [invoices, vendor] = await Promise.all([prisma.vendorInvoice.findMany({
       where: { vendorId, ...(accountantRequest ? { submittedToAccounting: true } : {}) },
       orderBy: [{ invoiceDate: 'desc' }, { invoiceNumber: 'asc' }]
-    })
-    return NextResponse.json(invoices)
+    }), prisma.vendor.findUnique({ where: { id: vendorId }, select: { name: true } })])
+    return NextResponse.json(invoices.map((invoice) => ({ ...invoice, payeeName: vendor?.name ?? '' })))
   } catch (error) {
     console.error('Error fetching vendor invoices:', error)
     return NextResponse.json({ error: 'Failed to fetch invoices' }, { status: 500 })
