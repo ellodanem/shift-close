@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
+import { isAccountantRequest } from '@/lib/accounting-submission'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
+    const accountantRequest = await isAccountantRequest(request)
     const status = searchParams.get('status') // 'pending' | 'paid' | null (all)
     const vendorId = searchParams.get('vendorId')
     const month = searchParams.get('month') // YYYY-MM
@@ -27,6 +29,9 @@ export async function GET(request: NextRequest) {
         gte: new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0)),
         lt: new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0))
       }
+    }
+    if (accountantRequest) {
+      where.submittedToAccounting = true
     }
 
     const invoices = await prisma.vendorInvoice.findMany({

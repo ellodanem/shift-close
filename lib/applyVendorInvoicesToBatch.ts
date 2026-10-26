@@ -118,7 +118,7 @@ export async function applyVendorInvoicesToBatch(opts: {
       })
       await tx.vendorInvoice.update({
         where: { id: inv.id },
-        data: { status: 'paid' }
+        data: { status: 'paid', submittedToAccounting: true }
       })
     }
 

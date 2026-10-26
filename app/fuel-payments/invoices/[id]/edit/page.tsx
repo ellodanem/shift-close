@@ -14,6 +14,7 @@ interface Invoice {
   dueDate: string
   status: string
   notes: string | null
+  submittedToAccounting?: boolean
   unleadedLitres?: number | null
   dieselLitres?: number | null
 }
@@ -32,6 +33,7 @@ export default function EditInvoicePage() {
     type: 'Fuel',
     invoiceDate: '',
     notes: '',
+    notSubmittedToAccounting: false,
     unleadedLitres: '',
     dieselLitres: ''
   })
@@ -60,6 +62,7 @@ export default function EditInvoicePage() {
           type: data.type,
           invoiceDate: invoiceDateToInputValue(data.invoiceDate),
           notes: data.notes || '',
+          notSubmittedToAccounting: data.submittedToAccounting === false,
           unleadedLitres: litresInputValue(data.unleadedLitres),
           dieselLitres: litresInputValue(data.dieselLitres)
         })
@@ -90,6 +93,7 @@ export default function EditInvoicePage() {
           type: formData.type,
           invoiceDate: formData.invoiceDate,
           notes: formData.notes,
+          submittedToAccounting: !formData.notSubmittedToAccounting,
           ...litresPayload(formData.unleadedLitres, formData.dieselLitres),
           reason: 'Invoice edited',
           changedBy: 'admin'
@@ -213,6 +217,18 @@ export default function EditInvoicePage() {
               }
             />
 
+            <label className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <input
+                type="checkbox"
+                checked={formData.notSubmittedToAccounting}
+                onChange={(e) => setFormData({ ...formData, notSubmittedToAccounting: e.target.checked })}
+                className="mt-0.5 rounded border-amber-400"
+              />
+              <span>
+                <span className="font-semibold">Not submitted for accounting</span>
+                <span className="mt-0.5 block text-xs text-amber-800">The accountant cannot see this unpaid invoice. It is submitted automatically when paid.</span>
+              </span>
+            </label>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
               <textarea

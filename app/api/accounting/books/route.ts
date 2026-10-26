@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildAccountingBooks } from '@/lib/accounting-books'
 import { businessTodayYmd } from '@/lib/datetime-policy'
-import { canUseAccountingModule } from '@/lib/roles'
+import { canUseAccountingModule, isAccountantRole } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const month = request.nextUrl.searchParams.get('month')?.trim() || businessTodayYmd().slice(0, 7)
   try {
-    const books = await buildAccountingBooks(month)
+    const books = await buildAccountingBooks(month, !isAccountantRole(session.role))
     if (!books) {
       return NextResponse.json({ error: 'month must be YYYY-MM' }, { status: 400 })
     }

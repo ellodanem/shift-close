@@ -60,7 +60,7 @@ function sourceOf(entry: {
   return { source: 'Entered here', fromShift: false }
 }
 
-export async function buildAccountingBooks(month: string): Promise<AccountingBooks | null> {
+export async function buildAccountingBooks(month: string, includeHeldInvoices = true): Promise<AccountingBooks | null> {
   const range = parseAccountingMonth(month)
   if (!range) return null
   const { start, end, year, monthNum } = range
@@ -106,6 +106,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     prisma.invoice.findMany({
       where: {
         status: 'pending',
+        ...(includeHeldInvoices ? {} : { submittedToAccounting: true }),
         invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
       },
       orderBy: { invoiceDate: 'asc' }
@@ -113,6 +114,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     prisma.invoice.findMany({
       where: {
         status: 'simulated',
+        ...(includeHeldInvoices ? {} : { submittedToAccounting: true }),
         invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
       },
       orderBy: { invoiceDate: 'asc' }
@@ -120,6 +122,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
     prisma.vendorInvoice.findMany({
       where: {
         status: 'pending',
+        ...(includeHeldInvoices ? {} : { submittedToAccounting: true }),
         invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
       },
       include: { vendor: true, category: true },
@@ -143,6 +146,7 @@ export async function buildAccountingBooks(month: string): Promise<AccountingBoo
         invoices: {
           where: {
             status: 'pending',
+            ...(includeHeldInvoices ? {} : { submittedToAccounting: true }),
             invoiceDate: { lte: new Date(`${asOf}T23:59:59.999Z`) }
           }
         },

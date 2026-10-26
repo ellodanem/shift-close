@@ -399,6 +399,8 @@ model Invoice {
   invoiceDate   DateTime @map("invoice_date")
   dueDate       DateTime @map("due_date") // invoiceDate + 5 days
   status        String   @default("pending") // 'pending' | 'simulated' | 'paid'
+  /// When false, the bill is held out of the accountant's unpaid-bill workflow.
+  submittedToAccounting Boolean @default(true) @map("submitted_to_accounting")
   notes         String?  @default("")
   /// Delivery litres for tank inventory (Fuel type). Null = not entered, ignored. Zero is a real volume.
   unleadedLitres Float?  @map("unleaded_litres")
@@ -611,6 +613,8 @@ model VendorInvoice {
   dueDate       DateTime? @map("due_date")
   vat           Float?   @default(0) // VAT / Prepaid Tax if included
   status        String   @default("pending") // 'pending' | 'paid'
+  /// When false, the bill is held out of the accountant's unpaid-bill workflow.
+  submittedToAccounting Boolean @default(true) @map("submitted_to_accounting")
   notes         String   @default("")
   /// Set for Overhead bills. Null vendor bills post to Rec. Gen.
   categoryId    String?  @map("category_id")

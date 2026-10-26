@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { prisma } from '@/lib/prisma'
 import { getVendorVatRate } from '@/lib/vendorVatSettings'
+import { isAccountantRequest } from '@/lib/accounting-submission'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -16,6 +17,10 @@ export async function GET(
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
+    if ((await isAccountantRequest(request)) && !invoice.submittedToAccounting) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
     const vatRate = await getVendorVatRate()
     return NextResponse.json({ ...invoice, vatRate })
   } catch (error) {
@@ -40,6 +45,7 @@ export async function PATCH(
 
     const body = await request.json()
     const { invoiceNumber, amount, invoiceDate, dueDate, vat, notes } = body
+    const submittedToAccounting = body.submittedToAccounting
 
     const data: Record<string, unknown> = {}
     if (invoiceNumber !== undefined) data.invoiceNumber = String(invoiceNumber).trim()
@@ -58,6 +64,9 @@ export async function PATCH(
     }
     if (vat !== undefined) data.vat = Math.round(Number(vat) * 100) / 100
     if (notes !== undefined) data.notes = String(notes).trim()
+    if (submittedToAccounting !== undefined) {
+      data.submittedToAccounting = Boolean(submittedToAccounting)
+    }
 
     const updated = await prisma.vendorInvoice.update({
       where: { id },

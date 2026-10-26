@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
           where: { id: invoice.id },
           data: {
             status: 'paid',
+            submittedToAccounting: true,
             paidInvoiceId: paidInvoice.id
           }
         })

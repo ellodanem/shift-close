@@ -18,6 +18,7 @@ interface VendorInvoice {
   vat: number | null
   status: string
   notes: string
+  submittedToAccounting?: boolean
   vatRate?: number
   vendor?: {
     name: string
@@ -41,7 +42,8 @@ export default function EditVendorInvoicePage() {
     invoiceDate: '',
     dueDate: '',
     vat: '',
-    notes: ''
+    notes: '',
+    notSubmittedToAccounting: false
   })
 
   useEffect(() => {
@@ -62,7 +64,8 @@ export default function EditVendorInvoicePage() {
         invoiceDate: data.invoiceDate.slice(0, 10),
         dueDate: data.dueDate ? data.dueDate.slice(0, 10) : '',
         vat: data.vat != null ? String(data.vat) : '',
-        notes: data.notes || ''
+        notes: data.notes || '',
+        notSubmittedToAccounting: data.submittedToAccounting === false
       })
     } catch (err) {
       console.error('Error fetching invoice:', err)
@@ -83,7 +86,8 @@ export default function EditVendorInvoicePage() {
         amount: parseFloat(formData.amount),
         invoiceDate: formData.invoiceDate,
         dueDate: formData.dueDate || null,
-        notes: formData.notes
+        notes: formData.notes,
+        submittedToAccounting: !formData.notSubmittedToAccounting
       }
       if (formData.vat !== '') payload.vat = parseFloat(formData.vat)
 
@@ -222,6 +226,18 @@ export default function EditVendorInvoicePage() {
               </div>
             </div>
 
+            <label className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <input
+                type="checkbox"
+                checked={formData.notSubmittedToAccounting}
+                onChange={(e) => setFormData({ ...formData, notSubmittedToAccounting: e.target.checked })}
+                className="mt-0.5 rounded border-amber-400"
+              />
+              <span>
+                <span className="font-semibold">Not submitted for accounting</span>
+                <span className="mt-0.5 block text-xs text-amber-800">The accountant cannot see this unpaid invoice. It is submitted automatically when paid.</span>
+              </span>
+            </label>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
               <textarea

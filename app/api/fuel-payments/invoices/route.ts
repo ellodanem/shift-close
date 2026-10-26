@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { isAccountantRequest } from '@/lib/accounting-submission'
 import { tryParseOptionalLitres } from '@/lib/fuel-inventory'
 
 function fuelVolumesFromBody(type: string, body: { unleadedLitres?: unknown; dieselLitres?: unknown }) {
@@ -20,10 +21,13 @@ function fuelVolumesFromBody(type: string, body: { unleadedLitres?: unknown; die
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
+    const accountantRequest = await isAccountantRequest(request)
+    const visibilityWhere = accountantRequest ? { submittedToAccounting: true } : {}
     // Lightweight tab badges: one groupBy instead of downloading three full lists.
     if (searchParams.get('counts') === '1') {
       const grouped = await prisma.invoice.groupBy({
         by: ['status'],
+        where: visibilityWhere,
         _count: { _all: true }
       })
       const counts = { pending: 0, paid: 0, simulated: 0 }
@@ -40,6 +44,9 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     if (status) {
       where.status = status
+    }
+    if (accountantRequest) {
+      where.submittedToAccounting = true
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -77,6 +84,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { invoiceNumber, amount, type, invoiceDate, notes } = body
+    const submittedToAccounting = body.submittedToAccounting !== false
 
     const normalizedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : ''
 
@@ -140,6 +148,7 @@ export async function POST(request: NextRequest) {
         dueDate,
         notes: notes?.trim() || '',
         status: 'pending',
+        submittedToAccounting,
         unleadedLitres: volumes.unleadedLitres,
         dieselLitres: volumes.dieselLitres
       }

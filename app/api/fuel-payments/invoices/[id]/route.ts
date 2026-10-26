@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
+import { isAccountantRequest } from '@/lib/accounting-submission'
 import { tryParseOptionalLitres } from '@/lib/fuel-inventory'
 
 type InvoiceCorrectionRow = {
@@ -104,6 +105,10 @@ export async function GET(
       )
     }
 
+    if ((await isAccountantRequest(request)) && !invoice.submittedToAccounting) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
     return NextResponse.json(invoice)
   } catch (error) {
     console.error('Error fetching invoice:', error)
@@ -123,6 +128,7 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
     const { invoiceNumber, amount, type, invoiceDate, notes, reason, changedBy, unleadedLitres, dieselLitres } = body
+    const submittedToAccounting = body.submittedToAccounting
     const reasonText = reason || 'Invoice updated'
     const changedByText = changedBy || 'admin'
 
@@ -264,6 +270,10 @@ export async function PATCH(
 
     if (notes !== undefined) {
       updateData.notes = notes.trim()
+    }
+
+    if (submittedToAccounting !== undefined) {
+      updateData.submittedToAccounting = Boolean(submittedToAccounting)
     }
 
     const nextType = (updateData.type as string | undefined) ?? existing.type

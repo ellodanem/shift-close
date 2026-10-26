@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseInvoiceDateToUTC } from '@/lib/invoiceHelpers'
 import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
 import { prisma } from '@/lib/prisma'
+import { isAccountantRequest } from '@/lib/accounting-submission'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: vendorId } = await params
+    const accountantRequest = await isAccountantRequest(request)
     const invoices = await prisma.vendorInvoice.findMany({
-      where: { vendorId },
+      where: { vendorId, ...(accountantRequest ? { submittedToAccounting: true } : {}) },
       orderBy: [{ invoiceDate: 'desc' }, { invoiceNumber: 'asc' }]
     })
     return NextResponse.json(invoices)
@@ -28,6 +30,7 @@ export async function POST(
     const { id: vendorId } = await params
     const body = await request.json()
     const { invoiceNumber, amount, invoiceDate, dueDate, vat, notes, categoryId } = body
+    const submittedToAccounting = body.submittedToAccounting !== false
 
     if (!invoiceNumber || amount === undefined || !invoiceDate) {
       return NextResponse.json(
@@ -81,6 +84,7 @@ export async function POST(
         dueDate: dueDateObj,
         vat: vatVal,
         status: 'pending',
+        submittedToAccounting,
         notes: (notes && String(notes).trim()) || '',
         categoryId: resolvedCategoryId
       }

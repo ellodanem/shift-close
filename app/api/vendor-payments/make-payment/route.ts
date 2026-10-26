@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       })
       await prisma.vendorInvoice.update({
         where: { id: inv.id },
-        data: { status: 'paid' }
+        data: { status: 'paid', submittedToAccounting: true }
       })
     }
 
