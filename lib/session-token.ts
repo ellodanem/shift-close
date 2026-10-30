@@ -20,18 +20,21 @@ export interface SessionPayload {
   isSuperAdmin: boolean
   rememberDevice: boolean
   sessionVersion: number
+  /** LoginEvent id for this sign-in. Missing on tokens issued before page tracking. */
+  loginEventId?: string
 }
 
 export async function signSessionToken(
   user: { id: string; role: string; isSuperAdmin: boolean; sessionVersion: number },
-  options?: { rememberMe?: boolean }
+  options?: { rememberMe?: boolean; loginEventId?: string | null }
 ): Promise<string> {
   const rememberMe = Boolean(options?.rememberMe)
   return new SignJWT({
     role: normalizeAppRole(user.role),
     sa: user.isSuperAdmin,
     sv: user.sessionVersion,
-    ...(rememberMe ? { rd: true } : {})
+    ...(rememberMe ? { rd: true } : {}),
+    ...(options?.loginEventId ? { sid: options.loginEventId } : {})
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
@@ -49,7 +52,8 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       role: normalizeAppRole(String(payload.role ?? '')),
       isSuperAdmin: Boolean(payload.sa),
       rememberDevice: Boolean(payload.rd),
-      sessionVersion: Number(payload.sv ?? 0)
+      sessionVersion: Number(payload.sv ?? 0),
+      loginEventId: typeof payload.sid === 'string' && payload.sid ? payload.sid : undefined
     }
   } catch {
     return null

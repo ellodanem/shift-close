@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 })
     }
 
-    await recordLoginEvent(user)
+    const loginEventId = await recordLoginEvent(user)
 
     const roleNorm = normalizeAppRole(user.role)
     const token = await signSessionToken(
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         isSuperAdmin: user.isSuperAdmin,
         sessionVersion: user.sessionVersion
       },
-      { rememberMe }
+      { rememberMe, loginEventId }
     )
 
     const nextParam = String(body.next ?? '').trim() || null

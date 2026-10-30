@@ -14,6 +14,7 @@ import {
 import { MANAGER_HUB_PATH } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH } from '@/lib/scans-mobile'
+import PageVisitTracker from './PageVisitTracker'
 import RentDueBanner from './RentDueBanner'
 import { recordShortcutVisit } from '@/lib/home-shortcuts'
 
@@ -81,6 +82,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   return (
     <NavProvider>
+      <PageVisitTracker />
       <AppShell>{children}</AppShell>
     </NavProvider>
   )

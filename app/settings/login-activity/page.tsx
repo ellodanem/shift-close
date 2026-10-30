@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/app/components/AuthContext'
 
@@ -9,6 +9,18 @@ interface LoginEventRow {
   username: string
   displayName: string
   loggedAt: string
+}
+
+interface PageVisitRow {
+  id: string
+  path: string
+  visitedAt: string
+}
+
+interface VisitsState {
+  loading: boolean
+  error: string | null
+  visits: PageVisitRow[]
 }
 
 function formatLoggedAt(iso: string): string {
@@ -23,11 +35,19 @@ function formatLoggedAt(iso: string): string {
   })
 }
 
+function formatVisitTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+}
+
 export default function LoginActivityPage() {
   const { loading: authLoading, canManageUsers } = useAuth()
   const [events, setEvents] = useState<LoginEventRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [visitsById, setVisitsById] = useState<Record<string, VisitsState>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -46,6 +66,38 @@ export default function LoginActivityPage() {
       setLoading(false)
     }
   }, [])
+
+  const loadVisits = useCallback(async (id: string) => {
+    setVisitsById((prev) => ({ ...prev, [id]: { loading: true, error: null, visits: [] } }))
+    try {
+      const res = await fetch(`/api/login-audit/${encodeURIComponent(id)}`, { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load pages')
+      }
+      setVisitsById((prev) => ({
+        ...prev,
+        [id]: { loading: false, error: null, visits: Array.isArray(data) ? data : [] }
+      }))
+    } catch (e) {
+      setVisitsById((prev) => ({
+        ...prev,
+        [id]: { loading: false, error: e instanceof Error ? e.message : 'Failed to load pages', visits: [] }
+      }))
+    }
+  }, [])
+
+  const toggleEvent = useCallback(
+    (id: string) => {
+      if (expandedId === id) {
+        setExpandedId(null)
+        return
+      }
+      setExpandedId(id)
+      if (!visitsById[id]) void loadVisits(id)
+    },
+    [expandedId, visitsById, loadVisits]
+  )
 
   useEffect(() => {
     if (authLoading || !canManageUsers) return
@@ -80,7 +132,8 @@ export default function LoginActivityPage() {
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mt-2">Login activity</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Successful sign-ins, newest first. The latest 200 are shown.
+            Successful sign-ins, newest first. The latest 200 are shown. Select a sign-in to see the pages opened
+            during that session. Page history is kept for 90 days.
           </p>
         </div>
 
@@ -100,20 +153,68 @@ export default function LoginActivityPage() {
                   <tr>
                     <th className="text-left px-4 py-2">Who</th>
                     <th className="text-left px-4 py-2">When</th>
+                    <th className="text-right px-4 py-2">Pages</th>
                   </tr>
                 </thead>
                 <tbody>
                   {events.map((event) => {
                     const name = event.displayName.trim() || event.username
                     const showUsername = name.toLowerCase() !== event.username.toLowerCase()
+                    const expanded = expandedId === event.id
+                    const state = visitsById[event.id]
                     return (
-                      <tr key={event.id} className="border-t border-gray-100">
-                        <td className="px-4 py-2 text-gray-800">
-                          <div className="font-medium">{name}</div>
-                          {showUsername ? <div className="text-xs text-gray-500">{event.username}</div> : null}
-                        </td>
-                        <td className="px-4 py-2 text-gray-700">{formatLoggedAt(event.loggedAt)}</td>
-                      </tr>
+                      <Fragment key={event.id}>
+                        <tr
+                          className="border-t border-gray-100 cursor-pointer hover:bg-gray-50"
+                          onClick={() => toggleEvent(event.id)}
+                        >
+                          <td className="px-4 py-2 text-gray-800">
+                            <div className="font-medium">{name}</div>
+                            {showUsername ? <div className="text-xs text-gray-500">{event.username}</div> : null}
+                          </td>
+                          <td className="px-4 py-2 text-gray-700">{formatLoggedAt(event.loggedAt)}</td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              type="button"
+                              className="text-blue-600 hover:underline"
+                              aria-expanded={expanded}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleEvent(event.id)
+                              }}
+                            >
+                              {expanded ? 'Hide pages' : 'View pages'}
+                            </button>
+                          </td>
+                        </tr>
+                        {expanded ? (
+                          <tr className="bg-gray-50">
+                            <td colSpan={3} className="px-4 py-3">
+                              {!state || state.loading ? (
+                                <p className="text-gray-500">Loading pages…</p>
+                              ) : state.error ? (
+                                <p className="text-red-700">{state.error}</p>
+                              ) : state.visits.length === 0 ? (
+                                <p className="text-gray-600">
+                                  No pages recorded for this sign-in. Older sign-ins, or sessions started before page
+                                  tracking, have no page history.
+                                </p>
+                              ) : (
+                                <ol className="space-y-1">
+                                  {state.visits.map((visit) => (
+                                    <li key={visit.id} className="flex gap-4 text-gray-800">
+                                      <span className="w-24 shrink-0 text-gray-500 tabular-nums">
+                                        {formatVisitTime(visit.visitedAt)}
+                                      </span>
+                                      <span className="font-mono text-xs sm:text-sm break-all">{visit.path}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              )}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     )
                   })}
                 </tbody>

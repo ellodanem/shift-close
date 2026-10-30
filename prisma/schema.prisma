@@ -1339,10 +1339,26 @@ model LoginEvent {
   displayName String   @map("display_name")
   loggedAt    DateTime @default(now()) @map("logged_at")
 
-  user AppUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   AppUser?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  visits PageVisit[]
 
   @@index([loggedAt])
   @@map("login_events")
+}
+
+/// Pages opened during a login session (the session id is the LoginEvent id, carried in the session token).
+/// Pruned by /api/cron/prune-page-visits.
+model PageVisit {
+  id           String   @id @default(cuid())
+  loginEventId String   @map("login_event_id")
+  path         String
+  visitedAt    DateTime @default(now()) @map("visited_at")
+
+  loginEvent LoginEvent @relation(fields: [loginEventId], references: [id], onDelete: Cascade)
+
+  @@index([loginEventId, visitedAt])
+  @@index([visitedAt])
+  @@map("page_visits")
 }
 
 model PasswordResetToken {
