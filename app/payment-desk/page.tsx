@@ -24,7 +24,7 @@ type Batch = { id: string; kind: 'fuel' | 'vendor'; vendorId?: string; name: str
 type FuelBatch = { id: string; paymentDate: string; bankRef: string; totalAmount: number; _count?: { invoices: number } }
 type VendorBatch = { id: string; vendorId: string; vendorName: string; paymentDate: string; paymentMethod: string; bankRef: string; totalAmount: number; invoiceCount: number; clearedAt: string | null }
 type Entry = { vendorId: string; categoryId: string; payeeName: string; number: string; amount: string; date: string; due: string; fuelType: string; unleadedLitres: string; dieselLitres: string }
-const FUEL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Uniforms', 'Loyalty', 'Balance Payment']
+const FUEL_TYPES = ['Fuel', 'LPG', 'Lubricants', 'Rent', 'Uniforms', 'Loyalty', 'Balance Payment']
 const EMPTY_OPEN_BILLS: OpenBill[] = []
 const EMPTY_PAID_BILLS: PaidBill[] = []
 
