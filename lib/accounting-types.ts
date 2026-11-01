@@ -56,6 +56,7 @@ export type PaidBill = {
   vendorId?: string | null
   date: string
   name: string
+  invoiceNumbers: string[]
   ref: string
   amount: number
   account: string

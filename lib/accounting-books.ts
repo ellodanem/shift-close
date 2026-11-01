@@ -290,6 +290,7 @@ export async function buildAccountingBooks(month: string, includeHeldInvoices = 
         kind: 'fuel' as const,
         date: toYmdInBusinessTz(batch.paymentDate),
         name: batch.invoices[0]?.type || 'Fuel',
+        invoiceNumbers: batch.invoices.map((invoice) => invoice.invoiceNumber),
         ref: batch.bankRef,
         amount: roundMoney(batch.totalAmount),
         account: fuelAccount(batch.invoices[0]?.type || 'Fuel')
@@ -304,6 +305,9 @@ export async function buildAccountingBooks(month: string, includeHeldInvoices = 
         vendorId: batch.vendorId,
         date: toYmdInBusinessTz(batch.paymentDate),
         name: batch.vendor.name,
+        invoiceNumbers: batch.invoices
+          .map((invoice) => invoice.vendorInvoice?.invoiceNumber)
+          .filter((number): number is string => Boolean(number)),
         ref: batch.bankRef,
         amount: roundMoney(batch.totalAmount),
         account: paidVendorAccount(batch.invoices)

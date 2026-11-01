@@ -23,7 +23,7 @@ export function PaymentDeskBatchActions({
 }) {
   const [viewing, setViewing] = useState(false)
   const modalBatch: PaidBill | null = viewing
-    ? { id: batch.id, kind: batch.kind, date: batch.date, name: batch.name, ref: batch.ref, amount: batch.amount, account: 'Payment' }
+    ? { id: batch.id, kind: batch.kind, date: batch.date, name: batch.name, invoiceNumbers: [], ref: batch.ref, amount: batch.amount, account: 'Payment' }
     : null
 
   return (
