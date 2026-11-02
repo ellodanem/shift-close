@@ -8,10 +8,10 @@ function runFixture() {
     year: 2026,
     month: 10,
     steps: [
-      { taskKey: 'customer_accounts', status: 'waiting' },
-      { taskKey: 'vendor_invoices', status: 'waiting' },
       { taskKey: 'fuel_invoices', status: 'pass' },
-      { taskKey: 'lpg_invoices', status: 'waiting' }
+      { taskKey: 'lpg_invoices', status: 'waiting' },
+      { taskKey: 'vendor_invoices', status: 'waiting' },
+      { taskKey: 'customer_accounts', status: 'waiting' }
     ]
   }
 }
@@ -28,18 +28,18 @@ test('a failed step still runs the later jobs', async () => {
     },
     runJob: async (taskKey) => {
       jobs.push(taskKey)
-      if (taskKey === 'customer_accounts') return { ok: false, message: 'one account failed' }
+      if (taskKey === 'lpg_invoices') return { ok: false, message: 'one invoice failed' }
       return { ok: true, message: 'ok' }
     }
   })
   assert.equal(outcome, 'done')
-  assert.deepEqual(jobs, ['customer_accounts', 'vendor_invoices', 'lpg_invoices'])
+  assert.deepEqual(jobs, ['lpg_invoices', 'vendor_invoices', 'customer_accounts'])
   assert.deepEqual(
     reports.filter((step) => step.status !== 'running').map((step) => [step.taskKey, step.status]),
     [
-      ['customer_accounts', 'fail'],
+      ['lpg_invoices', 'fail'],
       ['vendor_invoices', 'pass'],
-      ['lpg_invoices', 'pass']
+      ['customer_accounts', 'pass']
     ]
   )
 })
@@ -60,7 +60,7 @@ test('a login pause stops the queue', async () => {
     }
   })
   assert.equal(outcome, 'paused')
-  assert.deepEqual(jobs, ['customer_accounts'])
+  assert.deepEqual(jobs, ['lpg_invoices'])
   assert.equal(reports.at(-1).status, 'paused')
   assert.equal(reports.at(-1).message, 'Cstore rejected login')
 })

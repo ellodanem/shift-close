@@ -66,10 +66,10 @@ function pillLabel(status: string) {
 }
 
 const READY_STEPS: SyncStep[] = [
-  { taskKey: 'customer_accounts', label: 'Customer accounts', status: 'waiting', message: null },
-  { taskKey: 'vendor_invoices', label: 'Vendor invoices', status: 'waiting', message: null },
   { taskKey: 'fuel_invoices', label: 'Fuel invoices', status: 'waiting', message: null },
-  { taskKey: 'lpg_invoices', label: 'LPG invoices', status: 'waiting', message: null }
+  { taskKey: 'lpg_invoices', label: 'LPG invoices', status: 'waiting', message: null },
+  { taskKey: 'vendor_invoices', label: 'Vendor invoices', status: 'waiting', message: null },
+  { taskKey: 'customer_accounts', label: 'Customer accounts', status: 'waiting', message: null }
 ]
 
 export default function HarvestSyncCard() {

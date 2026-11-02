@@ -10,10 +10,10 @@ import {
 export { currentHarvestSyncMonth, harvestSyncMonthLabel, previousHarvestSyncMonth }
 
 export const HARVEST_SYNC_STEPS = [
-  { taskKey: 'customer_accounts', label: 'Customer accounts' },
-  { taskKey: 'vendor_invoices', label: 'Vendor invoices' },
   { taskKey: 'fuel_invoices', label: 'Fuel invoices' },
-  { taskKey: 'lpg_invoices', label: 'LPG invoices' }
+  { taskKey: 'lpg_invoices', label: 'LPG invoices' },
+  { taskKey: 'vendor_invoices', label: 'Vendor invoices' },
+  { taskKey: 'customer_accounts', label: 'Customer accounts' }
 ] as const
 
 export type HarvestSyncTaskKey = (typeof HARVEST_SYNC_STEPS)[number]['taskKey']
