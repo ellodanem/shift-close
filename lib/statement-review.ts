@@ -169,6 +169,9 @@ export async function applyStatementCommissions(
           debitEcard: amount,
           paymentMethod: 'direct_debit',
           bank: bankLabel,
+          // The statement belongs to this account, so the commission does too.
+          account,
+          accountSource: 'rule',
           allocations: { create: { categoryId: category.id, amount } }
         }
       })

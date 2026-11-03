@@ -122,6 +122,7 @@ export function VendorMakePaymentModal({
   const [paymentDate, setPaymentDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'eft' | 'check'>('eft')
   const [bankRef, setBankRef] = useState('')
+  const [payFromAccount, setPayFromAccount] = useState<'service_station' | 'westline'>('service_station')
   const [transferDescription, setTransferDescription] = useState('')
   const [addToCashbook, setAddToCashbook] = useState(true)
   const [applyBatchId, setApplyBatchId] = useState('')
@@ -440,7 +441,8 @@ export function VendorMakePaymentModal({
               bankRef: bankRef.trim(),
               selectedInvoiceIds: Array.from(selectedInvoiceIds),
               transferDescription: transferDescription.trim() || undefined,
-              addToCashbook
+              addToCashbook,
+              payFromAccount
             })
           })
 
@@ -633,6 +635,23 @@ export function VendorMakePaymentModal({
                     <option value="eft">EFT</option>
                     <option value="check">Check</option>
                   </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Pay from</label>
+                  <select
+                    value={payFromAccount}
+                    onChange={(e) => setPayFromAccount(e.target.value as 'service_station' | 'westline')}
+                    disabled={applyingToExisting}
+                    className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 disabled:bg-gray-50"
+                  >
+                    <option value="service_station">Service Station</option>
+                    <option value="westline">Westline</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {paymentMethod === 'check'
+                      ? 'The balance changes on the account you pick when the check clears.'
+                      : 'An EFT leaves this account now.'}
+                  </p>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">

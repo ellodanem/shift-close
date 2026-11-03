@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/components/AuthContext'
+import {
+  CASHBOOK_ACCOUNTS,
+  CASHBOOK_ACCOUNT_INFO,
+  cashbookAccountLabel,
+  resolveCashbookAccount,
+  type CashbookAccount
+} from '@/lib/cashbook-accounts'
 
 const PAYMENT_OPTIONS = [
   { value: 'cash', label: 'Cash' },
@@ -37,6 +44,11 @@ interface CashbookApiEntry {
   debitDcard: number
   creditAmt: number
   paymentMethod?: string | null
+  account?: string
+  accountSource?: string
+  transferGroupId?: string | null
+  customerArPaymentId?: string | null
+  vendorPaymentBatchId?: string | null
   allocations: CashbookApiAllocation[]
 }
 
@@ -47,6 +59,27 @@ interface EntryForm {
   categoryId: string
   amount: number
   paymentMethod: string
+  account: CashbookAccount
+}
+
+const ACCOUNT_BADGE: Record<CashbookAccount, string> = {
+  westline: 'bg-sky-100 text-sky-800',
+  service_station: 'bg-amber-100 text-amber-800'
+}
+
+function AccountBadge({ account, review }: { account?: string; review?: boolean }) {
+  const known = account === 'westline' || account === 'service_station'
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
+        known ? ACCOUNT_BADGE[account as CashbookAccount] : 'bg-gray-100 text-gray-600'
+      }`}
+      title={review ? 'Assigned automatically. Please review.' : undefined}
+    >
+      {cashbookAccountLabel(account)}
+      {review ? ' •' : ''}
+    </span>
+  )
 }
 
 interface DuplicateMatch {
@@ -130,7 +163,8 @@ const emptyForm: EntryForm = {
   description: '',
   categoryId: '',
   amount: 0,
-  paymentMethod: 'cash'
+  paymentMethod: 'cash',
+  account: 'westline'
 }
 
 export default function CashbookPage() {
@@ -161,6 +195,11 @@ export default function CashbookPage() {
   })
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [accountFilter, setAccountFilter] = useState<'' | CashbookAccount>('')
+  const [reviewOnly, setReviewOnly] = useState(false)
+  const [accountTouched, setAccountTouched] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [notice, setNotice] = useState<string | null>(null)
   const [duplicateModal, setDuplicateModal] = useState<{
     matches: DuplicateMatch[]
     payload: Record<string, unknown>
@@ -256,8 +295,10 @@ export default function CashbookPage() {
     })
     if (typeFilter === 'income' || typeFilter === 'expense') params.set('type', typeFilter)
     if (categoryFilter) params.set('categoryId', categoryFilter)
+    if (accountFilter) params.set('account', accountFilter)
+    if (reviewOnly) params.set('review', '1')
     return `/api/financial/cashbook/entries?${params.toString()}`
-  }, [dateRange.startDate, dateRange.endDate, typeFilter, categoryFilter])
+  }, [dateRange.startDate, dateRange.endDate, typeFilter, categoryFilter, accountFilter, reviewOnly])
 
   const fetchEntries = useCallback(async () => {
     const res = await fetch(entriesUrl)
@@ -294,19 +335,22 @@ export default function CashbookPage() {
   const openAddModal = (type: 'income' | 'expense') => {
     setModalOpen(type)
     setEditingId(null)
-    const cats = type === 'income' ? incomeCategories : expenseCategories
+    setAccountTouched(false)
     setForm({
       ...emptyForm,
       date: dateRange.startDate,
       categoryId: '',
-      paymentMethod: 'cash'
+      paymentMethod: 'cash',
+      account: accountFilter || resolveCashbookAccount({ origin: 'manual', type }).account
     })
+    if (accountFilter) setAccountTouched(true)
   }
 
   const openEditModal = (entry: CashbookApiEntry) => {
     const type = inferType(entry)
     setModalOpen(type)
     setEditingId(entry.id)
+    setAccountTouched(false)
     const alloc = entry.allocations[0]
     setForm({
       date: entry.date,
@@ -314,7 +358,8 @@ export default function CashbookPage() {
       description: entry.description ?? '',
       categoryId: alloc?.category.id ?? '',
       amount: inferAmount(entry),
-      paymentMethod: type === 'expense' ? inferPaymentMethod(entry) : 'cash'
+      paymentMethod: type === 'expense' ? inferPaymentMethod(entry) : 'cash',
+      account: entry.account === 'service_station' ? 'service_station' : 'westline'
     })
   }
 
@@ -394,7 +439,9 @@ export default function CashbookPage() {
         type: modalOpen!,
         paymentMethod: modalOpen === 'expense' ? form.paymentMethod : null,
         categoryId: form.categoryId,
-        amount: amt
+        amount: amt,
+        // What the form shows is what is saved. When editing, only send it if it was changed.
+        ...(!editingId || accountTouched ? { account: form.account } : {})
       }
 
       if (editingId) {
@@ -403,7 +450,10 @@ export default function CashbookPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
-        if (!res.ok) throw new Error('Failed to update')
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to update')
+        }
       } else {
         const res = await fetch('/api/financial/cashbook/entries', {
           method: 'POST',
@@ -476,6 +526,71 @@ export default function CashbookPage() {
       setNewCatCode('')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create category')
+    }
+  }
+
+  const reviewCount = entries.filter((e) => e.accountSource === 'backfill').length
+  const allVisibleSelected = sortedEntries.length > 0 && sortedEntries.every((e) => selectedIds.has(e.id))
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(sortedEntries.map((e) => e.id)))
+  }
+
+  const moveEntries = async (ids: string[], account: CashbookAccount, remember = false) => {
+    try {
+      const res = await fetch('/api/financial/cashbook/entries/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, account, remember })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to move')
+      const skipped: Array<{ reason: string }> = Array.isArray(data.skipped) ? data.skipped : []
+      const movedCount = Array.isArray(data.moved) ? data.moved.length : 0
+      setNotice(
+        `${movedCount} moved to ${cashbookAccountLabel(account)}.` +
+          (skipped.length > 0 ? ` ${skipped.length} not moved: ${skipped[0].reason}.` : '')
+      )
+      setSelectedIds(new Set())
+      await fetchEntries()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to move')
+    }
+  }
+
+  const changeEntryAccount = async (entry: CashbookApiEntry, account: CashbookAccount) => {
+    if (entry.account === account) return
+    let remember = false
+    if (entry.customerArPaymentId || entry.vendorPaymentBatchId) {
+      remember = confirm(
+        `Move to ${cashbookAccountLabel(account)}.\n\nRemember this account for future payments like "${entry.description}"?`
+      )
+    }
+    await moveEntries([entry.id], account, remember)
+  }
+
+  const confirmAccounts = async (ids: string[]) => {
+    try {
+      const res = await fetch('/api/financial/cashbook/entries/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, confirm: true })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to confirm')
+      setNotice(`${data.confirmed ?? 0} entries confirmed.`)
+      await fetchEntries()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to confirm')
     }
   }
 
@@ -580,6 +695,94 @@ export default function CashbookPage() {
         </div>
         ) : null}
 
+        <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Cashbook account">
+          {([['', 'All accounts'], ...CASHBOOK_ACCOUNTS.map((a) => [a, CASHBOOK_ACCOUNT_INFO[a].label])] as Array<
+            ['' | CashbookAccount, string]
+          >).map(([value, label]) => (
+            <button
+              key={value || 'all'}
+              type="button"
+              role="tab"
+              aria-selected={accountFilter === value}
+              onClick={() => {
+                setAccountFilter(value)
+                setSelectedIds(new Set())
+              }}
+              className={`min-h-[44px] rounded-full border px-4 py-2 text-sm font-semibold sm:min-h-0 sm:py-1.5 ${
+                accountFilter === value
+                  ? 'border-indigo-600 bg-indigo-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {notice ? (
+          <div className="mb-3 flex items-start justify-between gap-3 rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice(null)} className="text-green-700 hover:underline">
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
+        {!readOnly && (reviewCount > 0 || reviewOnly) ? (
+          <div className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            <p className="font-medium">
+              {reviewCount > 0
+                ? `${reviewCount} ${reviewCount === 1 ? 'entry was' : 'entries were'} assigned to an account automatically. Check them and fix any that are wrong.`
+                : 'Nothing left to review for this view.'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setReviewOnly((v) => !v)}
+                className="min-h-[44px] rounded border border-amber-400 bg-white px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-100 sm:min-h-0"
+              >
+                {reviewOnly ? 'Show all entries' : 'Show only these'}
+              </button>
+              {reviewCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void confirmAccounts(
+                      entries.filter((e) => e.accountSource === 'backfill').map((e) => e.id)
+                    )
+                  }
+                  className="min-h-[44px] rounded bg-amber-600 px-3 py-1.5 font-semibold text-white hover:bg-amber-700 sm:min-h-0"
+                >
+                  Confirm all {reviewCount} as shown
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {!readOnly && selectedIds.size > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+            <span className="font-medium">{selectedIds.size} selected</span>
+            {CASHBOOK_ACCOUNTS.map((acct) => (
+              <button
+                key={acct}
+                type="button"
+                onClick={() => void moveEntries([...selectedIds], acct)}
+                className="min-h-[44px] rounded bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
+              >
+                Move to {CASHBOOK_ACCOUNT_INFO[acct].label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="min-h-[44px] px-2 text-indigo-700 hover:underline sm:min-h-0"
+            >
+              Clear
+            </button>
+          </div>
+        ) : null}
+
         {/* Entries list */}
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -660,9 +863,12 @@ export default function CashbookPage() {
                         {type === 'income' ? 'Income' : 'Expense'}
                       </span>
                     </div>
-                    <div className="mt-2 text-xs text-gray-600">
-                      {catName}
-                      {payment ? ` · ${payment}` : ''}
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                      <AccountBadge account={entry.account} review={entry.accountSource === 'backfill'} />
+                      <span>
+                        {catName}
+                        {payment ? ` · ${payment}` : ''}
+                      </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                       <span
@@ -698,6 +904,16 @@ export default function CashbookPage() {
             <table className="hidden min-w-full text-sm md:table">
               <thead className="bg-gray-100">
                 <tr>
+                  {!readOnly ? (
+                    <th className="w-8 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectAll}
+                        aria-label="Select all entries"
+                      />
+                    </th>
+                  ) : null}
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">
                     <button
                       type="button"
@@ -708,6 +924,7 @@ export default function CashbookPage() {
                       Date {dateSort === 'desc' ? '↓' : '↑'}
                     </button>
                   </th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Account</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Type</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Description</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
@@ -730,7 +947,43 @@ export default function CashbookPage() {
                         : '—'
                   return (
                     <tr key={entry.id} className="border-t border-gray-100 hover:bg-gray-50">
+                      {!readOnly ? (
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(entry.id)}
+                            onChange={() => toggleSelected(entry.id)}
+                            aria-label={`Select ${entry.description}`}
+                          />
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2">{entry.date}</td>
+                      <td className="px-3 py-2">
+                        {!readOnly && !entry.transferGroupId ? (
+                          <select
+                            value={entry.account === 'service_station' ? 'service_station' : 'westline'}
+                            onChange={(e) => void changeEntryAccount(entry, e.target.value as CashbookAccount)}
+                            className={`rounded border-0 px-2 py-0.5 text-xs font-medium ${
+                              ACCOUNT_BADGE[entry.account === 'service_station' ? 'service_station' : 'westline']
+                            }`}
+                            title={
+                              entry.accountSource === 'backfill'
+                                ? 'Assigned automatically. Please review.'
+                                : 'Change account'
+                            }
+                            aria-label="Account"
+                          >
+                            {CASHBOOK_ACCOUNTS.map((acct) => (
+                              <option key={acct} value={acct}>
+                                {CASHBOOK_ACCOUNT_INFO[acct].label}
+                                {acct === entry.account && entry.accountSource === 'backfill' ? ' •' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <AccountBadge account={entry.account} review={entry.accountSource === 'backfill'} />
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         <span
                           className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
@@ -872,6 +1125,16 @@ export default function CashbookPage() {
                     ) {
                       updates.description = 'Deposit'
                     }
+                    if (!accountTouched && modalOpen) {
+                      // Follow the default for this category until the person picks an account.
+                      const categoryName = categories.find((c) => c.id === newCategoryId)?.name
+                      updates.account = resolveCashbookAccount({
+                        origin: 'manual',
+                        type: modalOpen,
+                        categoryName,
+                        description: updates.description ?? form.description
+                      }).account
+                    }
                     setForm((f) => ({ ...f, ...updates }))
                   }}
                   className="w-full border border-gray-300 rounded px-3 py-2"
@@ -886,6 +1149,33 @@ export default function CashbookPage() {
                 {(modalOpen === 'income' ? incomeCategories : expenseCategories).length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">Add an {modalOpen} category below first.</p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {CASHBOOK_ACCOUNTS.map((acct) => (
+                    <button
+                      key={acct}
+                      type="button"
+                      onClick={() => {
+                        setAccountTouched(true)
+                        setForm((f) => ({ ...f, account: acct }))
+                      }}
+                      className={`min-h-[44px] rounded border px-3 py-2 text-sm font-medium sm:min-h-0 ${
+                        form.account === acct
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-800'
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {CASHBOOK_ACCOUNT_INFO[acct].label}
+                    </button>
+                  ))}
+                </div>
+                {editingId && accountTouched ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Moving an entry that has already left an account also moves its balance.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>

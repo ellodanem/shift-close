@@ -4,6 +4,8 @@ import { ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 import { roundMoney, vendorInvoiceTotal } from '@/lib/vendorVat'
 import { isRubisWestIndiesVendor } from '@/lib/vendor-rubis-skip'
+import { resolveCashbookAccount } from '@/lib/cashbook-accounts'
+import { lookupCounterpartyAccount } from '@/lib/cashbook-account-db'
 import {
   isOriginalOrSuffixed,
   matchVendorRow,
@@ -316,6 +318,10 @@ async function addCheckToCashbook(opts: {
         data: { name: 'Rec. Gen', code: '3021', type: 'expense', sortOrder: 0, active: true }
       })
     }
+    const resolved = resolveCashbookAccount({
+      origin: 'vendor_payment',
+      counterpartyRule: await lookupCounterpartyAccount('vendor', opts.vendorName)
+    })
     await prisma.cashbookEntry.create({
       data: {
         date: opts.paymentDate,
@@ -327,6 +333,8 @@ async function addCheckToCashbook(opts: {
         debitDcard: 0,
         creditAmt: 0,
         paymentMethod: 'check',
+        account: resolved.account,
+        accountSource: resolved.source,
         vendorPaymentBatchId: opts.batchId,
         allocations: { create: [{ categoryId: category.id, amount: opts.totalAmount }] }
       }

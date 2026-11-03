@@ -24,14 +24,17 @@ export function checkBalanceAccountLabel(account: CheckBalanceAccount): string {
 /**
  * Account a vendor payment already reduced.
  * Uncashed checks return null — they are reserved on both phantoms, not deducted yet.
- * EFT and older cleared checks (no stored account) reduced Westline.
+ * An EFT reduced the account stored on the batch when it was paid. EFTs and cleared checks
+ * with no stored account (older payments) reduced Westline.
  */
 export function chargedVendorBalanceAccount(batch: {
   paymentMethod: string
   clearedAt: Date | null
   clearedBalanceAccount?: string | null
 }): CheckBalanceAccount | null {
-  if (batch.paymentMethod === 'eft') return 'westline'
+  if (batch.paymentMethod === 'eft') {
+    return batch.clearedBalanceAccount === 'service_station' ? 'service_station' : 'westline'
+  }
   if (batch.clearedAt == null) return null
   return batch.clearedBalanceAccount === 'service_station' ? 'service_station' : 'westline'
 }

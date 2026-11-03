@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { getOrCreateDepositCategory } from '@/lib/cashbook-deposit-sync'
+import { accountFieldsForSync, resolveCashbookAccount } from '@/lib/cashbook-accounts'
+import { lookupCounterpartyAccount } from '@/lib/cashbook-account-db'
 
 export type CustomerPaymentCashbookSource = {
   id: string
@@ -48,11 +50,17 @@ export async function syncCustomerPaymentToCashbook(payment: CustomerPaymentCash
     bank: null as string | null
   }
 
-  const writeEntry = async (entryId: string) => {
+  const resolved = resolveCashbookAccount({
+    origin: 'customer_payment',
+    counterpartyRule: await lookupCounterpartyAccount('customer', payment.account)
+  })
+
+  const writeEntry = async (entry: { id: string; account: string; accountSource: string }) => {
     await prisma.cashbookEntry.update({
-      where: { id: entryId },
+      where: { id: entry.id },
       data: {
         ...entryData,
+        ...accountFieldsForSync(entry, resolved),
         allocations: {
           deleteMany: {},
           create: { categoryId: category.id, amount: fields.creditAmt }
@@ -66,12 +74,14 @@ export async function syncCustomerPaymentToCashbook(payment: CustomerPaymentCash
   })
 
   if (existing) {
-    await writeEntry(existing.id)
+    await writeEntry(existing)
   } else {
     try {
       await prisma.cashbookEntry.create({
         data: {
           ...entryData,
+          account: resolved.account,
+          accountSource: resolved.source,
           customerArPaymentId: payment.id,
           allocations: {
             create: { categoryId: category.id, amount: fields.creditAmt }
@@ -83,7 +93,7 @@ export async function syncCustomerPaymentToCashbook(payment: CustomerPaymentCash
         where: { customerArPaymentId: payment.id }
       })
       if (!again) throw error
-      await writeEntry(again.id)
+      await writeEntry(again)
     }
   }
 

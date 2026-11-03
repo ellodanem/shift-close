@@ -3,6 +3,9 @@ import { ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { balanceAfterFromAvailable } from '@/lib/fuelBalance'
+import { adjustOperatingBalance } from '@/lib/checkBalanceAccount'
+import { isCashbookAccount, resolveCashbookAccount } from '@/lib/cashbook-accounts'
+import { lookupCounterpartyAccount } from '@/lib/cashbook-account-db'
 
 function vendorInvoiceTotal(amount: number, vat: number | null) {
   return roundMoney(amount + (vat ?? 0))
@@ -19,7 +22,8 @@ export async function POST(request: NextRequest) {
       bankRef,
       selectedInvoiceIds,
       transferDescription,
-      addToCashbook = true
+      addToCashbook = true,
+      payFromAccount
     } = body
 
     if (
@@ -78,14 +82,31 @@ export async function POST(request: NextRequest) {
       invoices.reduce((sum, inv) => sum + vendorInvoiceTotal(inv.amount, inv.vat), 0)
     )
 
+    // Which bank account this payment comes from: the person's choice, a learned vendor rule, else Service Station.
+    if (payFromAccount != null && payFromAccount !== '' && !isCashbookAccount(payFromAccount)) {
+      return NextResponse.json({ error: 'Invalid payFromAccount' }, { status: 400 })
+    }
+    const resolvedAccount = resolveCashbookAccount({
+      origin: 'vendor_payment',
+      explicit: isCashbookAccount(payFromAccount) ? payFromAccount : null,
+      counterpartyRule: await lookupCounterpartyAccount('vendor', vendor.name)
+    })
+
     const existingBalance = await prisma.balance.findUnique({
       where: { id: 'balance' }
     })
-    const balanceBefore = existingBalance ? existingBalance.availableFunds : 0
+    const accountAvailable = existingBalance
+      ? resolvedAccount.account === 'service_station'
+        ? existingBalance.totalAutoAvailable
+        : existingBalance.availableFunds
+      : 0
+    const balanceBefore = accountAvailable
     const balanceAfter = roundMoney(balanceBefore - totalAmount)
 
     // EFT: deduct from balance immediately. Check: do NOT deduct until cleared
-    if (method === 'eft') {
+    if (method === 'eft' && resolvedAccount.account === 'service_station') {
+      await adjustOperatingBalance(prisma, totalAmount, 'service_station', 'deduct')
+    } else if (method === 'eft') {
       if (existingBalance) {
         const updatedAvailable = roundMoney(existingBalance.availableFunds - totalAmount)
         await prisma.balance.update({
@@ -121,7 +142,9 @@ export async function POST(request: NextRequest) {
             : null,
         balanceBefore,
         balanceAfter,
-        clearedAt: method === 'eft' ? paymentDateObj : null
+        clearedAt: method === 'eft' ? paymentDateObj : null,
+        // An EFT leaves the account at once, so remember which one. Checks record it when they clear.
+        clearedBalanceAccount: method === 'eft' ? resolvedAccount.account : null
       }
     })
 
@@ -185,6 +208,8 @@ export async function POST(request: NextRequest) {
             creditAmt: 0,
             paymentMethod: method === 'check' ? 'check' : 'eft',
             vendorPaymentBatchId: batch.id,
+            account: resolvedAccount.account,
+            accountSource: resolvedAccount.source,
             allocations: { create: allocations }
           }
         })

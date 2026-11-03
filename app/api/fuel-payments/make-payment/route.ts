@@ -245,6 +245,8 @@ export async function POST(request: NextRequest) {
             creditAmt: 0,
             paymentMethod: 'direct_debit',
             paymentBatchId: batch.id,
+            account: 'westline',
+            accountSource: 'rule',
             allocations: { create: allocations }
           }
         })

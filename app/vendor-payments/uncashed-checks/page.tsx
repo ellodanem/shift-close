@@ -28,6 +28,7 @@ interface CheckRow {
   totalAmount: number
   clearedAt?: string
   balanceAccount?: CheckBalanceAccount | null
+  entryAccount?: CheckBalanceAccount | null
 }
 
 interface CashbookCategory {
@@ -84,6 +85,9 @@ function normalizeChecks(data: unknown, includeCleared: boolean): CheckRow[] {
     }
     if (item.balanceAccount === 'service_station' || item.balanceAccount === 'westline') {
       row.balanceAccount = item.balanceAccount
+    }
+    if (item.entryAccount === 'service_station' || item.entryAccount === 'westline') {
+      row.entryAccount = item.entryAccount
     }
 
     return row
@@ -255,7 +259,7 @@ export default function CheckManagementPage() {
     setPendingDateEdit(null)
     setPendingClear(check)
     setClearedDate('')
-    setBalanceAccount(DEFAULT_VENDOR_CHECK_BALANCE)
+    setBalanceAccount(check.entryAccount ?? DEFAULT_VENDOR_CHECK_BALANCE)
   }
 
   const openDateEditModal = (check: CheckRow) => {

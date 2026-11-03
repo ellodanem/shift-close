@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncCashbookEntryToShiftDeposit } from '@/lib/cashbook-deposit-sync'
 import { syncCashbookEntryToShiftCardIncome } from '@/lib/cashbook-shift-income'
+import { isCashbookAccount } from '@/lib/cashbook-accounts'
+import { moveEntriesToAccount } from '@/lib/cashbook-account-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,8 +56,10 @@ export async function PATCH(
       categoryId,
       amount,
       shiftId,
-      paymentBatchId
+      paymentBatchId,
+      account
     } = body as {
+      account?: string | null
       date?: string
       ref?: string | null
       description?: string
@@ -71,6 +75,22 @@ export async function PATCH(
       amount?: number
       shiftId?: string | null
       paymentBatchId?: string | null
+    }
+
+    if (account != null && account !== '' && !isCashbookAccount(account)) {
+      return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
+    }
+    if (isCashbookAccount(account)) {
+      const current = await prisma.cashbookEntry.findUnique({
+        where: { id },
+        select: { account: true }
+      })
+      if (current && current.account !== account) {
+        const moved = await moveEntriesToAccount([id], account)
+        if (moved.skipped.length > 0) {
+          return NextResponse.json({ error: moved.skipped[0].reason }, { status: 409 })
+        }
+      }
     }
 
     const data: Record<string, unknown> = {}

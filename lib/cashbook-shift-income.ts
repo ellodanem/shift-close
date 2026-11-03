@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
+import { accountFieldsForSync, resolveCashbookAccount } from '@/lib/cashbook-accounts'
+
+const CARD_ACCOUNT = resolveCashbookAccount({ origin: 'shift_card' })
 
 const SYNC_STATUSES = new Set(['closed', 'reviewed', 'reopened'])
 
@@ -102,6 +105,7 @@ export async function syncShiftCardIncomeToCashbook(shiftId: string): Promise<vo
         where: { id: entry.id },
         data: {
           ...entryData,
+          ...accountFieldsForSync(entry, CARD_ACCOUNT),
           allocations: {
             deleteMany: {},
             create: { categoryId: category.id, amount: line.amount }
@@ -112,6 +116,8 @@ export async function syncShiftCardIncomeToCashbook(shiftId: string): Promise<vo
       await prisma.cashbookEntry.create({
         data: {
           ...entryData,
+          account: CARD_ACCOUNT.account,
+          accountSource: CARD_ACCOUNT.source,
           allocations: { create: { categoryId: category.id, amount: line.amount } }
         }
       })
@@ -204,7 +210,9 @@ export async function syncAllClosedShiftCardIncome(): Promise<number> {
         creditAmt: row.amount,
         paymentMethod: null,
         shiftId: row.shiftId,
-        shiftIncomeKind: row.kind
+        shiftIncomeKind: row.kind,
+        account: CARD_ACCOUNT.account,
+        accountSource: CARD_ACCOUNT.source
       }))
     })
     const unallocated = await prisma.cashbookEntry.findMany({

@@ -27,6 +27,8 @@ export type UncashedCheckRecord = {
   detail: string
   /** Set once a check has cleared. Null while it is still outstanding. */
   balanceAccount: CheckBalanceAccount | null
+  /** The cashbook account this check belongs to. Clearing deducts from it by default. */
+  entryAccount: CheckBalanceAccount | null
 }
 
 export type ClearedCheckRecord = UncashedCheckRecord & {
@@ -56,6 +58,10 @@ export function parseUncashedCheckId(
 
 export function uncashedCheckId(source: UncashedCheckSource, rawId: string) {
   return `${source}:${rawId}`
+}
+
+function entryCheckAccount(value: string | null | undefined): CheckBalanceAccount | null {
+  return value === 'service_station' || value === 'westline' ? value : null
 }
 
 function clearedVendorBalanceAccount(
@@ -90,6 +96,17 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
     })
   ])
 
+  const linkedEntries =
+    vendorBatches.length === 0
+      ? []
+      : await prisma.cashbookEntry.findMany({
+          where: { vendorPaymentBatchId: { in: vendorBatches.map((batch) => batch.id) } },
+          select: { vendorPaymentBatchId: true, account: true }
+        })
+  const accountByBatch = new Map(
+    linkedEntries.map((entry) => [entry.vendorPaymentBatchId, entryCheckAccount(entry.account)])
+  )
+
   const vendorItems: UncashedCheckRecord[] = vendorBatches.map((batch) => ({
     id: uncashedCheckId('vendor', batch.id),
     source: 'vendor',
@@ -99,7 +116,8 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
     bankRef: batch.bankRef,
     totalAmount: batch.totalAmount,
     detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', '),
-    balanceAccount: null
+    balanceAccount: null,
+    entryAccount: accountByBatch.get(batch.id) ?? null
   }))
 
   const cashbookItems: UncashedCheckRecord[] = cashbookEntries.map((entry) => {
@@ -117,7 +135,8 @@ export async function listUncashedChecks(): Promise<UncashedCheckRecord[]> {
       bankRef: entry.ref?.trim() || '—',
       totalAmount: roundMoney(entry.debitCheck),
       detail: categories || entry.description.trim() || '—',
-      balanceAccount: null
+      balanceAccount: null,
+      entryAccount: entryCheckAccount(entry.account)
     }
   })
 
@@ -166,6 +185,7 @@ export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
     totalAmount: batch.totalAmount,
     detail: batch.invoices.map((inv) => inv.invoiceNumber).join(', '),
     balanceAccount: clearedVendorBalanceAccount(batch.clearedBalanceAccount),
+    entryAccount: clearedVendorBalanceAccount(batch.clearedBalanceAccount),
     clearedAt: batch.clearedAt!.toISOString()
   }))
 
@@ -184,7 +204,8 @@ export async function listClearedChecks(): Promise<ClearedCheckRecord[]> {
       bankRef: entry.ref?.trim() || '—',
       totalAmount: roundMoney(entry.debitCheck),
       detail: categories || entry.description.trim() || '—',
-      balanceAccount: 'westline',
+      balanceAccount: entryCheckAccount(entry.account) ?? 'westline',
+      entryAccount: entryCheckAccount(entry.account),
       clearedAt: entry.clearedAt!.toISOString()
     }
   })
@@ -267,7 +288,11 @@ export async function clearUncashedCheck(
     }
 
     const amount = roundMoney(batch.totalAmount)
-    const account = balanceAccount ?? DEFAULT_VENDOR_CHECK_BALANCE
+    const linked = await prisma.cashbookEntry.findFirst({
+      where: { vendorPaymentBatchId: batch.id },
+      select: { account: true }
+    })
+    const account = balanceAccount ?? entryCheckAccount(linked?.account) ?? DEFAULT_VENDOR_CHECK_BALANCE
     await adjustOperatingBalance(prisma, amount, account, 'deduct')
 
     await prisma.vendorPaymentBatch.update({
@@ -307,8 +332,13 @@ export async function clearUncashedCheck(
   }
 
   const amount = roundMoney(entry.debitCheck)
-  // Cashbook checks come off Westline unless a statement review says otherwise.
-  await adjustOperatingBalance(prisma, amount, balanceAccount ?? 'westline', 'deduct')
+  // A cashbook check comes off the account it was booked to, unless a statement review says otherwise.
+  await adjustOperatingBalance(
+    prisma,
+    amount,
+    balanceAccount ?? entryCheckAccount(entry.account) ?? 'westline',
+    'deduct'
+  )
 
   await prisma.cashbookEntry.update({
     where: { id: entry.id },

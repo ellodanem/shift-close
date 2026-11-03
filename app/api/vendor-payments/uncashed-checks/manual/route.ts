@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isCashbookAccount, resolveCashbookAccount } from '@/lib/cashbook-accounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,11 +46,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Choose a valid active expense category' }, { status: 400 })
     }
     const description = notes ? `${payee} — ${notes}` : payee
+    const rawAccount = (body as { account?: unknown }).account
+    if (rawAccount != null && rawAccount !== '' && !isCashbookAccount(rawAccount)) {
+      return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
+    }
+    const resolved = resolveCashbookAccount({
+      origin: 'manual',
+      explicit: isCashbookAccount(rawAccount) ? rawAccount : null,
+      type: 'expense',
+      categoryName: category.name,
+      description
+    })
     const entry = await prisma.cashbookEntry.create({
       data: {
         date,
         ref: checkNumber,
         description,
+        account: resolved.account,
+        accountSource: resolved.source,
         debitCash: 0,
         debitCheck: Math.abs(amount),
         debitEcard: 0,

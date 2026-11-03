@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateShiftClose } from '@/lib/calculations'
 import { roundMoney } from '@/lib/fuelPayments'
 import type { ShiftCloseInput } from '@/lib/types'
+import { accountFieldsForSync, resolveCashbookAccount } from '@/lib/cashbook-accounts'
 
 const SYNC_STATUSES = new Set(['closed', 'reviewed', 'reopened'])
 
@@ -63,6 +64,7 @@ export async function syncShiftDepositsToCashbook(shiftId: string): Promise<void
   )
 
   const maxIndex = Math.max(amounts.length - 1, ...existing.map((e) => e.depositLineIndex ?? -1))
+  const resolved = resolveCashbookAccount({ origin: 'shift_deposit' })
 
   for (let i = 0; i <= maxIndex; i++) {
     const amt = i < amounts.length ? depositLineAmount(amounts, i) : 0
@@ -95,6 +97,7 @@ export async function syncShiftDepositsToCashbook(shiftId: string): Promise<void
         where: { id: entry.id },
         data: {
           ...entryData,
+          ...accountFieldsForSync(entry, resolved),
           allocations: {
             updateMany: {
               where: {},
@@ -107,6 +110,8 @@ export async function syncShiftDepositsToCashbook(shiftId: string): Promise<void
       await prisma.cashbookEntry.create({
         data: {
           ...entryData,
+          account: resolved.account,
+          accountSource: resolved.source,
           allocations: {
             create: { categoryId: category.id, amount: amt }
           }

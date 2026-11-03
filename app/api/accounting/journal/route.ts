@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createCashbookExpenseEntry } from '@/lib/cashbook-expense'
+import { isCashbookAccount } from '@/lib/cashbook-accounts'
 import { canUseAccountingModule } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
@@ -43,13 +44,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Choose an expense account' }, { status: 400 })
     }
 
+    if (body.account != null && body.account !== '' && !isCashbookAccount(body.account)) {
+      return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
+    }
+
     const entry = await createCashbookExpenseEntry({
       date,
       description,
       amount,
       categoryId,
       paymentMethod,
-      ref
+      ref,
+      origin: 'journal',
+      account: isCashbookAccount(body.account) ? body.account : null
     })
     return NextResponse.json({ id: entry.id })
   } catch (error) {

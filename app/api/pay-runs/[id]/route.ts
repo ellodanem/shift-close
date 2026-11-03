@@ -12,6 +12,7 @@ import {
   ytdIncludingCurrent
 } from '@/lib/pay-run-build'
 import { computePayRunDeductions } from '@/lib/pay-run-deductions'
+import { isCashbookAccount, resolveCashbookAccount } from '@/lib/cashbook-accounts'
 import {
   computeGrossPay,
   inferPayCycleFromRange,
@@ -472,6 +473,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const code = (line.bankCode || '').trim().toUpperCase()
         return code === 'CHQ' && line.netPay > 0
       })
+      // Payroll defaults to Service Station. The accountant can pick another account for the whole run.
+      if (body.account != null && body.account !== '' && !isCashbookAccount(body.account)) {
+        return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
+      }
+      const payrollAccount = resolveCashbookAccount({
+        origin: 'payroll',
+        explicit: isCashbookAccount(body.account) ? body.account : null
+      })
       const result = await prisma.$transaction(async (tx) => {
         const created = await tx.cashbookEntry.createMany({
           data: checks.map((line) => ({
@@ -480,6 +489,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
               description: `Payroll check — ${line.staffName}`,
               debitCheck: line.netPay,
               paymentMethod: 'check',
+              account: payrollAccount.account,
+              accountSource: payrollAccount.source,
               payrollPayRunId: id,
               payrollPayRunLineId: line.id,
               payrollCheckStatus: 'draft'

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { roundMoney } from '@/lib/fuelPayments'
+import { isCashbookAccount } from '@/lib/cashbook-accounts'
 import {
   createCashbookExpenseEntry,
   getOrCreateExpenseCategory
@@ -48,7 +49,8 @@ export async function POST(request: NextRequest) {
       ref,
       addToCashbook = false,
       cashbookDate,
-      categoryId
+      categoryId,
+      account
     } = body as {
       month?: string
       description?: string
@@ -58,6 +60,11 @@ export async function POST(request: NextRequest) {
       addToCashbook?: boolean
       cashbookDate?: string | null
       categoryId?: string | null
+      account?: string | null
+    }
+
+    if (account != null && account !== '' && !isCashbookAccount(account)) {
+      return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
     }
 
     if (!month || !MONTH_RE.test(month)) {
@@ -105,7 +112,8 @@ export async function POST(request: NextRequest) {
         amount: amt,
         categoryId: category.id,
         paymentMethod: method,
-        ref: reference
+        ref: reference,
+        account: isCashbookAccount(account) ? account : null
       })
       cashbookEntryId = entry.id
     }

@@ -1,4 +1,9 @@
 import { prisma } from '@/lib/prisma'
+import {
+  resolveCashbookAccount,
+  type CashbookAccount,
+  type CashbookEntryOrigin
+} from '@/lib/cashbook-accounts'
 
 export function mapExpenseDebits(
   paymentMethod: string | null | undefined,
@@ -50,8 +55,25 @@ export async function createCashbookExpenseEntry(opts: {
   categoryId: string
   paymentMethod?: string | null
   ref?: string | null
+  /** A person's choice. Leave empty to let the rules decide. */
+  account?: CashbookAccount | null
+  /** Set when the calling screen already knows the account (e.g. a statement's own account). */
+  accountSource?: 'manual' | 'rule'
+  origin?: CashbookEntryOrigin
 }) {
   const mapped = mapExpenseDebits(opts.paymentMethod, opts.amount)
+  const category = await prisma.cashbookCategory.findUnique({
+    where: { id: opts.categoryId },
+    select: { name: true }
+  })
+  const resolved = resolveCashbookAccount({
+    origin: opts.origin ?? 'manual',
+    explicit: opts.account ?? null,
+    explicitSource: opts.accountSource,
+    type: 'expense',
+    categoryName: category?.name,
+    description: opts.description
+  })
   return prisma.cashbookEntry.create({
     data: {
       date: opts.date,
@@ -63,6 +85,8 @@ export async function createCashbookExpenseEntry(opts: {
       debitDcard: mapped.debitDcard,
       creditAmt: mapped.creditAmt,
       paymentMethod: mapped.paymentMethod,
+      account: resolved.account,
+      accountSource: resolved.source,
       allocations: {
         create: { categoryId: opts.categoryId, amount: Math.abs(opts.amount) }
       }

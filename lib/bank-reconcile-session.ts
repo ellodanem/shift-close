@@ -409,7 +409,10 @@ export async function addStatementLine(input: {
       amount,
       categoryId: category.id,
       paymentMethod: 'direct_debit',
-      ref
+      ref,
+      origin: 'reconciliation',
+      account: WESTLINE_ACCOUNT,
+      accountSource: 'rule'
     })
   } else if (input.kind === 'interest') {
     const category = await getOrCreateIncomeCategory('Interest')
@@ -420,6 +423,8 @@ export async function addStatementLine(input: {
         ref: ref || null,
         creditAmt: amount,
         paymentMethod: 'deposit',
+        account: WESTLINE_ACCOUNT,
+        accountSource: 'rule',
         allocations: { create: { categoryId: category.id, amount } }
       }
     })

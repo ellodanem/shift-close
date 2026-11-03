@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
+import { isCashbookAccount, resolveCashbookAccount } from '@/lib/cashbook-accounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,10 +12,14 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     const type = searchParams.get('type') // 'income' | 'expense'
     const categoryId = searchParams.get('categoryId')
+    const account = searchParams.get('account')
+    const needsReview = searchParams.get('review') === '1'
 
     await ensureCustomerPaymentsInCashbook()
 
     const where: Record<string, unknown> = {}
+    if (isCashbookAccount(account)) where.account = account
+    if (needsReview) where.accountSource = 'backfill'
     if (startDate && endDate) {
       where.date = { gte: startDate, lte: endDate }
     } else if (startDate) {
@@ -98,7 +103,8 @@ export async function POST(request: NextRequest) {
       amount,
       shiftId,
       paymentBatchId,
-      forceDuplicate
+      forceDuplicate,
+      account
     } = body as {
       date?: string
       ref?: string | null
@@ -116,6 +122,7 @@ export async function POST(request: NextRequest) {
       shiftId?: string | null
       paymentBatchId?: string | null
       forceDuplicate?: boolean
+      account?: string | null
     }
 
     if (!date || !date.trim()) {
@@ -129,10 +136,26 @@ export async function POST(request: NextRequest) {
     }
     const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0
 
-    // Double-entry rule: check for possible duplicate (same date, type, amount)
+    if (account != null && account !== '' && !isCashbookAccount(account)) {
+      return NextResponse.json({ error: 'Choose Westline or Service Station' }, { status: 400 })
+    }
+    const chosenCategory = await prisma.cashbookCategory.findUnique({
+      where: { id: categoryId },
+      select: { name: true }
+    })
+    const resolved = resolveCashbookAccount({
+      origin: 'manual',
+      explicit: isCashbookAccount(account) ? account : null,
+      type: type === 'income' || type === 'expense' ? type : undefined,
+      categoryName: chosenCategory?.name,
+      description
+    })
+
+    // Double-entry rule: check for possible duplicate (same account, date, type, amount)
     if ((type === 'income' || type === 'expense') && amt > 0 && !forceDuplicate) {
       const matches = await prisma.cashbookEntry.findMany({
         where: {
+          account: resolved.account,
           date: date.trim(),
           allocations: {
             some: {
@@ -220,6 +243,8 @@ export async function POST(request: NextRequest) {
     const entry = await prisma.cashbookEntry.create({
       data: {
         ...data,
+        account: resolved.account,
+        accountSource: resolved.source,
         allocations: {
           create: {
             categoryId,

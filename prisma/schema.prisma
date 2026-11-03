@@ -1000,6 +1000,14 @@ model CashbookEntry {
   payrollPayRunLineId  String?  @unique @map("payroll_pay_run_line_id")
   payrollCheckStatus   String?  @map("payroll_check_status") // draft while no physical check number has been issued
 
+  /// Bank account this line belongs to: westline | service_station.
+  account         String  @default("westline")
+  /// How the account was set: default | rule | manual | backfill | confirmed | upload.
+  /// Syncs must not overwrite an account once it is manual or confirmed.
+  accountSource   String  @default("default") @map("account_source")
+  /// Shared by both legs of a transfer between the two accounts.
+  transferGroupId String? @map("transfer_group_id")
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1011,7 +1019,22 @@ model CashbookEntry {
   @@unique([shiftId, shiftIncomeKind], name: "cashbook_entries_shift_income_kind")
   @@index([date])
   @@index([payrollPayRunId])
+  @@index([account, date])
+  @@index([transferGroupId])
   @@map("cashbook_entries")
+}
+
+/// "This customer or vendor normally goes to this account." Learned when a user moves an entry and asks to remember it.
+model CashbookAccountRule {
+  id        String   @id @default(cuid())
+  kind      String   // customer | vendor
+  match     String   // lower-case trimmed name
+  account   String   // westline | service_station
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([kind, match], name: "cashbook_account_rules_kind_match_key")
+  @@map("cashbook_account_rules")
 }
 
 /// One bank statement matched to 101 Westline. Stays in progress until the difference is zero.

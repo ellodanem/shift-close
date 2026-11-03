@@ -60,6 +60,14 @@ describe('vendor check balances', () => {
         clearedAt: new Date('2026-10-01'),
         clearedBalanceAccount: 'service_station'
       }),
+      'service_station'
+    )
+    assert.equal(
+      chargedVendorBalanceAccount({
+        paymentMethod: 'eft',
+        clearedAt: new Date('2026-10-01'),
+        clearedBalanceAccount: null
+      }),
       'westline'
     )
   })
