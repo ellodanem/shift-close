@@ -208,6 +208,7 @@ export default function CashbookPage() {
   const [accountFilter, setAccountFilter] = useState<'' | CashbookAccount>('')
   const [reviewOnly, setReviewOnly] = useState(false)
   const [accountTouched, setAccountTouched] = useState(false)
+  const [prefillTask, setPrefillTask] = useState<{ id: string; hint: string } | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
@@ -351,9 +352,51 @@ export default function CashbookPage() {
     void load()
   }, [entriesUrl])
 
+  // A task from the spreadsheet comparison opens the add form already filled in.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const taskId = params.get('task')
+    const type = params.get('type')
+    const date = params.get('date') ?? ''
+    if (!taskId || (type !== 'income' && type !== 'expense') || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+    const account = params.get('account') === 'service_station' ? 'service_station' : 'westline'
+    const method = params.get('pm') ?? 'cash'
+    setMonth(date.slice(0, 7))
+    setModalOpen(type)
+    setEditingId(null)
+    setAccountTouched(true)
+    setPrefillTask({ id: taskId, hint: params.get('hint') ?? '' })
+    setForm({
+      date,
+      ref: params.get('ref') ?? '',
+      description: params.get('desc') ?? '',
+      categoryId: '',
+      amount: Number(params.get('amount')) || 0,
+      paymentMethod: PAYMENT_OPTIONS.some((option) => option.value === method) ? method : 'cash',
+      account
+    })
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
+  const completePrefillTask = async () => {
+    if (!prefillTask) return
+    const id = prefillTask.id
+    setPrefillTask(null)
+    try {
+      await fetch(`/api/financial/cashbook/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done', resolution: 'Entered in the cashbook.' })
+      })
+    } catch {
+      // The next re-check closes it anyway, because the entry now matches the sheet.
+    }
+  }
+
   const openAddModal = (type: 'income' | 'expense') => {
     setModalOpen(type)
     setEditingId(null)
+    setPrefillTask(null)
     setAccountTouched(false)
     setForm({
       ...emptyForm,
@@ -385,6 +428,7 @@ export default function CashbookPage() {
   const closeModal = () => {
     setModalOpen(null)
     setEditingId(null)
+    setPrefillTask(null)
     setForm(emptyForm)
   }
 
@@ -399,6 +443,7 @@ export default function CashbookPage() {
       })
       if (!res.ok) throw new Error('Failed to create')
       await fetchEntries()
+      await completePrefillTask()
       if (addAnother) {
         setForm((f) => ({ ...f, amount: 0, ref: '' }))
         setTimeout(() => document.getElementById('cashbook-amount-input')?.focus(), 50)
@@ -425,6 +470,7 @@ export default function CashbookPage() {
       })
       if (!res.ok) throw new Error('Failed to create')
       await fetchEntries()
+      await completePrefillTask()
       if (addAnother) {
         setForm((f) => ({ ...f, amount: 0, ref: '' }))
         setTimeout(() => document.getElementById('cashbook-amount-input')?.focus(), 50)
@@ -492,6 +538,7 @@ export default function CashbookPage() {
 
       // Reload entries
       await fetchEntries()
+      if (!editingId) await completePrefillTask()
 
       if (addAnother && !editingId) {
         setEditingId(null)
@@ -687,6 +734,14 @@ export default function CashbookPage() {
                   className="min-h-[44px] flex-1 rounded border border-gray-300 px-2 py-2 text-sm sm:min-h-0 sm:flex-none sm:py-1"
                 />
               </div>
+              {!readOnly ? (
+              <button
+                onClick={() => router.push('/financial/cashbook/tasks')}
+                className="min-h-[44px] rounded border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 sm:min-h-0"
+              >
+                Spreadsheet tasks
+              </button>
+              ) : null}
               {!readOnly ? (
               <button
                 onClick={() => router.push('/reports/financial')}
@@ -1110,6 +1165,12 @@ export default function CashbookPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingId ? 'Edit' : 'Add'} {modalOpen === 'income' ? 'Income' : 'Expense'}
             </h3>
+            {prefillTask && !editingId ? (
+              <p className="mb-4 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+                From the accountant&apos;s sheet. Pick the category and check the details.
+                {prefillTask.hint ? ` The sheet puts it under: ${prefillTask.hint}.` : ''} The task closes when you save.
+              </p>
+            ) : null}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>

@@ -1037,6 +1037,55 @@ model CashbookAccountRule {
   @@map("cashbook_account_rules")
 }
 
+/// One accountant spreadsheet that was compared with the cashbook. The parsed lines are kept
+/// so the comparison can be run again against the live cashbook.
+model CashbookUpload {
+  id             String   @id @default(cuid())
+  account        String   // westline | service_station
+  fileName       String   @map("file_name")
+  periodStart    String   @map("period_start")
+  periodEnd      String   @map("period_end")
+  openingBalance Float?   @map("opening_balance")
+  linesJson      Json     @map("lines_json")
+  summaryJson    Json     @map("summary_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tasks CashbookTask[]
+
+  @@index([account, createdAt])
+  @@map("cashbook_uploads")
+}
+
+/// Something the spreadsheet shows that the cashbook does not (or the other way round).
+/// The work is done through the normal screens; the task only points at it.
+model CashbookTask {
+  id           String    @id @default(cuid())
+  uploadId     String?   @map("upload_id")
+  fingerprint  String    @unique
+  kind         String
+  account      String    // westline | service_station
+  status       String    @default("open") // open | done | dismissed
+  title        String
+  detail       String    @default("")
+  date         String?
+  amount       Float?
+  ref          String    @default("")
+  route        String    @default("cashbook")
+  canCreate    Boolean   @default(false) @map("can_create")
+  payload      Json?
+  assignee     String    @default("me")
+  resolution   String    @default("")
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  upload CashbookUpload? @relation(fields: [uploadId], references: [id], onDelete: SetNull)
+
+  @@index([status, account])
+  @@index([uploadId])
+  @@map("cashbook_tasks")
+}
+
 /// One bank statement matched to 101 Westline. Stays in progress until the difference is zero.
 model BankReconciliation {
   id                  String    @id @default(cuid())

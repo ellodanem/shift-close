@@ -70,6 +70,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
     items: [
       { label: 'Cashbook', href: '/financial/cashbook', permission: 'financial.cashbook', section: 'Cash' },
       {
+        label: 'Cashbook tasks',
+        href: '/financial/cashbook/tasks',
+        permission: 'financial.cashbook',
+        section: 'Cash'
+      },
+      {
         label: 'Deposit comparisons',
         href: '/financial/deposit-comparisons',
         permission: 'financial.depositComparisons',
@@ -217,6 +223,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/insights/deposit-debit-scans': 'deposit-scans',
   '/financial/deposit-comparisons': 'deposit-comparisons',
   '/financial/cashbook': 'cashbook',
+  '/financial/cashbook/tasks': 'cashbook',
   '/accounting': 'cashbook',
   '/accounting/ledger': 'cashbook',
   '/accounting/customers': 'customer-accounts',
@@ -396,7 +403,10 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/shifts') return pathname === '/shifts' || pathname.startsWith('/shifts/')
   if (href === '/days') return pathname === '/days'
   if (href === '/inbox') return pathname === '/inbox' || pathname.startsWith('/inbox/')
-  if (href === '/financial/cashbook') return pathname.startsWith('/financial/cashbook')
+  if (href === '/financial/cashbook/tasks') return pathname.startsWith('/financial/cashbook/tasks')
+  if (href === '/financial/cashbook') {
+    return pathname.startsWith('/financial/cashbook') && !pathname.startsWith('/financial/cashbook/tasks')
+  }
   if (href === '/accounting') return pathname === '/accounting'
   if (href.startsWith('/accounting/')) return pathname === href || pathname.startsWith(`${href}/`)
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
