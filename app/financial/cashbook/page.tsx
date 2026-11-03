@@ -146,6 +146,16 @@ function isDepositCategory(categoryId: string, categories: CashbookCategory[]): 
   return !!cat && /^deposit$/i.test(cat.name.trim())
 }
 
+function typeLabel(entry: CashbookApiEntry, type: 'income' | 'expense'): string {
+  if (entry.transferGroupId) return 'Transfer'
+  return type === 'income' ? 'Income' : 'Expense'
+}
+
+function typeBadgeClass(entry: CashbookApiEntry, type: 'income' | 'expense'): string {
+  if (entry.transferGroupId) return 'bg-slate-200 text-slate-800'
+  return type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+}
+
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
@@ -200,6 +210,15 @@ export default function CashbookPage() {
   const [accountTouched, setAccountTouched] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferForm, setTransferForm] = useState({
+    date: '',
+    amount: 0,
+    from: 'service_station' as CashbookAccount,
+    to: 'westline' as CashbookAccount,
+    ref: '',
+    note: ''
+  })
   const [duplicateModal, setDuplicateModal] = useState<{
     matches: DuplicateMatch[]
     payload: Record<string, unknown>
@@ -497,7 +516,10 @@ export default function CashbookPage() {
     if (!confirm('Delete this entry? This cannot be undone.')) return
     try {
       const res = await fetch(`/api/financial/cashbook/entries/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete')
+      }
       await fetchEntries()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete')
@@ -578,6 +600,48 @@ export default function CashbookPage() {
     await moveEntries([entry.id], account, remember)
   }
 
+  const openTransfer = () => {
+    setTransferForm((f) => ({ ...f, date: dateRange.startDate, amount: 0, ref: '', note: '' }))
+    setTransferOpen(true)
+  }
+
+  const saveTransfer = async () => {
+    if (!transferForm.date || !(Number(transferForm.amount) > 0)) {
+      alert('Date and an amount greater than 0 are required.')
+      return
+    }
+    if (transferForm.from === transferForm.to) {
+      alert('Choose two different accounts.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/financial/cashbook/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: transferForm.date,
+          amount: Number(transferForm.amount),
+          from: transferForm.from,
+          to: transferForm.to,
+          ref: transferForm.ref.trim() || null,
+          description: transferForm.note.trim() || null
+        })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to save transfer')
+      setTransferOpen(false)
+      setNotice(
+        `Transferred $${formatCurrency(Number(transferForm.amount))} from ${cashbookAccountLabel(transferForm.from)} to ${cashbookAccountLabel(transferForm.to)}.`
+      )
+      await fetchEntries()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save transfer')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const confirmAccounts = async (ids: string[]) => {
     try {
       const res = await fetch('/api/financial/cashbook/entries/move', {
@@ -653,6 +717,12 @@ export default function CashbookPage() {
               className="min-h-[44px] rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 sm:px-6"
             >
               ➕ Add Expense
+            </button>
+            <button
+              onClick={openTransfer}
+              className="col-span-2 min-h-[44px] rounded-lg bg-slate-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 sm:col-span-1 sm:px-6"
+            >
+              ⇄ Transfer
             </button>
           </div>
           ) : null}
@@ -855,12 +925,8 @@ export default function CashbookPage() {
                         <div className="text-sm font-medium text-gray-900">{entry.date}</div>
                         <div className="mt-1 line-clamp-2 text-sm text-gray-800">{entry.description}</div>
                       </div>
-                      <span
-                        className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
-                          type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {type === 'income' ? 'Income' : 'Expense'}
+                      <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${typeBadgeClass(entry, type)}`}>
+                        {typeLabel(entry, type)}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
@@ -873,19 +939,25 @@ export default function CashbookPage() {
                     <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                       <span
                         className={`font-semibold font-mono tabular-nums ${
-                          type === 'income' ? 'text-green-700' : 'text-red-700'
+                          entry.transferGroupId
+                            ? 'text-slate-700'
+                            : type === 'income'
+                              ? 'text-green-700'
+                              : 'text-red-700'
                         }`}
                       >
                         {type === 'income' ? '+' : '-'}${formatCurrency(amount)}
                       </span>
                       {!readOnly ? (
                       <div className="flex gap-3">
-                        <button
-                          onClick={() => openEditModal(entry)}
-                          className="min-h-[44px] text-sm font-medium text-blue-600 hover:underline"
-                        >
-                          Edit
-                        </button>
+                        {!entry.transferGroupId ? (
+                          <button
+                            onClick={() => openEditModal(entry)}
+                            className="min-h-[44px] text-sm font-medium text-blue-600 hover:underline"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => void deleteEntry(entry.id)}
                           className="min-h-[44px] text-sm font-medium text-red-600 hover:underline"
@@ -985,12 +1057,8 @@ export default function CashbookPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                            type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {type === 'income' ? 'Income' : 'Expense'}
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${typeBadgeClass(entry, type)}`}>
+                          {typeLabel(entry, type)}
                         </span>
                       </td>
                       <td className="px-3 py-2">{entry.description}</td>
@@ -1002,12 +1070,14 @@ export default function CashbookPage() {
                       <td className="px-3 py-2 text-center">
                         {!readOnly ? (
                         <>
-                        <button
-                          onClick={() => openEditModal(entry)}
-                          className="text-blue-600 hover:underline text-xs font-medium mr-2"
-                        >
-                          Edit
-                        </button>
+                        {!entry.transferGroupId ? (
+                          <button
+                            onClick={() => openEditModal(entry)}
+                            className="text-blue-600 hover:underline text-xs font-medium mr-2"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => void deleteEntry(entry.id)}
                           className="text-red-600 hover:underline text-xs font-medium"
@@ -1240,6 +1310,124 @@ export default function CashbookPage() {
                 } disabled:opacity-60`}
               >
                 {saving ? 'Saving…' : editingId ? 'Update' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer between accounts */}
+      {transferOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setTransferOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-1 text-lg font-semibold text-gray-900">Transfer between accounts</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              Records the money leaving one account and arriving in the other. It is not income or expense.
+            </p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">From</label>
+                  <select
+                    value={transferForm.from}
+                    onChange={(e) => {
+                      const from = e.target.value as CashbookAccount
+                      setTransferForm((f) => ({
+                        ...f,
+                        from,
+                        to: from === f.to ? (from === 'westline' ? 'service_station' : 'westline') : f.to
+                      }))
+                    }}
+                    className="w-full rounded border border-gray-300 px-3 py-2"
+                  >
+                    {CASHBOOK_ACCOUNTS.map((acct) => (
+                      <option key={acct} value={acct}>
+                        {CASHBOOK_ACCOUNT_INFO[acct].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">To</label>
+                  <select
+                    value={transferForm.to}
+                    onChange={(e) => {
+                      const to = e.target.value as CashbookAccount
+                      setTransferForm((f) => ({
+                        ...f,
+                        to,
+                        from: to === f.from ? (to === 'westline' ? 'service_station' : 'westline') : f.from
+                      }))
+                    }}
+                    className="w-full rounded border border-gray-300 px-3 py-2"
+                  >
+                    {CASHBOOK_ACCOUNTS.map((acct) => (
+                      <option key={acct} value={acct}>
+                        {CASHBOOK_ACCOUNT_INFO[acct].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Date</label>
+                <input
+                  type="date"
+                  value={transferForm.date}
+                  onChange={(e) => setTransferForm((f) => ({ ...f, date: e.target.value }))}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Amount ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={transferForm.amount || ''}
+                  onChange={(e) => setTransferForm((f) => ({ ...f, amount: Number(e.target.value) || 0 }))}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Ref (optional)</label>
+                <input
+                  type="text"
+                  value={transferForm.ref}
+                  onChange={(e) => setTransferForm((f) => ({ ...f, ref: e.target.value }))}
+                  placeholder="EFT reference"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Note (optional)</label>
+                <input
+                  type="text"
+                  value={transferForm.note}
+                  onChange={(e) => setTransferForm((f) => ({ ...f, note: e.target.value }))}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => setTransferOpen(false)}
+                className="min-h-[44px] rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveTransfer()}
+                disabled={saving}
+                className="min-h-[44px] rounded bg-slate-700 px-4 py-2 font-medium text-white hover:bg-slate-800 disabled:opacity-60 sm:min-h-0"
+              >
+                {saving ? 'Saving…' : 'Record transfer'}
               </button>
             </div>
           </div>

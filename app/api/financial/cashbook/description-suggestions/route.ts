@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
     const entries = await prisma.cashbookEntry.findMany({
       where: {
         ...amountFilter,
+        transferGroupId: null,
         description: { not: '' }
       },
       select: { description: true },

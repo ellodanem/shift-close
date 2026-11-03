@@ -4,6 +4,7 @@ import { syncCashbookEntryToShiftDeposit } from '@/lib/cashbook-deposit-sync'
 import { syncCashbookEntryToShiftCardIncome } from '@/lib/cashbook-shift-income'
 import { isCashbookAccount } from '@/lib/cashbook-accounts'
 import { moveEntriesToAccount } from '@/lib/cashbook-account-db'
+import { TransferInputError, deleteTransfer } from '@/lib/cashbook-transfer'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,17 @@ export async function PATCH(
       amount?: number
       shiftId?: string | null
       paymentBatchId?: string | null
+    }
+
+    const linked = await prisma.cashbookEntry.findUnique({
+      where: { id },
+      select: { transferGroupId: true }
+    })
+    if (linked?.transferGroupId) {
+      return NextResponse.json(
+        { error: 'A transfer cannot be edited. Delete it and add it again.' },
+        { status: 409 }
+      )
     }
 
     if (account != null && account !== '' && !isCashbookAccount(account)) {
@@ -187,12 +199,25 @@ export async function DELETE(
   try {
     const { id } = params
 
+    const existing = await prisma.cashbookEntry.findUnique({
+      where: { id },
+      select: { transferGroupId: true }
+    })
+    if (existing?.transferGroupId) {
+      // A transfer has two legs. They always go together.
+      await deleteTransfer(existing.transferGroupId)
+      return NextResponse.json({ success: true })
+    }
+
     await prisma.cashbookEntry.delete({
       where: { id }
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof TransferInputError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
     console.error('Error deleting cashbook entry:', error)
     return NextResponse.json({ error: 'Failed to delete cashbook entry' }, { status: 500 })
   }
