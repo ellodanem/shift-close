@@ -23,8 +23,18 @@ type BatchDetail = {
 export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; onClose: () => void }) {
   const [detail, setDetail] = useState<BatchDetail | null>(null)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState<'copy' | 'share' | null>(null)
+  const [busy, setBusy] = useState<'copy-simple' | 'copy-detailed' | 'share' | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const summaryRef = useRef<HTMLDivElement>(null)
+  const simpleRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const outside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false) }
+    document.addEventListener('mousedown', outside)
+    return () => document.removeEventListener('mousedown', outside)
+  }, [menuOpen])
 
   useEffect(() => {
     if (!batch) return
@@ -71,28 +81,35 @@ export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; 
 
   if (!batch) return null
 
-  async function imageFile() {
-    if (!summaryRef.current || !detail) throw new Error('The payment is still loading.')
-    const canvas = await html2canvas(summaryRef.current, { backgroundColor: '#ffffff', scale: 2, logging: false })
+  async function imageFile(kind: 'simple' | 'detailed' | 'share') {
+    const target = kind === 'simple' ? simpleRef.current : summaryRef.current
+    if (!target || !detail) throw new Error('The payment is still loading.')
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#ffffff', scale: 2, logging: false,
+      // Share sends the detailed layout without the bank balance footer.
+      ignoreElements: (el) => kind === 'share' && el.getAttribute('data-hide-in-share') === 'true'
+    })
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
     if (!blob) throw new Error('Could not create the image.')
-    return new File([blob], `payment-${detail.ref}.png`, { type: 'image/png' })
+    return new File([blob], `payment-${detail.ref}${kind === 'simple' ? '-simple' : ''}.png`, { type: 'image/png' })
   }
 
-  async function copyImage() {
-    setBusy('copy')
+  async function copyImage(kind: 'simple' | 'detailed') {
+    setMenuOpen(false)
+    setBusy(kind === 'simple' ? 'copy-simple' : 'copy-detailed')
     try {
-      const file = await imageFile()
+      const file = await imageFile(kind)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': file })])
-      alert('Payment image copied to the clipboard.')
+      alert(`Payment image (${kind}) copied to the clipboard.`)
     } catch (err) { alert(err instanceof Error ? err.message : 'Could not copy the image.') }
     finally { setBusy(null) }
   }
 
   async function shareImage() {
+    setMenuOpen(false)
     setBusy('share')
     try {
-      const file = await imageFile()
+      const file = await imageFile('share')
       if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         await navigator.share({ title: `Payment ${detail?.ref}`, files: [file] })
       } else {
@@ -132,16 +149,56 @@ export function PaymentBatchModal({ batch, onClose }: { batch: PaidBill | null; 
                 <tbody>{detail.lines.map((line, index) => <tr key={`${line.number}:${index}`} className="border-b border-gray-100"><td className="py-2 pr-2 font-medium">{line.number}</td><td className="py-2 pr-2">{displayDate(line.date)}</td><td className="py-2 pr-2">{line.type || '—'}</td><td className="py-2 text-right tabular-nums">{money(line.amount)}</td></tr>)}</tbody>
                 <tfoot><tr className="font-bold"><td colSpan={3} className="pt-3 pr-2 text-right">Total</td><td className="pt-3 text-right tabular-nums">{money(detail.total)}</td></tr></tfoot>
               </table>
-              {(detail.balanceBefore || detail.balanceAfter) && <div className="mt-6 flex flex-wrap justify-end gap-x-8 gap-y-2 border-t border-gray-200 pt-3 text-xs text-gray-600"><span>Balance before: <strong className="text-gray-900">{detail.balanceBefore ?? '—'}</strong></span><span>Balance after: <strong className="text-gray-900">{detail.balanceAfter ?? '—'}</strong></span></div>}
+              {(detail.balanceBefore || detail.balanceAfter) && <div data-hide-in-share="true" className="mt-6 flex flex-wrap justify-end gap-x-8 gap-y-2 border-t border-gray-200 pt-3 text-xs text-gray-600"><span>Balance before: <strong className="text-gray-900">{detail.balanceBefore ?? '—'}</strong></span><span>Balance after: <strong className="text-gray-900">{detail.balanceAfter ?? '—'}</strong></span></div>}
             </div>
           )}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4 print:hidden">
           <button type="button" onClick={onClose} className="rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Close</button>
           <button type="button" disabled={!detail} onClick={() => window.print()} className="rounded border border-indigo-300 px-4 py-2 text-sm font-semibold text-indigo-700 disabled:opacity-50">Print</button>
-          <button type="button" disabled={!detail || !!busy} onClick={() => void copyImage()} className="rounded border border-indigo-300 px-4 py-2 text-sm font-semibold text-indigo-700 disabled:opacity-50">{busy === 'copy' ? 'Copying…' : 'Copy PNG'}</button>
-          <button type="button" disabled={!detail || !!busy} onClick={() => void shareImage()} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === 'share' ? 'Sharing…' : 'Share'}</button>
+          <div ref={menuRef} className="relative">
+            <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!detail || !!busy} onClick={() => setMenuOpen((open) => !open)} className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {busy === 'share' ? 'Sharing…' : busy ? 'Copying…' : 'Share ▾'}
+            </button>
+            {menuOpen && (
+              <div role="menu" className="absolute bottom-full right-0 z-10 mb-2 w-60 overflow-hidden rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg">
+                <button type="button" role="menuitem" onClick={() => void copyImage('simple')} className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50">Copy PNG (simple)</button>
+                <button type="button" role="menuitem" onClick={() => void copyImage('detailed')} className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50">Copy PNG (detailed)</button>
+                <button type="button" role="menuitem" onClick={() => void shareImage()} className="block w-full px-4 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50">Share <span className="text-xs text-gray-500">(detailed, no balance)</span></button>
+              </div>
+            )}
+          </div>
         </div>
+        {detail && (
+          <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }} className="print:hidden">
+            <div ref={simpleRef} style={{ width: 520, padding: '32px 40px', background: '#ffffff', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontSize: 15, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{detail.payee} Payment - {displayDate(detail.date)}</div>
+              {detail.lines.map((line, index) => (
+                <div key={`${line.number}:${index}`} style={{ display: 'grid', gridTemplateColumns: '90px 110px 1fr', columnGap: 16, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700 }}>{line.number}</span>
+                  <span style={{ textAlign: 'right' }}>{money(line.amount)}</span>
+                  <span>{line.type || ''}</span>
+                </div>
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '90px 110px 1fr', columnGap: 16, marginTop: 4 }}>
+                <span />
+                <span style={{ textAlign: 'right', fontWeight: 700 }}>{money(detail.total)}</span>
+                <span />
+              </div>
+              <div style={{ marginLeft: 106, marginTop: 4, fontSize: 13, fontWeight: 700, color: '#6b7280' }}>
+                <div>paid {displayDate(detail.date)}</div>
+                <div>Ref <span style={{ color: '#1d4ed8' }}>{detail.ref}</span></div>
+              </div>
+              {(detail.balanceBefore || detail.balanceAfter) && (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Balance Information</div>
+                  <div>Balance Before (Available): {detail.balanceBefore ?? '—'}</div>
+                  <div>Balance After (Available - Paid): {detail.balanceAfter ?? '—'}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <style jsx global>{`@media print { body * { visibility: hidden !important; } .batch-print-area, .batch-print-area * { visibility: visible !important; } .batch-print-area { position: absolute; inset: 0; width: 100%; padding: 24px !important; } }`}</style>
     </div>
