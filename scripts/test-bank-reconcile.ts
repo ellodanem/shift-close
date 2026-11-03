@@ -3,7 +3,6 @@ import { describe, it } from 'node:test'
 import {
   allCardsCleared,
   depositBankStatusOnFinish,
-  isWestlineRegisterEntry,
   listRegisterLines,
   reconcileBalances,
   type RegisterSource
@@ -18,69 +17,56 @@ function entry(partial: Partial<RegisterSource> & Pick<RegisterSource, 'id' | 'd
     debitCheck: partial.debitCheck ?? 0,
     debitEcard: partial.debitEcard ?? 0,
     debitDcard: partial.debitDcard ?? 0,
-    vendor: partial.vendor ?? null,
+    account: partial.account ?? 'westline',
     ...partial
   }
 }
 
-describe('westline register', () => {
-  it('keeps ordinary cashbook lines and drops a service station vendor check', () => {
-    const lines = listRegisterLines({
+describe('account register', () => {
+  it('keeps only the lines that belong to the account, whatever the payment type', () => {
+    const base = {
       statementEndDate: '2026-09-30',
       lockedIds: new Set(['locked']),
       clearedIds: new Set(['dep']),
       entries: [
-        entry({ id: 'dep', date: '2026-09-01', description: 'Deposit', creditAmt: 200 }),
+        entry({ id: 'dep', date: '2026-09-01', description: 'Deposit', creditAmt: 200, account: 'westline' }),
         entry({
-          id: 'ss',
+          id: 'ss-check',
           date: '2026-09-02',
           description: 'Vendor check',
+          ref: '77',
           debitCheck: 40,
-          vendor: { paymentMethod: 'check', clearedAt: new Date('2026-09-03'), clearedBalanceAccount: 'service_station' }
+          account: 'service_station'
         }),
-        entry({
-          id: 'open-check',
-          date: '2026-09-04',
-          description: 'Uncashed vendor check',
-          debitCheck: 15,
-          vendor: { paymentMethod: 'check', clearedAt: null, clearedBalanceAccount: null }
-        }),
-        entry({
-          id: 'westline-check',
-          date: '2026-09-05',
-          description: 'Westline check',
-          ref: '104',
-          debitCheck: 25,
-          vendor: { paymentMethod: 'check', clearedAt: new Date('2026-09-06'), clearedBalanceAccount: 'westline' }
-        }),
-        entry({
-          id: 'eft',
-          date: '2026-09-07',
-          description: 'Vendor EFT',
-          debitEcard: 10,
-          vendor: { paymentMethod: 'eft', clearedAt: new Date('2026-09-07'), clearedBalanceAccount: null }
-        }),
-        entry({ id: 'later', date: '2026-10-01', description: 'Next month', creditAmt: 5 }),
-        entry({ id: 'locked', date: '2026-09-08', description: 'Already finished', creditAmt: 8 }),
-        entry({ id: 'zero', date: '2026-09-09', description: 'Empty' })
+        entry({ id: 'card', date: '2026-09-03', description: 'Credit card', creditAmt: 90, account: 'service_station' }),
+        entry({ id: 'wl-check', date: '2026-09-05', description: 'Check', ref: '104', debitCheck: 25, account: 'westline' }),
+        entry({ id: 'later', date: '2026-10-01', description: 'Next month', creditAmt: 5, account: 'westline' }),
+        entry({ id: 'locked', date: '2026-09-08', description: 'Already finished', creditAmt: 8, account: 'westline' }),
+        entry({ id: 'zero', date: '2026-09-09', description: 'Empty', account: 'westline' })
       ]
-    })
+    }
 
-    assert.deepEqual(
-      lines.map((line) => line.cashbookEntryId),
-      ['dep', 'westline-check', 'eft']
-    )
-    assert.equal(lines[0].cleared, true)
-    assert.equal(lines[0].deposit, 200)
-    assert.equal(lines[1].withdrawal, 25)
-    assert.equal(lines[1].ref, '104')
-    assert.equal(isWestlineRegisterEntry({ paymentMethod: 'check', clearedAt: null, clearedBalanceAccount: 'westline' }), false)
-    assert.equal(
-      isWestlineRegisterEntry({ paymentMethod: 'check', clearedAt: new Date('2026-09-01'), clearedBalanceAccount: null }),
-      true
-    )
+    const westline = listRegisterLines({ ...base, account: 'westline' })
+    assert.deepEqual(westline.map((line) => line.cashbookEntryId), ['dep', 'wl-check'])
+    assert.equal(westline[0].cleared, true)
+    assert.equal(westline[0].deposit, 200)
+    assert.equal(westline[1].withdrawal, 25)
+    assert.equal(westline[1].ref, '104')
+
+    const station = listRegisterLines({ ...base, account: 'service_station' })
+    assert.deepEqual(station.map((line) => line.cashbookEntryId), ['ss-check', 'card'])
+    assert.equal(station[0].withdrawal, 40)
   })
 
+  it('puts both legs of a transfer on their own register', () => {
+    const entries = [
+      entry({ id: 'out', date: '2026-09-10', description: 'Transfer to Service Station', debitEcard: 500, account: 'westline' }),
+      entry({ id: 'in', date: '2026-09-10', description: 'Transfer from Westline', creditAmt: 500, account: 'service_station' })
+    ]
+    const args = { entries, statementEndDate: '2026-09-30', lockedIds: new Set<string>(), clearedIds: new Set<string>() }
+    assert.equal(listRegisterLines({ ...args, account: 'westline' })[0].withdrawal, 500)
+    assert.equal(listRegisterLines({ ...args, account: 'service_station' })[0].deposit, 500)
+  })
   it('leaves an outstanding check in the book balance and balances when the statement matches the ticked lines', () => {
     const totals = reconcileBalances({
       openingBalance: 1000,

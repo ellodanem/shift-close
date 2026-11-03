@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   ReconcileInputError,
   loadReconcileView,
+  reconcileAccountFrom,
   setLineCleared,
   startReconciliation,
   updateReconciliation
@@ -27,7 +28,7 @@ function jsonError(error: unknown, fallback: string) {
 export async function GET(request: NextRequest) {
   if (!(await allowed(request))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
-    return NextResponse.json(await loadReconcileView())
+    return NextResponse.json(await loadReconcileView(reconcileAccountFrom(request.nextUrl.searchParams.get('account'))))
   } catch (error) {
     return jsonError(error, 'Failed to load reconciliation')
   }
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (!(await allowed(request))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     const body = await request.json()
-    return NextResponse.json(await startReconciliation(body))
+    return NextResponse.json(await startReconciliation(body, reconcileAccountFrom(body?.account)))
   } catch (error) {
     return jsonError(error, 'Failed to start reconciliation')
   }
@@ -48,9 +49,9 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
     if (body && typeof body === 'object' && 'cashbookEntryId' in body) {
-      return NextResponse.json(await setLineCleared(body.cashbookEntryId, body.cleared))
+      return NextResponse.json(await setLineCleared(body.cashbookEntryId, body.cleared, reconcileAccountFrom(body.account)))
     }
-    return NextResponse.json(await updateReconciliation(body))
+    return NextResponse.json(await updateReconciliation(body, reconcileAccountFrom(body?.account)))
   } catch (error) {
     return jsonError(error, 'Failed to update reconciliation')
   }

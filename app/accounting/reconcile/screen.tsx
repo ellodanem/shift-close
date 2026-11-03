@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatAmount } from '@/lib/fuelPayments'
 import type { ReconcileView } from '@/lib/bank-reconcile'
+import { CASHBOOK_ACCOUNTS, CASHBOOK_ACCOUNT_INFO, type CashbookAccount } from '@/lib/cashbook-accounts'
 import { useAccountingBooks } from '../books-context'
 
 function money(amount: number): string {
@@ -23,6 +24,7 @@ export function ReconcileScreen() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [account, setAccount] = useState<CashbookAccount>('westline')
 
   const [statementEndDate, setStatementEndDate] = useState(businessTodayYmd())
   const [statementEndBalance, setStatementEndBalance] = useState('')
@@ -35,14 +37,21 @@ export function ReconcileScreen() {
   const [lineRef, setLineRef] = useState('')
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/accounting/reconcile', { cache: 'no-store' })
+    const res = await fetch(`/api/accounting/reconcile?account=${account}`, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed to load reconciliation')
     return data as ReconcileView
-  }, [])
+  }, [account])
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError(null)
+    setMessage(null)
+    setView(null)
+    setStatementEndBalance('')
+    setOpeningBalance('')
+    setStatementEndDate(businessTodayYmd())
     void load()
       .then((data) => {
         if (!cancelled) setView(data)
@@ -91,7 +100,7 @@ export function ReconcileScreen() {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ ...(body as object), account })
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed')
@@ -102,7 +111,7 @@ export function ReconcileScreen() {
     const res = await fetch('/api/accounting/reconcile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ ...(body as object), account })
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || 'Failed')
@@ -124,8 +133,38 @@ export function ReconcileScreen() {
     statementEndBalance.trim() !== '' &&
     (openingLocked ? view?.openingBalance != null : Number.isFinite(startOpening) && openingBalance.trim() !== '')
 
-  if (loading) return <p className="text-gray-600">Loading reconciliation…</p>
-  if (!view) return <p className="text-sm text-red-700">{error || 'Failed to load reconciliation'}</p>
+  const accountInfo = CASHBOOK_ACCOUNT_INFO[account]
+  const accountTabs = (
+    <div className="mb-4 inline-flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
+      {CASHBOOK_ACCOUNTS.map((key) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setAccount(key)}
+          className={`rounded-md px-3 py-1 font-medium ${
+            account === key ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          {CASHBOOK_ACCOUNT_INFO[key].ledgerCode} {CASHBOOK_ACCOUNT_INFO[key].label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (loading)
+    return (
+      <div>
+        {accountTabs}
+        <p className="text-gray-600">Loading reconciliation…</p>
+      </div>
+    )
+  if (!view)
+    return (
+      <div>
+        {accountTabs}
+        <p className="text-sm text-red-700">{error || 'Failed to load reconciliation'}</p>
+      </div>
+    )
 
   return (
     <div>
@@ -133,7 +172,10 @@ export function ReconcileScreen() {
         ← Back
       </Link>
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Reconcile · 101 Westline</h1>
+        <div>{accountTabs}</div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Reconcile · {accountInfo.ledgerCode} {accountInfo.label}
+        </h1>
         <p className="mt-1 text-sm text-gray-600">
           Tick a line when it is on the bank statement. Finish when the difference is zero. The shift amount stays as it was counted.
         </p>
@@ -299,7 +341,7 @@ export function ReconcileScreen() {
                 {session.lines.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
-                      No Westline lines on or before this statement date.
+                      No {accountInfo.label} lines on or before this statement date.
                     </td>
                   </tr>
                 ) : (

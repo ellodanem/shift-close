@@ -1,4 +1,7 @@
+import type { CashbookAccount } from '@/lib/cashbook-accounts'
+
 export type LedgerRow = {
+  account: CashbookAccount
   date: string
   description: string
   category: string
@@ -122,6 +125,10 @@ export type AccountingBooks = {
   monthExpense: number
   monthNet: number
   ledger: LedgerRow[]
+  /** Per account: balance at the start of the month, or null for months before the accountant's cutover. */
+  ledgerOpening: Record<CashbookAccount, number | null>
+  /** Per account: this month's income and expense, transfers left out. */
+  ledgerTotals: Record<CashbookAccount, { income: number; expense: number }>
   categories: CategoryTotal[]
   customers: CustomerRow[]
   aging: AgingRow[]

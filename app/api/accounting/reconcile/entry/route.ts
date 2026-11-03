@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ReconcileInputError, addStatementLine } from '@/lib/bank-reconcile-session'
+import { ReconcileInputError, addStatementLine, reconcileAccountFrom } from '@/lib/bank-reconcile-session'
 import { canUseAccountingModule } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = await request.json()
-    return NextResponse.json(await addStatementLine(body))
+    return NextResponse.json(await addStatementLine(body, reconcileAccountFrom(body?.account)))
   } catch (error) {
     if (error instanceof ReconcileInputError) {
       return NextResponse.json({ error: error.message }, { status: 400 })

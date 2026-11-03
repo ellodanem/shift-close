@@ -1,4 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import {
+  CASHBOOK_ACCOUNTS,
+  CASHBOOK_OPENING_BALANCES,
+  DEFAULT_CASHBOOK_ACCOUNT,
+  isCashbookAccount,
+  type CashbookAccount
+} from '@/lib/cashbook-accounts'
 import { businessTodayYmd, toYmdInBusinessTz } from '@/lib/datetime-policy'
 import { buildComparisonRowsFromShifts } from '@/lib/deposit-comparison-rows'
 import { roundMoney } from '@/lib/fuelPayments'
@@ -171,16 +178,45 @@ export async function buildAccountingBooks(month: string, includeHeldInvoices = 
     })
   ])
 
-  let running = 0
+  // Each account runs its own balance. After the accountant's cutover date the balance
+  // starts from their confirmed opening figure plus anything booked since; before it
+  // there is no confirmed figure, so the month starts at zero as before.
+  const ledgerOpening = {} as Record<CashbookAccount, number | null>
+  const running = {} as Record<CashbookAccount, number>
+  const ledgerTotals = {} as Record<CashbookAccount, { income: number; expense: number }>
+  for (const account of CASHBOOK_ACCOUNTS) {
+    const opening = CASHBOOK_OPENING_BALANCES[account]
+    if (start < opening.date) {
+      ledgerOpening[account] = null
+    } else {
+      const prior =
+        start === opening.date
+          ? null
+          : await prisma.cashbookEntry.aggregate({
+              where: { account, date: { gte: opening.date, lt: start } },
+              _sum: { creditAmt: true, debitCash: true, debitCheck: true, debitEcard: true, debitDcard: true }
+            })
+      const sums = prior?._sum
+      const moved = sums
+        ? (sums.creditAmt ?? 0) -
+          ((sums.debitCash ?? 0) + (sums.debitCheck ?? 0) + (sums.debitEcard ?? 0) + (sums.debitDcard ?? 0))
+        : 0
+      ledgerOpening[account] = roundMoney(opening.amount + moved)
+    }
+    running[account] = ledgerOpening[account] ?? 0
+    ledgerTotals[account] = { income: 0, expense: 0 }
+  }
+
   let monthIncome = 0
   let monthExpense = 0
   const categoryTotals = new Map<string, { name: string; type: string; amount: number }>()
   const ledger = entries.map((entry) => {
+    const account: CashbookAccount = isCashbookAccount(entry.account) ? entry.account : DEFAULT_CASHBOOK_ACCOUNT
     const moneyIn = roundMoney(entry.creditAmt || 0)
     const moneyOut = roundMoney(
       (entry.debitCash || 0) + (entry.debitCheck || 0) + (entry.debitEcard || 0) + (entry.debitDcard || 0)
     )
-    running = roundMoney(running + moneyIn - moneyOut)
+    running[account] = roundMoney(running[account] + moneyIn - moneyOut)
     const category = entry.allocations[0]?.category
     const categoryName = category?.name ?? '—'
     const categoryType = category?.type || (moneyIn > 0 ? 'income' : 'expense')
@@ -193,17 +229,23 @@ export async function buildAccountingBooks(month: string, includeHeldInvoices = 
         type,
         amount: roundMoney((prev?.amount ?? 0) + alloc.amount)
       })
-      if (type === 'income') monthIncome = roundMoney(monthIncome + alloc.amount)
-      else if (type === 'expense') monthExpense = roundMoney(monthExpense + alloc.amount)
+      if (type === 'income') {
+        monthIncome = roundMoney(monthIncome + alloc.amount)
+        ledgerTotals[account].income = roundMoney(ledgerTotals[account].income + alloc.amount)
+      } else if (type === 'expense') {
+        monthExpense = roundMoney(monthExpense + alloc.amount)
+        ledgerTotals[account].expense = roundMoney(ledgerTotals[account].expense + alloc.amount)
+      }
     }
     const tagged = sourceOf(entry)
     return {
+      account,
       date: entry.date,
       description: entry.description,
       category: categoryName,
       debit: moneyIn,
       credit: moneyOut,
-      balance: running,
+      balance: running[account],
       source: tagged.source,
       fromShift: tagged.fromShift,
       categoryType
@@ -393,6 +435,8 @@ export async function buildAccountingBooks(month: string, includeHeldInvoices = 
     monthExpense,
     monthNet: roundMoney(monthIncome - monthExpense),
     ledger: ledger.map(({ categoryType: _categoryType, ...row }) => row),
+    ledgerOpening,
+    ledgerTotals,
     categories: [...categoryTotals.values()].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
     customers,
     aging,

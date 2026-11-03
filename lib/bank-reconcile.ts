@@ -1,13 +1,5 @@
 import { roundMoney } from '@/lib/fuelPayments'
 
-export const WESTLINE_ACCOUNT = 'westline'
-
-export type VendorBatchRef = {
-  paymentMethod: string
-  clearedAt: Date | string | null
-  clearedBalanceAccount: string | null
-}
-
 export type RegisterSource = {
   id: string
   date: string
@@ -18,7 +10,8 @@ export type RegisterSource = {
   debitCheck: number
   debitEcard: number
   debitDcard: number
-  vendor: VendorBatchRef | null
+  /** The bank account the entry belongs to. */
+  account: string
 }
 
 export type ReconcileLine = {
@@ -65,19 +58,6 @@ export function isYmdDate(value: string): boolean {
   return YMD.test(value)
 }
 
-/**
- * Cashbook is the Westline register, except a vendor check that belongs to Service Station.
- * Uncashed vendor checks default to Service Station and are not a Westline withdrawal yet.
- * An EFT, or a check already cleared to Westline, stays on this list.
- */
-export function isWestlineRegisterEntry(vendor: VendorBatchRef | null | undefined): boolean {
-  if (!vendor) return true
-  if (vendor.paymentMethod !== 'check') return true
-  if (vendor.clearedBalanceAccount === 'service_station') return false
-  if (vendor.clearedAt == null) return false
-  return true
-}
-
 export function registerMovement(entry: {
   creditAmt: number
   debitCash: number
@@ -93,8 +73,10 @@ export function registerMovement(entry: {
   }
 }
 
+/** One account's register: only entries that belong to that account. */
 export function listRegisterLines(input: {
   entries: RegisterSource[]
+  account: string
   statementEndDate: string
   lockedIds: ReadonlySet<string>
   clearedIds: ReadonlySet<string>
@@ -103,7 +85,7 @@ export function listRegisterLines(input: {
   for (const entry of input.entries) {
     if (!isYmdDate(entry.date) || entry.date > input.statementEndDate) continue
     if (input.lockedIds.has(entry.id)) continue
-    if (!isWestlineRegisterEntry(entry.vendor)) continue
+    if (entry.account !== input.account) continue
     const movement = registerMovement(entry)
     if (movement.deposit === 0 && movement.withdrawal === 0) continue
     lines.push({

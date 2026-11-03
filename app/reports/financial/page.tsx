@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { CASHBOOK_ACCOUNTS, CASHBOOK_ACCOUNT_INFO, type CashbookAccount } from '@/lib/cashbook-accounts'
 
 interface CashbookSummary {
   startDate: string
@@ -30,6 +31,7 @@ export default function FinancialReportPage() {
 
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth)
+  const [account, setAccount] = useState<'' | CashbookAccount>('')
   const [summary, setSummary] = useState<CashbookSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +48,7 @@ export default function FinancialReportPage() {
       setError(null)
       try {
         const res = await fetch(
-          `/api/financial/cashbook/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+          `/api/financial/cashbook/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}${account ? `&account=${account}` : ''}`
         )
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -63,7 +65,7 @@ export default function FinancialReportPage() {
       }
     }
     void load()
-  }, [startDate, endDate])
+  }, [startDate, endDate, account])
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -100,6 +102,21 @@ export default function FinancialReportPage() {
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                   <option key={m} value={m}>
                     {new Date(2000, m - 1, 1).toLocaleString('default', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Account</label>
+              <select
+                value={account}
+                onChange={(e) => setAccount(e.target.value as '' | CashbookAccount)}
+                className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Both accounts</option>
+                {CASHBOOK_ACCOUNTS.map((key) => (
+                  <option key={key} value={key}>
+                    {CASHBOOK_ACCOUNT_INFO[key].label}
                   </option>
                 ))}
               </select>

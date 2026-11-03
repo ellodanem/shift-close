@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ReconcileInputError, finishReconciliation } from '@/lib/bank-reconcile-session'
+import { ReconcileInputError, finishReconciliation, reconcileAccountFrom } from '@/lib/bank-reconcile-session'
 import { canUseAccountingModule } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {
-    return NextResponse.json(await finishReconciliation())
+    const body = await request.json().catch(() => ({}))
+    return NextResponse.json(await finishReconciliation(reconcileAccountFrom(body?.account)))
   } catch (error) {
     if (error instanceof ReconcileInputError) {
       return NextResponse.json({ error: error.message }, { status: 400 })

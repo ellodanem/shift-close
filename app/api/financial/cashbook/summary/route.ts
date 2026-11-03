@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ensureCustomerPaymentsInCashbook } from '@/lib/cashbook-customer-payment'
+import { parseCashbookAccount } from '@/lib/cashbook-accounts'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/financial/cashbook/summary?startDate=...&endDate=...
+/** GET /api/financial/cashbook/summary?startDate=...&endDate=...&account=westline|service_station
  * Returns income/expense totals by category type for the date range.
+ * Without an account it covers both. Transfers sit under "other", never income or expense.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,11 +22,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const accountParam = searchParams.get('account')
+    const account = accountParam ? parseCashbookAccount(accountParam) : null
+    if (accountParam && !account) {
+      return NextResponse.json({ error: 'account must be westline or service_station' }, { status: 400 })
+    }
+
     await ensureCustomerPaymentsInCashbook()
 
     const entries = await prisma.cashbookEntry.findMany({
       where: {
-        date: { gte: startDate, lte: endDate }
+        date: { gte: startDate, lte: endDate },
+        ...(account ? { account } : {})
       },
       include: {
         allocations: {

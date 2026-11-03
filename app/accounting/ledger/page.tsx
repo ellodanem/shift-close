@@ -1,4 +1,4 @@
-import { LedgerScreen } from '../screens'
+import { LedgerScreen } from './screen'
 
 export default function LedgerPage() {
   return <LedgerScreen />

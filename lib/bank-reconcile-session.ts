@@ -1,10 +1,10 @@
+import { DEFAULT_CASHBOOK_ACCOUNT, parseCashbookAccount, type CashbookAccount } from '@/lib/cashbook-accounts'
 import { createCashbookExpenseEntry, getOrCreateExpenseCategory } from '@/lib/cashbook-expense'
 import { ymdToUtcNoonDate } from '@/lib/datetime-policy'
 import { roundMoney } from '@/lib/fuelPayments'
 import { prisma } from '@/lib/prisma'
 import { clearUncashedCheck, uncashedCheckId } from '@/lib/uncashedChecks'
 import {
-  WESTLINE_ACCOUNT,
   allCardsCleared,
   depositBankStatusOnFinish,
   isYmdDate,
@@ -35,7 +35,8 @@ const entrySelect = {
   shiftId: true,
   depositLineIndex: true,
   shiftIncomeKind: true,
-  clearedAt: true
+  clearedAt: true,
+  account: true
 } as const
 
 type EntryRow = {
@@ -53,6 +54,7 @@ type EntryRow = {
   depositLineIndex: number | null
   shiftIncomeKind: string | null
   clearedAt: Date | null
+  account: string
 }
 
 function parseMoney(value: unknown, label: string): number {
@@ -61,42 +63,33 @@ function parseMoney(value: unknown, label: string): number {
   return roundMoney(amount)
 }
 
-async function lastFinished() {
+async function lastFinished(account: CashbookAccount) {
   return prisma.bankReconciliation.findFirst({
-    where: { account: WESTLINE_ACCOUNT, status: 'finished' },
+    where: { account, status: 'finished' },
     orderBy: { statementEndDate: 'desc' }
   })
 }
 
-async function inProgress() {
+async function inProgress(account: CashbookAccount) {
   return prisma.bankReconciliation.findFirst({
-    where: { account: WESTLINE_ACCOUNT, status: 'in_progress' },
+    where: { account, status: 'in_progress' },
     include: { lines: true },
     orderBy: { createdAt: 'desc' }
   })
 }
 
-async function lockedIds(): Promise<Set<string>> {
+async function lockedIds(account: CashbookAccount): Promise<Set<string>> {
   const rows = await prisma.bankReconciliationLine.findMany({
     where: {
       cleared: true,
-      reconciliation: { account: WESTLINE_ACCOUNT, status: 'finished' }
+      reconciliation: { account, status: 'finished' }
     },
     select: { cashbookEntryId: true }
   })
   return new Set(rows.map((row) => row.cashbookEntryId))
 }
 
-async function toSources(entries: EntryRow[]): Promise<RegisterSource[]> {
-  const ids = [...new Set(entries.map((entry) => entry.vendorPaymentBatchId).filter((id): id is string => Boolean(id)))]
-  const batches =
-    ids.length === 0
-      ? []
-      : await prisma.vendorPaymentBatch.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, paymentMethod: true, clearedAt: true, clearedBalanceAccount: true }
-        })
-  const byId = new Map(batches.map((batch) => [batch.id, batch]))
+function toSources(entries: EntryRow[]): RegisterSource[] {
   return entries.map((entry) => ({
     id: entry.id,
     date: entry.date,
@@ -107,22 +100,22 @@ async function toSources(entries: EntryRow[]): Promise<RegisterSource[]> {
     debitCheck: entry.debitCheck,
     debitEcard: entry.debitEcard,
     debitDcard: entry.debitDcard,
-    vendor: entry.vendorPaymentBatchId ? (byId.get(entry.vendorPaymentBatchId) ?? null) : null
+    account: entry.account
   }))
 }
 
-async function linesFor(statementEndDate: string, clearedIds: ReadonlySet<string>) {
+async function linesFor(statementEndDate: string, clearedIds: ReadonlySet<string>, account: CashbookAccount) {
   const [entries, locked] = await Promise.all([
     prisma.cashbookEntry.findMany({
-      where: { date: { lte: statementEndDate } },
+      where: { date: { lte: statementEndDate }, account },
       select: entrySelect,
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }]
     }),
-    lockedIds()
+    lockedIds(account)
   ])
-  const sources = await toSources(entries)
   return listRegisterLines({
-    entries: sources,
+    entries: toSources(entries),
+    account,
     statementEndDate,
     lockedIds: locked,
     clearedIds
@@ -141,7 +134,8 @@ async function viewFor(
     openingBalance: number
     lines: Array<{ cashbookEntryId: string; cleared: boolean }>
   } | null,
-  last: { statementEndDate: string; statementEndBalance: number } | null
+  last: { statementEndDate: string; statementEndBalance: number } | null,
+  account: CashbookAccount
 ): Promise<ReconcileView> {
   const shell = {
     openingBalance: last ? roundMoney(last.statementEndBalance) : null,
@@ -149,7 +143,7 @@ async function viewFor(
     lastStatementEndDate: last?.statementEndDate ?? null
   }
   if (!session) return { session: null, ...shell }
-  const lines = await linesFor(session.statementEndDate, clearedIdSet(session.lines))
+  const lines = await linesFor(session.statementEndDate, clearedIdSet(session.lines), account)
   const balances = reconcileBalances({
     openingBalance: session.openingBalance,
     statementEndBalance: session.statementEndBalance,
@@ -168,21 +162,34 @@ async function viewFor(
   }
 }
 
-export async function loadReconcileView(): Promise<ReconcileView> {
-  const [current, last] = await Promise.all([inProgress(), lastFinished()])
-  return viewFor(current, last)
+export async function loadReconcileView(
+  account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT
+): Promise<ReconcileView> {
+  const [current, last] = await Promise.all([inProgress(account), lastFinished(account)])
+  return viewFor(current, last, account)
 }
 
-export async function startReconciliation(input: {
-  statementEndDate: unknown
-  statementEndBalance: unknown
-  openingBalance?: unknown
-}) {
+/** Reads the account from a request value. A missing value means Westline. */
+export function reconcileAccountFrom(value: unknown): CashbookAccount {
+  if (value == null || value === '') return DEFAULT_CASHBOOK_ACCOUNT
+  const parsed = parseCashbookAccount(value)
+  if (!parsed) throw new ReconcileInputError('Choose Westline or Service Station')
+  return parsed
+}
+
+export async function startReconciliation(
+  input: {
+    statementEndDate: unknown
+    statementEndBalance: unknown
+    openingBalance?: unknown
+  },
+  account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT
+) {
   const statementEndDate = typeof input.statementEndDate === 'string' ? input.statementEndDate.trim() : ''
   if (!isYmdDate(statementEndDate)) throw new ReconcileInputError('Statement end date is required')
   const statementEndBalance = parseMoney(input.statementEndBalance, 'Statement end balance')
-  if (await inProgress()) throw new ReconcileInputError('A reconciliation is already in progress')
-  const last = await lastFinished()
+  if (await inProgress(account)) throw new ReconcileInputError('A reconciliation is already in progress')
+  const last = await lastFinished(account)
   if (last && statementEndDate <= last.statementEndDate) {
     throw new ReconcileInputError('Statement end date must be after the last finished statement')
   }
@@ -191,24 +198,27 @@ export async function startReconciliation(input: {
     : parseMoney(input.openingBalance, 'Opening book balance')
   await prisma.bankReconciliation.create({
     data: {
-      account: WESTLINE_ACCOUNT,
+      account,
       statementEndDate,
       statementEndBalance,
       openingBalance,
       status: 'in_progress'
     }
   })
-  return loadReconcileView()
+  return loadReconcileView(account)
 }
 
-export async function updateReconciliation(input: {
-  statementEndDate?: unknown
-  statementEndBalance?: unknown
-  openingBalance?: unknown
-}) {
-  const current = await inProgress()
+export async function updateReconciliation(
+  input: {
+    statementEndDate?: unknown
+    statementEndBalance?: unknown
+    openingBalance?: unknown
+  },
+  account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT
+) {
+  const current = await inProgress(account)
   if (!current) throw new ReconcileInputError('Start a reconciliation first')
-  const last = await lastFinished()
+  const last = await lastFinished(account)
   const data: { statementEndDate?: string; statementEndBalance?: number; openingBalance?: number } = {}
   if (input.statementEndDate !== undefined) {
     const statementEndDate = typeof input.statementEndDate === 'string' ? input.statementEndDate.trim() : ''
@@ -241,21 +251,25 @@ export async function updateReconciliation(input: {
       })
     }
   }
-  return loadReconcileView()
+  return loadReconcileView(account)
 }
 
-export async function setLineCleared(cashbookEntryId: unknown, cleared: unknown) {
-  const current = await inProgress()
+export async function setLineCleared(
+  cashbookEntryId: unknown,
+  cleared: unknown,
+  account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT
+) {
+  const current = await inProgress(account)
   if (!current) throw new ReconcileInputError('Start a reconciliation first')
   if (typeof cashbookEntryId !== 'string' || !cashbookEntryId) throw new ReconcileInputError('Choose a line')
   if (typeof cleared !== 'boolean') throw new ReconcileInputError('Cleared must be true or false')
   const entry = await prisma.cashbookEntry.findUnique({ where: { id: cashbookEntryId }, select: entrySelect })
   if (!entry) throw new ReconcileInputError('That line is not on this statement')
-  const sources = await toSources([entry])
   const visible = listRegisterLines({
-    entries: sources,
+    entries: toSources([entry]),
+    account,
     statementEndDate: current.statementEndDate,
-    lockedIds: await lockedIds(),
+    lockedIds: await lockedIds(account),
     clearedIds: new Set([entry.id])
   })
   if (visible.length !== 1) throw new ReconcileInputError('That line is not on this statement')
@@ -275,7 +289,7 @@ export async function setLineCleared(cashbookEntryId: unknown, cleared: unknown)
       where: { reconciliationId: current.id, cashbookEntryId: entry.id }
     })
   }
-  return loadReconcileView()
+  return loadReconcileView(account)
 }
 
 async function markDepositCleared(shiftId: string, recordKind: 'deposit' | 'debit', lineIndex: number) {
@@ -293,11 +307,11 @@ async function markDepositCleared(shiftId: string, recordKind: 'deposit' | 'debi
   })
 }
 
-export async function finishReconciliation() {
-  const current = await inProgress()
+export async function finishReconciliation(account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT) {
+  const current = await inProgress(account)
   if (!current) throw new ReconcileInputError('Start a reconciliation first')
-  const last = await lastFinished()
-  const view = await viewFor(current, last)
+  const last = await lastFinished(account)
+  const view = await viewFor(current, last, account)
   if (!view.session?.balanced) throw new ReconcileInputError('The difference must be zero before you finish')
 
   const visibleIds = new Set(view.session.lines.map((line) => line.cashbookEntryId))
@@ -317,7 +331,7 @@ export async function finishReconciliation() {
           select: entrySelect
         })
   const clearedAt = ymdToUtcNoonDate(current.statementEndDate)
-  const locked = await lockedIds()
+  const locked = await lockedIds(account)
   const tickedSet = new Set(tickedIds)
 
   for (const entry of ticked) {
@@ -326,9 +340,19 @@ export async function finishReconciliation() {
     }
     if (entry.debitCheck > 0 && !entry.clearedAt) {
       if (entry.vendorPaymentBatchId) {
-        await prisma.cashbookEntry.update({ where: { id: entry.id }, data: { clearedAt } })
+        // The statement shows this check cashed, so clear the vendor check too. That
+        // takes the money off this account's operating balance.
+        const batch = await prisma.vendorPaymentBatch.findUnique({
+          where: { id: entry.vendorPaymentBatchId },
+          select: { clearedAt: true, paymentMethod: true }
+        })
+        if (batch && batch.paymentMethod === 'check' && !batch.clearedAt) {
+          await clearUncashedCheck(uncashedCheckId('vendor', entry.vendorPaymentBatchId), clearedAt, account)
+        } else {
+          await prisma.cashbookEntry.update({ where: { id: entry.id }, data: { clearedAt } })
+        }
       } else {
-        await clearUncashedCheck(uncashedCheckId('cashbook', entry.id), clearedAt)
+        await clearUncashedCheck(uncashedCheckId('cashbook', entry.id), clearedAt, account)
       }
     }
   }
@@ -362,7 +386,7 @@ export async function finishReconciliation() {
     where: { id: current.id },
     data: { status: 'finished', finishedAt: new Date() }
   })
-  return loadReconcileView()
+  return loadReconcileView(account)
 }
 
 async function getOrCreateIncomeCategory(name: string) {
@@ -377,21 +401,24 @@ async function getOrCreateIncomeCategory(name: string) {
   return category
 }
 
-export async function addStatementLine(input: {
-  kind: unknown
-  date: unknown
-  description: unknown
-  amount: unknown
-  ref?: unknown
-}) {
-  const current = await inProgress()
+export async function addStatementLine(
+  input: {
+    kind: unknown
+    date: unknown
+    description: unknown
+    amount: unknown
+    ref?: unknown
+  },
+  account: CashbookAccount = DEFAULT_CASHBOOK_ACCOUNT
+) {
+  const current = await inProgress(account)
   if (!current) throw new ReconcileInputError('Start a reconciliation first')
   const date = typeof input.date === 'string' ? input.date.trim() : ''
   if (!isYmdDate(date)) throw new ReconcileInputError('Date is required')
   if (date > current.statementEndDate) {
     throw new ReconcileInputError('Date must be on or before the statement end date')
   }
-  const last = await lastFinished()
+  const last = await lastFinished(account)
   if (last && date <= last.statementEndDate) {
     throw new ReconcileInputError('Date must be after the last finished statement')
   }
@@ -411,7 +438,7 @@ export async function addStatementLine(input: {
       paymentMethod: 'direct_debit',
       ref,
       origin: 'reconciliation',
-      account: WESTLINE_ACCOUNT,
+      account,
       accountSource: 'rule'
     })
   } else if (input.kind === 'interest') {
@@ -423,7 +450,7 @@ export async function addStatementLine(input: {
         ref: ref || null,
         creditAmt: amount,
         paymentMethod: 'deposit',
-        account: WESTLINE_ACCOUNT,
+        account,
         accountSource: 'rule',
         allocations: { create: { categoryId: category.id, amount } }
       }
@@ -431,5 +458,5 @@ export async function addStatementLine(input: {
   } else {
     throw new ReconcileInputError('Choose a bank fee or interest')
   }
-  return loadReconcileView()
+  return loadReconcileView(account)
 }
