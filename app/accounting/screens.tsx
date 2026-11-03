@@ -502,6 +502,7 @@ export function BillsScreen() {
   const [billDue, setBillDue] = useState('')
   const [billTab, setBillTab] = useState<'unpaid' | 'paid' | 'batches'>('unpaid')
   const [paidSearch, setPaidSearch] = useState('')
+  const [batchSearch, setBatchSearch] = useState('')
   const [paidKindFilter, setPaidKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [kindFilter, setKindFilter] = useState<'all' | 'fuel' | 'vendor' | 'overhead'>('all')
   const [vendorFilter, setVendorFilter] = useState('')
@@ -552,6 +553,12 @@ export function BillsScreen() {
     if (paidKindFilter !== 'all' && bill.kind !== paidKindFilter) return false
     if (!paidQuery) return true
     return [bill.date, bill.name, bill.ref, bill.account].some((value) => value.toLowerCase().includes(paidQuery))
+  })
+  const batchQuery = batchSearch.trim().toLowerCase()
+  const visibleBatches = books.paidBills.filter((batch) => {
+    if (!batchQuery) return true
+    return [batch.date, batch.name, batch.ref, batch.account, ...batch.invoiceNumbers]
+      .some((value) => value.toLowerCase().includes(batchQuery))
   })
   const paidKindCounts = {
     all: books.paidBills.length,
@@ -1145,7 +1152,22 @@ export function BillsScreen() {
         </>
       ) : (
         <>
-          <p className="mb-2 text-sm text-gray-600">Payment batches recorded in the month selected above. Reverting a batch moves all of its invoices back to unpaid.</p>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">Payment batches recorded in the month selected above. Reverting a batch moves all of its invoices back to unpaid.</p>
+            <div className="w-full sm:w-64">
+              <label className="sr-only" htmlFor="batch-search">
+                Search payment batches
+              </label>
+              <input
+                id="batch-search"
+                type="text"
+                value={batchSearch}
+                onChange={(e) => setBatchSearch(e.target.value)}
+                placeholder="Payee, ref, account, or invoice"
+                className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:min-h-0 sm:py-1.5"
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1156,9 +1178,9 @@ export function BillsScreen() {
                 </tr>
               </thead>
               <tbody>
-                {books.paidBills.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No payment batches to show.</td></tr>
-                ) : books.paidBills.map((batch) => (
+                {visibleBatches.length === 0 ? (
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">{books.paidBills.length === 0 ? 'No payment batches to show.' : 'No payment batches match your search.'}</td></tr>
+                ) : visibleBatches.map((batch) => (
                   <tr key={`${batch.kind}:${batch.id}`} className="border-t border-gray-100">
                     <td className="px-3 py-2">{formatAccountingDate(batch.date)}</td>
                     <td className="px-3 py-2">{batch.name}</td>
