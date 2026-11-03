@@ -307,7 +307,8 @@ export async function clearUncashedCheck(
   }
 
   const amount = roundMoney(entry.debitCheck)
-  await adjustOperatingBalance(prisma, amount, 'westline', 'deduct')
+  // Cashbook checks come off Westline unless a statement review says otherwise.
+  await adjustOperatingBalance(prisma, amount, balanceAccount ?? 'westline', 'deduct')
 
   await prisma.cashbookEntry.update({
     where: { id: entry.id },

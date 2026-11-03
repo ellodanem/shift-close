@@ -114,6 +114,12 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         section: 'Vendors'
       },
       {
+        label: 'Statement Review',
+        href: '/vendor-payments/statement-review',
+        permission: 'financial.vendor',
+        section: 'Vendors'
+      },
+      {
         label: 'Vendor Monthly',
         href: '/vendor-payments/monthly-report',
         permission: 'financial.vendor',
@@ -184,6 +190,12 @@ const ACCOUNTING_NAV_ITEMS: NavItemConfig[] = [
     permission: 'financial.vendor',
     section: 'Payables'
   },
+  {
+    label: 'Statement Review',
+    href: '/vendor-payments/statement-review',
+    permission: 'financial.vendor',
+    section: 'Payables'
+  },
   { label: 'Journal entry', href: '/accounting/journal', permission: 'accounting', section: 'Tasks' },
   { label: 'Reconcile', href: '/accounting/reconcile', permission: 'accounting', section: 'Tasks' },
   { label: 'Receipts', href: '/accounting/receipts', permission: 'accounting', section: 'Tasks' },
@@ -199,6 +211,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/vendor-payments/invoices': 'vendor-payments',
   '/vendor-payments/batches': 'vendor-batches',
   '/vendor-payments/uncashed-checks': 'uncashed-checks',
+  '/vendor-payments/statement-review': 'uncashed-checks',
   '/insights/fuel-expectancy': 'fuel-expectancy',
   '/insights/expected-revenue': 'expected-revenue',
   '/insights/deposit-debit-scans': 'deposit-scans',
@@ -309,6 +322,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       isAccountantPayrollPath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
+      href === '/vendor-payments/statement-review' ||
       href === '/financial/deposit-comparisons' ||
       href.startsWith('/insights/')
     )
@@ -406,6 +420,9 @@ export function isPathActive(pathname: string, href: string): boolean {
   }
   if (href === '/vendor-payments/uncashed-checks') {
     return pathname.startsWith('/vendor-payments/uncashed-checks')
+  }
+  if (href === '/vendor-payments/statement-review') {
+    return pathname.startsWith('/vendor-payments/statement-review')
   }
   if (href === '/vendor-payments') return pathname.startsWith('/vendor-payments')
   if (href === '/reports') return pathname === '/reports'

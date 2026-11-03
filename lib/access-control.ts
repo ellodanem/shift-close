@@ -60,6 +60,8 @@ function isAccountantBillWrite(pathname: string, method: string): boolean {
 function isAccountantCheckManagementPath(pathname: string): boolean {
   return (
     pathname === '/vendor-payments/uncashed-checks' ||
+    pathname === '/vendor-payments/statement-review' ||
+    pathname.startsWith('/api/vendor-payments/statement-review/') ||
     pathname.startsWith('/api/vendor-payments/uncashed-checks') ||
     pathname === '/api/vendor-payments/cleared-checks'
   )
@@ -69,6 +71,7 @@ function isAccountantCheckManagementPath(pathname: string): boolean {
 function isAccountantCheckManagementWrite(pathname: string, method: string): boolean {
   if (method !== 'POST' && method !== 'PATCH') return false
   if (pathname === '/api/vendor-payments/uncashed-checks/manual') return method === 'POST'
+  if (pathname.startsWith('/api/vendor-payments/statement-review/')) return method === 'POST'
   return (
     method === 'PATCH' &&
     /^\/api\/vendor-payments\/uncashed-checks\/[^/]+\/(clear|cleared-at)$/.test(pathname)

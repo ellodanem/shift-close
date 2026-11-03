@@ -447,6 +447,13 @@ export default function CheckManagementPage() {
             </button>
             <button
               type="button"
+              onClick={() => router.push('/vendor-payments/statement-review')}
+              className="min-h-[44px] rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:min-h-0"
+            >
+              Statement Review
+            </button>
+            <button
+              type="button"
               onClick={() => router.push('/vendor-payments/vendors')}
               className="min-h-[44px] rounded bg-gray-600 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:min-h-0"
             >
