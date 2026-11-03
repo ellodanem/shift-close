@@ -63,6 +63,42 @@ describe('parseStatementText', () => {
   })
 })
 
+describe('parseStatementText (Cheque # column, "-" debit marker)', () => {
+  const TEXT = `
+Period: 01/10/2026 to 31/10/2026
+Beginning Balance
+as of 01/10/2026 1,000.00
+Date Cheque # Description Amount Balance
+01/10 POS- SETTLEMENT - 100613 500.00 1,500.00
+01/10 875 Cheque 343.80 - 1,156.20
+01/10 POS- COMMISSION - 100613 20.50 - 1,135.70
+06/10 IB TRANSFER Payment on
+account 100.00 - 1,035.70
+Ending Balance
+as of 31/10/2026 1,035.70
+`
+  const parsed = parseStatementText(TEXT)
+
+  it('takes the amount, not the balance, on rows with a debit marker', () => {
+    assert.deepEqual(
+      parsed.transactions.map((t) => [t.date, t.amount, t.balance, t.direction]),
+      [
+        ['2026-10-01', 500, 1500, 'credit'],
+        ['2026-10-01', 343.8, 1156.2, 'debit'],
+        ['2026-10-01', 20.5, 1135.7, 'debit'],
+        ['2026-10-06', 100, 1035.7, 'debit']
+      ]
+    )
+  })
+
+  it('finds the check and commission', () => {
+    const checks = findStatementChecks(parsed.transactions)
+    assert.equal(checks.length, 1)
+    assert.deepEqual(checks[0].numbers, ['875'])
+    assert.equal(findPosCommissions(parsed.transactions)[0].amount, 20.5)
+  })
+})
+
 describe('findStatementChecks', () => {
   const checks = findStatementChecks(parseStatementText(STATEMENT).transactions)
 

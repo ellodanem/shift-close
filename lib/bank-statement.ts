@@ -127,11 +127,20 @@ function detectPeriod(text: string): { start: string | null; end: string | null 
 }
 
 /** Splits a row into description + trailing amounts. Returns null when it has no amount. */
-function splitAmounts(rest: string): { description: string; money: string[] } | null {
+function splitAmounts(
+  rest: string
+): { description: string; money: string[]; debitMark: boolean } | null {
   const tokens = rest.trim().split(/\s+/)
   const money: string[] = []
+  // Some banks print a lone "-" after the amount to mark a debit: "343.80 - 65,193.43".
+  let debitMark = false
   while (tokens.length > 1 && money.length < 3) {
     const last = tokens[tokens.length - 1]
+    if (last === '-' && tokens.length > 2 && MONEY.test(tokens[tokens.length - 2])) {
+      debitMark = true
+      tokens.pop()
+      continue
+    }
     // "123.45 DR" with a space before the suffix.
     if (/^(DR|CR)$/i.test(last) && tokens.length > 2 && MONEY.test(tokens[tokens.length - 2])) {
       tokens.pop()
@@ -145,10 +154,10 @@ function splitAmounts(rest: string): { description: string; money: string[] } | 
     break
   }
   if (money.length === 0) return null
-  return { description: tokens.join(' ').trim(), money }
+  return { description: tokens.join(' ').trim(), money, debitMark }
 }
 
-const OPENING_BALANCE = /(opening|brought forward|b\/f|previous|balance forward)[^\d\n-]*balance|balance\s*(b\/f|brought forward|forward)/i
+const OPENING_BALANCE = /(opening|beginning|brought forward|b\/f|previous|balance forward)[^\d\n-]*balance|balance\s*(b\/f|brought forward|forward)/i
 
 export function parseStatementText(text: string): ParsedStatement {
   const year = detectYear(text)
@@ -159,7 +168,7 @@ export function parseStatementText(text: string): ParsedStatement {
   /** A dated row whose amounts are printed on a following line. */
   let pending: { date: string; description: string } | null = null
 
-  const push = (date: string, description: string, money: string[]) => {
+  const push = (date: string, description: string, money: string[], debitMark = false) => {
     const amountToken = money.length >= 2 ? money[money.length - 2] : money[0]
     const amountParsed = parseMoneyToken(amountToken)
     if (!amountParsed) {
@@ -175,7 +184,8 @@ export function parseStatementText(text: string): ParsedStatement {
       else if (Math.abs(roundMoney(previousBalance + amount) - balance) <= 0.01) direction = 'credit'
     }
     if (direction === 'unknown') {
-      if (amountParsed.credit) direction = 'credit'
+      if (debitMark) direction = 'debit'
+      else if (amountParsed.credit) direction = 'credit'
       else if (amountParsed.debit || amountParsed.negative) direction = 'debit'
     }
     if (balance != null) previousBalance = balance
@@ -187,9 +197,24 @@ export function parseStatementText(text: string): ParsedStatement {
 
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
 
+  let expectOpening = false
+
   for (const line of lines) {
     const dated = readLeadingDate(line)
     if (!dated) {
+      // "Beginning Balance" with the figure on the next line ("as of 01/10/2026 56,554.01").
+      if (expectOpening) {
+        const opening = splitAmounts(line)
+        if (opening) {
+          previousBalance = lastMoney(opening.money)
+          expectOpening = false
+          continue
+        }
+      }
+      if (/beginning balance/i.test(line) && !splitAmounts(line)) {
+        expectOpening = true
+        continue
+      }
       if (OPENING_BALANCE.test(line)) {
         const split = splitAmounts(line)
         if (split) previousBalance = lastMoney(split.money)
@@ -201,7 +226,7 @@ export function parseStatementText(text: string): ParsedStatement {
       const split = splitAmounts(line)
       if (pending) {
         if (split) {
-          push(pending.date, `${pending.description} ${split.description}`.trim(), split.money)
+          push(pending.date, `${pending.description} ${split.description}`.trim(), split.money, split.debitMark)
           pending = null
         } else {
           pending.description = `${pending.description} ${line}`.trim()
@@ -251,7 +276,7 @@ export function parseStatementText(text: string): ParsedStatement {
       skipped += 1
       continue
     }
-    push(ymd, split.description, split.money)
+    push(ymd, split.description, split.money, split.debitMark)
   }
 
   return { transactions, periodStart: period.start, periodEnd: period.end, skippedLines: skipped }
