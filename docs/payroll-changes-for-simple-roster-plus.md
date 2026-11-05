@@ -2,7 +2,7 @@
 
 **Audience:** an agent that already built payroll from `docs/payroll-st-lucia-for-simple-roster-plus.md` (28 September 2026).  
 **Source:** Shift Close payroll as of 7 October 2026, with the PayMS PAYE and NIS changes of 26 October folded into sections 3 and 4.  
-**Later changes:** see `docs/payroll-changes-nov-2026-for-simple-roster-plus.md` (5 November 2026). It changes who is on a run (§1), salaried sick pay (§11), the PAYE report (§6), and NIS on extras (§4), and adds draft payroll checks.  
+**Later changes:** see `docs/payroll-and-roster-changes-nov-2026-for-simple-roster-plus.md` (5 November 2026, Part A). It changes who is on a run (§1), salaried sick pay (§11), the PAYE report (§6), and NIS on extras (§4), and adds draft payroll checks.  
 **Purpose:** compare that September spec with the current rules, then apply the differences. Keep SRP’s own screens. Do not copy Shift Close layout, colors, or the station name printed under the Payroll heading.
 
 Anything not listed here is unchanged. NIC is still 5% of gross, employee and employer, each capped at $250 in the pay date’s calendar month. Approved runs still count toward that cap, year-to-date, and the loan balance. Voided runs stay visible and stop counting. There is still one non-void run per attendance extract.
