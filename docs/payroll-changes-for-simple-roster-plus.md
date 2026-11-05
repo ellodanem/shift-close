@@ -1,7 +1,8 @@
 # Payroll changes for Simple Roster Plus
 
 **Audience:** an agent that already built payroll from `docs/payroll-st-lucia-for-simple-roster-plus.md` (28 September 2026).  
-**Source:** Shift Close payroll as of 7 October 2026.  
+**Source:** Shift Close payroll as of 7 October 2026, with the PayMS PAYE and NIS changes of 26 October folded into sections 3 and 4.  
+**Later changes:** see `docs/payroll-changes-nov-2026-for-simple-roster-plus.md` (5 November 2026). It changes who is on a run (§1), salaried sick pay (§11), the PAYE report (§6), and NIS on extras (§4), and adds draft payroll checks.  
 **Purpose:** compare that September spec with the current rules, then apply the differences. Keep SRP’s own screens. Do not copy Shift Close layout, colors, or the station name printed under the Payroll heading.
 
 Anything not listed here is unchanged. NIC is still 5% of gross, employee and employer, each capped at $250 in the pay date’s calendar month. Approved runs still count toward that cap, year-to-date, and the loan balance. Voided runs stay visible and stop counting. There is still one non-void run per attendance extract.
@@ -14,7 +15,7 @@ Money is still rounded to cents at each step (`Math.round(n * 100) / 100`).
 
 **September rule.** One frequency is inferred from the date range. Only people on that frequency are included. Active salaried people are added even with no hours row, except a manager.
 
-**Current rule.** The range can pay more than one frequency. A manager is no longer skipped.
+**Current rule.** The range can pay more than one frequency. A manager is no longer skipped. (Since 13 October the pay cycle number decides first and the range is the fallback. See the November doc.)
 
 | Range | Frequencies paid |
 |---|---|
@@ -35,7 +36,7 @@ Then:
 
 **September rule.** Vacation text from attendance is shown and is not paid.
 
-**Current rule.** Hourly vacation is an earning. Salaried vacation dates do not add pay. Sick is still a note and is not paid.
+**Current rule.** Hourly vacation is an earning. Salaried vacation dates do not add pay. Hourly sick is still a note and is not paid. Salaried sick is handled in the November doc.
 
 Days come from the person’s vacation start and end, counted only where those dates overlap this pay period. A vacation that crosses the 15th is split: the first run pays its days, the second run pays the rest.
 
@@ -138,7 +139,7 @@ Header **P.A.Y.E.** Period start–end, pay date, cycle number, and the month of
 |---|---|---:|---:|---:|---:|
 | `{NIC} - {name}` | tax code | gross | taxable pay | employee NIC | calculated PAYE |
 
-People with zero gross, taxable pay, NIC, and PAYE are omitted. Totals sit under the money columns. A note under the table states the progressive-band and standard-allowance rule.
+People with zero PAYE are omitted, and the button is hidden when no line has PAYE (19 October change). Totals sit under the money columns. A note under the table states the progressive-band and standard-allowance rule.
 
 ---
 
@@ -197,7 +198,7 @@ The attendance pay-period extract no longer calculates a shortage. The field sta
 
 Carry these forward. Do not invent a rule for them:
 
-- Sick days are shown and are not paid.
+- Hourly sick days are shown and are not paid. Salaried sick days now reduce basic pay (13 October, see the November doc).
 - The numeric part of the tax code sets the allowance. Blank or lower codes use the PayMS minimum code 254.
 - Hour and money column layout can still live in the browser. Whether SRP stores it per user or per company is unchanged.
 - GL centre and department stay that site’s own values.
