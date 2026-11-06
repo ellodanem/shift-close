@@ -204,29 +204,29 @@ export function OverviewScreen() {
     : null
 
   return (
-    <div>
+    <div className="min-w-0 pb-4 sm:pb-0">
       <PageTitle title="Accounting overview" note="What would you like to do today?" />
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Link href="/accounting/bills" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+      <nav aria-label="Accounting tasks" className="mb-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Link href="/accounting/bills" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Enter & pay bills
         </Link>
-        <Link href="/accounting/journal" className="rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
+        <Link href="/accounting/journal" className="flex min-h-[44px] items-center justify-center rounded bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white">
           Journal entry
         </Link>
-        <Link href="/accounting/reconcile" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+        <Link href="/accounting/reconcile" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Reconcile
         </Link>
-        <Link href="/payroll" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+        <Link href="/payroll" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Pay runs
         </Link>
-        <Link href="/customer-accounts" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+        <Link href="/customer-accounts" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Customer Accounts
         </Link>
-        <Link href="/accounting/vendors" className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+        <Link href="/accounting/vendors" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Vendors
         </Link>
-      </div>
-      <p className="mb-6 text-sm text-gray-600">
+      </nav>
+      <p className="mb-6 max-w-3xl text-sm leading-6 text-gray-600">
         Deposits and card totals already arrive from closed shifts. House-account charges already arrive from the close. This overview reads those balances.
       </p>
       {accountantBalanceSection}
@@ -255,7 +255,12 @@ export function OverviewScreen() {
         />
       </div>
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Account balances as of {asOfLabel}</h2>
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+      <OverviewMobileDataList
+        headers={['Account', 'Debit', 'Credit']}
+        rows={balanceRows.map((row) => [row.account, row.debit == null ? '\u2014' : money(row.debit), row.credit == null ? '?' : money(row.credit)])}
+        emphasiseRow={(row) => String(row[0]).startsWith('Total ')}
+      />
+      <div className="hidden overflow-x-auto rounded-lg border border-gray-200 bg-white sm:block">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-100 text-left text-xs font-semibold text-gray-600">
             <tr>
@@ -284,17 +289,32 @@ export function OverviewScreen() {
           <p className="mb-2 text-sm text-gray-600">
             Payments received during the selected month and the balance remaining at month-end.
           </p>
-          <DataTable
+          <OverviewMobileDataList
             headers={['Customer', 'Payments this month', 'Closing balance']}
-            align={['left', 'right', 'right']}
             rows={[
               ...receivables.map((customer) => [customer.name, money(customer.payments), money(customer.closing)]),
               ['Total', money(receivableTotals.payments), money(receivableTotals.closing)]
             ]}
+            emphasiseRow={(row) => row[0] === 'Total'}
           />
+          <div className="hidden sm:block">
+            <DataTable
+              headers={['Customer', 'Payments this month', 'Closing balance']}
+              align={['left', 'right', 'right']}
+              rows={[
+                ...receivables.map((customer) => [customer.name, money(customer.payments), money(customer.closing)]),
+                ['Total', money(receivableTotals.payments), money(receivableTotals.closing)]
+              ]}
+            />
+          </div>
         </div>
         <div>
           <h2 className="mb-2 text-lg font-semibold text-gray-900">Bills paid this month</h2>
+          <OverviewMobileDataList
+            headers={['Payee', 'Date', 'Amount', 'Reference']}
+            rows={books.paidBills.map((bill) => [bill.name, journalDateLabel(bill.date) || bill.date, money(bill.amount), bill.ref || '\u2014'])}
+          />
+          <div className="hidden sm:block">
           <DataTable
             headers={['Date', 'Payee', 'Amount']}
             align={['left', 'left', 'right']}
@@ -304,14 +324,21 @@ export function OverviewScreen() {
               money(bill.amount)
             ])}
           />
+          </div>
         </div>
       </div>
       <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Pay runs in this month</h2>
-      <DataTable
+      <OverviewMobileDataList
         headers={['Period', 'Pay date', 'Status', 'Net']}
-        align={['left', 'left', 'left', 'right']}
         rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
       />
+      <div className="hidden sm:block">
+        <DataTable
+          headers={['Period', 'Pay date', 'Status', 'Net']}
+          align={['left', 'left', 'left', 'right']}
+          rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
+        />
+      </div>
     </div>
   )
 }
@@ -330,7 +357,7 @@ function PayableLink({
   link: string
 }) {
   return (
-    <Link href={href} className="rounded-lg border border-gray-200 bg-white p-4 hover:border-indigo-300">
+    <Link href={href} className="rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-indigo-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
       <p className="text-sm font-medium text-gray-500">{title}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{money(amount)}</p>
       <p className="mt-1 text-xs text-gray-500">{note}</p>
@@ -1658,6 +1685,40 @@ export function BalanceSheetScreen() {
           ['Net', '', money(books.monthNet)]
         ]}
       />
+    </div>
+  )
+}
+
+function OverviewMobileDataList({
+  headers,
+  rows,
+  emphasiseRow
+}: {
+  headers: string[]
+  rows: Array<Array<string | number>>
+  emphasiseRow?: (row: Array<string | number>) => boolean
+}) {
+  return (
+    <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white sm:hidden">
+      {rows.length === 0 ? (
+        <p className="px-3 py-6 text-center text-sm text-gray-500">Nothing to show.</p>
+      ) : (
+        rows.map((row, rowIndex) => (
+          <div key={`${row[0]}-${rowIndex}`} className={`p-3 ${emphasiseRow?.(row) ? 'bg-gray-100' : ''}`}>
+            <p className={`break-words text-sm text-gray-900 ${emphasiseRow?.(row) ? 'font-semibold' : 'font-medium'}`}>{row[0] || headers[0]}</p>
+            {row.length > 1 ? (
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                {row.slice(1).map((value, index) => (
+                  <div key={headers[index + 1]}>
+                    <dt className="text-xs font-medium text-gray-500">{headers[index + 1]}</dt>
+                    <dd className="mt-0.5 break-words text-right tabular-nums text-gray-900">{value || '\u2014'}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </div>
+        ))
+      )}
     </div>
   )
 }
