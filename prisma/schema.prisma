@@ -1727,3 +1727,39 @@ model InboxAttachment {
   @@map("inbox_attachments")
 }
 
+
+/// One day's figures read from the Cstore daily report. The report is the whole day only, so it is
+/// compared with the two shifts added together. Read-only snapshot: it never changes shift data.
+model CstoreDayReport {
+  id                String   @id @default(cuid())
+  date              String   @unique // YYYY-MM-DD (the report's day)
+  grocery           Float    @default(0)
+  salesTax          Float    @default(0) @map("sales_tax")
+  regularAmt        Float    @default(0) @map("regular_amt")
+  dieselAmt         Float    @default(0) @map("diesel_amt")
+  /// Cstore "Cust account pay-in": payments received on accounts, counted as sales that day.
+  custAccountPayIn  Float    @default(0) @map("cust_account_pay_in")
+  totalSales        Float    @map("total_sales")
+  /// Cstore "Total deposits" is typed in by the manager, not a POS value.
+  depositsTyped     Float    @default(0) @map("deposits_typed")
+  /// Cstore "Credit card batches" = Fleet.
+  fleetBatch        Float    @default(0) @map("fleet_batch")
+  /// Cstore "Credit card 2 batch" = Credit/Debit (debit plus other credit on the shifts).
+  creditDebitBatch  Float    @default(0) @map("credit_debit_batch")
+  /// Cstore "Cust account sales" = the shifts' In-house.
+  custAccountSales  Float    @default(0) @map("cust_account_sales")
+  totalCollections  Float    @map("total_collections")
+  shortOver         Float    @map("short_over")
+  /// Litres. Cstore labels these "gal" but they are litres.
+  regularLitres     Float    @default(0) @map("regular_litres")
+  dieselLitres      Float    @default(0) @map("diesel_litres")
+  /// { regular: {opening,purchase,closing,stick,os}, diesel: {...} } from the tank report.
+  tankJson          Json?    @map("tank_json")
+  /// agent | manual
+  source            String   @default("manual")
+  pulledAt          DateTime @default(now()) @map("pulled_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("cstore_day_reports")
+}

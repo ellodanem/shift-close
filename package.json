@@ -46,7 +46,8 @@
     "test:cashbook-compare": "tsx --test scripts/test-cashbook-compare.ts",
     "test:bank-statement": "tsx --test scripts/test-bank-statement.ts",
     "test:harvest-checks": "tsx --test scripts/test-harvest-vendor-checks.ts",
-    "test:harvest-vendor-invoices": "tsx --test scripts/test-harvest-vendor-invoices.ts"
+    "test:harvest-vendor-invoices": "tsx --test scripts/test-harvest-vendor-invoices.ts",
+    "test:day-reconcile": "tsx --test scripts/test-day-reconcile.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1143.0",

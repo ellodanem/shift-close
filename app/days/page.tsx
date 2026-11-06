@@ -499,8 +499,11 @@ function DaysPage() {
         </div>
       )}
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day</h1>
+          <Link href="/days/v2" className="ml-auto text-sm font-medium text-blue-700 hover:underline">
+            Try End of Day V2 (Cstore comparison)
+          </Link>
         </div>
         {focusDate ? (
           <div className="mb-4 flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
