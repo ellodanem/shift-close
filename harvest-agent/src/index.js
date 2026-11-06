@@ -866,12 +866,32 @@ async function runLpgInvoicesCycle(reason, options = {}) {
   return result
 }
 
+/**
+ * LPG deliveries land on the last days of a month, often after that month was
+ * synced. Read the month before the sync month first so late invoices are not lost.
+ * Invoices already in Shift Close are skipped by the import.
+ */
+async function runLpgSyncJob(options) {
+  const prevDate = new Date(Date.UTC(options.year, options.month - 2, 1, 12))
+  const prev = { year: prevDate.getUTCFullYear(), month: prevDate.getUTCMonth() + 1 }
+  const prevLabel = `${prev.year}-${String(prev.month).padStart(2, '0')}`
+
+  const earlier = await runLpgInvoicesCycle('sync', { ...options, ...prev })
+  if (!earlier) return earlier
+  if (earlier.cloudflarePending || earlier.loginFailed) return earlier
+
+  const current = await runLpgInvoicesCycle('sync', options)
+  if (!current) return current
+  const message = `${prevLabel}: ${earlier.message || (earlier.ok ? 'ok' : 'failed')} | ${current.message || ''}`.trim()
+  return { ...current, ok: Boolean(earlier.ok && current.ok), message }
+}
+
 async function runSyncJob(taskKey, month) {
   const options = { year: month.year, month: month.month, all: true, owned: true }
   if (taskKey === 'customer_accounts') return runCustomerAccountsCycle('sync', options)
   if (taskKey === 'vendor_invoices') return runVendorInvoicesCycle('sync', options)
   if (taskKey === 'fuel_invoices') return runFuelInvoicesCycle('sync', options)
-  if (taskKey === 'lpg_invoices') return runLpgInvoicesCycle('sync', options)
+  if (taskKey === 'lpg_invoices') return runLpgSyncJob(options)
   return { ok: false, message: `Unknown sync step ${taskKey}` }
 }
 
