@@ -137,7 +137,7 @@ export function FuelMakePaymentModal({
       return
     }
 
-    setTransferDescription(`Total Auto ${selectedInvoices.map((inv) => inv.invoiceNumber).join(' ')}`)
+    setTransferDescription(`Westline ${selectedInvoices.map((inv) => inv.invoiceNumber).join(' ')}`)
   }, [invoices, selectedInvoiceIds])
 
   useEffect(() => {
@@ -525,7 +525,7 @@ export function FuelMakePaymentModal({
                   type="text"
                   value={transferDescription}
                   onChange={(e) => setTransferDescription(e.target.value)}
-                  placeholder="e.g., Total Auto INV001 INV002"
+                  placeholder="e.g., Westline INV001 INV002"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button

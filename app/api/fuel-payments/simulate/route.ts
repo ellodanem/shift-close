@@ -47,12 +47,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate transfer description: "Total Auto <invoice numbers>"
+    // Generate transfer description: "Westline <invoice numbers>"
     const invoiceNumbers = invoices
       .sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber))
       .map(inv => inv.invoiceNumber)
       .join(' ')
-    const transferDescription = `Total Auto ${invoiceNumbers}`
+    const transferDescription = `Westline ${invoiceNumbers}`
 
     // Create simulation (DO NOT change invoice status - simulation is read-only)
     const simulation = await prisma.paymentSimulation.create({
