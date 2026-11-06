@@ -1,4 +1,4 @@
-﻿-- Cstore daily report snapshot, one row per day. Read-only comparison data for End of Day V2.
+-- Cstore daily report snapshot, one row per day. Read-only comparison data for End of Day V2.
 CREATE TABLE IF NOT EXISTS "cstore_day_reports" (
   "id" TEXT NOT NULL,
   "date" TEXT NOT NULL,
