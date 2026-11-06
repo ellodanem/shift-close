@@ -16,6 +16,7 @@ import { formatAmount } from '@/lib/fuelPayments'
 import { canUseAccountingModule, isAccountantRole } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
+import DailyChargesPanel from './DailyChargesPanel'
 import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
 
 interface CustomerArSummary {
@@ -957,6 +958,11 @@ export default function CustomerAccountsPage() {
             </div>
           </div>
         )}
+
+        <DailyChargesPanel
+          monthKey={workingMonth}
+          onOpenLedger={(account) => setSelectedLedgerAccount(account)}
+        />
 
         {/* Account Breakdown — primary */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
