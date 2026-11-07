@@ -111,6 +111,7 @@
         <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
         <button type="button" class="btn btn-outline" id="btnFuelInvoices">Run fuel invoices</button>
         <button type="button" class="btn btn-outline" id="btnLpgInvoices">Run LPG invoices</button>
+        <button type="button" class="btn btn-outline" id="btnDayReports">Run Cstore day reports</button>
       </div>
       <div class="grid2" style="margin-top:14px">
         <div class="field">
@@ -120,6 +121,10 @@
         <div class="field">
           <label for="vendorName">Vendor (blank = all)</label>
           <input id="vendorName" placeholder="Acado" />
+        </div>
+        <div class="field">
+          <label for="dayKey">Cstore day report date (YYYY-MM-DD, blank = last 7 days)</label>
+          <input id="dayKey" placeholder="2026-11-04" />
         </div>
       </div>
     </div>
@@ -529,6 +534,7 @@
       $('btnVendorInvoices').disabled = disabled
       $('btnFuelInvoices').disabled = disabled
       $('btnLpgInvoices').disabled = disabled
+      $('btnDayReports').disabled = disabled
       $('btnResume').disabled = !s.paused
     }
 
@@ -736,6 +742,19 @@
           body: JSON.stringify(month ? { month } : {})
         })
         toast('LPG invoices job started (Rubis West Indies)')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    $('btnDayReports').onclick = async () => {
+      try {
+        const date = $('dayKey').value.trim()
+        await api('/api/run-cstore-day-reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(date ? { date } : {})
+        })
+        toast(date ? `Cstore day report job started (${date})` : 'Cstore day reports job started (last 7 days)')
         await refresh()
       } catch (e) { toast(e.message, false) }
     }

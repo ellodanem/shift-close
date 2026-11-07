@@ -316,6 +316,26 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
     res.json({ ok: true, started: true })
   })
 
+  app.post('/api/run-cstore-day-reports', async (req, res) => {
+    if (!actions.runCstoreDayReports) {
+      return res.status(501).json({ ok: false, error: 'Not available' })
+    }
+    if (isPaused()) {
+      return res.status(423).json({ ok: false, error: getPauseInfo()?.message || 'Agent is paused' })
+    }
+    const date = typeof req.body?.date === 'string' ? req.body.date.trim() : ''
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: 'Date must be YYYY-MM-DD' })
+    }
+    activityLog.add(date ? `Manual Cstore day report triggered (${date})` : 'Manual Cstore day reports triggered (last 7 days)')
+    actions
+      .runCstoreDayReports('manual-dashboard', date ? { dates: [date] } : {})
+      .catch((err) => {
+        activityLog.add(`Cstore day reports error: ${err.message}`)
+      })
+    res.json({ ok: true, started: true })
+  })
+
   return app
 }
 

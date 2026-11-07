@@ -990,6 +990,7 @@ function startDashboard(config) {
     runVendorInvoices: runVendorInvoicesCycle,
     runFuelInvoices: runFuelInvoicesCycle,
     runLpgInvoices: runLpgInvoicesCycle,
+    runCstoreDayReports: runCstoreDayReportsCycle,
     onResume: () => {
       pauseNotified = false
       if (status) {
