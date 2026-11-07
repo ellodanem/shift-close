@@ -201,6 +201,31 @@ describe('reconcileDay: no Cstore report yet', () => {
   })
 })
 
+describe('reconcileDay: Cstore saved before deposits were typed', () => {
+  const half: CstoreSnapshot = {
+    ...nov4Cstore,
+    depositsTyped: 0,
+    totalCollections: 4577.08,
+    shortOver: -52260.49,
+    pulledAt: '2026-11-07T11:00:00.000Z'
+  }
+  const r = reconcileDay(nov4Shifts, half)
+
+  it('waits for deposits instead of showing a false short', () => {
+    assert.equal(r.verdict, 'waiting')
+    assert.equal(r.verdictText, 'Waiting for deposits')
+    assert.equal(r.awaitingDeposits, true)
+    assert.equal(r.hasCstore, false)
+    assert.equal(r.differenceCount, 0)
+    assert.equal(r.overShort.cstore, null)
+    assert.equal(r.pulledAt, half.pulledAt)
+  })
+
+  it('is not flagged when Cstore is simply absent', () => {
+    assert.equal(reconcileDay(nov4Shifts, null).awaitingDeposits, false)
+  })
+})
+
 describe('reconcileDay: everything agrees', () => {
   it('reports reconciled', () => {
     const shifts = [

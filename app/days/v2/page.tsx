@@ -195,7 +195,11 @@ function DayStatement({ day }: { day: DayReportV2 }) {
           </p>
         ))}
         {!r.hasCstore ? (
-          <p className="text-gray-600">Sales and the comparison fill in once the Cstore daily report is in.</p>
+          <p className="text-gray-600">
+            {r.awaitingDeposits
+              ? 'The Cstore daily report is saved, but the bank deposits are not entered there yet. The comparison appears once they are.'
+              : 'Sales and the comparison fill in once the Cstore daily report is in.'}
+          </p>
         ) : null}
         {notes.length === 0 && r.hasCstore ? <p className="text-gray-600">Nothing to flag.</p> : null}
       </div>

@@ -103,6 +103,8 @@ export type DayReconcile = {
   notes: string[]
   /** Short, always-on warnings that need no Cstore data (a shift with no POS figures entered). */
   shiftWarnings: string[]
+  /** Cstore report is saved but the bank deposits are not typed in yet, so no comparison is shown. */
+  awaitingDeposits: boolean
   pulledAt: string | null
 }
 
@@ -141,8 +143,12 @@ export function shiftHasNoPosFigures(s: ReconcileShiftInput): boolean {
 
 export function reconcileDay(
   shifts: ReconcileShiftInput[],
-  cstore: CstoreSnapshot | null
+  cstoreSnapshot: CstoreSnapshot | null
 ): DayReconcile {
+  // A Cstore report saved before the manager typed the bank deposits shows a huge false short.
+  // Treat it as not ready until deposits are in.
+  const awaitingDeposits = !!cstoreSnapshot && cstoreSnapshot.depositsTyped < 0.005
+  const cstore = awaitingDeposits ? null : cstoreSnapshot
   const sum = (pick: (s: ReconcileShiftInput) => number) => round2(shifts.reduce((t, s) => t + pick(s), 0))
   const sc = {
     deposits: sum((s) => s.totalDeposits),
@@ -244,7 +250,7 @@ export function reconcileDay(
   let verdictText: string
   if (!c) {
     verdict = 'waiting'
-    verdictText = 'Waiting for Cstore'
+    verdictText = awaitingDeposits ? 'Waiting for deposits' : 'Waiting for Cstore'
   } else if (differing.length === 0 && overShort.status === 'match') {
     verdict = 'reconciled'
     verdictText = 'Reconciled'
@@ -265,7 +271,8 @@ export function reconcileDay(
     shifts: shiftRows,
     notes,
     shiftWarnings,
-    pulledAt: c?.pulledAt ?? null
+    awaitingDeposits,
+    pulledAt: cstoreSnapshot?.pulledAt ?? null
   }
 }
 

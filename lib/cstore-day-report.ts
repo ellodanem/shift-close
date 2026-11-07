@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { isYmd } from '@/lib/datetime-policy'
+import { parseCstoreDailyReportHtml } from '@/lib/parse-cstore-daily-report'
 import type { CstoreSnapshot, TankFigures } from '@/lib/day-reconcile'
 
 type DbRow = {
@@ -145,6 +146,36 @@ export function parseCstoreImport(body: unknown): { value: CstoreImportInput } |
       source: b.source === 'agent' ? 'agent' : 'manual'
     }
   }
+}
+
+export type HtmlImportResult =
+  | { ok: true; value: CstoreImportInput; complete: boolean }
+  | { ok: false; code: string; message: string }
+
+/**
+ * Turn the printable Daily Report HTML the agent captured into an import. A page that is not a report,
+ * is for a different day, or has no sales yet (nothing saved in Cstore for that date) is "not_ready".
+ */
+export function parseCstoreHtmlImport(date: string, html: string): HtmlImportResult {
+  if (!isYmd(date)) return { ok: false, code: 'bad_request', message: 'date must be YYYY-MM-DD' }
+  const parsed = parseCstoreDailyReportHtml(html)
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      code: parsed.code === 'not_a_report' ? 'not_ready' : parsed.code,
+      message: parsed.message
+    }
+  }
+  const r = parsed.report
+  if (r.date && r.date !== date) {
+    return { ok: false, code: 'not_ready', message: `Cstore page is for ${r.date}, not ${date}` }
+  }
+  if (r.totalSales <= 0) {
+    return { ok: false, code: 'not_ready', message: 'Cstore has no saved report for this date yet' }
+  }
+  const checked = parseCstoreImport({ ...r, date, source: 'agent' })
+  if ('error' in checked) return { ok: false, code: 'bad_request', message: checked.error }
+  return { ok: true, value: checked.value, complete: checked.value.depositsTyped > 0 }
 }
 
 export async function saveCstoreSnapshot(input: CstoreImportInput) {

@@ -5,6 +5,7 @@
  *            node src/index.js --once --task=vendor_invoices --month=2026-08 --vendor=Acado
  *            node src/index.js --once --task=fuel_invoices --month=2026-09
  *            node src/index.js --once --task=lpg_invoices --month=2026-08
+ *            node src/index.js --once --task=cstore_day_reports [--date=2026-11-06]
  */
 
 require('dotenv').config()
@@ -14,7 +15,8 @@ const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
-const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
+const { runCstoreDayReports } = require('./cstoreDayReport')
+const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, sendCstoreDayReportImport, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
 const { executeSyncRun } = require('./syncRunner')
 const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
@@ -207,6 +209,64 @@ async function runKeepaliveCycle(reason) {
   }
 
   await recordJob(config, 'cstore_keepalive', startedAt, result, { reason })
+  running = false
+  if (status) status.jobRunning = false
+  return result
+}
+
+/**
+ * Read the Cstore printable Daily Report for the last few days (read-only) and send each page's HTML
+ * to Shift Close for End of Day V2. Days the manager has not saved yet are skipped quietly.
+ */
+async function runCstoreDayReportsCycle(reason, options = {}) {
+  if (chromeBusy(options)) {
+    console.log(`[Harvest] Skip ${reason} — a job is already running`)
+    return
+  }
+  if (isPaused()) {
+    const info = getPauseInfo()
+    console.log(`[Harvest] Skip ${reason} — paused (${info?.reason || 'paused'})`)
+    if (activityLog) activityLog.add(`Skipped Cstore day reports (${info?.message || 'paused'})`)
+    return
+  }
+
+  running = true
+  if (status) status.jobRunning = true
+  const config = loadConfig()
+  const startedAt = new Date()
+  console.log(`[Harvest] Starting cstore_day_reports (${reason})`)
+  if (activityLog) activityLog.add(`Cstore day reports started (${reason})`)
+
+  async function onDay({ date, html }) {
+    try {
+      const res = await sendCstoreDayReportImport(config, { date, html })
+      if (res.saved) {
+        return {
+          ok: true,
+          saved: true,
+          complete: Boolean(res.complete),
+          message: res.complete ? 'saved' : 'saved, waiting for deposits'
+        }
+      }
+      return { ok: true, saved: false, message: res.message || 'not saved in Cstore yet' }
+    } catch (err) {
+      return { ok: false, saved: false, message: err.message || String(err) }
+    }
+  }
+
+  let result
+  try {
+    result = await runCstoreDayReports(config, {
+      ...(options.dates ? { dates: options.dates } : {}),
+      onDay,
+      hooks: createLoginHooks(config)
+    })
+  } catch (err) {
+    result = { ok: false, loginRequired: false, message: err.message || String(err) }
+  }
+
+  const days = Array.isArray(result.days) ? result.days : []
+  await recordJob(config, 'cstore_day_reports', startedAt, { ...result, days: undefined }, { reason, days })
   running = false
   if (status) status.jobRunning = false
   return result
@@ -1000,7 +1060,15 @@ function start() {
   stopSlotWatcher = startSlotWatcher({
     timeZone: config.timeZone,
     getSlotHours: () => loadConfig().slotHours,
-    onSlot: (key) => runKeepaliveCycle(`slot:${key}`)
+    onSlot: async (key) => {
+      const keep = await runKeepaliveCycle(`slot:${key}`)
+      // Right after a good keep-alive the session is fresh: pick up the Cstore daily reports too.
+      if (keep && keep.ok) {
+        await runCstoreDayReportsCycle(`slot:${key}`).catch((err) => {
+          console.error('[Harvest] Cstore day reports error:', err)
+        })
+      }
+    }
   })
 
   stopCustomerMonthly = startJobScheduleWatcher({
@@ -1161,6 +1229,14 @@ async function runCliOnce() {
     return
   }
 
+  if (taskName === 'cstore_day_reports') {
+    const dateArg = process.argv.find((a) => a.startsWith('--date='))
+    const dates = dateArg ? [dateArg.slice('--date='.length).trim()] : undefined
+    const result = await runCstoreDayReportsCycle('once', { dates })
+    process.exit(result?.ok ? 0 : 1)
+    return
+  }
+
   const keepResult = await runKeepaliveCycle('once')
   process.exit(keepResult?.ok ? 0 : 1)
 }
@@ -1183,6 +1259,7 @@ module.exports = {
   stop,
   runKeepaliveCycle,
   runCstoreSignInCycle,
+  runCstoreDayReportsCycle,
   runCustomerAccountsCycle,
   runVendorInvoicesCycle,
   runFuelInvoicesCycle,
