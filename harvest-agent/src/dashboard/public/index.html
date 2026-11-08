@@ -136,7 +136,7 @@
       <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Cstore keep-alive (daily)</h3>
       <div class="field">
         <label for="slotHoursText">Hours (comma-separated, 0–23)</label>
-        <input id="slotHoursText" placeholder="7, 19" />
+        <input id="slotHoursText" placeholder="0, 7, 19" />
       </div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:8px;font-weight:500">
@@ -456,7 +456,7 @@
       $('agentKey').value = cfg.agentKey || ''
       $('vercelUrl').value = cfg.vercelUrl || ''
       $('cstoreUrl').value = cfg.cstoreUrl || ''
-      $('slotHoursText').value = Array.isArray(cfg.slotHours) ? cfg.slotHours.join(', ') : '7, 19'
+      $('slotHoursText').value = Array.isArray(cfg.slotHours) ? cfg.slotHours.join(', ') : '0, 7, 19'
       $('runOnStart').checked = cfg.runOnStart !== false
       $('scheduleHint').textContent =
         `Times use ${cfg.timeZone || 'America/St_Lucia'}. Keep-alive is daily at each listed hour. Jobs support daily, weekly (e.g. Tue 16:00), or monthly.`

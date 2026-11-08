@@ -23,7 +23,8 @@ const DEFAULTS = {
   headed: true,
   browserChannel: 'chrome',
   runOnStart: true,
-  slotHours: [7, 19],
+  // Midnight picks up days saved after close, 7am the morning completion (deposits, stick), 7pm the rest.
+  slotHours: [0, 7, 19],
   timeZone: 'America/St_Lucia',
   loginWaitMs: 10 * 60 * 1000,
   /** Max wait for unchecked Cloudflare Turnstile before pausing (headed). */
