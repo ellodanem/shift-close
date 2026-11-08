@@ -40,6 +40,7 @@ const tank = [
   tr('Sold', '9,258.9', '0.0', '0.0', '4,977.7'),
   tr('Closing', '3,321.1', '0.0', '0.0', '2,177.3'),
   tr('Stinches', '0.0', '0.0', '0.0', '0.0'),
+  tr('St.Gal', '3,315.4', '0.0', '0.0', '2,160.5'),
   tr('O/S', '-5.7', '0.0', '0.0', '-16.8')
 ].join('')
 
@@ -85,6 +86,10 @@ describe('parseCstoreDailyReportHtml', () => {
       assert.equal(d.tank.regular.closing, 3321.1)
       assert.equal(d.tank.regular.os, -5.7)
       assert.equal(d.tank.diesel.os, -16.8)
+      // Stick is the St.Gal litres row, not the inches row, and O/S is stick minus closing.
+      assert.equal(d.tank.regular.stick, 3315.4)
+      assert.equal(d.tank.diesel.stick, 2160.5)
+      assert.equal(Math.round((3315.4 - 3321.1) * 10) / 10, d.tank.regular.os)
     })
   }
 

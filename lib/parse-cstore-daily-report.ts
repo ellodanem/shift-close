@@ -33,6 +33,7 @@ type TankGrade = {
   opening: number | null
   purchase: number | null
   closing: number | null
+  /** Physical stick reading in litres (the "St.Gal" row). Not the inches row. */
   stick: number | null
   os: number | null
 }
@@ -209,8 +210,10 @@ const TANK_ROWS: Record<string, keyof TankGrade> = {
   opening: 'opening',
   purchase: 'purchase',
   closing: 'closing',
-  stinches: 'stick',
-  stick: 'stick',
+  // "Stinches" is the stick height in inches and is ignored. "St.Gal" is the physical stick reading in
+  // litres, and O/S is St.Gal minus Closing. The next day's Opening equals this day's St.Gal.
+  'st.gal': 'stick',
+  'st gal': 'stick',
   'o s': 'os'
 }
 
