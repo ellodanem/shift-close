@@ -149,6 +149,11 @@ const LABELS: Record<string, string> = { ...SALES_LABELS, ...COLLECTION_LABELS }
  * For each known label in a row, the amount is the last number between that label and the next
  * text cell (the Count column may be blank or hold a count, Amount comes after it).
  */
+/** Cells that carry no value: blanks, a lone currency symbol or a dash in the Count column. */
+function isFiller(text: string): boolean {
+  return /^[\s$\-–—]*$/.test(text)
+}
+
 function readLabelledAmounts(rows: string[][]): Map<string, number> {
   const out = new Map<string, number>()
   for (const cells of rows) {
@@ -158,7 +163,7 @@ function readLabelledAmounts(rows: string[][]): Map<string, number> {
       let value: number | null = null
       for (let j = i + 1; j < cells.length; j++) {
         const cell = cells[j]
-        if (cell === '') continue
+        if (isFiller(cell)) continue
         if (!isNumeric(cell)) break
         value = parseMoneyCell(cell)
       }
@@ -166,6 +171,38 @@ function readLabelledAmounts(rows: string[][]): Map<string, number> {
     }
   }
   return out
+}
+
+const MONEY_TOKEN = /(?:\(\s*\$?\s*[\d,]+(?:\.\d+)?\s*\)|-?\s*\$\s*-?\s*[\d,]+(?:\.\d+)?)/
+
+function labelPattern(label: string): RegExp {
+  const body = label
+    .split(/[\s-]+/)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('[\\s-]*')
+  return new RegExp(`${body}\\s*:?`, 'i')
+}
+
+/**
+ * Fallback for labels the row reader missed (a layout with the "$" or the amount in an unexpected
+ * cell): read the page as one stream of text and take the first "$" amount after the label, as long as
+ * no other words sit between them (the Count column is digits only).
+ */
+function fillFromTextStream(html: string, out: Map<string, number>): void {
+  const text = cleanText(html)
+  for (const label of Object.keys(LABELS)) {
+    const key = LABELS[label]
+    if (out.has(key)) continue
+    const m = labelPattern(label).exec(text)
+    if (!m) continue
+    const after = text.slice(m.index + m[0].length)
+    const token = MONEY_TOKEN.exec(after)
+    if (!token) continue
+    const gap = after.slice(0, token.index)
+    if (/[A-Za-z]/.test(gap)) continue
+    const value = parseMoneyCell(token[0])
+    if (value !== null) out.set(key, value)
+  }
 }
 
 const TANK_ROWS: Record<string, keyof TankGrade> = {
@@ -235,6 +272,7 @@ export function parseCstoreDailyReportHtml(html: string): CstoreParseResult {
   }
   const rows = htmlRows(html)
   const amounts = readLabelledAmounts(rows)
+  fillFromTextStream(html, amounts)
   const missing = REQUIRED.filter(([key]) => !amounts.has(key)).map(([, label]) => label)
   if (missing.length > 0) {
     return {
@@ -246,6 +284,25 @@ export function parseCstoreDailyReportHtml(html: string): CstoreParseResult {
   }
 
   const get = (key: string) => amounts.get(key) ?? 0
+
+  // The totals were read, so their parts should be too. If every part is zero while the total is not,
+  // the page layout was not understood: refuse it rather than save zeros as if they were real.
+  const salesParts = get('grocery') + get('regularAmt') + get('plusAmt') + get('superAmt') + get('dieselAmt')
+  const collectionParts = get('depositsTyped') + get('fleetBatch') + get('creditDebitBatch') + get('custAccountSales')
+  const unread: string[] = []
+  if (get('totalSales') > 0.005 && salesParts < 0.005) unread.push('sales lines (Grocery, fuel amounts)')
+  if (get('totalCollections') > 0.005 && collectionParts < 0.005) {
+    unread.push('collection lines (Deposits, Fleet, Credit card 2, Customer accounts)')
+  }
+  if (unread.length > 0) {
+    return {
+      ok: false,
+      code: 'missing_labels',
+      message: `Daily Report totals were read but not the ${unread.join(' or ')}`,
+      missing: unread
+    }
+  }
+
   const { grades, sold } = readTank(rows)
   const sum = (...n: Array<number | null>) => n.reduce<number>((t, v) => t + (v ?? 0), 0)
 

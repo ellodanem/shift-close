@@ -99,6 +99,42 @@ describe('parseCstoreDailyReportHtml', () => {
     assert.equal(r.report.regularLitres, 9268.9)
   })
 
+  const readsMainLines = (html: string) => {
+    const r = parseCstoreDailyReportHtml(html)
+    assert.equal(r.ok, true)
+    if (!r.ok) return
+    const d = r.report
+    assert.equal(d.grocery, 2881.22)
+    assert.equal(d.regularAmt, 35090.93)
+    assert.equal(d.dieselAmt, 18865.42)
+    assert.equal(d.fleetBatch, 1925.08)
+    assert.equal(d.custAccountSales, 2652)
+    assert.equal(d.totalSales, 56837.57)
+    assert.equal(d.totalCollections, 4577.08)
+    assert.equal(d.dieselLitres, 4977.7)
+  }
+
+  it('reads amounts when the "$" and a dash Count sit in their own cells', () => {
+    const rows = salesAndCollections
+      .replace(/<td>\$ ([\d,.]+)<\/td>/g, '<td>$</td><td>$1</td>')
+      .replace(/<td><\/td>/g, '<td>-</td>')
+    readsMainLines(page(totalsSeparateRows).replace(salesAndCollections, rows))
+  })
+
+  it('reads amounts that share a cell with their label, or have no table cells at all', () => {
+    const sharedCell = `<table><tr><td>Total Grocery: <span>$ 2,881.22</span></td></tr><tr><td>Regular Amt Sold: $ 35,090.93</td></tr><tr><td>Diesel Amt Sold: $ 18,865.42</td></tr><tr><td>Credit card batches: $ 1,925.08</td></tr><tr><td>Cust account sales: $ 2,652.00</td></tr></table>`
+    readsMainLines(page(totalsSeparateRows).replace(`<table>${salesAndCollections}${totalsSeparateRows}</table>`, sharedCell + `<table>${totalsSeparateRows}</table>`))
+  })
+
+  it('refuses a page whose totals were read but whose lines were not', () => {
+    const unreadable = salesAndCollections.replace(/\$ [\d,]+\.\d{2}/g, 'n/a')
+    const r = parseCstoreDailyReportHtml(page(totalsSeparateRows).replace(salesAndCollections, unreadable))
+    assert.equal(r.ok, false)
+    if (r.ok) return
+    assert.equal(r.code, 'missing_labels')
+    assert.match(r.message, /not the/)
+  })
+
   it('reports what is missing instead of guessing', () => {
     const r = parseCstoreDailyReportHtml('<html><body>Daily Report<table><tr><td>Total Sales</td><td>$1.00</td></tr></table></body></html>')
     assert.equal(r.ok, false)
