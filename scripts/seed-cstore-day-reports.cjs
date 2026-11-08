@@ -64,7 +64,7 @@ const DAYS = [
     custAccountSales: 1507.94,
     totalCollections: 38756.65,
     shortOver: -3796.52,
-    regularLitres: 6587.3,
+    regularLitres: 6567.3,
     dieselLitres: 3637.8,
     tankJson: { regular: { os: 12.3 }, diesel: { os: 24.8 } }
   }

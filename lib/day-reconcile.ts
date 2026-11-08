@@ -62,7 +62,8 @@ export type ReconcileShiftInput = {
   diesel: number
 }
 
-export type LineStatus = 'match' | 'differs' | 'none'
+/** 'pending' = a line the manager types into Cstore that has not been entered there yet. */
+export type LineStatus = 'match' | 'differs' | 'none' | 'pending'
 
 export type ReconcileLine = {
   key: string
@@ -103,7 +104,10 @@ export type DayReconcile = {
   notes: string[]
   /** Short, always-on warnings that need no Cstore data (a shift with no POS figures entered). */
   shiftWarnings: string[]
-  /** Cstore report is saved but the bank deposits are not typed in yet, so no comparison is shown. */
+  /**
+   * Cstore report is saved but the manager has not typed the bank deposits in yet. Lines that come from
+   * the POS (Fleet, Customer accounts, fuel litres) are still compared; typed lines are 'pending'.
+   */
   awaitingDeposits: boolean
   pulledAt: string | null
 }
@@ -136,6 +140,15 @@ function makeLine(
   return { key, label, unit, cstore, shiftClose, diff, status: Math.abs(diff) < tol ? 'match' : 'differs' }
 }
 
+function pendingLine(
+  key: string,
+  label: string,
+  unit: 'usd' | 'litres',
+  shiftClose: number | null
+): ReconcileLine {
+  return { key, label, unit, cstore: null, shiftClose, diff: null, status: 'pending' }
+}
+
 export function shiftHasNoPosFigures(s: ReconcileShiftInput): boolean {
   const posTotal = s.systemCash + s.systemChecks + s.systemFleet + s.systemInhouse + s.countCash + s.countChecks
   return s.totalDeposits > 0 && Math.abs(posTotal) < 0.005
@@ -145,10 +158,11 @@ export function reconcileDay(
   shifts: ReconcileShiftInput[],
   cstoreSnapshot: CstoreSnapshot | null
 ): DayReconcile {
-  // A Cstore report saved before the manager typed the bank deposits shows a huge false short.
-  // Treat it as not ready until deposits are in.
+  // A Cstore report saved before the manager typed the bank deposits has a huge false short, and its
+  // typed lines (Deposits, Credit/Debit, collection total, over/short) are not meaningful yet. The
+  // POS lines (Fleet, Customer accounts, fuel litres) are still good and are compared.
+  const cstore = cstoreSnapshot
   const awaitingDeposits = !!cstoreSnapshot && cstoreSnapshot.depositsTyped < 0.005
-  const cstore = awaitingDeposits ? null : cstoreSnapshot
   const sum = (pick: (s: ReconcileShiftInput) => number) => round2(shifts.reduce((t, s) => t + pick(s), 0))
   const sc = {
     deposits: sum((s) => s.totalDeposits),
@@ -190,16 +204,29 @@ export function reconcileDay(
       ]
     : []
 
+  // While deposits are not typed, Credit/Debit is also treated as not entered when Cstore has none but
+  // the shifts do.
+  const creditDebitPending = awaitingDeposits && !!c && c.creditDebitBatch < 0.005 && sc.creditDebit >= 0.005
+
   const collectedLines: ReconcileLine[] = [
-    makeLine('deposits', 'Deposits', 'usd', c ? c.depositsTyped : null, sc.deposits),
+    awaitingDeposits
+      ? pendingLine('deposits', 'Deposits', 'usd', sc.deposits)
+      : makeLine('deposits', 'Deposits', 'usd', c ? c.depositsTyped : null, sc.deposits),
     makeLine('fleet', 'Fleet', 'usd', c ? c.fleetBatch : null, sc.fleet),
-    makeLine('creditDebit', 'Credit/Debit', 'usd', c ? c.creditDebitBatch : null, sc.creditDebit),
+    creditDebitPending
+      ? pendingLine('creditDebit', 'Credit/Debit', 'usd', sc.creditDebit)
+      : makeLine('creditDebit', 'Credit/Debit', 'usd', c ? c.creditDebitBatch : null, sc.creditDebit),
     makeLine('accounts', 'Customer accounts', 'usd', c ? c.custAccountSales : null, sc.accounts)
   ]
-  const total = makeLine('total', 'Total collected', 'usd', c ? c.totalCollections : null, scTotal)
+  const total = awaitingDeposits
+    ? pendingLine('total', 'Total collected', 'usd', scTotal)
+    : makeLine('total', 'Total collected', 'usd', c ? c.totalCollections : null, scTotal)
 
+  // The Shift Close side of over/short is real even while Cstore's is not (it uses Shift Close deposits).
   const scOverShort = c ? round2(scTotal - c.totalSales) : null
-  const overShort = makeLine('overShort', 'Collected minus sales', 'usd', c ? c.shortOver : null, scOverShort)
+  const overShort = awaitingDeposits
+    ? pendingLine('overShort', 'Collected minus sales', 'usd', scOverShort)
+    : makeLine('overShort', 'Collected minus sales', 'usd', c ? c.shortOver : null, scOverShort)
 
   const compared = [...salesLines.filter((l) => l.status !== 'none'), ...collectedLines]
   const differing = compared.filter((l) => l.status === 'differs')
@@ -208,8 +235,12 @@ export function reconcileDay(
   if (c) {
     const diffLines = collectedLines.filter((l) => l.status === 'differs' && l.diff !== null)
     const litreDiffs = salesLines.filter((l) => l.status === 'differs' && l.diff !== null)
-    if (differing.length === 0 && overShort.status === 'match') {
-      notes.push('Shift Close agrees with Cstore on every line.')
+    if (differing.length === 0 && (awaitingDeposits || overShort.status === 'match')) {
+      notes.push(
+        awaitingDeposits
+          ? 'Everything entered in Cstore so far agrees with Shift Close.'
+          : 'Shift Close agrees with Cstore on every line.'
+      )
     } else {
       if (diffLines.length > 0) {
         const parts = diffLines.map((l) => `${l.label} ${money(l.diff as number, true)}`)
@@ -224,6 +255,10 @@ export function reconcileDay(
         notes.push(`Agrees: ${agree.join(', ')}.`)
       }
     }
+    if (awaitingDeposits) {
+      const pending = collectedLines.filter((l) => l.status === 'pending').map((l) => l.label)
+      notes.push(`${pending.join(' and ')} not entered in Cstore yet. The totals and over/short compare once they are.`)
+    }
     if (
       overShort.diff !== null &&
       Math.abs(overShort.diff) <= OVER_SHORT_LOOK_THRESHOLD &&
@@ -234,11 +269,12 @@ export function reconcileDay(
       )
     }
     const other = round2(c.totalCollections - (c.depositsTyped + c.fleetBatch + c.creditDebitBatch + c.custAccountSales))
-    if (Math.abs(other) >= 0.005) {
+    if (!awaitingDeposits && Math.abs(other) >= 0.005) {
       notes.push(`Cstore has ${money(other)} of other collections that Shift Close does not track.`)
     }
     const t = c.tank
-    if (t && (t.regular?.os != null || t.diesel?.os != null)) {
+    // The tank book is typed along with the deposits, so its O/S is meaningless until then.
+    if (!awaitingDeposits && t && (t.regular?.os != null || t.diesel?.os != null)) {
       const bits: string[] = []
       if (t.regular?.os != null) bits.push(`Regular ${t.regular.os > 0 ? '+' : ''}${t.regular.os.toFixed(1)} L`)
       if (t.diesel?.os != null) bits.push(`Diesel ${t.diesel.os > 0 ? '+' : ''}${t.diesel.os.toFixed(1)} L`)
@@ -250,7 +286,10 @@ export function reconcileDay(
   let verdictText: string
   if (!c) {
     verdict = 'waiting'
-    verdictText = awaitingDeposits ? 'Waiting for deposits' : 'Waiting for Cstore'
+    verdictText = 'Waiting for Cstore'
+  } else if (differing.length === 0 && awaitingDeposits) {
+    verdict = 'waiting'
+    verdictText = 'Waiting for deposits'
   } else if (differing.length === 0 && overShort.status === 'match') {
     verdict = 'reconciled'
     verdictText = 'Reconciled'
@@ -266,6 +305,7 @@ export function reconcileDay(
     verdictText,
     differenceCount: differing.length,
     sales: { lines: salesLines, totalSales: c ? c.totalSales : null },
+    // (Cstore's total sales is a POS figure, so it is shown even while deposits are pending.)
     collected: { lines: collectedLines, total },
     overShort,
     shifts: shiftRows,

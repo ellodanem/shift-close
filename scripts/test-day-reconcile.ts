@@ -108,7 +108,7 @@ const nov3Cstore: CstoreSnapshot = {
   custAccountSales: 1507.94,
   totalCollections: 38756.65,
   shortOver: -3796.52,
-  regularLitres: 6587.3,
+  regularLitres: 6567.3,
   dieselLitres: 3637.8,
   tank: { regular: { os: 12.3 }, diesel: { os: 24.8 } }
 }
@@ -169,7 +169,7 @@ describe('reconcileDay: Nov 3 (Fleet and accounts agree, small gaps, real short)
     assert.equal(line(r, 'deposits').diff, -0.5)
   })
 
-  it('flags both fuel litres lines (20.6 L and 0.75 L are over the 0.1 L tolerance)', () => {
+  it('flags both fuel litres lines (0.58 L and 0.75 L are over the 0.1 L tolerance)', () => {
     assert.equal(line(r, 'regularLitres').status, 'differs')
     assert.equal(line(r, 'dieselLitres').status, 'differs')
     assert.equal(r.differenceCount, 4)
@@ -209,20 +209,65 @@ describe('reconcileDay: Cstore saved before deposits were typed', () => {
     shortOver: -52260.49,
     pulledAt: '2026-11-07T11:00:00.000Z'
   }
-  const r = reconcileDay(nov4Shifts, half)
+  // Credit card 2 is typed by the manager too, so it is also not in yet.
+  const halfSnapshot: CstoreSnapshot = { ...half, creditDebitBatch: 0 }
+  const r = reconcileDay(nov4Shifts, halfSnapshot)
 
-  it('waits for deposits instead of showing a false short', () => {
-    assert.equal(r.verdict, 'waiting')
-    assert.equal(r.verdictText, 'Waiting for deposits')
+  it('still compares the POS lines and marks the typed lines as not entered', () => {
     assert.equal(r.awaitingDeposits, true)
-    assert.equal(r.hasCstore, false)
-    assert.equal(r.differenceCount, 0)
+    assert.equal(r.hasCstore, true)
+    const status = (key: string) => r.collected.lines.find((l) => l.key === key)?.status
+    assert.equal(status('deposits'), 'pending')
+    assert.equal(status('creditDebit'), 'pending')
+    assert.equal(status('fleet'), 'differs')
+    assert.equal(status('accounts'), 'differs')
+    assert.equal(r.differenceCount, 2)
+    assert.equal(r.verdict, 'differs')
+    assert.equal(r.verdictText, '2 differences')
+  })
+
+  it('shows the Shift Close totals but no false Cstore short', () => {
+    assert.equal(r.collected.total.status, 'pending')
+    assert.equal(r.collected.total.cstore, null)
+    assert.equal(r.collected.total.shiftClose, 46143.59)
+    assert.equal(r.overShort.status, 'pending')
     assert.equal(r.overShort.cstore, null)
+    assert.equal(r.overShort.shiftClose, -882.24)
+    assert.equal(r.sales.totalSales, nov4Cstore.totalSales)
     assert.equal(r.pulledAt, half.pulledAt)
+  })
+
+  it('explains what is waiting and skips the other-collections note', () => {
+    assert.ok(r.notes.some((n) => /Deposits and Credit\/Debit not entered in Cstore yet/.test(n)))
+    assert.ok(!r.notes.some((n) => /other collections/.test(n)))
+    assert.ok(!r.notes.some((n) => /real short/.test(n)))
+    assert.ok(!r.notes.some((n) => /Tanks over\/short/.test(n)))
+  })
+
+  it('says Waiting for deposits when everything that can be compared agrees', () => {
+    const agreeing: CstoreSnapshot = {
+      ...nov3Cstore,
+      depositsTyped: 0,
+      creditDebitBatch: 0,
+      regularLitres: 6566.72,
+      dieselLitres: 3637.05,
+      pulledAt: '2026-11-08T11:00:00.000Z'
+    }
+    const ok = reconcileDay(nov3Shifts, agreeing)
+    assert.equal(ok.differenceCount, 0)
+    assert.equal(ok.verdict, 'waiting')
+    assert.equal(ok.verdictText, 'Waiting for deposits')
+    assert.ok(ok.notes.some((n) => /entered in Cstore so far agrees/.test(n)))
   })
 
   it('is not flagged when Cstore is simply absent', () => {
     assert.equal(reconcileDay(nov4Shifts, null).awaitingDeposits, false)
+  })
+
+  it('compares Credit/Debit normally once deposits are typed', () => {
+    const typed = reconcileDay(nov3Shifts, { ...nov3Cstore, creditDebitBatch: 0 })
+    assert.equal(typed.awaitingDeposits, false)
+    assert.equal(typed.collected.lines.find((l) => l.key === 'creditDebit')?.status, 'differs')
   })
 })
 

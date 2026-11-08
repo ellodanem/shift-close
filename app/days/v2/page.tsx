@@ -36,6 +36,9 @@ const VERDICT_STYLE: Record<DayVerdict, { dot: string; text: string }> = {
 
 function Dot({ status }: { status: ReconcileLine['status'] }) {
   if (status === 'none') return <span className="mr-2 inline-block h-2.5 w-2.5 align-middle" />
+  if (status === 'pending') {
+    return <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full border border-gray-400 align-middle" />
+  }
   return (
     <span
       className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${
@@ -46,6 +49,10 @@ function Dot({ status }: { status: ReconcileLine['status'] }) {
 }
 
 function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): string {
+  if (line.status === 'pending') {
+    if (side === 'cstore') return 'Not entered'
+    if (side === 'diff') return ''
+  }
   const v = line[side]
   if (v === null) return ''
   if (line.unit === 'litres') {
@@ -195,11 +202,7 @@ function DayStatement({ day }: { day: DayReportV2 }) {
           </p>
         ))}
         {!r.hasCstore ? (
-          <p className="text-gray-600">
-            {r.awaitingDeposits
-              ? 'The Cstore daily report is saved, but the bank deposits are not entered there yet. The comparison appears once they are.'
-              : 'Sales and the comparison fill in once the Cstore daily report is in.'}
-          </p>
+          <p className="text-gray-600">Sales and the comparison fill in once the Cstore daily report is in.</p>
         ) : null}
         {notes.length === 0 && r.hasCstore ? <p className="text-gray-600">Nothing to flag.</p> : null}
       </div>
@@ -395,11 +398,11 @@ function DaysV2Page() {
                             <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${style.dot}`} />
                             {r.verdictText}
                           </span>
-                          {r.hasCstore ? (
+                          {r.overShort.cstore !== null ? (
                             <span className="text-gray-600">
                               Over/short{' '}
                               <span className="font-semibold text-gray-800">
-                                {formatMoney(r.overShort.cstore ?? 0, true)}
+                                {formatMoney(r.overShort.cstore, true)}
                               </span>
                             </span>
                           ) : null}
