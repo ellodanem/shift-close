@@ -17,6 +17,7 @@ import { canUseAccountingModule, isAccountantRole } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 import CustomerAccountLedgerPanel from './CustomerAccountLedgerPanel'
 import DailyChargesPanel from './DailyChargesPanel'
+import SyncHealthBanner from './SyncHealthBanner'
 import { formatCstoreDisplayDate } from '@/lib/parse-customer-credit-report'
 
 interface CustomerArSummary {
@@ -680,6 +681,7 @@ export default function CustomerAccountsPage() {
       </Suspense>
 
       <div className="max-w-6xl mx-auto">
+        <SyncHealthBanner />
         {/* Header */}
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">

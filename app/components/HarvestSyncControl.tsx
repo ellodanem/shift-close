@@ -71,7 +71,9 @@ function lastSyncSummary(lastFinished: SyncRun | null, active: SyncRun | null) {
   return 'No sync yet'
 }
 
-function dotClass(active: boolean, lastFinished: SyncRun | null) {
+function dotClass(active: boolean, lastFinished: SyncRun | null, view: SyncView | null) {
+  // A paused or offline agent means nothing is syncing, whatever the last run said.
+  if (view?.agentPaused) return 'bg-red-500 animate-pulse'
   if (active) return 'bg-amber-400 animate-pulse'
   if (lastFinished?.status === 'pass') return 'bg-emerald-400'
   if (lastFinished?.status === 'fail') return 'bg-red-400'
@@ -188,7 +190,8 @@ export default function HarvestSyncControl() {
 
   const lastFinished =
     view?.lastFinished ?? (view?.run && !isActiveStatus(view.run.status) ? view.run : null)
-  const summary = view ? lastSyncSummary(lastFinished, active) : 'Loading sync status…'
+  const baseSummary = view ? lastSyncSummary(lastFinished, active) : 'Loading sync status…'
+  const summary = view?.agentPaused ? `Agent paused — not syncing. ${baseSummary}` : baseSummary
   const current = view?.month
   const previous = current ? previousHarvestSyncMonth(current.year, current.month) : null
   const blocked = !view || !view.agentOnline || view.agentPaused || Boolean(active) || starting
@@ -211,7 +214,7 @@ export default function HarvestSyncControl() {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(Boolean(active), lastFinished)}`} />
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(Boolean(active), lastFinished, view)}`} />
         <span>{buttonLabel}</span>
       </button>
       {!open ? (

@@ -17,6 +17,10 @@
       "schedule": "30 13 * * *"
     },
     {
+      "path": "/api/cron/harvest-health",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/cron/prune-page-visits",
       "schedule": "45 13 * * *"
     }

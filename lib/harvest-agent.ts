@@ -124,6 +124,13 @@ export async function upsertHarvestHeartbeat(params: {
   const sessionTouched = typeof params.cstoreSessionOk === 'boolean'
   const pauseTouched = typeof params.paused === 'boolean'
 
+  // Keep the original pause time while the agent stays paused, so "paused for X hours" is accurate.
+  const existing = await prisma.harvestAgent.findUnique({
+    where: { agentKey: key },
+    select: { paused: true, pausedAt: true }
+  })
+  const pausedAt = existing?.paused && existing.pausedAt ? existing.pausedAt : now
+
   return prisma.harvestAgent.upsert({
     where: { agentKey: key },
     create: {
@@ -152,7 +159,7 @@ export async function upsertHarvestHeartbeat(params: {
           ? {
               paused: true,
               pauseReason: params.pauseReason?.trim() || null,
-              pausedAt: now
+              pausedAt
             }
           : {
               paused: false,
