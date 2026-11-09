@@ -16,6 +16,8 @@ type StakeholderTile = {
   iconId: HomeShortcutId
   /** Shortcut whose color the tile uses (defaults to iconId). */
   colorId?: HomeShortcutId
+  /** Shown greyed out and not clickable. */
+  disabled?: boolean
 }
 
 type StakeholderCategory = {
@@ -31,9 +33,9 @@ const CATEGORIES: StakeholderCategory[] = [
   {
     title: 'Operations',
     tiles: [
-      { label: 'Roster', href: '/roster', iconId: 'roster' },
-      { label: 'Attendance', href: '/attendance', iconId: 'attendance' },
-      { label: 'Time Off', href: '/time-off', iconId: 'time-off' }
+      { label: 'Roster', href: '/roster', iconId: 'roster', disabled: true },
+      { label: 'Attendance', href: '/attendance', iconId: 'attendance', disabled: true },
+      { label: 'Time Off', href: '/time-off', iconId: 'time-off', disabled: true }
     ]
   },
   {
@@ -51,7 +53,7 @@ const CATEGORIES: StakeholderCategory[] = [
     tiles: [
       { label: 'Staff', href: '/staff', iconId: 'staff' },
       { label: 'Payroll', href: '/payroll', iconId: 'pay-run' },
-      { label: 'Applications', href: '/applications', iconId: 'applications' }
+      { label: 'Applications', href: '/applications', iconId: 'applications', disabled: true }
     ]
   },
   {
@@ -64,20 +66,43 @@ const CATEGORIES: StakeholderCategory[] = [
   }
 ]
 
+function TileContent({ tile }: { tile: StakeholderTile }) {
+  return (
+    <>
+      <span className="mt-5 flex h-9 items-center justify-center sm:mt-7">
+        <HomeShortcutIcon id={tile.iconId} className="h-8 w-8" />
+      </span>
+      <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
+        {tile.label}
+      </span>
+    </>
+  )
+}
+
+const TILE_SIZE = 'flex h-[6.25rem] w-[6.25rem] shrink-0 flex-col items-center rounded-2xl sm:h-[7.5rem] sm:w-[7.5rem]'
+
 function TileLink({ tile }: { tile: StakeholderTile }) {
+  // Greyed-out tiles are plain elements (not links), so they cannot be clicked or focused.
+  if (tile.disabled) {
+    return (
+      <div
+        aria-disabled="true"
+        title="Not available"
+        className={`${TILE_SIZE} cursor-not-allowed select-none bg-slate-200 text-slate-400`}
+      >
+        <TileContent tile={tile} />
+      </div>
+    )
+  }
+
   return (
     <Link
       href={tile.href}
       prefetch={false}
       style={{ backgroundColor: tileBackgroundColor(tile.href, tile.colorId ?? tile.iconId) }}
-      className="flex h-[6.25rem] w-[6.25rem] shrink-0 flex-col items-center rounded-2xl text-white hover:brightness-110 sm:h-[7.5rem] sm:w-[7.5rem]"
+      className={`${TILE_SIZE} text-white hover:brightness-110`}
     >
-      <span className="mt-5 flex h-9 items-center justify-center sm:mt-7">
-        <HomeShortcutIcon id={tile.iconId} className="h-8 w-8 text-white" />
-      </span>
-      <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
-        {tile.label}
-      </span>
+      <TileContent tile={tile} />
     </Link>
   )
 }

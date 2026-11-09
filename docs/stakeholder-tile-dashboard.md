@@ -9,6 +9,8 @@ Other roles keep the full dashboard.
 - Stakeholder gets **read-only** access to End of Day (`/days`, `/api/days`):
   `isStakeholderEndOfDayPath` in `lib/roles.ts`, used in `lib/access-control.ts`, `lib/app-nav.ts`, `lib/home-shortcuts.ts`.
   Writes (uploads, notify, send-email) stay blocked by the default in `apiWriteAllowedForRole`.
+- Roster, Attendance, Time Off and Applications tiles are shown greyed out and not clickable (`disabled: true` in
+  `StakeholderTileHome.tsx`). Remove that flag to turn a tile back on. Page access via URL is unchanged.
 - Shifts tile left out: the stakeholder still cannot open `/shifts`.
 
 ## Revert
