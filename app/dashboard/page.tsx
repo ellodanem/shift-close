@@ -22,6 +22,7 @@ import { IconRepeat, IconSelect } from '@/app/components/IconDropdown'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 import HomeShortcutStrip from '@/app/components/HomeShortcutStrip'
+import StakeholderTileHome from '@/app/components/StakeholderTileHome'
 
 type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
 
@@ -268,7 +269,42 @@ function DashboardSectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Stakeholders get the simplified tile home; every other role keeps the full dashboard. */
 export default function DashboardPage() {
+  const { loading: authLoading, isStakeholder, logout } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center bg-gray-50 px-4 py-8 sm:min-h-screen sm:p-8">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    )
+  }
+
+  if (isStakeholder) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">Home</h1>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Sign out
+            </button>
+          </div>
+          <StakeholderTileHome />
+        </div>
+      </div>
+    )
+  }
+
+  return <FullDashboard />
+}
+
+function FullDashboard() {
   const router = useRouter()
   const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut, isFullAccess, logout } = useAuth()
   const appRole = user?.role ?? ''

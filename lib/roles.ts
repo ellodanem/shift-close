@@ -201,6 +201,14 @@ export function isStakeholderFuelComparisonPath(pathname: string): boolean {
   )
 }
 
+/**
+ * End of Day pages and their read APIs (stakeholder tile dashboard).
+ * Read-only: stakeholder writes are denied by default in apiWriteAllowedForRole.
+ */
+export function isStakeholderEndOfDayPath(pathname: string): boolean {
+  return pathMatchesPrefix(pathname, '/days') || pathMatchesPrefix(pathname, '/api/days')
+}
+
 export function canEditRoster(role: string): boolean {
   const r = normalizeAppRole(role)
   if (isFullAccessRole(role)) return true

@@ -13,6 +13,7 @@ import {
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
+  isStakeholderEndOfDayPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   normalizeAppRole
@@ -343,6 +344,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       href.startsWith('/accounting/') ||
       isStakeholderPeoplePath(href) ||
       isStakeholderFuelComparisonPath(href) ||
+      isStakeholderEndOfDayPath(href) ||
       isStakeholderBooksPath(href)
     )
   }

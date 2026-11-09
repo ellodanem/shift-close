@@ -9,6 +9,7 @@ import {
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
+  isStakeholderEndOfDayPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   isSupervisorLike,
@@ -393,6 +394,7 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       href === SCANS_MOBILE_PATH ||
       isStakeholderPeoplePath(href) ||
       isStakeholderFuelComparisonPath(href) ||
+      isStakeholderEndOfDayPath(href) ||
       isStakeholderBooksPath(href) ||
       isAccountantBooksPath(href)
     )
