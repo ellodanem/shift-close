@@ -8,7 +8,9 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import {
   formatLitres,
   formatMoney,
+  type CollectedLine,
   type DayVerdict,
+  type DepositCheck,
   type ReconcileLine
 } from '@/lib/day-reconcile'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
@@ -50,10 +52,6 @@ function Dot({ status }: { status: ReconcileLine['status'] }) {
 }
 
 function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): string {
-  if (line.status === 'pending') {
-    if (side === 'cstore') return line.key === 'cashChecks' ? 'Waiting for Cstore' : 'Not entered'
-    if (side === 'diff') return ''
-  }
   const v = line[side]
   if (v === null) return ''
   if (line.unit === 'litres') {
@@ -64,6 +62,53 @@ function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): stri
   }
   if (side === 'diff') return Math.abs(v) < 0.005 ? '-' : formatMoney(v, true)
   return formatMoney(v)
+}
+
+/** Collected: the shifts' System column against their Count column, like the End of Shift screen. */
+function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: DepositCheck }) {
+  return (
+    <div>
+      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Collected</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs text-gray-500">
+              <th className="px-2 py-1 text-left font-normal">Type</th>
+              <th className="px-2 py-1 text-right font-normal">System</th>
+              <th className="px-2 py-1 text-right font-normal">Count</th>
+              <th className="px-2 py-1 text-right font-normal">Over/Short</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {lines.map((l) => (
+              <tr key={l.key} className={`border-b border-gray-100 ${l.key === 'cashChecks' ? 'font-semibold' : ''}`}>
+                <td className="px-2 py-1.5 text-left">
+                  <Dot status={l.status} />
+                  {l.label}
+                </td>
+                <td className="px-2 py-1.5 text-right">{formatMoney(l.system)}</td>
+                <td className="px-2 py-1.5 text-right">{formatMoney(l.count)}</td>
+                <td className="px-2 py-1.5 text-right">
+                  {Math.abs(l.overShort) < 0.005 ? '-' : formatMoney(l.overShort, true)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-sm text-gray-700">
+        <Dot status={deposit.status} />
+        Deposited <span className="font-semibold tabular-nums">{formatMoney(deposit.deposited)}</span>
+        {Math.abs(deposit.diff) < 0.005
+          ? ', the same as counted.'
+          : `, ${formatMoney(Math.abs(deposit.diff))} ${deposit.diff < 0 ? 'less' : 'more'} than the ${formatMoney(deposit.counted)} counted.`}
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is the
+        one that matters.
+      </p>
+    </div>
+  )
 }
 
 function CompareTable({
@@ -203,8 +248,8 @@ function DayStatement({ day }: { day: DayReportV2 }) {
       {r.hasCstore ? (
         <>
           <p className="text-xs text-gray-500">
-            Cstore is what the Cstore daily report says. Shift Close is the day&apos;s shifts added together. A green dot
-            means they agree, red means there is a gap.
+            Sales: Cstore is what the Cstore daily report says, Shift Close is the day&apos;s shifts added together.
+            A green dot means they agree, red means there is a gap.
           </p>
 
           <CompareTable title="Sales" lines={r.sales.lines} total={
@@ -219,41 +264,10 @@ function DayStatement({ day }: { day: DayReportV2 }) {
                 }
           } />
 
-          <CompareTable
-            title="Collected"
-            lines={r.collected.lines}
-            headers={['System (Cstore)', 'Count (Shift Close)', 'Over/Short']}
-            boldKeys={['cashChecks']}
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Over/Short is Count minus System. Cash + Checks is the one that matters, as on the shift screen. Its System
-            figure is Cstore&apos;s total sales minus Credit/Debit, Fleet and Customer accounts, and its Count is the
-            amount deposited. The other rows compare the counted slips.
-          </p>
         </>
-      ) : (
-        <>
-          <h3 className="mb-1 text-sm font-semibold text-gray-900">Collected</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[320px] text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-xs text-gray-500">
-                  <th className="px-2 py-1 text-left font-normal">Type</th>
-                  <th className="px-2 py-1 text-right font-normal">Shift Close</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {r.collected.lines.map((l) => (
-                  <tr key={l.key} className="border-b border-gray-100">
-                    <td className="px-2 py-1.5 text-left">{l.label}</td>
-                    <td className="px-2 py-1.5 text-right">{cell(l, 'shiftClose')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      ) : null}
+
+      <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} />
 
       {showTank ? <TankTable tank={day.tank} /> : null}
 
@@ -265,7 +279,7 @@ function DayStatement({ day }: { day: DayReportV2 }) {
           </p>
         ))}
         {!r.hasCstore ? (
-          <p className="text-gray-600">Sales and the comparison fill in once the Cstore daily report is in.</p>
+          <p className="text-gray-600">Sales fill in once the Cstore daily report is in.</p>
         ) : null}
         {notes.length === 0 && r.hasCstore ? <p className="text-gray-600">Nothing to flag.</p> : null}
       </div>
@@ -461,14 +475,12 @@ function DaysV2Page() {
                             <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${style.dot}`} />
                             {r.verdictText}
                           </span>
-                          {r.overShort.diff !== null ? (
-                            <span className="text-gray-600">
-                              Over/short{' '}
-                              <span className="font-semibold text-gray-800">
-                                {formatMoney(r.overShort.diff, true)}
-                              </span>
+                          <span className="text-gray-600">
+                            Over/short{' '}
+                            <span className="font-semibold text-gray-800">
+                              {formatMoney(r.overShort.overShort, true)}
                             </span>
-                          ) : null}
+                          </span>
                           <span className="text-gray-600">
                             Deposits{' '}
                             <span className="font-semibold text-gray-800">
