@@ -19,6 +19,23 @@ export const TANK_ROUNDING_LITRES = 1
 /** Cstore's own over/short beyond this means its book is off (usually a delivery not entered there). */
 export const TANK_BOOK_OFF_LITRES = 500
 
+/**
+ * The Fuel Expectancy tank check starts fresh from this day. Earlier Cstore tank figures are not listed
+ * (Cstore's purchase rows were not reliably entered before it).
+ */
+export const TANK_CHECK_FROM = '2026-11-07'
+
+/** Days to list, newest first, from `asOfYmd` back to at most `count` days and never before `fromYmd`. */
+export function tankCheckDates(asOfYmd: string, count: number, fromYmd: string = TANK_CHECK_FROM): string[] {
+  const dates: string[] = []
+  for (let i = 0; i < count; i++) {
+    const d = addCalendarDaysYmd(asOfYmd, -i)
+    if (d < fromYmd) break
+    dates.push(d)
+  }
+  return dates
+}
+
 export type TankGrade = 'unleaded' | 'diesel'
 export type TankPair = { unleaded: number; diesel: number }
 

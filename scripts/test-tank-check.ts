@@ -7,6 +7,7 @@ import {
   endOfDayReadingFor,
   stickEntered,
   suggestOpeningFromCstore,
+  tankCheckDates,
   type OpeningReadingInput
 } from '../lib/tank-check'
 
@@ -212,5 +213,20 @@ describe('suggestOpeningFromCstore', () => {
       suggestOpeningFromCstore(checks, new Map([['2026-11-08', waiting]]), openings, '2026-11-09'),
       null
     )
+  })
+})
+
+describe('tankCheckDates', () => {
+  it('starts fresh from Nov 7, newest first', () => {
+    assert.deepEqual(tankCheckDates('2026-11-09', 10), ['2026-11-09', '2026-11-08', '2026-11-07'])
+  })
+
+  it('never lists days before the start, however many are asked for', () => {
+    assert.deepEqual(tankCheckDates('2026-11-07', 10), ['2026-11-07'])
+    assert.deepEqual(tankCheckDates('2026-11-05', 10), [])
+  })
+
+  it('respects the count when the start is far back', () => {
+    assert.deepEqual(tankCheckDates('2026-11-20', 3), ['2026-11-20', '2026-11-19', '2026-11-18'])
   })
 })

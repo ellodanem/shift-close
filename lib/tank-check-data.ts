@@ -5,6 +5,7 @@ import {
   buildDayTankCheck,
   endOfDayReadingFor,
   suggestOpeningFromCstore,
+  tankCheckDates,
   type CstoreOpeningSuggestion,
   type DayTankCheck,
   type OpeningReadingInput
@@ -57,8 +58,7 @@ export async function loadCstoreTankCheck(
   allOpenings: OpeningReadingInput[],
   bookAt: (ymd: string) => { unleaded: number; diesel: number } | null
 ): Promise<CstoreTankCheckPayload> {
-  const dates: string[] = []
-  for (let i = 0; i < CHECK_DAYS; i++) dates.push(addCalendarDaysYmd(asOfYmd, -i))
+  const dates = tankCheckDates(asOfYmd, CHECK_DAYS)
   const snapshots = await loadCstoreSnapshots(dates)
   const checks = await loadDayTankChecks(dates, snapshots)
 
