@@ -421,7 +421,10 @@ function DaysV2Page() {
           <span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
             V2 preview
           </span>
-          <Link href="/days" className="ml-auto text-sm font-medium text-blue-700 hover:underline">
+          <Link href="/days/v2/report" className="ml-auto text-sm font-medium text-blue-700 hover:underline">
+            Generate report
+          </Link>
+          <Link href="/days" className="text-sm font-medium text-blue-700 hover:underline">
             Current End of Day
           </Link>
         </div>
