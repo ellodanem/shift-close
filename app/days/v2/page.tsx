@@ -137,17 +137,37 @@ function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: D
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-sm text-gray-700">
-        <Dot status={deposit.status} />
-        Deposited <span className="font-semibold tabular-nums">{formatMoney(deposit.deposited)}</span>
-        {Math.abs(deposit.diff) < 0.005
-          ? ', the same as counted.'
-          : `, ${formatMoney(Math.abs(deposit.diff))} ${deposit.diff < 0 ? 'less' : 'more'} than the ${formatMoney(deposit.counted)} counted.`}
-      </p>
-      <p className="mt-1 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-gray-500">
         Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is the
         one that matters.
       </p>
+
+      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Deposit</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs text-gray-500">
+              <th className="px-2 py-1 text-left font-normal">Type</th>
+              <th className="px-2 py-1 text-right font-normal">Counted (Cash + Checks)</th>
+              <th className="px-2 py-1 text-right font-normal">Deposited</th>
+              <th className="px-2 py-1 text-right font-normal">Difference</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            <tr className="border-b border-gray-100 font-semibold">
+              <td className="px-2 py-1.5 text-left">
+                <Dot status={deposit.status} />
+                Deposit
+              </td>
+              <td className="px-2 py-1.5 text-right">{formatMoney(deposit.counted)}</td>
+              <td className="px-2 py-1.5 text-right">{formatMoney(deposit.deposited)}</td>
+              <td className="px-2 py-1.5 text-right">
+                {Math.abs(deposit.diff) < 0.005 ? '-' : formatMoney(deposit.diff, true)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
