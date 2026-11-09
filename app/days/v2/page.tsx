@@ -218,8 +218,6 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
       </tr>
     )
   }
-  const stick = (g: TankCheckGrade) =>
-    g.cstoreStick !== null ? litresFigure(g.cstoreStick) : g.status === 'pending' ? 'Not entered' : ''
   const diff = (g: TankCheckGrade) => {
     if (g.diff === null) return ''
     if (Math.abs(g.diff) < 0.05) return '-'
@@ -242,8 +240,6 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
             {row('Cstore delivered', (g) => litresFigure(g.cstorePurchase))}
             {row('Cstore sold', (g) => litresFigure(g.cstoreSold))}
             {row('Cstore closing (book)', (g) => litresFigure(g.cstoreClosing))}
-            {row('Cstore stick', stick, { bold: true })}
-            {row('Cstore over/short', (g) => (g.cstoreOs === null ? '' : `${g.cstoreOs > 0 ? '+' : ''}${litresFigure(g.cstoreOs)}`))}
             {row('Shift Close reading', (g) => litresFigure(g.reading), { bold: true })}
             <tr className="border-b border-gray-100">
               <td className="px-2 py-1.5 text-left">Reading minus Cstore stick</td>
