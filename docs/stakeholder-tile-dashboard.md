@@ -11,6 +11,8 @@ Other roles keep the full dashboard.
   Writes (uploads, notify, send-email) stay blocked by the default in `apiWriteAllowedForRole`.
 - Roster, Attendance, Time Off and Applications tiles are shown greyed out and not clickable (`disabled: true` in
   `StakeholderTileHome.tsx`). Remove that flag to turn a tile back on. Page access via URL is unchanged.
+- Stakeholder sidebar trimmed to Home, Accounting and Reports (`STAKEHOLDER_SIDEBAR_GROUPS` in `lib/app-nav.ts`).
+  Operations, Insights, Financial, People, Mobile and Setup are hidden there; the pages are still reachable from the Home tiles.
 - Shifts tile left out: the stakeholder still cannot open `/shifts`.
 
 ## Manager tile home (Nov 9, 2026)

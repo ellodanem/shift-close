@@ -209,6 +209,9 @@ const ACCOUNTING_NAV_ITEMS: NavItemConfig[] = [
   { label: 'Balance sheet', href: '/accounting/balance-sheet', permission: 'accounting', section: 'Reports' }
 ]
 
+/** Sidebar groups the stakeholder role sees. Other pages stay reachable from the Home tiles. */
+const STAKEHOLDER_SIDEBAR_GROUPS = ['Home', 'Accounting', 'Reports']
+
 const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/days': 'end-of-day',
   '/inbox': 'inbox',
@@ -606,6 +609,8 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
     const financialIdx = groups.findIndex((g) => g.label === 'Financial')
     const insertAt = financialIdx >= 0 ? financialIdx + 1 : groups.length
     groups.splice(insertAt, 0, { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS })
+    // Simplified stakeholder sidebar: everything else is reached from the Home tiles.
+    return groups.filter((g) => STAKEHOLDER_SIDEBAR_GROUPS.includes(g.label))
   }
 
   return groups
