@@ -12,6 +12,7 @@ import {
   type ReconcileLine
 } from '@/lib/day-reconcile'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
+import type { DayTankCheck, TankCheckGrade } from '@/lib/tank-check'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function monthRange(yyyyMm: string): { from: string; to: string } | null {
@@ -117,13 +118,82 @@ function CompareTable({
   )
 }
 
+function litresFigure(n: number | null): string {
+  return n === null ? '' : n.toLocaleString('en-US', { maximumFractionDigits: 1 })
+}
+
+function TankTable({ tank }: { tank: DayTankCheck }) {
+  const [unleaded, diesel] = tank.grades
+  const row = (label: string, pick: (g: TankCheckGrade) => string, options?: { bold?: boolean }) => {
+    const a = pick(unleaded)
+    const b = pick(diesel)
+    if (!a && !b) return null
+    return (
+      <tr className={`border-b border-gray-100 ${options?.bold ? 'font-semibold' : ''}`}>
+        <td className="px-2 py-1.5 text-left">{label}</td>
+        <td className="px-2 py-1.5 text-right">{a}</td>
+        <td className="px-2 py-1.5 text-right">{b}</td>
+      </tr>
+    )
+  }
+  const stick = (g: TankCheckGrade) =>
+    g.cstoreStick !== null ? litresFigure(g.cstoreStick) : g.status === 'pending' ? 'Not entered' : ''
+  const diff = (g: TankCheckGrade) => {
+    if (g.diff === null) return ''
+    if (Math.abs(g.diff) < 0.05) return '-'
+    return `${g.diff > 0 ? '+' : ''}${litresFigure(g.diff)} L${g.rounding ? ' (rounding)' : ''}`
+  }
+  return (
+    <div>
+      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Tanks (litres)</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[360px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs text-gray-500">
+              <th className="px-2 py-1 text-left font-normal">Type</th>
+              <th className="px-2 py-1 text-right font-normal">Unleaded</th>
+              <th className="px-2 py-1 text-right font-normal">Diesel</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {row('Cstore opening', (g) => litresFigure(g.cstoreOpening))}
+            {row('Cstore delivered', (g) => litresFigure(g.cstorePurchase))}
+            {row('Cstore sold', (g) => litresFigure(g.cstoreSold))}
+            {row('Cstore closing (book)', (g) => litresFigure(g.cstoreClosing))}
+            {row('Cstore stick', stick, { bold: true })}
+            {row('Cstore over/short', (g) => (g.cstoreOs === null ? '' : `${g.cstoreOs > 0 ? '+' : ''}${litresFigure(g.cstoreOs)}`))}
+            {row('Shift Close reading', (g) => litresFigure(g.reading), { bold: true })}
+            <tr className="border-b border-gray-100">
+              <td className="px-2 py-1.5 text-left">Reading minus Cstore stick</td>
+              <td className="px-2 py-1.5 text-right">
+                <Dot status={unleaded.status} />
+                {diff(unleaded)}
+              </td>
+              <td className="px-2 py-1.5 text-right">
+                <Dot status={diesel.status} />
+                {diff(diesel)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-1 text-xs text-gray-500">
+        Shift Close reading is the tank reading saved for the start of {tank.readingDate}, which is the end of this
+        day. A gap of 1 L or less is rounding.
+      </p>
+    </div>
+  )
+}
+
 function DayStatement({ day }: { day: DayReportV2 }) {
   const [showShifts, setShowShifts] = useState(false)
   const r = day.reconcile
   const tasks = slipTasksForDay(day)
   const filed = tasks.filter((t) => t.done).length
   const total = r.collected.total
-  const notes = [...r.shiftWarnings, ...r.notes]
+  const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
+  const showTank =
+    day.tank.hasReading || day.tank.grades.some((g) => g.cstoreOpening !== null || g.cstoreStick !== null)
 
   return (
     <div className="border-t border-gray-200 px-4 pb-5 pt-3 sm:px-6">
@@ -193,6 +263,8 @@ function DayStatement({ day }: { day: DayReportV2 }) {
           </div>
         </>
       )}
+
+      {showTank ? <TankTable tank={day.tank} /> : null}
 
       <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Notes</h3>
       <div className="space-y-1 text-sm">

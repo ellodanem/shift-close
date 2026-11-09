@@ -1,6 +1,7 @@
 import { addCalendarDaysYmd, businessTodayYmd } from '@/lib/datetime-policy'
 import { invoiceDateToInputValue } from '@/lib/invoiceHelpers'
 import {
+  computeBook,
   computeFuelExpectancy,
   type FuelDeliveryRow,
   type FuelDipRow,
@@ -9,11 +10,14 @@ import {
   type FuelSaleRow
 } from '@/lib/fuel-inventory'
 import { prisma } from '@/lib/prisma'
+import { loadCstoreTankCheck, type CstoreTankCheckPayload } from '@/lib/tank-check-data'
 
 const HISTORY_DAYS = 180
 
 export type FuelExpectancyPayload = FuelExpectancyComputed & {
   canManage: boolean
+  /** Cstore's stick against the readings saved here, plus a stick waiting to be saved as an opening. */
+  cstoreCheck: CstoreTankCheckPayload
   recentReadings: Array<{
     id: string
     date: string
@@ -104,6 +108,23 @@ export async function loadFuelExpectancy(options: {
     asOfYmd
   )
 
+  let cstoreCheck: CstoreTankCheckPayload = { days: [], suggestion: null }
+  try {
+    const bookInputs = { openings, dips, deliveries, sales: saleRows }
+    cstoreCheck = await loadCstoreTankCheck(
+      asOfYmd,
+      openings.map((o) => ({
+        date: o.date,
+        createdAt: o.createdAt,
+        unleadedLitres: o.unleadedLitres,
+        dieselLitres: o.dieselLitres
+      })),
+      (ymd) => computeBook(bookInputs, ymd)?.onHand ?? null
+    )
+  } catch (error) {
+    console.error('Cstore tank check unavailable:', error)
+  }
+
   const recentReadings = [...readings]
     .sort((a, b) => {
       if (a.createdAt.getTime() !== b.createdAt.getTime()) {
@@ -128,6 +149,7 @@ export async function loadFuelExpectancy(options: {
   return {
     ...computed,
     canManage: options.canManage,
+    cstoreCheck,
     recentReadings
   }
 }

@@ -14,9 +14,12 @@ import {
   type FuelHorizon,
   type WeekdayAverages
 } from '@/lib/fuel-inventory'
+import type { CstoreTankCheckPayload } from '@/lib/tank-check-data'
+import { TANK_ROUNDING_LITRES, type TankCheckGrade } from '@/lib/tank-check'
 
 type Payload = FuelExpectancyComputed & {
   canManage: boolean
+  cstoreCheck: CstoreTankCheckPayload
   recentReadings: Array<{
     id: string
     date: string
@@ -114,6 +117,14 @@ export default function FuelExpectancyPage() {
           <TankInventorySection data={data} onSaved={() => void load()} />
         ) : null}
 
+        {data && (data.cstoreCheck.days.length > 0 || data.cstoreCheck.suggestion) ? (
+          <CstoreCheckSection
+            check={data.cstoreCheck}
+            canManage={data.canManage}
+            onSaved={() => void load()}
+          />
+        ) : null}
+
         {data && !data.book && !data.canManage ? (
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
             No opening tank reading yet. Ask a manager to set an opening reading and enter invoice litres.
@@ -165,6 +176,147 @@ export default function FuelExpectancyPage() {
         ) : null}
       </div>
     </div>
+  )
+}
+
+function gapText(g: TankCheckGrade): { text: string; className: string } {
+  if (g.status === 'pending') return { text: 'Stick not entered', className: 'text-amber-800' }
+  if (g.diff === null) return { text: '', className: '' }
+  if (Math.abs(g.diff) < 0.05) return { text: 'Same', className: 'text-emerald-800' }
+  const text = `${g.diff > 0 ? '+' : ''}${formatLitres(g.diff)} L`
+  return g.status === 'match'
+    ? { text: `${text} (rounding)`, className: 'text-emerald-800' }
+    : { text, className: 'text-red-700' }
+}
+
+function CstoreCheckSection({
+  check,
+  canManage,
+  onSaved
+}: {
+  check: CstoreTankCheckPayload
+  canManage: boolean
+  onSaved: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const suggestion = check.suggestion
+
+  const saveSuggestion = async () => {
+    if (!suggestion) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/fuel-inventory/readings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'opening',
+          date: suggestion.date,
+          unleadedLitres: suggestion.unleaded,
+          dieselLitres: suggestion.diesel,
+          notes: `Cstore stick for ${suggestion.fromDate}`,
+          // The stick is the end of the previous day, so this day's own sales and deliveries belong on top of it.
+          confirmSameDay: true
+        })
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error || 'Could not save the opening reading.')
+      }
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the opening reading.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+      <div className="border-b border-emerald-100 px-4 py-3 sm:px-5">
+        <h2 className="text-lg font-semibold text-gray-900">Cstore tank check</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Cstore&apos;s stick reading for each day against the tank reading saved here for the end of that day (the
+          opening of the next morning). Cstore labels fuel &quot;gal&quot; but the figures are litres. A gap of{' '}
+          {TANK_ROUNDING_LITRES} L or less is rounding.
+        </p>
+      </div>
+
+      {suggestion ? (
+        <div className="border-b border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-950 sm:px-5">
+          <p>
+            Cstore stick for {formatDateOnlyForDisplay(suggestion.fromDate)}: unleaded{' '}
+            <span className="font-mono font-semibold">{formatLitres(suggestion.unleaded)} L</span>, diesel{' '}
+            <span className="font-mono font-semibold">{formatLitres(suggestion.diesel)} L</span>.
+            {suggestion.shiftCloseBook ? (
+              <>
+                {' '}
+                Shift Close&apos;s own book for that night was{' '}
+                <span className="font-mono">{formatLitres(suggestion.shiftCloseBook.unleaded)}</span> /{' '}
+                <span className="font-mono">{formatLitres(suggestion.shiftCloseBook.diesel)}</span> L.
+              </>
+            ) : null}{' '}
+            No tank reading is saved for the start of {formatDateOnlyForDisplay(suggestion.date)} yet.
+          </p>
+          {canManage ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveSuggestion()}
+                className="min-h-[44px] rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 sm:min-h-0"
+              >
+                {saving ? 'Saving…' : `Use as opening for ${formatDateOnlyForDisplay(suggestion.date)}`}
+              </button>
+              {error ? <span className="text-red-700">{error}</span> : null}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-emerald-900">A manager can save this as the opening reading.</p>
+          )}
+        </div>
+      ) : null}
+
+      {check.days.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-3">Day</th>
+                <th className="px-4 py-3 text-right">Unleaded stick</th>
+                <th className="px-4 py-3 text-right">Unleaded reading</th>
+                <th className="px-4 py-3">Gap</th>
+                <th className="px-4 py-3 text-right">Diesel stick</th>
+                <th className="px-4 py-3 text-right">Diesel reading</th>
+                <th className="px-4 py-3">Gap</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 tabular-nums">
+              {check.days.map((day) => {
+                const [u, d] = day.grades
+                const uGap = gapText(u)
+                const dGap = gapText(d)
+                return (
+                  <tr key={day.date}>
+                    <td className="px-4 py-3 font-medium text-gray-900">{formatDateOnlyForDisplay(day.date)}</td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {u.cstoreStick !== null ? formatLitres(u.cstoreStick) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">{u.reading !== null ? formatLitres(u.reading) : '—'}</td>
+                    <td className={`px-4 py-3 ${uGap.className}`}>{uGap.text}</td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {d.cstoreStick !== null ? formatLitres(d.cstoreStick) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">{d.reading !== null ? formatLitres(d.reading) : '—'}</td>
+                    <td className={`px-4 py-3 ${dGap.className}`}>{dGap.text}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
