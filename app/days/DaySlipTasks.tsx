@@ -752,7 +752,7 @@ function Fact({ label, value, valueClass }: { label: string; value: string; valu
   )
 }
 
-function SecurityScanModal({
+export function SecurityScanModal({
   urls,
   onClose,
   onDelete,

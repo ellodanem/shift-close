@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { depositComparisonsPath, endOfDayPath, parseFocusDate } from '@/lib/daily-close-path'
 import { slipTasksForDay } from '@/lib/day-slip-tasks'
 import { CollapsedSlipIcons } from '../DaySlipTasks'
+import PaperSection from './PaperSection'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import {
   formatLitres,
@@ -267,7 +268,7 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
   )
 }
 
-function DayStatement({ day }: { day: DayReportV2 }) {
+function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => void }) {
   const [showShifts, setShowShifts] = useState(false)
   const r = day.reconcile
   const tasks = slipTasksForDay(day)
@@ -290,6 +291,8 @@ function DayStatement({ day }: { day: DayReportV2 }) {
       ) : null}
 
       <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} />
+
+      <PaperSection day={day} onRefresh={onRefresh} />
 
       {showTank ? <TankTable tank={day.tank} /> : null}
 
@@ -382,10 +385,10 @@ function DaysV2Page() {
   const [error, setError] = useState<string | null>(null)
   const [openDate, setOpenDate] = useState<string | null>(focusDate)
 
-  const load = useCallback(() => {
+  const load = useCallback((silent = false) => {
     const range = monthRange(month)
     if (!range) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     setError(null)
     fetch(`/api/days/v2?from=${range.from}&to=${range.to}`, { cache: 'no-store' })
       .then(async (res) => {
@@ -423,8 +426,8 @@ function DaysV2Page() {
           </Link>
         </div>
         <p className="mb-4 text-sm text-gray-600">
-          Each day is compared with the Cstore daily report. Paper, uploads and everything else stay in the current End
-          of Day.
+          Each day is compared with the Cstore daily report. Upload the deposit, credit/debit and security slips under
+          Paper on each day.
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -444,7 +447,7 @@ function DaysV2Page() {
           />
           <button
             type="button"
-            onClick={load}
+            onClick={() => load()}
             disabled={loading}
             className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50"
           >
@@ -528,7 +531,7 @@ function DaysV2Page() {
                         <span className="text-gray-400">{open ? '▼' : '▶'}</span>
                       </span>
                     </button>
-                    {open ? <DayStatement day={day} /> : null}
+                    {open ? <DayStatement day={day} onRefresh={() => load(true)} /> : null}
                   </div>
                 </Fragment>
               )
