@@ -51,7 +51,7 @@ function Dot({ status }: { status: ReconcileLine['status'] }) {
 
 function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): string {
   if (line.status === 'pending') {
-    if (side === 'cstore') return 'Not entered'
+    if (side === 'cstore') return line.key === 'cashChecks' ? 'Waiting for Cstore' : 'Not entered'
     if (side === 'diff') return ''
   }
   const v = line[side]
@@ -69,11 +69,15 @@ function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): stri
 function CompareTable({
   title,
   lines,
-  total
+  total,
+  headers = ['Cstore', 'Shift Close', 'Difference'],
+  boldKeys = []
 }: {
   title: string
   lines: ReconcileLine[]
   total?: { label: string; cstore: string; shiftClose: string; diff: string; status: ReconcileLine['status'] }
+  headers?: [string, string, string]
+  boldKeys?: string[]
 }) {
   return (
     <div>
@@ -83,14 +87,14 @@ function CompareTable({
           <thead>
             <tr className="border-b border-gray-200 text-xs text-gray-500">
               <th className="px-2 py-1 text-left font-normal">Type</th>
-              <th className="px-2 py-1 text-right font-normal">Cstore</th>
-              <th className="px-2 py-1 text-right font-normal">Shift Close</th>
-              <th className="px-2 py-1 text-right font-normal">Difference</th>
+              <th className="px-2 py-1 text-right font-normal">{headers[0]}</th>
+              <th className="px-2 py-1 text-right font-normal">{headers[1]}</th>
+              <th className="px-2 py-1 text-right font-normal">{headers[2]}</th>
             </tr>
           </thead>
           <tbody className="tabular-nums">
             {lines.map((l) => (
-              <tr key={l.key} className="border-b border-gray-100">
+              <tr key={l.key} className={`border-b border-gray-100 ${boldKeys.includes(l.key) ? 'font-semibold' : ''}`}>
                 <td className="px-2 py-1.5 text-left">
                   <Dot status={l.status} />
                   {l.label}
@@ -190,7 +194,6 @@ function DayStatement({ day }: { day: DayReportV2 }) {
   const r = day.reconcile
   const tasks = slipTasksForDay(day)
   const filed = tasks.filter((t) => t.done).length
-  const total = r.collected.total
   const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
   const showTank =
     day.tank.hasReading || day.tank.grades.some((g) => g.cstoreOpening !== null || g.cstoreStick !== null)
@@ -219,26 +222,14 @@ function DayStatement({ day }: { day: DayReportV2 }) {
           <CompareTable
             title="Collected"
             lines={r.collected.lines}
-            total={{
-              label: 'Total collected',
-              cstore: cell(total, 'cstore'),
-              shiftClose: cell(total, 'shiftClose'),
-              diff: cell(total, 'diff'),
-              status: total.status
-            }}
+            headers={['System (Cstore)', 'Count (Shift Close)', 'Over/Short']}
+            boldKeys={['cashChecks']}
           />
-
-          <CompareTable
-            title="Over / short"
-            lines={[]}
-            total={{
-              label: 'Collected minus sales',
-              cstore: cell(r.overShort, 'cstore'),
-              shiftClose: cell(r.overShort, 'shiftClose'),
-              diff: cell(r.overShort, 'diff'),
-              status: r.overShort.status
-            }}
-          />
+          <p className="mt-1 text-xs text-gray-500">
+            Over/Short is Count minus System. Cash + Checks is the one that matters, as on the shift screen. Its System
+            figure is Cstore&apos;s total sales minus Credit/Debit, Fleet and Customer accounts, and its Count is the
+            amount deposited. The other rows compare the counted slips.
+          </p>
         </>
       ) : (
         <>
@@ -470,11 +461,11 @@ function DaysV2Page() {
                             <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${style.dot}`} />
                             {r.verdictText}
                           </span>
-                          {r.overShort.cstore !== null ? (
+                          {r.overShort.diff !== null ? (
                             <span className="text-gray-600">
                               Over/short{' '}
                               <span className="font-semibold text-gray-800">
-                                {formatMoney(r.overShort.cstore, true)}
+                                {formatMoney(r.overShort.diff, true)}
                               </span>
                             </span>
                           ) : null}

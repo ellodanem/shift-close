@@ -28,6 +28,9 @@ export async function buildDayReportsV2(options?: BuildDayReportsOptions): Promi
         systemFleet: s.systemFleet,
         countCash: s.countCash,
         countChecks: s.countChecks,
+        countCredit: s.countCredit,
+        countInhouse: s.countInhouse,
+        countFleet: s.countFleet,
         totalDeposits: s.totalDeposits,
         unleaded: s.unleaded,
         diesel: s.diesel

@@ -2,11 +2,16 @@
  * End of Day V2: compare the Cstore daily report (whole day only) with the day's shifts added together.
  * Pure functions, no database access. Cstore data is a read-only snapshot and never changes shift data.
  *
+ * Laid out like the End of Shift screen: System (Cstore) against Count (Shift Close), with Over/Short.
+ * Over/Short is Count minus System. Cash + Checks is the headline, the others are informational.
+ *
  * Mapping (confirmed against Nov 3 and Nov 4 2026):
- *   Cstore "Credit card batches"  = Fleet           = sum of shifts' systemFleet
- *   Cstore "Credit card 2 batch"  = Credit/Debit    = sum of shifts' systemDebit + otherCredit
- *   Cstore "Cust account sales"   = Customer accts  = sum of shifts' systemInhouse
- *   Cstore "Total deposits"       = typed by the manager; compared with the shifts' deposits
+ *   Cstore "Credit card batches"  = Fleet           vs shifts' countFleet
+ *   Cstore "Credit card 2 batch"  = Credit/Debit    vs shifts' countCredit (counted slips)
+ *   Cstore "Cust account sales"   = Customer accts  vs shifts' countInhouse
+ *   Cash + Checks: Cstore does not print expected cash, so System = total sales minus the three lines
+ *   above. Count = the shifts' deposits (what reached the bank).
+ *   Cstore "Total deposits" is typed by the manager and is not used for the comparison.
  * Cstore labels fuel "gal" but the figures are litres, so no conversion is applied.
  */
 
@@ -57,6 +62,10 @@ export type ReconcileShiftInput = {
   systemFleet: number
   countCash: number
   countChecks: number
+  /** Counted slips from the End of Shift screen (the Count column). */
+  countCredit: number
+  countInhouse: number
+  countFleet: number
   totalDeposits: number
   unleaded: number
   diesel: number
@@ -98,15 +107,17 @@ export type DayReconcile = {
   /** Number of comparison lines that differ (collected lines and fuel litres). */
   differenceCount: number
   sales: { lines: ReconcileLine[]; totalSales: number | null }
-  collected: { lines: ReconcileLine[]; total: ReconcileLine }
+  /** Cash + Checks first, then Credit/Debit, Fleet and Customer accounts. cstore = System, shiftClose = Count. */
+  collected: { lines: ReconcileLine[] }
+  /** The Cash + Checks line (the headline over/short). diff = Count minus System. */
   overShort: ReconcileLine
   shifts: ReconcileShiftRow[]
   notes: string[]
   /** Short, always-on warnings that need no Cstore data (a shift with no POS figures entered). */
   shiftWarnings: string[]
   /**
-   * Cstore report is saved but the manager has not typed the bank deposits in yet. Lines that come from
-   * the POS (Fleet, Customer accounts, fuel litres) are still compared; typed lines are 'pending'.
+   * Cstore report is saved but the manager has not typed the bank deposits in yet. Cstore's own tank book
+   * and over/short are not meaningful until then, so those notes are held back.
    */
   awaitingDeposits: boolean
   pulledAt: string | null
@@ -158,21 +169,21 @@ export function reconcileDay(
   shifts: ReconcileShiftInput[],
   cstoreSnapshot: CstoreSnapshot | null
 ): DayReconcile {
-  // A Cstore report saved before the manager typed the bank deposits has a huge false short, and its
-  // typed lines (Deposits, Credit/Debit, collection total, over/short) are not meaningful yet. The
-  // POS lines (Fleet, Customer accounts, fuel litres) are still good and are compared.
+  // A Cstore report saved before the manager typed the bank deposits has a huge false short in Cstore's
+  // own over/short and tank book, so those notes are held back. The comparison itself does not use
+  // Cstore's typed deposits, only its POS figures and the card batch.
   const cstore = cstoreSnapshot
   const awaitingDeposits = !!cstoreSnapshot && cstoreSnapshot.depositsTyped < 0.005
   const sum = (pick: (s: ReconcileShiftInput) => number) => round2(shifts.reduce((t, s) => t + pick(s), 0))
+  // Shift Close side = the Count column of the shifts (counted slips) and the deposits.
   const sc = {
     deposits: sum((s) => s.totalDeposits),
-    fleet: sum((s) => s.systemFleet),
-    creditDebit: sum((s) => s.systemDebit + s.otherCredit),
-    accounts: sum((s) => s.systemInhouse),
+    fleet: sum((s) => s.countFleet),
+    creditDebit: sum((s) => s.countCredit),
+    accounts: sum((s) => s.countInhouse),
     unleaded: Math.round(shifts.reduce((t, s) => t + s.unleaded, 0) * 1000) / 1000,
     diesel: Math.round(shifts.reduce((t, s) => t + s.diesel, 0) * 1000) / 1000
   }
-  const scTotal = round2(sc.deposits + sc.fleet + sc.creditDebit + sc.accounts)
 
   const shiftRows: ReconcileShiftRow[] = shifts.map((s) => ({
     shift: s.shift,
@@ -204,47 +215,51 @@ export function reconcileDay(
       ]
     : []
 
-  // While deposits are not typed, Credit/Debit is also treated as not entered when Cstore has none but
-  // the shifts do.
-  const creditDebitPending = awaitingDeposits && !!c && c.creditDebitBatch < 0.005 && sc.creditDebit >= 0.005
+  // Credit card 2 batch is typed by the manager. Zero in Cstore while the shifts have card slips means it
+  // is not entered yet, and Cash + Checks cannot be worked out without it.
+  const cardPending = !!c && c.creditDebitBatch < 0.005 && sc.creditDebit >= 0.005
+
+  // Cstore does not print its expected cash. It is the sales that are not paid by card, Fleet or account.
+  const systemCash =
+    c && !cardPending ? round2(c.totalSales - c.creditDebitBatch - c.fleetBatch - c.custAccountSales) : null
+  const cashLabel = 'Cash + Checks'
+  const overShort = c && systemCash === null
+    ? pendingLine('cashChecks', cashLabel, 'usd', sc.deposits)
+    : makeLine('cashChecks', cashLabel, 'usd', systemCash, sc.deposits)
 
   const collectedLines: ReconcileLine[] = [
-    awaitingDeposits
-      ? pendingLine('deposits', 'Deposits', 'usd', sc.deposits)
-      : makeLine('deposits', 'Deposits', 'usd', c ? c.depositsTyped : null, sc.deposits),
-    makeLine('fleet', 'Fleet', 'usd', c ? c.fleetBatch : null, sc.fleet),
-    creditDebitPending
+    overShort,
+    cardPending
       ? pendingLine('creditDebit', 'Credit/Debit', 'usd', sc.creditDebit)
       : makeLine('creditDebit', 'Credit/Debit', 'usd', c ? c.creditDebitBatch : null, sc.creditDebit),
+    makeLine('fleet', 'Fleet', 'usd', c ? c.fleetBatch : null, sc.fleet),
     makeLine('accounts', 'Customer accounts', 'usd', c ? c.custAccountSales : null, sc.accounts)
   ]
-  const total = awaitingDeposits
-    ? pendingLine('total', 'Total collected', 'usd', scTotal)
-    : makeLine('total', 'Total collected', 'usd', c ? c.totalCollections : null, scTotal)
-
-  // The Shift Close side of over/short is real even while Cstore's is not (it uses Shift Close deposits).
-  const scOverShort = c ? round2(scTotal - c.totalSales) : null
-  const overShort = awaitingDeposits
-    ? pendingLine('overShort', 'Collected minus sales', 'usd', scOverShort)
-    : makeLine('overShort', 'Collected minus sales', 'usd', c ? c.shortOver : null, scOverShort)
+  const cashPending = overShort.status === 'pending'
 
   const compared = [...salesLines.filter((l) => l.status !== 'none'), ...collectedLines]
   const differing = compared.filter((l) => l.status === 'differs')
 
   const notes: string[] = []
   if (c) {
-    const diffLines = collectedLines.filter((l) => l.status === 'differs' && l.diff !== null)
+    const diffLines = collectedLines.filter((l) => l.key !== 'cashChecks' && l.status === 'differs' && l.diff !== null)
     const litreDiffs = salesLines.filter((l) => l.status === 'differs' && l.diff !== null)
-    if (differing.length === 0 && (awaitingDeposits || overShort.status === 'match')) {
+    if (differing.length === 0) {
       notes.push(
-        awaitingDeposits
+        cashPending
           ? 'Everything entered in Cstore so far agrees with Shift Close.'
           : 'Shift Close agrees with Cstore on every line.'
       )
     } else {
+      if (overShort.status === 'differs' && overShort.diff !== null && overShort.cstore !== null) {
+        const short = overShort.diff < 0
+        notes.push(
+          `Cash + Checks ${short ? 'short' : 'over'} ${money(Math.abs(overShort.diff))}: ${money(sc.deposits)} deposited against ${money(overShort.cstore)} that Cstore expects.`
+        )
+      }
       if (diffLines.length > 0) {
         const parts = diffLines.map((l) => `${l.label} ${money(l.diff as number, true)}`)
-        notes.push(`Shift Close differs from Cstore on: ${parts.join(', ')}.`)
+        notes.push(`Count differs from Cstore on: ${parts.join(', ')}.`)
       }
       if (litreDiffs.length > 0) {
         const parts = litreDiffs.map((l) => `${l.label} ${(l.diff as number) > 0 ? '+' : ''}${(l.diff as number).toFixed(1)} L`)
@@ -255,18 +270,8 @@ export function reconcileDay(
         notes.push(`Agrees: ${agree.join(', ')}.`)
       }
     }
-    if (awaitingDeposits) {
-      const pending = collectedLines.filter((l) => l.status === 'pending').map((l) => l.label)
-      notes.push(`${pending.join(' and ')} not entered in Cstore yet. The totals and over/short compare once they are.`)
-    }
-    if (
-      overShort.diff !== null &&
-      Math.abs(overShort.diff) <= OVER_SHORT_LOOK_THRESHOLD &&
-      Math.abs(c.shortOver) > OVER_SHORT_LOOK_THRESHOLD
-    ) {
-      notes.push(
-        `Both sides show about ${money(c.shortOver, true)}, so this is a real ${c.shortOver < 0 ? 'short' : 'over'} and not missing data.`
-      )
+    if (cardPending) {
+      notes.push('Credit/Debit is not entered in Cstore yet. Cash + Checks compares once it is.')
     }
     const other = round2(c.totalCollections - (c.depositsTyped + c.fleetBatch + c.creditDebitBatch + c.custAccountSales))
     if (!awaitingDeposits && Math.abs(other) >= 0.005) {
@@ -287,9 +292,9 @@ export function reconcileDay(
   if (!c) {
     verdict = 'waiting'
     verdictText = 'Waiting for Cstore'
-  } else if (differing.length === 0 && awaitingDeposits) {
+  } else if (differing.length === 0 && cashPending) {
     verdict = 'waiting'
-    verdictText = 'Waiting for deposits'
+    verdictText = 'Waiting for Cstore entries'
   } else if (differing.length === 0 && overShort.status === 'match') {
     verdict = 'reconciled'
     verdictText = 'Reconciled'
@@ -305,8 +310,7 @@ export function reconcileDay(
     verdictText,
     differenceCount: differing.length,
     sales: { lines: salesLines, totalSales: c ? c.totalSales : null },
-    // (Cstore's total sales is a POS figure, so it is shown even while deposits are pending.)
-    collected: { lines: collectedLines, total },
+    collected: { lines: collectedLines },
     overShort,
     shifts: shiftRows,
     notes,
