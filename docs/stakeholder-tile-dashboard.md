@@ -13,7 +13,16 @@ Other roles keep the full dashboard.
   `StakeholderTileHome.tsx`). Remove that flag to turn a tile back on. Page access via URL is unchanged.
 - Shifts tile left out: the stakeholder still cannot open `/shifts`.
 
-## Revert
+## Manager tile home (Nov 9, 2026)
+The `manager` role (not admin) gets a similar home: Recently Used + Favorites stay, Upcoming with Today's roster
+under it, then every menu group as tiles (`app/components/ManagerTileHome.tsx`, built from the same role-filtered
+nav as the sidebar). All dashboard widgets are removed for that role. Admin is unchanged.
+- Revert point: git tag `pre-manager-tile-dashboard` (commit `50eac46`).
+- Undo: `git revert <the "manager tile dashboard" commit>`, or
+  `git checkout pre-manager-tile-dashboard -- app/dashboard/page.tsx` and delete `app/components/ManagerTileHome.tsx`.
+- Quick switch-off without reverting: set `isManagerTiles` to `false` in `app/dashboard/page.tsx`.
+
+## Revert (stakeholder)
 Revert point (before any of this): git tag `pre-stakeholder-tile-dashboard` (commit `a261fc8`).
 
 - Undo just this change: `git revert <the "Simplify stakeholder dashboard" commit>`

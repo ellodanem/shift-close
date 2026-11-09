@@ -23,6 +23,7 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { shouldRefetchOnVisibility } from '@/lib/refetch-on-visibility'
 import HomeShortcutStrip from '@/app/components/HomeShortcutStrip'
 import StakeholderTileHome from '@/app/components/StakeholderTileHome'
+import ManagerTileHome from '@/app/components/ManagerTileHome'
 
 type ReminderRecurrence = '' | 'weekly' | 'biweekly' | 'monthly'
 
@@ -308,6 +309,8 @@ function FullDashboard() {
   const router = useRouter()
   const { user, loading: authLoading, isStakeholder, isSupervisorLike, canLogCallOut, isFullAccess, logout } = useAuth()
   const appRole = user?.role ?? ''
+  /** Manager role gets the tile home (Recently Used, Favorites, Upcoming + roster, then tiles). Admin keeps the full dashboard. */
+  const isManagerTiles = appRole === 'manager'
   const [summary, setSummary] = useState<MonthSummary | null>(null)
   const [upcoming, setUpcoming] = useState<UpcomingEvent[]>([])
   const [recentPayment, setRecentPayment] = useState<RecentFuelPayment | null>(null)
@@ -1849,9 +1852,11 @@ function FullDashboard() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">Home</h1>
-              <p className="mt-1 hidden text-sm text-slate-500 sm:block">
-                Shortcuts stay on top. Dashboard insights stay below.
-              </p>
+              {isManagerTiles ? null : (
+                <p className="mt-1 hidden text-sm text-slate-500 sm:block">
+                  Shortcuts stay on top. Dashboard insights stay below.
+                </p>
+              )}
             </div>
             <button
               type="button"
@@ -1876,9 +1881,18 @@ function FullDashboard() {
         ) : null}
         <div className="mb-6 grid grid-cols-1 items-start gap-3 sm:mb-8 lg:grid-cols-2 lg:gap-4">
           <HomeShortcutStrip />
-          {!isStakeholder ? <div className="min-w-0 self-start">{renderUpcomingCard()}</div> : null}
+          {!isStakeholder ? (
+            <div className="min-w-0 self-start space-y-3 lg:space-y-4">
+              {renderUpcomingCard()}
+              {isManagerTiles ? renderTodayRosterCard() : null}
+            </div>
+          ) : null}
         </div>
 
+        {isManagerTiles ? (
+          <ManagerTileHome />
+        ) : (
+        <>
         <DashboardSectionLabel>Dashboard</DashboardSectionLabel>
         <div className="mb-3 space-y-2">
           <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
@@ -2519,6 +2533,8 @@ function FullDashboard() {
           )
         })
         })()}
+        </>
+        )}
 
       {/* Add Pay Day Modal */}
       {payDayModalOpen && (
