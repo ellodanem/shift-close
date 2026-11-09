@@ -120,8 +120,10 @@ export default function DaySlipTasks({
   onCompare,
   reviewHref,
   onExport,
-  onOpenShift
+  onOpenShift,
+  showFacts = true
 }: {
+  showFacts?: boolean
   dayReport: DayReport
   onRefresh: () => void
   onEmail: (kind: ScanKind) => void
@@ -404,12 +406,14 @@ export default function DaySlipTasks({
         })}
       </div>
       )}
-      <DayFacts
-        dayReport={dayReport}
-        reviewHref={reviewHref}
-        onExport={onExport}
-        onOpenShift={onOpenShift}
-      />
+      {showFacts ? (
+        <DayFacts
+          dayReport={dayReport}
+          reviewHref={reviewHref}
+          onExport={onExport}
+          onOpenShift={onOpenShift}
+        />
+      ) : null}
       {removeKind ? (
         <RemovePhotosModal
           title={ROW_COPY[removeKind].title}
