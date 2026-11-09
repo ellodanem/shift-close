@@ -64,6 +64,39 @@ function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): stri
   return formatMoney(v)
 }
 
+/** Sales as Cstore reports them: one amount column, nothing to compare. */
+function SalesTable({ lines, totalSales }: { lines: ReconcileLine[]; totalSales: number | null }) {
+  return (
+    <div>
+      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Sales</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[320px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs text-gray-500">
+              <th className="px-2 py-1 text-left font-normal">Type</th>
+              <th className="px-2 py-1 text-right font-normal">Cstore</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {lines.map((l) => (
+              <tr key={l.key} className="border-b border-gray-100">
+                <td className="px-2 py-1.5 text-left">{l.label}</td>
+                <td className="px-2 py-1.5 text-right">{cell(l, 'cstore')}</td>
+              </tr>
+            ))}
+            {totalSales !== null ? (
+              <tr className="border-b border-gray-100 font-semibold">
+                <td className="px-2 py-1.5 text-left">Total sales</td>
+                <td className="px-2 py-1.5 text-right">{formatMoney(totalSales)}</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 /** Collected: the shifts' System column against their Count column, like the End of Shift screen. */
 function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: DepositCheck }) {
   return (
@@ -248,22 +281,12 @@ function DayStatement({ day }: { day: DayReportV2 }) {
       {r.hasCstore ? (
         <>
           <p className="text-xs text-gray-500">
-            Sales: Cstore is what the Cstore daily report says, Shift Close is the day&apos;s shifts added together.
-            A green dot means they agree, red means there is a gap.
+            Sales and fuel are what the Cstore daily report says. Fuel is compared with the day&apos;s shifts added
+            together. A green dot means they agree, red means there is a gap.
           </p>
 
-          <CompareTable title="Sales" lines={r.sales.lines} total={
-            r.sales.totalSales === null
-              ? undefined
-              : {
-                  label: 'Total sales',
-                  cstore: formatMoney(r.sales.totalSales),
-                  shiftClose: '',
-                  diff: '',
-                  status: 'none'
-                }
-          } />
-
+          <SalesTable lines={r.sales.lines.filter((l) => l.unit === 'usd')} totalSales={r.sales.totalSales} />
+          <CompareTable title="Fuel sold (litres)" lines={r.sales.lines.filter((l) => l.unit === 'litres')} />
         </>
       ) : null}
 
