@@ -1,10 +1,11 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatLitres, formatMoney } from '@/lib/day-reconcile'
 import { buildRangeReport, type RangeReport } from '@/lib/day-range-report'
+import { rangePresets } from '@/lib/day-range-presets'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
 
 function dayLabel(ymd: string): { short: string; weekday: string } {
@@ -236,6 +237,22 @@ function ReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<RangeReport | null>(null)
+  const presets = useMemo(() => rangePresets(today), [today])
+  // A quick range generates the report as soon as its days have loaded.
+  const autoGenerate = useRef(false)
+
+  const pickPreset = (p: { from: string; to: string }) => {
+    if (p.from === from && p.to === to && !loading) {
+      // Already showing these dates: tick every day again and generate.
+      setSelected(new Set(days.map((d) => d.date)))
+      setReport(days.length > 0 ? buildRangeReport(days) : null)
+      return
+    }
+    autoGenerate.current = true
+    setReport(null)
+    setFrom(p.from)
+    setTo(p.to)
+  }
 
   const load = useCallback(() => {
     if (!from || !to || from > to) {
@@ -259,13 +276,17 @@ function ReportPage() {
           .sort((a, b) => (a.date < b.date ? -1 : 1))
         setDays(list)
         setSelected(new Set(list.map((d) => d.date)))
+        if (autoGenerate.current && list.length > 0) setReport(buildRangeReport(list))
       })
       .catch(() => {
         setError('Could not load End of Day.')
         setDays([])
         setSelected(new Set())
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        autoGenerate.current = false
+        setLoading(false)
+      })
   }, [from, to])
 
   useEffect(() => {
@@ -301,6 +322,24 @@ function ReportPage() {
           <p className="mb-4 text-sm text-gray-600">Combine the days in a range into one statement.</p>
 
           <div className="mb-4 rounded border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {presets.map((p) => {
+                const active = from === p.from && to === p.to
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => pickPreset(p)}
+                    aria-pressed={active}
+                    className={`rounded px-3 py-1.5 text-sm font-semibold ${
+                      active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label className="mb-1 block text-xs text-gray-500" htmlFor="eod-report-from">

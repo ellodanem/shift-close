@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { reconcileDay, type CstoreSnapshot, type ReconcileShiftInput } from '../lib/day-reconcile'
 import { buildRangeReport } from '../lib/day-range-report'
+import { rangePresets } from '../lib/day-range-presets'
 
 const shift = (over: Partial<ReconcileShiftInput>): ReconcileShiftInput => ({
   shift: '6-1',
@@ -160,5 +161,33 @@ describe('buildRangeReport', () => {
     assert.equal(e.dayCount, 0)
     assert.equal(e.byDay.length, 0)
     assert.equal(e.cashChecks.overShort, 0)
+  })
+})
+
+describe('rangePresets', () => {
+  const byId = (today: string) => Object.fromEntries(rangePresets(today).map((p) => [p.id, p]))
+
+  it('weeks run Monday to Sunday (Mon 2026-11-09)', () => {
+    const p = byId('2026-11-09')
+    assert.deepEqual([p.thisWeek.from, p.thisWeek.to], ['2026-11-09', '2026-11-15'])
+    assert.deepEqual([p.lastWeek.from, p.lastWeek.to], ['2026-11-02', '2026-11-08'])
+  })
+
+  it('a Sunday belongs to the week that started the Monday before (Sun 2026-11-15)', () => {
+    const p = byId('2026-11-15')
+    assert.deepEqual([p.thisWeek.from, p.thisWeek.to], ['2026-11-09', '2026-11-15'])
+  })
+
+  it('months run first to last day, including February and the year boundary', () => {
+    assert.deepEqual([byId('2026-11-09').thisMonth.from, byId('2026-11-09').thisMonth.to], ['2026-11-01', '2026-11-30'])
+    assert.deepEqual([byId('2026-11-09').lastMonth.from, byId('2026-11-09').lastMonth.to], ['2026-10-01', '2026-10-31'])
+    assert.deepEqual([byId('2026-03-05').lastMonth.from, byId('2026-03-05').lastMonth.to], ['2026-02-01', '2026-02-28'])
+    assert.deepEqual([byId('2026-01-10').lastMonth.from, byId('2026-01-10').lastMonth.to], ['2025-12-01', '2025-12-31'])
+  })
+
+  it('last week crosses a month boundary (Wed 2026-12-02)', () => {
+    const p = byId('2026-12-02')
+    assert.deepEqual([p.thisWeek.from, p.thisWeek.to], ['2026-11-30', '2026-12-06'])
+    assert.deepEqual([p.lastWeek.from, p.lastWeek.to], ['2026-11-23', '2026-11-29'])
   })
 })
