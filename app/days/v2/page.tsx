@@ -205,6 +205,7 @@ function litresFigure(n: number | null): string {
 }
 
 function TankTable({ tank }: { tank: DayTankCheck }) {
+  const [open, setOpen] = useState(false)
   const [unleaded, diesel] = tank.grades
   const row = (label: string, pick: (g: TankCheckGrade) => string, options?: { bold?: boolean }) => {
     const a = pick(unleaded)
@@ -225,7 +226,35 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
   }
   return (
     <div>
-      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Tanks (litres)</h3>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="mb-1 mt-5 flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700"
+      >
+        <svg
+          viewBox="0 0 20 20"
+          className={`h-3 w-3 shrink-0 fill-current text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
+          aria-hidden="true"
+        >
+          <path d="M7 4l7 6-7 6z" />
+        </svg>
+        Tanks (litres)
+        {!open ? (
+          <span className="flex items-center gap-3 text-xs font-normal text-gray-600">
+            {[unleaded, diesel].map((g, i) =>
+              g.status === 'match' || g.status === 'differs' ? (
+                <span key={i}>
+                  <Dot status={g.status} />
+                  {i === 0 ? 'Unleaded' : 'Diesel'}
+                </span>
+              ) : null
+            )}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+      <>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[360px] text-sm">
           <thead>
@@ -259,6 +288,8 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
         Shift Close reading is the tank reading saved for the start of {tank.readingDate}, which is the end of this
         day. A gap of 1 L or less is rounding.
       </p>
+      </>
+      ) : null}
     </div>
   )
 }
