@@ -49,10 +49,9 @@ export const REPORTS_NAV_ITEMS: ReportsNavItemConfig[] = [
   },
   {
     label: 'Over/short',
-    href: '/reports/coming-soon/over-short',
+    href: '/reports/over-short',
     shortcutId: 'report-over-short',
-    permission: 'reports.center',
-    comingSoon: true
+    permission: 'reports.center'
   },
   {
     label: 'Daily summary',

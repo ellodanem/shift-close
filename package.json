@@ -48,7 +48,8 @@
     "test:harvest-checks": "tsx --test scripts/test-harvest-vendor-checks.ts",
     "test:harvest-vendor-invoices": "tsx --test scripts/test-harvest-vendor-invoices.ts",
     "test:day-reconcile": "tsx --test scripts/test-day-reconcile.ts scripts/test-parse-cstore-daily-report.ts",
-    "test:tank-check": "tsx --test scripts/test-tank-check.ts"
+    "test:tank-check": "tsx --test scripts/test-tank-check.ts",
+    "test:over-short-report": "tsx --test scripts/test-over-short-report.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1143.0",

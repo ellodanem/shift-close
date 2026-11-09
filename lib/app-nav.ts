@@ -257,7 +257,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/vendor-payments/monthly-report': 'report-vendor-invoices',
   '/reports/coming-soon/weekly': 'report-weekly',
   '/reports/coming-soon/supervisor': 'report-supervisor',
-  '/reports/coming-soon/over-short': 'report-over-short',
+  '/reports/over-short': 'report-over-short',
   '/reports/coming-soon/deposit': 'report-deposit',
   '/reports/coming-soon/exception': 'report-exception'
 }
