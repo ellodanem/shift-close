@@ -129,7 +129,7 @@ export type DayReconcile = {
   /** Over/short rows, the deposit gap and fuel litres that differ. */
   differenceCount: number
   sales: { lines: ReconcileLine[]; totalSales: number | null }
-  /** Cash + Checks first, then Credits, In-House, Fleets (and Massy Coupons when used). */
+  /** Cash + Checks first, then Credit/Debit, In-House, Fleets (and Massy Coupons when used). */
   collected: { lines: CollectedLine[]; deposit: DepositCheck }
   /** The Cash + Checks line (the headline over/short). */
   overShort: CollectedLine
@@ -202,7 +202,7 @@ export function reconcileDay(
   const massyCount = sum((s) => s.countMassyCoupons)
   const collectedLines: CollectedLine[] = [
     cashLine,
-    collectedLine('credits', 'Credits', sum((s) => s.systemCredit), sum((s) => s.countCredit)),
+    collectedLine('credits', 'Credit/Debit', sum((s) => s.systemCredit), sum((s) => s.countCredit)),
     collectedLine('inhouse', 'In-House', sum((s) => s.systemInhouse), sum((s) => s.countInhouse)),
     collectedLine('fleets', 'Fleets', sum((s) => s.systemFleet), sum((s) => s.countFleet)),
     ...(Math.abs(massySystem) + Math.abs(massyCount) >= 0.005

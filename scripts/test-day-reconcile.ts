@@ -194,7 +194,7 @@ describe('reconcileDay: Nov 3 (System vs Count from the shifts)', () => {
 
   it('reads the short, the deposit gap and what was keyed differently in Cstore', () => {
     assert.ok(r.notes.some((n) => /^Cash \+ Checks short \$1,522\.09: \$26,499\.40 counted against \$28,021\.49 on the system\./.test(n)))
-    assert.ok(r.notes.some((n) => /^Over\/short on: Credits \+\$247\.78\./.test(n)))
+    assert.ok(r.notes.some((n) => /^Over\/short on: Credit\/Debit \+\$247\.78\./.test(n)))
     assert.ok(r.notes.some((n) => /^Deposited \$25,022\.00, \$1,477\.40 less than the \$26,499\.40 counted\./.test(n)))
     assert.ok(r.notes.some((n) => /Cstore was keyed differently from the shifts on: Credit\/Debit \+\$20\.40, Deposits \+\$0\.50\./.test(n)))
   })
