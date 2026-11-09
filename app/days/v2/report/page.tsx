@@ -312,11 +312,8 @@ function ReportPage() {
         <div className="print:hidden">
           <div className="mb-2 flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day report</h1>
-            <span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
-              V2 preview
-            </span>
             <Link href="/days/v2" className="ml-auto text-sm font-medium text-blue-700 hover:underline">
-              Back to End of Day V2
+              Back to End of Day
             </Link>
           </div>
           <p className="mb-4 text-sm text-gray-600">Combine the days in a range into one statement.</p>

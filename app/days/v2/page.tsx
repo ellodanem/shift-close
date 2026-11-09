@@ -2,7 +2,7 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { depositComparisonsPath, endOfDayPath, parseFocusDate } from '@/lib/daily-close-path'
+import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
 import { slipTasksForDay } from '@/lib/day-slip-tasks'
 import { CollapsedSlipIcons } from '../DaySlipTasks'
 import PaperSection from './PaperSection'
@@ -271,8 +271,6 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
 function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => void }) {
   const [showShifts, setShowShifts] = useState(false)
   const r = day.reconcile
-  const tasks = slipTasksForDay(day)
-  const filed = tasks.filter((t) => t.done).length
   const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
   const showTank =
     day.tank.hasReading || day.tank.grades.some((g) => g.cstoreOpening !== null || g.cstoreStick !== null)
@@ -354,12 +352,6 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
           {showShifts ? 'Hide shifts' : 'Show shifts'}
         </button>
         <Link
-          href={endOfDayPath(day.date)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
-        >
-          {tasks.length > 0 ? `Paper (${filed} of ${tasks.length} filed)` : 'Paper'}
-        </Link>
-        <Link
           href={depositComparisonsPath(day.date)}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
         >
@@ -418,14 +410,11 @@ function DaysV2Page() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">End of Day</h1>
-          <span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
-            V2 preview
-          </span>
           <Link href="/days/v2/report" className="ml-auto text-sm font-medium text-blue-700 hover:underline">
             Generate report
           </Link>
-          <Link href="/days" className="text-sm font-medium text-blue-700 hover:underline">
-            Current End of Day
+          <Link href="/days/v1" className="text-sm font-medium text-gray-500 hover:underline">
+            Previous version (V1)
           </Link>
         </div>
         <p className="mb-4 text-sm text-gray-600">

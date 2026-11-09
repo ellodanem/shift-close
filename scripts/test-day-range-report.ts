@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { reconcileDay, type CstoreSnapshot, type ReconcileShiftInput } from '../lib/day-reconcile'
 import { buildRangeReport } from '../lib/day-range-report'
 import { rangePresets } from '../lib/day-range-presets'
+import { END_OF_DAY_DEFAULT_VERSION, endOfDayEntryPath } from '../lib/end-of-day-version'
 
 const shift = (over: Partial<ReconcileShiftInput>): ReconcileShiftInput => ({
   shift: '6-1',
@@ -189,5 +190,21 @@ describe('rangePresets', () => {
     const p = byId('2026-12-02')
     assert.deepEqual([p.thisWeek.from, p.thisWeek.to], ['2026-11-30', '2026-12-06'])
     assert.deepEqual([p.lastWeek.from, p.lastWeek.to], ['2026-11-23', '2026-11-29'])
+  })
+})
+
+describe('endOfDayEntryPath', () => {
+  it('sends /days to the chosen version', () => {
+    assert.equal(endOfDayEntryPath('v2'), '/days/v2')
+    assert.equal(endOfDayEntryPath('v1'), '/days/v1')
+  })
+
+  it('carries ?date= and other query parameters across', () => {
+    assert.equal(endOfDayEntryPath('v2', { date: '2026-11-07' }), '/days/v2?date=2026-11-07')
+    assert.equal(endOfDayEntryPath('v1', { date: '2026-11-07', x: ['a', 'b'], skip: undefined }), '/days/v1?date=2026-11-07&x=a&x=b')
+  })
+
+  it('V2 is the default', () => {
+    assert.equal(END_OF_DAY_DEFAULT_VERSION, 'v2')
   })
 })

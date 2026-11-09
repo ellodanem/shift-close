@@ -406,7 +406,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/'
   if (href === '/dashboard') return pathname === '/dashboard'
   if (href === '/shifts') return pathname === '/shifts' || pathname.startsWith('/shifts/')
-  if (href === '/days') return pathname === '/days'
+  if (href === '/days') return pathname === '/days' || pathname.startsWith('/days/')
   if (href === '/inbox') return pathname === '/inbox' || pathname.startsWith('/inbox/')
   if (href === '/financial/cashbook/tasks') return pathname.startsWith('/financial/cashbook/tasks')
   if (href === '/financial/cashbook') {
