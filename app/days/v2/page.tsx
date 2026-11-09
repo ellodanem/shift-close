@@ -2,12 +2,9 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
+import { depositComparisonsPath, endOfDayPath, parseFocusDate } from '@/lib/daily-close-path'
 import { slipTasksForDay } from '@/lib/day-slip-tasks'
-import DaySlipTasks, { CollapsedSlipIcons } from '../DaySlipTasks'
-import DepositBreakdownModal from '../DepositBreakdownModal'
-import OtherItemsBreakdownModal from '../OtherItemsBreakdownModal'
-import { useScanEmail } from '../ScanEmailModal'
+import { CollapsedSlipIcons } from '../DaySlipTasks'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import {
   formatLitres,
@@ -270,13 +267,11 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
   )
 }
 
-function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => void }) {
-  const router = useRouter()
+function DayStatement({ day }: { day: DayReportV2 }) {
   const [showShifts, setShowShifts] = useState(false)
-  const [depositModal, setDepositModal] = useState<{ missingSlip: boolean; scans: boolean } | null>(null)
-  const [otherItemsOpen, setOtherItemsOpen] = useState(false)
-  const { openEmail, modal: emailModal } = useScanEmail()
   const r = day.reconcile
+  const tasks = slipTasksForDay(day)
+  const filed = tasks.filter((t) => t.done).length
   const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
   const showTank =
     day.tank.hasReading || day.tank.grades.some((g) => g.cstoreOpening !== null || g.cstoreStick !== null)
@@ -309,28 +304,6 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
           <p className="text-gray-600">Sales fill in once the Cstore daily report is in.</p>
         ) : null}
         {notes.length === 0 && r.hasCstore ? <p className="text-gray-600">Nothing to flag.</p> : null}
-      </div>
-
-      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Paper</h3>
-      <div className="overflow-hidden rounded border border-gray-200">
-        <DaySlipTasks
-          showFacts={false}
-          dayReport={day}
-          onRefresh={onRefresh}
-          onEmail={(kind) => {
-            const urls =
-              kind === 'deposit' ? day.depositScans : kind === 'debit' ? day.debitScans : day.securityScans ?? []
-            openEmail(day.date, kind, urls)
-          }}
-          onMissingDepositSlip={() => setDepositModal({ missingSlip: true, scans: false })}
-          onCompare={(kind) => {
-            if (kind === 'deposit') setDepositModal({ missingSlip: false, scans: true })
-            else setOtherItemsOpen(true)
-          }}
-          reviewHref={depositComparisonsPath(day.date)}
-          onExport={() => undefined}
-          onOpenShift={(shiftId) => router.push(`/shifts/${shiftId}`)}
-        />
       </div>
 
       {showShifts ? (
@@ -378,6 +351,12 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
           {showShifts ? 'Hide shifts' : 'Show shifts'}
         </button>
         <Link
+          href={endOfDayPath(day.date)}
+          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
+        >
+          {tasks.length > 0 ? `Paper (${filed} of ${tasks.length} filed)` : 'Paper'}
+        </Link>
+        <Link
           href={depositComparisonsPath(day.date)}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
         >
@@ -389,29 +368,6 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
           </span>
         ) : null}
       </div>
-
-      {emailModal}
-      {depositModal ? (
-        <DepositBreakdownModal
-          date={day.date}
-          dayReport={day}
-          depositScanUrls={day.depositScans}
-          onClose={() => setDepositModal(null)}
-          onSaved={onRefresh}
-          startWithMissingSlip={depositModal.missingSlip}
-          startWithScans={depositModal.scans}
-        />
-      ) : null}
-      {otherItemsOpen ? (
-        <OtherItemsBreakdownModal
-          date={day.date}
-          dayReport={day}
-          debitScanUrls={day.debitScans}
-          onClose={() => setOtherItemsOpen(false)}
-          onSaved={onRefresh}
-          startWithScans
-        />
-      ) : null}
     </div>
   )
 }
@@ -426,10 +382,10 @@ function DaysV2Page() {
   const [error, setError] = useState<string | null>(null)
   const [openDate, setOpenDate] = useState<string | null>(focusDate)
 
-  const load = useCallback((silent = false) => {
+  const load = useCallback(() => {
     const range = monthRange(month)
     if (!range) return
-    if (!silent) setLoading(true)
+    setLoading(true)
     setError(null)
     fetch(`/api/days/v2?from=${range.from}&to=${range.to}`, { cache: 'no-store' })
       .then(async (res) => {
@@ -467,8 +423,8 @@ function DaysV2Page() {
           </Link>
         </div>
         <p className="mb-4 text-sm text-gray-600">
-          Each day is compared with the Cstore daily report. Upload the deposit, credit/debit and security slips under
-          Paper on each day.
+          Each day is compared with the Cstore daily report. Paper, uploads and everything else stay in the current End
+          of Day.
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -488,7 +444,7 @@ function DaysV2Page() {
           />
           <button
             type="button"
-            onClick={() => load()}
+            onClick={load}
             disabled={loading}
             className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50"
           >
@@ -572,7 +528,7 @@ function DaysV2Page() {
                         <span className="text-gray-400">{open ? '▼' : '▶'}</span>
                       </span>
                     </button>
-                    {open ? <DayStatement day={day} onRefresh={() => load(true)} /> : null}
+                    {open ? <DayStatement day={day} /> : null}
                   </div>
                 </Fragment>
               )
