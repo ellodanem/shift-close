@@ -488,10 +488,11 @@ function DaysV2Page() {
                           ) : null}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                          <span className={`font-semibold ${style.text}`}>
-                            <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${style.dot}`} />
-                            {r.verdictText}
-                          </span>
+                          <span
+                            className={`inline-block h-2.5 w-2.5 rounded-full ${style.dot}`}
+                            title={r.verdictText}
+                            aria-label={r.verdictText}
+                          />
                           <span className="text-gray-600">
                             Over/short{' '}
                             <span className="font-semibold text-gray-800">
