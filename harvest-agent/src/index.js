@@ -54,7 +54,29 @@ let pauseNotified = false
 let activityLog = null
 let status = null
 
-const SYNC_POLL_MS = 12_000
+/**
+ * How often to ask Shift Close whether a manual Sync is waiting. Every poll is a Vercel
+ * function call plus database reads, so keep it slow: a Sync click starts within a minute.
+ */
+const SYNC_POLL_MS = 60_000
+
+/** Skip the sync poll 11:00pm–5:30am (business time) so Vercel and Neon can idle overnight. */
+const SYNC_QUIET_START_MIN = 23 * 60
+const SYNC_QUIET_END_MIN = 5 * 60 + 30
+
+function inSyncQuietHours(timeZone, now = new Date()) {
+  if (process.env.QUIET_HOURS_DISABLED === '1') return false
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZone || 'America/St_Lucia',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(now)
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0)
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0)
+  const mins = hour * 60 + minute
+  return mins >= SYNC_QUIET_START_MIN || mins < SYNC_QUIET_END_MIN
+}
 
 /** True when Chrome is taken. Sync-owned calls may proceed while a sync run is between steps. */
 function chromeBusy(options) {
@@ -959,6 +981,7 @@ async function pollSyncOnce() {
   if (syncExecuting || running || isPaused()) return
   const config = loadConfig()
   if (!config.vercelUrl || !config.agentSecret) return
+  if (inSyncQuietHours(config.timeZone)) return
   syncExecuting = true
   try {
     const claimed = await claimHarvestSync(config)

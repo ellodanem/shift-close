@@ -153,6 +153,8 @@ export default function AppNav({
 
     let cancelled = false
     const refresh = () => {
+      // Background tabs don't need a live badge; the focus listener below catches up.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       const today = new Date()
       const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
       void fetch(`/api/accounting/daily-updates?month=${month}`, { cache: 'no-store' })
@@ -186,12 +188,14 @@ export default function AppNav({
     }
 
     refresh()
-    const timer = window.setInterval(refresh, 60_000)
+    const timer = window.setInterval(refresh, 5 * 60_000)
     window.addEventListener(ACCOUNTANT_DAILY_REVIEWED_EVENT, refresh)
+    document.addEventListener('visibilitychange', refresh)
     return () => {
       cancelled = true
       window.clearInterval(timer)
       window.removeEventListener(ACCOUNTANT_DAILY_REVIEWED_EVENT, refresh)
+      document.removeEventListener('visibilitychange', refresh)
     }
   }, [role])
 

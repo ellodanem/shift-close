@@ -18,6 +18,9 @@ export const HARVEST_SYNC_STEPS = [
 
 export type HarvestSyncTaskKey = (typeof HARVEST_SYNC_STEPS)[number]['taskKey']
 
+/** Claim polls only refresh the agent heartbeat this often (presence goes stale after 16h). */
+const CLAIM_HEARTBEAT_REFRESH_MS = 10 * 60 * 1000
+
 const TASK_KEYS = new Set<string>(HARVEST_SYNC_STEPS.map((step) => step.taskKey))
 
 export function isHarvestSyncTaskKey(value: string): value is HarvestSyncTaskKey {
@@ -167,11 +170,27 @@ export async function claimHarvestSyncRun(params: {
   version?: string | null
 }) {
   await ensureHarvestSchema()
-  const agent = await upsertHarvestHeartbeat({
-    agentKey: params.agentKey,
-    hostname: params.hostname,
-    version: params.version
+
+  // This endpoint is polled by the agent all day. Keep the idle path to two cheap reads:
+  // only write the heartbeat when it is stale, and bail out when no run is waiting or running.
+  const agentKey = params.agentKey.trim()
+  const known = agentKey
+    ? await prisma.harvestAgent.findUnique({ where: { agentKey } })
+    : null
+  const agent =
+    known && Date.now() - known.lastHeartbeatAt.getTime() < CLAIM_HEARTBEAT_REFRESH_MS
+      ? known
+      : await upsertHarvestHeartbeat({
+        agentKey: params.agentKey,
+        hostname: params.hostname,
+        version: params.version
+      })
+
+  const anyActive = await prisma.harvestSyncRun.findFirst({
+    where: { status: { in: ['running', 'pending'] } },
+    select: { id: true }
   })
+  if (!anyActive) return { run: null, busy: false }
 
   const own = await prisma.harvestSyncRun.findFirst({
     where: { status: 'running', agentId: agent.id },
