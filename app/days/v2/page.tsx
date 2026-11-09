@@ -65,10 +65,18 @@ function cell(line: ReconcileLine, side: 'cstore' | 'shiftClose' | 'diff'): stri
 }
 
 /** Sales as Cstore reports them: one amount column, nothing to compare. */
-function SalesTable({ lines, totalSales }: { lines: ReconcileLine[]; totalSales: number | null }) {
+function SalesTable({
+  title = 'Sales',
+  lines,
+  totalSales = null
+}: {
+  title?: string
+  lines: ReconcileLine[]
+  totalSales?: number | null
+}) {
   return (
     <div>
-      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Sales</h3>
+      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">{title}</h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[320px] text-sm">
           <thead>
@@ -140,62 +148,6 @@ function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: D
         Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is the
         one that matters.
       </p>
-    </div>
-  )
-}
-
-function CompareTable({
-  title,
-  lines,
-  total,
-  headers = ['Cstore', 'Shift Close', 'Difference'],
-  boldKeys = []
-}: {
-  title: string
-  lines: ReconcileLine[]
-  total?: { label: string; cstore: string; shiftClose: string; diff: string; status: ReconcileLine['status'] }
-  headers?: [string, string, string]
-  boldKeys?: string[]
-}) {
-  return (
-    <div>
-      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">{title}</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-xs text-gray-500">
-              <th className="px-2 py-1 text-left font-normal">Type</th>
-              <th className="px-2 py-1 text-right font-normal">{headers[0]}</th>
-              <th className="px-2 py-1 text-right font-normal">{headers[1]}</th>
-              <th className="px-2 py-1 text-right font-normal">{headers[2]}</th>
-            </tr>
-          </thead>
-          <tbody className="tabular-nums">
-            {lines.map((l) => (
-              <tr key={l.key} className={`border-b border-gray-100 ${boldKeys.includes(l.key) ? 'font-semibold' : ''}`}>
-                <td className="px-2 py-1.5 text-left">
-                  <Dot status={l.status} />
-                  {l.label}
-                </td>
-                <td className="px-2 py-1.5 text-right">{cell(l, 'cstore')}</td>
-                <td className="px-2 py-1.5 text-right">{cell(l, 'shiftClose')}</td>
-                <td className="px-2 py-1.5 text-right">{cell(l, 'diff')}</td>
-              </tr>
-            ))}
-            {total ? (
-              <tr className="border-b border-gray-100 font-semibold">
-                <td className="px-2 py-1.5 text-left">
-                  <Dot status={total.status} />
-                  {total.label}
-                </td>
-                <td className="px-2 py-1.5 text-right">{total.cstore}</td>
-                <td className="px-2 py-1.5 text-right">{total.shiftClose}</td>
-                <td className="px-2 py-1.5 text-right">{total.diff}</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }
@@ -308,12 +260,11 @@ function DayStatement({ day }: { day: DayReportV2 }) {
       {r.hasCstore ? (
         <>
           <p className="text-xs text-gray-500">
-            Sales and fuel are what the Cstore daily report says. Fuel is compared with the day&apos;s shifts added
-            together. A green dot means they agree, red means there is a gap.
+            Sales and fuel are what the Cstore daily report says.
           </p>
 
           <SalesTable lines={r.sales.lines.filter((l) => l.unit === 'usd')} totalSales={r.sales.totalSales} />
-          <CompareTable title="Fuel sold (litres)" lines={r.sales.lines.filter((l) => l.unit === 'litres')} />
+          <SalesTable title="Fuel sold (litres)" lines={r.sales.lines.filter((l) => l.unit === 'litres')} />
         </>
       ) : null}
 

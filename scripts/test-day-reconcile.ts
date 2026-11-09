@@ -184,12 +184,13 @@ describe('reconcileDay: Nov 3 (System vs Count from the shifts)', () => {
     assert.equal(r.collected.deposit.status, 'differs')
   })
 
-  it('flags both fuel litres lines and counts five differences', () => {
-    assert.equal(salesLine(r, 'regularLitres').status, 'differs')
-    assert.equal(salesLine(r, 'dieselLitres').status, 'differs')
-    assert.equal(r.differenceCount, 5)
+  it('does not compare fuel litres and counts three differences', () => {
+    assert.equal(salesLine(r, 'regularLitres').status, 'none')
+    assert.equal(salesLine(r, 'dieselLitres').status, 'none')
+    assert.equal(r.differenceCount, 3)
     assert.equal(r.verdict, 'differs')
-    assert.equal(r.verdictText, '5 differences')
+    assert.equal(r.verdictText, '3 differences')
+    assert.ok(!r.notes.some((n) => /Fuel litres/.test(n)))
   })
 
   it('reads the short, the deposit gap and what was keyed differently in Cstore', () => {
@@ -226,9 +227,7 @@ describe('reconcileDay: Nov 4 (small gaps)', () => {
     assert.equal(r.collected.deposit.status, 'match')
   })
 
-  it('fuel litres agree and Cstore was keyed one cent differently on Customer accounts', () => {
-    assert.equal(salesLine(r, 'regularLitres').status, 'match')
-    assert.equal(salesLine(r, 'dieselLitres').status, 'match')
+  it('Cstore was keyed one cent differently on Customer accounts', () => {
     assert.equal(r.differenceCount, 3)
     assert.ok(r.notes.some((n) => /keyed differently from the shifts on: Customer accounts \+\$0\.01\./.test(n)))
   })
@@ -252,7 +251,7 @@ describe('reconcileDay: nothing waits on what the manager types into Cstore', ()
     assert.equal(r.awaitingDeposits, true)
     assert.equal(row(r, 'cashChecks').overShort, -1522.09)
     assert.equal(row(r, 'credits').overShort, 247.78)
-    assert.equal(r.differenceCount, 5)
+    assert.equal(r.differenceCount, 3)
     // Untyped lines are not compared, so there is no keying note and no Cstore-only notes.
     assert.ok(!r.notes.some((n) => /keyed differently/.test(n)))
     assert.ok(!r.notes.some((n) => /other collections/.test(n)))

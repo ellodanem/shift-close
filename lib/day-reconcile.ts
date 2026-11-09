@@ -234,9 +234,7 @@ export function reconcileDay(
       `${s.shift} shift${s.supervisor ? ` (${s.supervisor})` : ''}: no cash, checks, Fleet or In-house entered. ${money(s.totalDeposits)} deposited.`
   )
 
-  // Sales: what the POS says (Cstore) against the shifts' fuel litres.
-  const unleaded = Math.round(shifts.reduce((t, s) => t + s.unleaded, 0) * 1000) / 1000
-  const diesel = Math.round(shifts.reduce((t, s) => t + s.diesel, 0) * 1000) / 1000
+  // Sales: what the POS says (Cstore). Nothing to compare: the shifts' figures come from the same POS.
   const salesLines: ReconcileLine[] = c
     ? [
         makeLine('grocery', 'Grocery', 'usd', c.grocery, null),
@@ -246,8 +244,8 @@ export function reconcileDay(
         ...(Math.abs(c.custAccountPayIn) >= 0.005
           ? [makeLine('payIn', 'Customer account pay-in', 'usd', c.custAccountPayIn, null)]
           : []),
-        makeLine('regularLitres', 'Regular sold', 'litres', c.regularLitres, unleaded),
-        makeLine('dieselLitres', 'Diesel sold', 'litres', c.dieselLitres, diesel)
+        makeLine('regularLitres', 'Regular sold', 'litres', c.regularLitres, null),
+        makeLine('dieselLitres', 'Diesel sold', 'litres', c.dieselLitres, null)
       ]
     : []
 
@@ -295,11 +293,6 @@ export function reconcileDay(
     )
   }
   if (c) {
-    const litreDiffs = salesLines.filter((l) => l.status === 'differs' && l.diff !== null)
-    if (litreDiffs.length > 0) {
-      const parts = litreDiffs.map((l) => `${l.label} ${(l.diff as number) > 0 ? '+' : ''}${(l.diff as number).toFixed(1)} L`)
-      notes.push(`Fuel litres differ: ${parts.join(', ')}.`)
-    }
     if (keyed.length > 0) {
       notes.push(
         `Cstore was keyed differently from the shifts on: ${keyed.map((k) => `${k.label} ${money(k.diff, true)}`).join(', ')}.`
