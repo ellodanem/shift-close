@@ -6,6 +6,11 @@ import { rangePresets } from '@/lib/day-range-presets'
 import type { MiniRangeReport } from '@/lib/mini-report'
 import MiniRangeReportView from '../MiniRangeReportView'
 
+async function downloadPdf(report: MiniRangeReport) {
+  const { downloadMiniReportPdf } = await import('@/lib/mini-report-pdf')
+  downloadMiniReportPdf(report)
+}
+
 function monthStartYmd(ymd: string): string {
   return `${ymd.slice(0, 7)}-01`
 }
@@ -122,6 +127,14 @@ export default function MiniReportPage() {
                 className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50"
               >
                 Print
+              </button>
+              <button
+                type="button"
+                disabled={!report}
+                onClick={() => report && void downloadPdf(report)}
+                className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+              >
+                PDF
               </button>
             </div>
             {loading ? <p className="mt-3 text-sm text-gray-500">Loading…</p> : null}

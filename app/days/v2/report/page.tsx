@@ -399,6 +399,18 @@ function ReportPage() {
               >
                 Print
               </button>
+              {report && mini ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { downloadMiniReportPdf } = await import('@/lib/mini-report-pdf')
+                    downloadMiniReportPdf(toMiniReport(report))
+                  }}
+                  className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
+                >
+                  PDF
+                </button>
+              ) : null}
             </div>
 
             {loading ? (
