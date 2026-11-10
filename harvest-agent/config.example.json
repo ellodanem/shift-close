@@ -7,6 +7,7 @@
   "browserChannel": "chrome",
   "runOnStart": true,
   "slotHours": [0, 7, 19],
+  "cstoreDayReportAutoSave": "off",
   "timeZone": "America/St_Lucia",
   "dashboardPort": 3921,
   "customerAccountsSchedule": {

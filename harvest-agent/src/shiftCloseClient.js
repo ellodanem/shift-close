@@ -112,6 +112,12 @@ async function sendFuelInvoiceImport(config, body) {
   })
 }
 
+/** Days Shift Close lists as a completed End of Day (before today), newest to oldest not guaranteed. */
+async function fetchCstoreSaveEligibleDates(config, from, to) {
+  const qs = new URLSearchParams({ from, to })
+  return getJson(config, `/api/harvest-agent/cstore-day-report/eligible?${qs.toString()}`)
+}
+
 async function fetchHarvestCustomers(config) {
   return getJson(config, '/api/harvest-agent/customers')
 }
@@ -142,6 +148,7 @@ module.exports = {
   sendVendorCheckImport,
   sendFuelInvoiceImport,
   sendCstoreDayReportImport,
+  fetchCstoreSaveEligibleDates,
   fetchHarvestCustomers,
   addHarvestCustomers,
   claimHarvestSync,

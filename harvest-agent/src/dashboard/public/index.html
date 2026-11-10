@@ -147,6 +147,19 @@
 
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
 
+      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Cstore daily reports: start and save</h3>
+      <div class="field">
+        <label for="dayReportAutoSave">When a past day has a completed End of Day but is not saved in Cstore</label>
+        <select id="dayReportAutoSave">
+          <option value="off">Off (only read saved days)</option>
+          <option value="dry-run">Dry run (open the day, log what it would save, do not click Save)</option>
+          <option value="on">On (start and save it, oldest day first)</option>
+        </select>
+        <p style="font-size:0.8rem;color:#6b7280;margin:6px 0 0">Never touches the current day or a day already saved. Saves what Cstore pre-filled from the POS; Sales Tax, deposits and card batches are left for the manager.</p>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+
       <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Customer accounts</h3>
       <div class="grid2">
         <div class="field">
@@ -458,6 +471,7 @@
       $('cstoreUrl').value = cfg.cstoreUrl || ''
       $('slotHoursText').value = Array.isArray(cfg.slotHours) ? cfg.slotHours.join(', ') : '0, 7, 19'
       $('runOnStart').checked = cfg.runOnStart !== false
+      $('dayReportAutoSave').value = cfg.cstoreDayReportAutoSave || 'off'
       $('scheduleHint').textContent =
         `Times use ${cfg.timeZone || 'America/St_Lucia'}. Keep-alive is daily at each listed hour. Jobs support daily, weekly (e.g. Tue 16:00), or monthly.`
 
@@ -592,6 +606,7 @@
           body: JSON.stringify({
             slotHoursText: $('slotHoursText').value.trim(),
             runOnStart: $('runOnStart').checked,
+            cstoreDayReportAutoSave: $('dayReportAutoSave').value,
             customerAccountsSchedule: cust,
             vendorInvoicesSchedule: vend,
             fuelInvoicesSchedule: fuel,

@@ -25,6 +25,13 @@ const DEFAULTS = {
   runOnStart: true,
   // Midnight picks up days saved after close, 7am the morning completion (deposits, stick), 7pm the rest.
   slotHours: [0, 7, 19],
+  /**
+   * Start and save past Cstore Daily Reports nobody has saved yet (see cstoreDaySave.js).
+   * 'off' (default), 'dry-run' (does everything except click Save), or 'on'.
+   */
+  cstoreDayReportAutoSave: 'off',
+  /** Most days saved in one run. */
+  cstoreDayReportAutoSaveMax: 3,
   timeZone: 'America/St_Lucia',
   loginWaitMs: 10 * 60 * 1000,
   /** Max wait for unchecked Cloudflare Turnstile before pausing (headed). */
@@ -72,6 +79,11 @@ const DEFAULTS = {
     monthScope: 'previous',
     all: true
   }
+}
+
+function normalizeAutoSave(raw) {
+  const v = String(raw || '').trim().toLowerCase()
+  return v === 'on' || v === 'dry-run' ? v : 'off'
 }
 
 function normalizeJobSchedule(raw, defaults) {
@@ -167,6 +179,11 @@ function loadConfig() {
         ? Boolean(fileConfig.runOnStart)
         : DEFAULTS.runOnStart,
     slotHours: slotHours.length ? slotHours : DEFAULTS.slotHours,
+    cstoreDayReportAutoSave: normalizeAutoSave(fileConfig.cstoreDayReportAutoSave),
+    cstoreDayReportAutoSaveMax:
+      Number(fileConfig.cstoreDayReportAutoSaveMax) > 0
+        ? Math.min(7, Math.floor(Number(fileConfig.cstoreDayReportAutoSaveMax)))
+        : DEFAULTS.cstoreDayReportAutoSaveMax,
     timeZone: process.env.HARVEST_TZ || fileConfig.timeZone || DEFAULTS.timeZone,
     loginWaitMs: Number(fileConfig.loginWaitMs) || DEFAULTS.loginWaitMs,
     cloudflareWaitMs:

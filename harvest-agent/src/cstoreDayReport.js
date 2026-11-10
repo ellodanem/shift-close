@@ -1,16 +1,19 @@
 /**
  * cstoreDayReport.js — read the Cstore printable Daily Report for recent days.
  *
- * Read-only: opens DailyReportGetPrintable.aspx for each date and hands the raw page HTML to
- * Shift Close, which does the parsing. Never clicks Save or edits anything in Cstore. The print page
- * only has data for days the manager has saved; for other days Shift Close answers "not ready" and the
- * agent moves on.
+ * Reading is read-only: opens DailyReportGetPrintable.aspx for each date and hands the raw page HTML to
+ * Shift Close, which does the parsing. The print page only has data for days that have been saved in
+ * Cstore; for other days Shift Close answers "not ready" and the agent moves on.
+ *
+ * Optionally (config.cstoreDayReportAutoSave = "dry-run" or "on", off by default) it then starts and saves
+ * past days nobody has saved yet and reads them back. See cstoreDaySave.js for the guardrails.
  */
 
 const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
+const { planSaves, startAndSaveDay } = require('./cstoreDaySave')
 
 const PRINT_PATH = '/EmagineNETCOSM/Content/Daily/DailyReportGetPrintable.aspx'
 
@@ -51,9 +54,72 @@ function saveDebug(dir, name, html) {
 }
 
 /**
+ * Start and save past days that Cstore has no saved report for, then read them back (see cstoreDaySave.js).
+ * Mutates `days` (the per-date results of the read pass).
+ */
+async function autoSaveMissingDays({ page, origin, config, dates, days, today, options, hooks, dryRun }) {
+  const log = typeof options.log === 'function' ? options.log : () => {}
+  const readOk = days.filter((d) => d.ok !== false)
+  const unsaved = readOk.filter((d) => !d.saved && d.date < today).map((d) => d.date)
+  if (unsaved.length === 0) return
+
+  let eligible = []
+  try {
+    const res = await options.getEligibleDates(dates)
+    eligible = Array.isArray(res && res.dates) ? res.dates : []
+  } catch (err) {
+    log(`Auto-save skipped: could not ask Shift Close which days are complete (${err.message || err})`)
+    return
+  }
+
+  const max = Number(config.cstoreDayReportAutoSaveMax) > 0 ? Number(config.cstoreDayReportAutoSaveMax) : 3
+  const plan = planSaves({
+    windowDates: dates,
+    unsavedDates: unsaved,
+    savedDates: readOk.filter((d) => d.saved).map((d) => d.date),
+    eligibleDates: eligible,
+    today,
+    max
+  })
+  for (const s of plan.skipped) log(`Not saving ${s.date} in Cstore: ${s.reason}`)
+
+  for (const date of plan.toSave) {
+    const entry = days.find((d) => d.date === date)
+    let result
+    try {
+      result = await startAndSaveDay(page, origin, date, { dryRun, log })
+    } catch (err) {
+      result = { ok: false, saved: false, stop: true, message: err.message || String(err) }
+    }
+    if (!entry) continue
+
+    if (result.saved) {
+      // Read the day back so Shift Close has it straight away.
+      try {
+        const url = printableUrl(origin, date)
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await sleep(800)
+        const html = await page.content()
+        const imported = await options.onDay({ date, html })
+        Object.assign(entry, imported, { autoSaved: true, message: `Started and saved in Cstore by the agent; ${imported.message || ''}`.trim() })
+      } catch (err) {
+        Object.assign(entry, { ok: false, saved: false, autoSaved: true, message: `Saved in Cstore but could not read it back: ${err.message || err}` })
+      }
+    } else {
+      Object.assign(entry, { ok: result.ok !== false, saved: false, message: result.message })
+    }
+    log(`${date}: ${entry.message}`)
+    if (result.stop) break
+  }
+}
+
+/**
  * options.dates     YYYY-MM-DD list (default: last `config.cstoreDayReportDays` || 7 days ending today)
  * options.onDay     async ({ date, html }) => { ok, saved, message }  (imports into Shift Close)
  * options.hooks     login hooks
+ * options.getEligibleDates  async (dates) => ({ dates })  days Shift Close lists as a completed End of Day
+ *                   (only used when config.cstoreDayReportAutoSave is 'dry-run' or 'on')
+ * options.log       (message) => void
  */
 async function runCstoreDayReports(config, options = {}) {
   fs.mkdirSync(config.userDataDir, { recursive: true })
@@ -73,6 +139,7 @@ async function runCstoreDayReports(config, options = {}) {
 
     const origin = new URL(page.url()).origin
 
+    // Newest first, as listed. (Saving, if on, always goes oldest first; see autoSaveMissingDays.)
     for (const date of dates) {
       const url = printableUrl(origin, date)
       try {
@@ -93,7 +160,13 @@ async function runCstoreDayReports(config, options = {}) {
       }
     }
 
+    const autoSaveMode = config.cstoreDayReportAutoSave
+    if ((autoSaveMode === 'on' || autoSaveMode === 'dry-run') && typeof options.getEligibleDates === 'function') {
+      await autoSaveMissingDays({ page, origin, config, dates, days, today, options, hooks, dryRun: autoSaveMode === 'dry-run' })
+    }
+
     const saved = days.filter((d) => d.saved)
+    const autoSaved = days.filter((d) => d.autoSaved)
     const waiting = days.filter((d) => d.ok !== false && !d.saved)
     const failed = days.filter((d) => d.ok === false)
     return {
@@ -103,6 +176,7 @@ async function runCstoreDayReports(config, options = {}) {
       days,
       message:
         `${saved.length} day(s) saved` +
+        (autoSaved.length ? ` (${autoSaved.length} started and saved by the agent: ${autoSaved.map((d) => d.date).join(', ')})` : '') +
         (waiting.length ? `, ${waiting.length} not saved in Cstore yet` : '') +
         (failed.length ? `, ${failed.length} failed (${failed.map((d) => d.date).join(', ')})` : '')
     }

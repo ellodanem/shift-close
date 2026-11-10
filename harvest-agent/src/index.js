@@ -16,7 +16,7 @@ const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
 const { runCstoreDayReports } = require('./cstoreDayReport')
-const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, sendCstoreDayReportImport, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
+const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, sendCstoreDayReportImport, fetchCstoreSaveEligibleDates, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
 const { executeSyncRun } = require('./syncRunner')
 const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
 const { isPaused, pauseAgent, getPauseInfo } = require('./agentState')
@@ -281,6 +281,15 @@ async function runCstoreDayReportsCycle(reason, options = {}) {
     result = await runCstoreDayReports(config, {
       ...(options.dates ? { dates: options.dates } : {}),
       onDay,
+      // Only used when cstoreDayReportAutoSave is 'dry-run' or 'on' (off by default).
+      getEligibleDates: async (dates) => {
+        const sorted = [...dates].sort()
+        return fetchCstoreSaveEligibleDates(config, sorted[0], sorted[sorted.length - 1])
+      },
+      log: (message) => {
+        console.log(`[Harvest] ${message}`)
+        if (activityLog) activityLog.add(message)
+      },
       hooks: createLoginHooks(config)
     })
   } catch (err) {

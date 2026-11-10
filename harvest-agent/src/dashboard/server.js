@@ -57,6 +57,7 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
       browserChannel: cfg.browserChannel,
       runOnStart: cfg.runOnStart,
       slotHours: cfg.slotHours,
+      cstoreDayReportAutoSave: cfg.cstoreDayReportAutoSave,
       timeZone: cfg.timeZone,
       dashboardPort: cfg.dashboardPort,
       customerAccountsSchedule: cfg.customerAccountsSchedule,
@@ -92,6 +93,10 @@ function createDashboardServer(config, activityLog, status, actions = {}) {
         .split(/[,;\s]+/)
         .map((s) => parseInt(s.replace(/:00$/, ''), 10))
         .filter((n) => Number.isFinite(n) && n >= 0 && n <= 23)
+    }
+    if (body.cstoreDayReportAutoSave !== undefined) {
+      const v = String(body.cstoreDayReportAutoSave)
+      updates.cstoreDayReportAutoSave = v === 'on' || v === 'dry-run' ? v : 'off'
     }
     if (body.customerAccountsSchedule !== undefined) {
       updates.customerAccountsSchedule = body.customerAccountsSchedule
