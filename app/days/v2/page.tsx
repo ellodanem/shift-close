@@ -111,11 +111,14 @@ function SalesTable({
 function CollectedTable({
   lines,
   deposit,
-  onMiniReport
+  onMiniReport,
+  mini = false
 }: {
   lines: CollectedLine[]
   deposit: DepositCheck
   onMiniReport?: () => void
+  /** Mini report: no Over/Short or Difference column. */
+  mini?: boolean
 }) {
   return (
     <div>
@@ -139,7 +142,7 @@ function CollectedTable({
               <th className="px-2 py-1 text-left font-normal">Type</th>
               <th className="px-2 py-1 text-right font-normal">System</th>
               <th className="px-2 py-1 text-right font-normal">Count</th>
-              <th className="px-2 py-1 text-right font-normal">Over/Short</th>
+              {mini ? null : <th className="px-2 py-1 text-right font-normal">Over/Short</th>}
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -151,18 +154,22 @@ function CollectedTable({
                 </td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(l.system)}</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(l.count)}</td>
-                <td className="px-2 py-1.5 text-right">
-                  {Math.abs(l.overShort) < 0.005 ? '-' : formatMoney(l.overShort, true)}
-                </td>
+                {mini ? null : (
+                  <td className="px-2 py-1.5 text-right">
+                    {Math.abs(l.overShort) < 0.005 ? '-' : formatMoney(l.overShort, true)}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-gray-500">
-        Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is the
-        one that matters.
-      </p>
+      {mini ? null : (
+        <p className="mt-2 text-xs text-gray-500">
+          Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is
+          the one that matters.
+        </p>
+      )}
 
       <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Deposit</h3>
       <div className="overflow-x-auto">
@@ -172,7 +179,7 @@ function CollectedTable({
               <th className="px-2 py-1 text-left font-normal">Type</th>
               <th className="px-2 py-1 text-right font-normal">Counted (Cash + Checks)</th>
               <th className="px-2 py-1 text-right font-normal">Deposited</th>
-              <th className="px-2 py-1 text-right font-normal">Difference</th>
+              {mini ? null : <th className="px-2 py-1 text-right font-normal">Difference</th>}
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -183,9 +190,11 @@ function CollectedTable({
               </td>
               <td className="px-2 py-1.5 text-right">{formatMoney(deposit.counted)}</td>
               <td className="px-2 py-1.5 text-right">{formatMoney(deposit.deposited)}</td>
-              <td className="px-2 py-1.5 text-right">
-                {Math.abs(deposit.diff) < 0.005 ? '-' : formatMoney(deposit.diff, true)}
-              </td>
+              {mini ? null : (
+                <td className="px-2 py-1.5 text-right">
+                  {Math.abs(deposit.diff) < 0.005 ? '-' : formatMoney(deposit.diff, true)}
+                </td>
+              )}
             </tr>
           </tbody>
         </table>
@@ -232,7 +241,7 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
             </button>
           </div>
         </div>
-        <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} />
+        <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} mini />
       </div>
     </div>
   )

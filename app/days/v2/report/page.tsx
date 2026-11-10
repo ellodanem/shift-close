@@ -120,7 +120,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 <th className={`${TH} text-left`}>Type</th>
                 <th className={`${TH} text-right`}>System</th>
                 <th className={`${TH} text-right`}>Count</th>
-                <th className={`${TH} text-right`}>Over/Short</th>
+                {mini ? null : <th className={`${TH} text-right`}>Over/Short</th>}
               </tr>
             </thead>
             <tbody className="tabular-nums">
@@ -132,16 +132,18 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                   </td>
                   <td className="px-2 py-1.5 text-right">{formatMoney(l.system)}</td>
                   <td className="px-2 py-1.5 text-right">{formatMoney(l.count)}</td>
-                  <td className="px-2 py-1.5 text-right">{osCell(l.overShort)}</td>
+                  {mini ? null : <td className="px-2 py-1.5 text-right">{osCell(l.overShort)}</td>}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-gray-500">
-          Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is
-          the one that matters.
-        </p>
+        {mini ? null : (
+          <p className="mt-2 text-xs text-gray-500">
+            Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks
+            is the one that matters.
+          </p>
+        )}
 
         <Heading>Deposit</Heading>
         <div className="overflow-x-auto">
@@ -151,7 +153,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 <th className={`${TH} text-left`}>Type</th>
                 <th className={`${TH} text-right`}>Counted (Cash + Checks)</th>
                 <th className={`${TH} text-right`}>Deposited</th>
-                <th className={`${TH} text-right`}>Difference</th>
+                {mini ? null : <th className={`${TH} text-right`}>Difference</th>}
               </tr>
             </thead>
             <tbody className="tabular-nums">
@@ -162,7 +164,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 </td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.counted)}</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.deposited)}</td>
-                <td className="px-2 py-1.5 text-right">{osCell(report.deposit.diff)}</td>
+                {mini ? null : <td className="px-2 py-1.5 text-right">{osCell(report.deposit.diff)}</td>}
               </tr>
             </tbody>
           </table>
