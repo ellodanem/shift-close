@@ -108,10 +108,30 @@ function SalesTable({
 }
 
 /** Collected: the shifts' System column against their Count column, like the End of Shift screen. */
-function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: DepositCheck }) {
+function CollectedTable({
+  lines,
+  deposit,
+  onMiniReport
+}: {
+  lines: CollectedLine[]
+  deposit: DepositCheck
+  onMiniReport?: () => void
+}) {
   return (
     <div>
-      <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Collected</h3>
+      <div className="mb-1 mt-5 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-gray-900">Collected</h3>
+        {onMiniReport ? (
+          <button
+            type="button"
+            onClick={onMiniReport}
+            className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 print:hidden"
+          >
+            Mini report
+          </button>
+        ) : null}
+      </div>
+      
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
@@ -169,6 +189,50 @@ function CollectedTable({ lines, deposit }: { lines: CollectedLine[]; deposit: D
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+/** Just the Collected and Deposit tables for one day, ready to print. */
+function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => void }) {
+  const r = day.reconcile
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0">
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        #mini-report, #mini-report * { visibility: visible !important; }
+        #mini-report { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
+      }`}</style>
+      <div
+        id="mini-report"
+        className="my-8 w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl print:my-0 print:max-w-none print:rounded-none print:p-4 print:shadow-none"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">End of Day: mini report</h2>
+            <p className="text-sm text-gray-600">
+              {weekdayLabel(day.date)} {day.date}
+            </p>
+          </div>
+          <div className="flex gap-2 print:hidden">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} />
       </div>
     </div>
   )
@@ -270,6 +334,7 @@ function TankTable({ tank }: { tank: DayTankCheck }) {
 
 function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => void }) {
   const [showShifts, setShowShifts] = useState(false)
+  const [showMini, setShowMini] = useState(false)
   const r = day.reconcile
   const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
   const showTank =
@@ -288,7 +353,12 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
         </>
       ) : null}
 
-      <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} />
+      <CollectedTable
+        lines={r.collected.lines}
+        deposit={r.collected.deposit}
+        onMiniReport={() => setShowMini(true)}
+      />
+      {showMini ? <MiniReportModal day={day} onClose={() => setShowMini(false)} /> : null}
 
       <PaperSection day={day} onRefresh={onRefresh} />
 
