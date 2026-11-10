@@ -6,7 +6,7 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatLitres, formatMoney } from '@/lib/day-reconcile'
 import { buildRangeReport, type RangeReport } from '@/lib/day-range-report'
 import { rangePresets } from '@/lib/day-range-presets'
-import { formatDmy, toMiniReport } from '@/lib/mini-report'
+import { buildMiniReport, formatDmy } from '@/lib/mini-report'
 import MiniRangeReportView from '../../MiniRangeReportView'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
 
@@ -404,7 +404,7 @@ function ReportPage() {
                   type="button"
                   onClick={async () => {
                     const { downloadMiniReportPdf } = await import('@/lib/mini-report-pdf')
-                    downloadMiniReportPdf(toMiniReport(report))
+                    downloadMiniReportPdf(buildMiniReport(chosen))
                   }}
                   className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
                 >
@@ -457,7 +457,7 @@ function ReportPage() {
 
         {report ? (
           mini ? (
-            <MiniRangeReportView report={toMiniReport(report)} />
+            <MiniRangeReportView report={buildMiniReport(chosen)} />
           ) : (
             <ReportView report={report} />
           )

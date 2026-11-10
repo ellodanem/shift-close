@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isYmd } from '@/lib/datetime-policy'
-import { buildRangeReport } from '@/lib/day-range-report'
 import { buildDayReportsV2 } from '@/lib/day-reports-v2'
-import { toMiniReport } from '@/lib/mini-report'
+import { buildMiniReport } from '@/lib/mini-report'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/days/mini?from=YYYY-MM-DD&to=YYYY-MM-DD
- * The mini report (Collected and Deposit totals) for the End of Day records in the range.
+ * The mini report (card / electronic, fleet, vouchers and the deposit) for the End of Day records in the range.
  * This is the only End of Day data the stakeholder role may read; nothing else is returned.
  */
 export async function GET(request: NextRequest) {
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (days.length === 0) {
       return NextResponse.json({ report: null }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
     }
-    const report = toMiniReport(buildRangeReport(days))
+    const report = buildMiniReport(days)
     return NextResponse.json({ report }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (error) {
     console.error('Error building mini report:', error)

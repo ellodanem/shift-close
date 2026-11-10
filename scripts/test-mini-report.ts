@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { pathnameAllowedForRole } from '../lib/access-control'
-import { formatDmy, toMiniReport } from '../lib/mini-report'
-import type { RangeReport } from '../lib/day-range-report'
+import { buildMiniReport, formatDmy } from '../lib/mini-report'
+import { reconcileDay, type ReconcileShiftInput } from '../lib/day-reconcile'
+import type { DayReportV2 } from '../lib/day-reports-v2'
 
 test('stakeholder can open the mini report and nothing else of End of Day', () => {
   for (const path of ['/days/mini', '/api/days/mini']) {
@@ -20,36 +21,52 @@ test('other roles keep full End of Day', () => {
   }
 })
 
-test('toMiniReport keeps only Collected and Deposit totals', () => {
-  const full = {
-    from: '2026-11-06',
-    to: '2026-11-08',
-    dayCount: 3,
-    cstoreDayCount: 3,
-    missingCstoreDates: [],
-    sales: { lines: [{ key: 'grocery', label: 'Grocery', amount: 1 }], totalSales: 1 },
-    fuel: [],
-    collected: [
-      { key: 'cashChecks', label: 'Cash + Checks', system: 90440.82, count: 86876.41, overShort: -3564.41, status: 'differs' as const }
-    ],
-    cashChecks: { key: 'cashChecks', label: 'Cash + Checks', system: 90440.82, count: 86876.41, overShort: -3564.41, status: 'differs' as const },
-    deposit: { counted: 86876.41, deposited: 89118.13, diff: 2241.72, status: 'differs' as const },
-    byDay: [],
-    notes: ['secret note']
-  } satisfies RangeReport
-  const mini = toMiniReport(full)
-  assert.deepEqual(mini, {
-    from: '2026-11-06',
-    to: '2026-11-08',
-    dayCount: 3,
-    collected: [{ key: 'cashChecks', label: 'Cash + Checks', system: 90440.82, count: 86876.41, status: 'differs' }],
-    deposit: { counted: 86876.41, deposited: 89118.13, status: 'differs' }
-  })
-  const text = JSON.stringify(mini)
-  assert.ok(!text.includes('overShort') && !text.includes('diff"') && !text.includes('secret'))
-})
-
 test('formatDmy writes DD-MM-YYYY', () => {
   assert.equal(formatDmy('2026-11-06'), '06-11-2026')
   assert.equal(formatDmy('nope'), 'nope')
+})
+
+const shift = (over: Partial<ReconcileShiftInput>): ReconcileShiftInput => ({
+  shift: '6-1',
+  supervisor: '',
+  systemCash: 0,
+  systemChecks: 0,
+  systemCredit: 0,
+  systemDebit: 0,
+  otherCredit: 0,
+  systemInhouse: 0,
+  systemFleet: 0,
+  systemMassyCoupons: 0,
+  countCash: 0,
+  countChecks: 0,
+  countCredit: 0,
+  countInhouse: 0,
+  countFleet: 0,
+  countMassyCoupons: 0,
+  totalDeposits: 0,
+  unleaded: 0,
+  diesel: 0,
+  ...over
+})
+
+const day = (date: string, shifts: ReconcileShiftInput[]): DayReportV2 =>
+  ({ date, shifts, reconcile: reconcileDay(shifts, null) }) as unknown as DayReportV2
+
+test('buildMiniReport: card / electronic, fleet, vouchers and the deposit, nothing else', () => {
+  const d1 = day('2026-11-06', [
+    shift({ systemDebit: 488.25, otherCredit: 2999.41, systemFleet: 100, systemMassyCoupons: 10, countCash: 500, totalDeposits: 520 }),
+    shift({ shift: '1-9', systemDebit: 681.29, otherCredit: 4453.47, systemFleet: 50.5, countCash: 300, totalDeposits: 290 })
+  ])
+  const d2 = day('2026-11-07', [shift({ systemDebit: 151, otherCredit: 2557.91, systemMassyCoupons: 30 })])
+  const mini = buildMiniReport([d1, d2])
+  assert.equal(mini.from, '2026-11-06')
+  assert.equal(mini.to, '2026-11-07')
+  assert.equal(mini.dayCount, 2)
+  assert.equal(mini.card.debit, 1320.54)
+  assert.equal(mini.card.credit, 10010.79)
+  assert.equal(mini.card.total, 11331.33)
+  assert.equal(mini.fleet, 150.5)
+  assert.equal(mini.vouchers, 40)
+  assert.deepEqual(mini.deposit, { counted: 800, deposited: 810, status: 'match' })
+  assert.deepEqual(Object.keys(mini).sort(), ['card', 'dayCount', 'deposit', 'fleet', 'from', 'to', 'vouchers'])
 })

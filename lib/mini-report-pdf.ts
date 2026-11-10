@@ -5,6 +5,8 @@ import { formatDmy, type MiniRangeReport } from '@/lib/mini-report'
 
 const GREEN: [number, number, number] = [22, 163, 74]
 const RED: [number, number, number] = [220, 38, 38]
+const INK: [number, number, number] = [17, 24, 39]
+const GREY: [number, number, number] = [107, 114, 128]
 
 export function miniReportFilename(report: MiniRangeReport): string {
   return report.from === report.to
@@ -12,7 +14,7 @@ export function miniReportFilename(report: MiniRangeReport): string {
     : `mini-report-${report.from}_to_${report.to}.pdf`
 }
 
-/** Saves the mini report (Collected and Deposit only) as a letter PDF. */
+/** Saves the mini report (card / electronic, fleet, vouchers and the deposit) as a letter PDF. */
 export function downloadMiniReportPdf(report: MiniRangeReport) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -20,7 +22,7 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.setTextColor(17, 24, 39)
+  doc.setTextColor(...INK)
   doc.text(
     report.from === report.to ? formatDmy(report.from) : `${formatDmy(report.from)} to ${formatDmy(report.to)}`,
     margin,
@@ -29,62 +31,59 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.setTextColor(107, 114, 128)
+  doc.setTextColor(...GREY)
   doc.text(`${report.dayCount} ${report.dayCount === 1 ? 'day' : 'days'}`, margin, 66)
 
   doc.setFontSize(8)
   doc.setTextColor(156, 163, 175)
   doc.text('Generated with ShiftClose', pageWidth - margin, 50, { align: 'right' })
 
-  const dotted = (rows: { status: 'match' | 'differs' }[]) => ({
-    didDrawCell: (data: { section: string; column: { index: number }; row: { index: number }; cell: { x: number; y: number; height: number } }) => {
-      if (data.section !== 'body' || data.column.index !== 0) return
-      const row = rows[data.row.index]
-      if (!row) return
-      const [r, g, b] = row.status === 'match' ? GREEN : RED
-      doc.setFillColor(r, g, b)
-      doc.circle(data.cell.x + 9, data.cell.y + data.cell.height / 2, 3, 'F')
-    }
-  })
-
-  const head = { fillColor: [255, 255, 255] as [number, number, number], textColor: [107, 114, 128] as [number, number, number], fontStyle: 'normal' as const, fontSize: 8 }
-  const baseStyles = { fontSize: 10, cellPadding: { top: 6, bottom: 6, left: 4, right: 4 }, textColor: [17, 24, 39] as [number, number, number], lineColor: [229, 231, 235] as [number, number, number], lineWidth: 0 }
+  const styles = {
+    fontSize: 10,
+    cellPadding: { top: 6, bottom: 6, left: 4, right: 4 },
+    textColor: INK,
+    lineWidth: 0
+  }
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.setTextColor(17, 24, 39)
+  doc.setTextColor(...INK)
   doc.text('Collected', margin, 100)
+
+  const rows: { label: string; amount: number; kind: 'total' | 'sub' | 'plain' }[] = [
+    { label: 'Total', amount: report.card.total, kind: 'total' },
+    { label: 'Debit (system)', amount: report.card.debit, kind: 'sub' },
+    { label: 'Credit (other)', amount: report.card.credit, kind: 'sub' },
+    { label: 'Fleet', amount: report.fleet, kind: 'plain' },
+    { label: 'Vouchers / coupons', amount: report.vouchers, kind: 'plain' }
+  ]
 
   autoTable(doc, {
     startY: 106,
     margin: { left: margin, right: margin },
-    head: [['Type', 'System', 'Count']],
-    body: report.collected.map((l) => [l.label, formatMoney(l.system), formatMoney(l.count)]),
+    head: [[{ content: 'CARD / ELECTRONIC', colSpan: 2, styles: { halign: 'left' } }]],
+    body: rows.map((r) => [r.label, formatMoney(r.amount)]),
     theme: 'plain',
-    styles: baseStyles,
-    headStyles: head,
-    columnStyles: {
-      0: { cellPadding: { top: 6, bottom: 6, left: 18, right: 4 } },
-      1: { halign: 'right' },
-      2: { halign: 'right' }
-    },
+    styles,
+    headStyles: { textColor: GREY, fontStyle: 'normal', fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 4, right: 4 } },
+    columnStyles: { 1: { halign: 'right' } },
     didParseCell: (data) => {
-      if (data.section === 'head') {
-        data.cell.styles.halign = data.column.index === 0 ? 'left' : 'right'
-        if (data.column.index === 0) data.cell.styles.cellPadding = { top: 4, bottom: 4, left: 4, right: 4 }
+      if (data.section !== 'body') return
+      const row = rows[data.row.index]
+      if (row.kind === 'total') data.cell.styles.fontStyle = 'bold'
+      if (row.kind === 'sub') {
+        data.cell.styles.fontSize = 9
+        data.cell.styles.textColor = GREY
+        if (data.column.index === 0) data.cell.styles.cellPadding = { top: 4, bottom: 4, left: 18, right: 4 }
       }
-      if (data.section === 'body' && report.collected[data.row.index]?.key === 'cashChecks') {
-        data.cell.styles.fontStyle = 'bold'
-      }
-    },
-    didDrawCell: dotted(report.collected).didDrawCell
+    }
   })
 
   const afterCollected = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 260
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.setTextColor(17, 24, 39)
+  doc.setTextColor(...INK)
   doc.text('Deposit', margin, afterCollected + 30)
 
   autoTable(doc, {
@@ -93,20 +92,28 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     head: [['Type', 'Counted (Cash + Checks)', 'Deposited']],
     body: [['Deposit', formatMoney(report.deposit.counted), formatMoney(report.deposit.deposited)]],
     theme: 'plain',
-    styles: { ...baseStyles, fontStyle: 'bold' },
-    headStyles: head,
+    styles: { ...styles, fontStyle: 'bold' },
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: GREY,
+      fontStyle: 'normal',
+      fontSize: 8,
+      cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }
+    },
     columnStyles: {
       0: { cellPadding: { top: 6, bottom: 6, left: 18, right: 4 } },
       1: { halign: 'right' },
       2: { halign: 'right' }
     },
     didParseCell: (data) => {
-      if (data.section === 'head') {
-        data.cell.styles.halign = data.column.index === 0 ? 'left' : 'right'
-        if (data.column.index === 0) data.cell.styles.cellPadding = { top: 4, bottom: 4, left: 4, right: 4 }
-      }
+      if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right'
     },
-    didDrawCell: dotted([{ status: report.deposit.status }]).didDrawCell
+    didDrawCell: (data) => {
+      if (data.section !== 'body' || data.column.index !== 0) return
+      const [r, g, b] = report.deposit.status === 'match' ? GREEN : RED
+      doc.setFillColor(r, g, b)
+      doc.circle(data.cell.x + 9, data.cell.y + data.cell.height / 2, 3, 'F')
+    }
   })
 
   doc.save(miniReportFilename(report))

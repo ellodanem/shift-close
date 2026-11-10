@@ -3,10 +3,11 @@
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
-import { formatDmy } from '@/lib/mini-report'
+import { buildMiniReport, formatDmy } from '@/lib/mini-report'
 import { slipTasksForDay } from '@/lib/day-slip-tasks'
 import { CollapsedSlipIcons } from '../DaySlipTasks'
 import PaperSection from './PaperSection'
+import MiniRangeReportView from '../MiniRangeReportView'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import {
   formatLitres,
@@ -112,14 +113,11 @@ function SalesTable({
 function CollectedTable({
   lines,
   deposit,
-  onMiniReport,
-  mini = false
+  onMiniReport
 }: {
   lines: CollectedLine[]
   deposit: DepositCheck
   onMiniReport?: () => void
-  /** Mini report: no Over/Short or Difference column. */
-  mini?: boolean
 }) {
   return (
     <div>
@@ -135,7 +133,6 @@ function CollectedTable({
           </button>
         ) : null}
       </div>
-      
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
@@ -143,7 +140,7 @@ function CollectedTable({
               <th className="px-2 py-1 text-left font-normal">Type</th>
               <th className="px-2 py-1 text-right font-normal">System</th>
               <th className="px-2 py-1 text-right font-normal">Count</th>
-              {mini ? null : <th className="px-2 py-1 text-right font-normal">Over/Short</th>}
+              <th className="px-2 py-1 text-right font-normal">Over/Short</th>
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -155,22 +152,18 @@ function CollectedTable({
                 </td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(l.system)}</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(l.count)}</td>
-                {mini ? null : (
-                  <td className="px-2 py-1.5 text-right">
-                    {Math.abs(l.overShort) < 0.005 ? '-' : formatMoney(l.overShort, true)}
-                  </td>
-                )}
+                <td className="px-2 py-1.5 text-right">
+                  {Math.abs(l.overShort) < 0.005 ? '-' : formatMoney(l.overShort, true)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {mini ? null : (
-        <p className="mt-2 text-xs text-gray-500">
-          Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is
-          the one that matters.
-        </p>
-      )}
+      <p className="mt-2 text-xs text-gray-500">
+        Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is the
+        one that matters.
+      </p>
 
       <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Deposit</h3>
       <div className="overflow-x-auto">
@@ -180,7 +173,7 @@ function CollectedTable({
               <th className="px-2 py-1 text-left font-normal">Type</th>
               <th className="px-2 py-1 text-right font-normal">Counted (Cash + Checks)</th>
               <th className="px-2 py-1 text-right font-normal">Deposited</th>
-              {mini ? null : <th className="px-2 py-1 text-right font-normal">Difference</th>}
+              <th className="px-2 py-1 text-right font-normal">Difference</th>
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -191,11 +184,9 @@ function CollectedTable({
               </td>
               <td className="px-2 py-1.5 text-right">{formatMoney(deposit.counted)}</td>
               <td className="px-2 py-1.5 text-right">{formatMoney(deposit.deposited)}</td>
-              {mini ? null : (
-                <td className="px-2 py-1.5 text-right">
-                  {Math.abs(deposit.diff) < 0.005 ? '-' : formatMoney(deposit.diff, true)}
-                </td>
-              )}
+              <td className="px-2 py-1.5 text-right">
+                {Math.abs(deposit.diff) < 0.005 ? '-' : formatMoney(deposit.diff, true)}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -204,9 +195,9 @@ function CollectedTable({
   )
 }
 
-/** Just the Collected and Deposit tables for one day, ready to print. */
+/** The EOD report (mini report) for one day, ready to print or save as a PDF. */
 function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => void }) {
-  const r = day.reconcile
+  const report = buildMiniReport([day])
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0">
       <style>{`@media print {
@@ -214,20 +205,12 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
         #mini-report, #mini-report * { visibility: visible !important; }
         #mini-report { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
       }`}</style>
-      <div
-        id="mini-report"
-        className="my-8 w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl print:my-0 print:max-w-none print:rounded-none print:p-4 print:shadow-none"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">End of Day: mini report</h2>
-            <p className="text-sm text-gray-600">
-              {weekdayLabel(day.date)} {formatDmy(day.date)}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[11px] text-gray-400">Generated with ShiftClose</span>
-            <div className="flex gap-2 print:hidden">
+      <div id="mini-report" className="my-8 w-full max-w-2xl rounded-lg bg-gray-50 p-3 shadow-xl print:my-0 print:max-w-none print:rounded-none print:bg-white print:p-0 print:shadow-none">
+        <div className="mb-3 flex items-center justify-between gap-3 print:hidden">
+          <span className="text-sm text-gray-600">
+            {weekdayLabel(day.date)} {formatDmy(day.date)}
+          </span>
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => window.print()}
@@ -237,15 +220,24 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
             </button>
             <button
               type="button"
+              onClick={async () => {
+                const { downloadMiniReportPdf } = await import('@/lib/mini-report-pdf')
+                downloadMiniReportPdf(report)
+              }}
+              className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              PDF
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
               Close
             </button>
-            </div>
           </div>
         </div>
-        <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} mini />
+        <MiniRangeReportView report={report} />
       </div>
     </div>
   )

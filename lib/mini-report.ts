@@ -1,15 +1,22 @@
-import type { RangeReport } from '@/lib/day-range-report'
+import { round2 } from '@/lib/day-reconcile'
+import { buildRangeReport } from '@/lib/day-range-report'
+import type { DayReportV2 } from '@/lib/day-reports-v2'
 
 /**
- * The mini report: only the Collected and Deposit tables for a range of days. No over/short or difference
- * figures, no sales, fuel, per-day detail or notes. This is all the stakeholder role is given, so the
- * stakeholder API returns this shape and nothing more.
+ * The mini report (EOD Report): what was taken in card / electronic, fleet and vouchers over a range of days,
+ * laid out like the Components card on the Expected revenue page, plus the Deposit line (counted against
+ * deposited). No over/short, sales, fuel, per-day detail or notes. This is all the stakeholder role is given,
+ * so the stakeholder API returns this shape and nothing more.
  */
 export type MiniRangeReport = {
   from: string
   to: string
   dayCount: number
-  collected: { key: string; label: string; system: number; count: number; status: 'match' | 'differs' }[]
+  /** Card / electronic: the shifts' System Debit plus the Credit entered under Other Items. */
+  card: { total: number; debit: number; credit: number }
+  fleet: number
+  /** Vouchers / coupons (Massy). */
+  vouchers: number
   deposit: { counted: number; deposited: number; status: 'match' | 'differs' }
 }
 
@@ -19,22 +26,32 @@ export function formatDmy(ymd: string): string {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : ymd
 }
 
-export function toMiniReport(report: RangeReport): MiniRangeReport {
+/** Build the mini report from End of Day V2 days (at least one). */
+export function buildMiniReport(days: DayReportV2[]): MiniRangeReport {
+  const range = buildRangeReport(days)
+  let debit = 0
+  let credit = 0
+  let fleet = 0
+  let vouchers = 0
+  for (const day of days) {
+    for (const s of day.shifts) {
+      debit += s.systemDebit || 0
+      credit += s.otherCredit || 0
+      fleet += s.systemFleet || 0
+      vouchers += s.systemMassyCoupons || 0
+    }
+  }
   return {
-    from: report.from,
-    to: report.to,
-    dayCount: report.dayCount,
-    collected: report.collected.map((l) => ({
-      key: l.key,
-      label: l.label,
-      system: l.system,
-      count: l.count,
-      status: l.status
-    })),
+    from: range.from,
+    to: range.to,
+    dayCount: range.dayCount,
+    card: { total: round2(debit + credit), debit: round2(debit), credit: round2(credit) },
+    fleet: round2(fleet),
+    vouchers: round2(vouchers),
     deposit: {
-      counted: report.deposit.counted,
-      deposited: report.deposit.deposited,
-      status: report.deposit.status
+      counted: range.deposit.counted,
+      deposited: range.deposit.deposited,
+      status: range.deposit.status
     }
   }
 }
