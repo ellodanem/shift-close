@@ -54,6 +54,7 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     { label: 'Total', amount: report.card.total, kind: 'total' },
     { label: 'Debit (system)', amount: report.card.debit, kind: 'sub' },
     { label: 'Credit (other)', amount: report.card.credit, kind: 'sub' },
+    { label: 'In-House', amount: report.inhouse, kind: 'plain' },
     { label: 'Fleet', amount: report.fleet, kind: 'plain' },
     { label: 'Vouchers / coupons', amount: report.vouchers, kind: 'plain' }
   ]

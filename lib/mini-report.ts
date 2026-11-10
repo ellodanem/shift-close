@@ -14,6 +14,8 @@ export type MiniRangeReport = {
   dayCount: number
   /** Card / electronic: the shifts' System Debit plus the Credit entered under Other Items. */
   card: { total: number; debit: number; credit: number }
+  /** In-house (customer accounts): the shifts' System In-house. */
+  inhouse: number
   fleet: number
   /** Vouchers / coupons (Massy). */
   vouchers: number
@@ -31,12 +33,14 @@ export function buildMiniReport(days: DayReportV2[]): MiniRangeReport {
   const range = buildRangeReport(days)
   let debit = 0
   let credit = 0
+  let inhouse = 0
   let fleet = 0
   let vouchers = 0
   for (const day of days) {
     for (const s of day.shifts) {
       debit += s.systemDebit || 0
       credit += s.otherCredit || 0
+      inhouse += s.systemInhouse || 0
       fleet += s.systemFleet || 0
       vouchers += s.systemMassyCoupons || 0
     }
@@ -46,6 +50,7 @@ export function buildMiniReport(days: DayReportV2[]): MiniRangeReport {
     to: range.to,
     dayCount: range.dayCount,
     card: { total: round2(debit + credit), debit: round2(debit), credit: round2(credit) },
+    inhouse: round2(inhouse),
     fleet: round2(fleet),
     vouchers: round2(vouchers),
     deposit: {

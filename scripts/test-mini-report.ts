@@ -54,8 +54,8 @@ const day = (date: string, shifts: ReconcileShiftInput[]): DayReportV2 =>
 
 test('buildMiniReport: card / electronic, fleet, vouchers and the deposit, nothing else', () => {
   const d1 = day('2026-11-06', [
-    shift({ systemDebit: 488.25, otherCredit: 2999.41, systemFleet: 100, systemMassyCoupons: 10, countCash: 500, totalDeposits: 520 }),
-    shift({ shift: '1-9', systemDebit: 681.29, otherCredit: 4453.47, systemFleet: 50.5, countCash: 300, totalDeposits: 290 })
+    shift({ systemDebit: 488.25, otherCredit: 2999.41, systemFleet: 100, systemInhouse: 25, systemMassyCoupons: 10, countCash: 500, totalDeposits: 520 }),
+    shift({ shift: '1-9', systemDebit: 681.29, otherCredit: 4453.47, systemFleet: 50.5, systemInhouse: 50.25, countCash: 300, totalDeposits: 290 })
   ])
   const d2 = day('2026-11-07', [shift({ systemDebit: 151, otherCredit: 2557.91, systemMassyCoupons: 30 })])
   const mini = buildMiniReport([d1, d2])
@@ -65,8 +65,9 @@ test('buildMiniReport: card / electronic, fleet, vouchers and the deposit, nothi
   assert.equal(mini.card.debit, 1320.54)
   assert.equal(mini.card.credit, 10010.79)
   assert.equal(mini.card.total, 11331.33)
+  assert.equal(mini.inhouse, 75.25)
   assert.equal(mini.fleet, 150.5)
   assert.equal(mini.vouchers, 40)
   assert.deepEqual(mini.deposit, { counted: 800, deposited: 810, status: 'match' })
-  assert.deepEqual(Object.keys(mini).sort(), ['card', 'dayCount', 'deposit', 'fleet', 'from', 'to', 'vouchers'])
+  assert.deepEqual(Object.keys(mini).sort(), ['card', 'dayCount', 'deposit', 'fleet', 'from', 'inhouse', 'to', 'vouchers'])
 })

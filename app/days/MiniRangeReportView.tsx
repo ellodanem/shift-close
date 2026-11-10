@@ -48,6 +48,10 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.card.credit)}</td>
               </tr>
               <tr className="border-b border-gray-100">
+                <td className="px-2 py-1.5 text-left text-gray-700">In-House</td>
+                <td className="px-2 py-1.5 text-right font-medium">{formatMoney(report.inhouse)}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
                 <td className="px-2 py-1.5 text-left text-gray-700">Fleet</td>
                 <td className="px-2 py-1.5 text-right font-medium">{formatMoney(report.fleet)}</td>
               </tr>
