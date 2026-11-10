@@ -30,21 +30,16 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-sm">
             <tbody className="tabular-nums">
-              <tr className="border-b border-gray-100">
-                <td className="px-2 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-gray-500" colSpan={2}>
-                  Card / electronic
-                </td>
-              </tr>
               <tr className="border-b border-gray-100 font-semibold">
-                <td className="px-2 py-1.5 text-left">Total</td>
+                <td className="px-2 py-1.5 text-left">Credit/Debit</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.card.total)}</td>
               </tr>
               <tr className="border-b border-gray-100 text-xs text-gray-600">
-                <td className="py-1.5 pl-6 pr-2 text-left">Debit (system)</td>
+                <td className="py-1.5 pl-6 pr-2 text-left">Debit</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.card.debit)}</td>
               </tr>
               <tr className="border-b border-gray-100 text-xs text-gray-600">
-                <td className="py-1.5 pl-6 pr-2 text-left">Credit (other)</td>
+                <td className="py-1.5 pl-6 pr-2 text-left">Credit</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.card.credit)}</td>
               </tr>
               <tr className="border-b border-gray-100">

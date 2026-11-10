@@ -51,9 +51,9 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
   doc.text('Collected', margin, 100)
 
   const rows: { label: string; amount: number; kind: 'total' | 'sub' | 'plain' }[] = [
-    { label: 'Total', amount: report.card.total, kind: 'total' },
-    { label: 'Debit (system)', amount: report.card.debit, kind: 'sub' },
-    { label: 'Credit (other)', amount: report.card.credit, kind: 'sub' },
+    { label: 'Credit/Debit', amount: report.card.total, kind: 'total' },
+    { label: 'Debit', amount: report.card.debit, kind: 'sub' },
+    { label: 'Credit', amount: report.card.credit, kind: 'sub' },
     { label: 'In-House', amount: report.inhouse, kind: 'plain' },
     { label: 'Fleet', amount: report.fleet, kind: 'plain' },
     { label: 'Vouchers / coupons', amount: report.vouchers, kind: 'plain' }
@@ -62,11 +62,9 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
   autoTable(doc, {
     startY: 106,
     margin: { left: margin, right: margin },
-    head: [[{ content: 'CARD / ELECTRONIC', colSpan: 2, styles: { halign: 'left' } }]],
     body: rows.map((r) => [r.label, formatMoney(r.amount)]),
     theme: 'plain',
     styles,
-    headStyles: { textColor: GREY, fontStyle: 'normal', fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 4, right: 4 } },
     columnStyles: { 1: { halign: 'right' } },
     didParseCell: (data) => {
       if (data.section !== 'body') return
