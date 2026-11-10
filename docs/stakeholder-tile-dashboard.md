@@ -19,8 +19,10 @@ Other roles keep the full dashboard.
 
 ## Manager tile home (Nov 9, 2026)
 The `manager` role (not admin) gets a similar home: Recently Used + Favorites stay, Upcoming with Today's roster
-under it, then every menu group as tiles (`app/components/ManagerTileHome.tsx`, built from the same role-filtered
-nav as the sidebar). All dashboard widgets are removed for that role. Admin is unchanged.
+under it, then the same categorized tile layout as the stakeholder (End of Day first; Operations incl. Shifts,
+Insights, People, Financial incl. fuel/vendor payments and Check Management), nothing greyed out
+(`app/components/ManagerTileHome.tsx`). All dashboard widgets are removed for that role. Admin is unchanged.
+The sidebar still has the full menu for the manager.
 - Revert point: git tag `pre-manager-tile-dashboard` (commit `50eac46`).
 - Undo: `git revert <the "manager tile dashboard" commit>`, or
   `git checkout pre-manager-tile-dashboard -- app/dashboard/page.tsx` and delete `app/components/ManagerTileHome.tsx`.

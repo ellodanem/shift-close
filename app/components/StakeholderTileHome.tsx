@@ -9,7 +9,7 @@ import { tileBackgroundColor } from '@/lib/tile-colors'
  * Simplified stakeholder home: categorized tiles only, End of Day first.
  * Tile look matches HomeShortcutStrip. Revert point: git tag pre-stakeholder-tile-dashboard.
  */
-type StakeholderTile = {
+export type StakeholderTile = {
   label: string
   href: string
   /** Icon to draw. */
@@ -20,7 +20,7 @@ type StakeholderTile = {
   disabled?: boolean
 }
 
-type StakeholderCategory = {
+export type StakeholderCategory = {
   title: string
   tiles: StakeholderTile[]
 }
@@ -107,10 +107,11 @@ function TileLink({ tile }: { tile: StakeholderTile }) {
   )
 }
 
-export default function StakeholderTileHome() {
+/** Categorized tile collection. Shared by the stakeholder and manager homes. */
+export function CategorizedTiles({ categories }: { categories: StakeholderCategory[] }) {
   return (
     <div className="space-y-6 sm:space-y-7">
-      {CATEGORIES.map((category) => (
+      {categories.map((category) => (
         <section key={category.title}>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
             {category.title}
@@ -124,4 +125,8 @@ export default function StakeholderTileHome() {
       ))}
     </div>
   )
+}
+
+export default function StakeholderTileHome() {
+  return <CategorizedTiles categories={CATEGORIES} />
 }
