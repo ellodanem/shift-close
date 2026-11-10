@@ -15,7 +15,7 @@ import {
   isPathBlockedForOperationsManager,
   isStakeholderBooksPath,
   isCustomerAccountsPath,
-  isStakeholderEndOfDayPath,
+  isStakeholderMiniReportPath,
   isStakeholderFuelComparisonPath,
   isStakeholderPeoplePath,
   isSupervisorLike,
@@ -175,7 +175,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (
       isStakeholderPeoplePath(pathname) ||
       isStakeholderFuelComparisonPath(pathname) ||
-      isStakeholderEndOfDayPath(pathname) ||
+      isStakeholderMiniReportPath(pathname) ||
       isStakeholderBooksPath(pathname) ||
       isAccountantBooksPath(pathname) ||
       isAccountantBillPath(pathname)

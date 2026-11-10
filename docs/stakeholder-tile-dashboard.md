@@ -6,9 +6,11 @@ Other roles keep the full dashboard.
 ## What changed
 - `app/components/StakeholderTileHome.tsx` (new): the tile layout. Same tile style as `HomeShortcutStrip`.
 - `app/dashboard/page.tsx`: `DashboardPage` now wraps the original page (renamed `FullDashboard`) and shows the tile home for stakeholders.
-- Stakeholder gets **read-only** access to End of Day (`/days`, `/api/days`):
-  `isStakeholderEndOfDayPath` in `lib/roles.ts`, used in `lib/access-control.ts`, `lib/app-nav.ts`, `lib/home-shortcuts.ts`.
-  Writes (uploads, notify, send-email) stay blocked by the default in `apiWriteAllowedForRole`.
+- Stakeholder gets only the **mini report** from End of Day (Nov 10, 2026): the "Mini report" tile opens `/days/mini`
+  (pick a range, Generate, Print), fed by `/api/days/mini`, which returns just the Collected and Deposit totals
+  (`lib/mini-report.ts`). `/days`, `/days/v2`, the range report and the rest of `/api/days` are closed to this role.
+  `isStakeholderMiniReportPath` in `lib/roles.ts`, used in `lib/access-control.ts`, `lib/app-nav.ts`, `lib/home-shortcuts.ts`.
+  (Before that, the stakeholder had read-only access to all of `/days` and `/api/days`: `isStakeholderEndOfDayPath`.)
 - Roster, Attendance, Time Off and Applications tiles are shown greyed out and not clickable (`disabled: true` in
   `StakeholderTileHome.tsx`). Remove that flag to turn a tile back on. Page access via URL is unchanged.
 - Stakeholder sidebar trimmed to Home, Accounting and Reports (`STAKEHOLDER_SIDEBAR_GROUPS` in `lib/app-nav.ts`).

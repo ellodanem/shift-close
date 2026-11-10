@@ -202,11 +202,15 @@ export function isStakeholderFuelComparisonPath(pathname: string): boolean {
 }
 
 /**
- * End of Day pages and their read APIs (stakeholder tile dashboard).
- * Read-only: stakeholder writes are denied by default in apiWriteAllowedForRole.
+ * The only End of Day the stakeholder gets: the mini report page and its API (Collected and Deposit totals).
+ * Not /days, /days/v2 or the rest of /api/days. Read-only: stakeholder writes are denied by default.
  */
-export function isStakeholderEndOfDayPath(pathname: string): boolean {
-  return pathMatchesPrefix(pathname, '/days') || pathMatchesPrefix(pathname, '/api/days')
+export const STAKEHOLDER_MINI_REPORT_PATH = '/days/mini'
+
+export function isStakeholderMiniReportPath(pathname: string): boolean {
+  return (
+    pathMatchesPrefix(pathname, STAKEHOLDER_MINI_REPORT_PATH) || pathMatchesPrefix(pathname, '/api/days/mini')
+  )
 }
 
 export function canEditRoster(role: string): boolean {

@@ -28,7 +28,7 @@ type StakeholderCategory = {
 const CATEGORIES: StakeholderCategory[] = [
   {
     title: 'End of Day',
-    tiles: [{ label: 'End of Day', href: '/days', iconId: 'end-of-day' }]
+    tiles: [{ label: 'Mini report', href: '/days/mini', iconId: 'end-of-day' }]
   },
   {
     title: 'Operations',

@@ -6,6 +6,8 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatLitres, formatMoney } from '@/lib/day-reconcile'
 import { buildRangeReport, type RangeReport } from '@/lib/day-range-report'
 import { rangePresets } from '@/lib/day-range-presets'
+import { toMiniReport } from '@/lib/mini-report'
+import MiniRangeReportView from '../../MiniRangeReportView'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
 
 function dayLabel(ymd: string): { short: string; weekday: string } {
@@ -31,8 +33,7 @@ function Heading({ children }: { children: ReactNode }) {
 const TH = 'px-2 py-1 font-normal'
 const HEAD_ROW = 'border-b border-gray-200 text-xs text-gray-500'
 
-/** `mini` keeps only the title, Collected and Deposit. */
-function ReportView({ report, mini = false }: { report: RangeReport; mini?: boolean }) {
+function ReportView({ report }: { report: RangeReport }) {
   const cash = report.cashChecks
   const range = `${report.from} to ${report.to}`
   return (
@@ -43,9 +44,8 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
           <span className="text-sm text-gray-500">
             {report.dayCount} {report.dayCount === 1 ? 'day' : 'days'}
           </span>
-          {mini ? <span className="ml-auto text-[11px] text-gray-400">Generated with ShiftClose</span> : null}
         </div>
-        <div className={`mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${mini ? 'hidden' : ''}`}>
+        <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <span className={`font-semibold ${cash.status === 'differs' ? 'text-red-700' : 'text-green-800'}`}>
             <Dot ok={cash.status === 'match'} />
             Cash + Checks over/short {formatMoney(cash.overShort, true)}
@@ -65,7 +65,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
       </div>
 
       <div className="px-4 pb-6 pt-1 sm:px-6">
-        {!mini && report.cstoreDayCount > 0 ? (
+        {report.cstoreDayCount > 0 ? (
           <>
             <Heading>Sales</Heading>
             <div className="overflow-x-auto">
@@ -121,7 +121,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 <th className={`${TH} text-left`}>Type</th>
                 <th className={`${TH} text-right`}>System</th>
                 <th className={`${TH} text-right`}>Count</th>
-                {mini ? null : <th className={`${TH} text-right`}>Over/Short</th>}
+                <th className={`${TH} text-right`}>Over/Short</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
@@ -133,18 +133,16 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                   </td>
                   <td className="px-2 py-1.5 text-right">{formatMoney(l.system)}</td>
                   <td className="px-2 py-1.5 text-right">{formatMoney(l.count)}</td>
-                  {mini ? null : <td className="px-2 py-1.5 text-right">{osCell(l.overShort)}</td>}
+                  <td className="px-2 py-1.5 text-right">{osCell(l.overShort)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {mini ? null : (
-          <p className="mt-2 text-xs text-gray-500">
-            Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks
-            is the one that matters.
-          </p>
-        )}
+        <p className="mt-2 text-xs text-gray-500">
+          Over/Short is Count minus System, added up over the day&apos;s shifts as on the shift screen. Cash + Checks is
+          the one that matters.
+        </p>
 
         <Heading>Deposit</Heading>
         <div className="overflow-x-auto">
@@ -154,7 +152,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 <th className={`${TH} text-left`}>Type</th>
                 <th className={`${TH} text-right`}>Counted (Cash + Checks)</th>
                 <th className={`${TH} text-right`}>Deposited</th>
-                {mini ? null : <th className={`${TH} text-right`}>Difference</th>}
+                <th className={`${TH} text-right`}>Difference</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
@@ -165,14 +163,12 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
                 </td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.counted)}</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.deposited)}</td>
-                {mini ? null : <td className="px-2 py-1.5 text-right">{osCell(report.deposit.diff)}</td>}
+                <td className="px-2 py-1.5 text-right">{osCell(report.deposit.diff)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {mini ? null : (
-          <>
         <Heading>By day</Heading>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
@@ -225,8 +221,6 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
             <p>Nothing to flag.</p>
           )}
         </div>
-          </>
-        )}
       </div>
     </div>
   )
@@ -449,7 +443,13 @@ function ReportPage() {
           </div>
         </div>
 
-        {report ? <ReportView report={report} mini={mini} /> : null}
+        {report ? (
+          mini ? (
+            <MiniRangeReportView report={toMiniReport(report)} />
+          ) : (
+            <ReportView report={report} />
+          )
+        ) : null}
       </div>
     </div>
   )
