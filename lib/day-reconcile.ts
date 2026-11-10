@@ -202,7 +202,8 @@ export function reconcileDay(
   const massyCount = sum((s) => s.countMassyCoupons)
   const collectedLines: CollectedLine[] = [
     cashLine,
-    collectedLine('credits', 'Credit/Debit', sum((s) => s.systemCredit), sum((s) => s.countCredit)),
+    // Count = the Debit and Credit entered under Other Items (the receipt totals), not the Count Credit box.
+    collectedLine('credits', 'Credit/Debit', sum((s) => s.systemCredit), sum((s) => s.systemDebit + s.otherCredit)),
     collectedLine('inhouse', 'In-House', sum((s) => s.systemInhouse), sum((s) => s.countInhouse)),
     collectedLine('fleets', 'Fleets', sum((s) => s.systemFleet), sum((s) => s.countFleet)),
     ...(Math.abs(massySystem) + Math.abs(massyCount) >= 0.005

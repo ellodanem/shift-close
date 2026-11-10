@@ -58,7 +58,7 @@ const dayA = {
         countCash: 1000,
         countChecks: 100,
         systemCredit: 500,
-        countCredit: 505,
+        otherCredit: 505,
         totalDeposits: 1140
       })
     ],

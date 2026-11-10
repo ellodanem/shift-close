@@ -162,10 +162,10 @@ describe('reconcileDay: Nov 3 (System vs Count from the shifts)', () => {
     assert.equal(r.overShort.overShort, -1522.09)
   })
 
-  it('Credits count is 247.78 above the system; In-House and Fleets agree', () => {
+  it('Credits count is 347.78 above the system; In-House and Fleets agree', () => {
     assert.equal(row(r, 'credits').system, 8636.79)
-    assert.equal(row(r, 'credits').count, 8884.57)
-    assert.equal(row(r, 'credits').overShort, 247.78)
+    assert.equal(row(r, 'credits').count, 8984.57)
+    assert.equal(row(r, 'credits').overShort, 347.78)
     assert.equal(row(r, 'inhouse').status, 'match')
     assert.equal(row(r, 'fleets').status, 'match')
   })
@@ -195,7 +195,7 @@ describe('reconcileDay: Nov 3 (System vs Count from the shifts)', () => {
 
   it('reads the short, the deposit gap and what was keyed differently in Cstore', () => {
     assert.ok(r.notes.some((n) => /^Cash \+ Checks short \$1,522\.09: \$26,499\.40 counted against \$28,021\.49 on the system\./.test(n)))
-    assert.ok(r.notes.some((n) => /^Over\/short on: Credit\/Debit \+\$247\.78\./.test(n)))
+    assert.ok(r.notes.some((n) => /^Over\/short on: Credit\/Debit \+\$347.78\./.test(n)))
     assert.ok(r.notes.some((n) => /^Deposited \$25,022\.00, \$1,477\.40 less than the \$26,499\.40 counted\./.test(n)))
     assert.ok(r.notes.some((n) => /Cstore was keyed differently from the shifts on: Credit\/Debit \+\$20\.40, Deposits \+\$0\.50\./.test(n)))
   })
@@ -209,11 +209,11 @@ describe('reconcileDay: Nov 3 (System vs Count from the shifts)', () => {
 describe('reconcileDay: Nov 4 (small gaps)', () => {
   const r = reconcileDay(nov4Shifts, nov4Cstore)
 
-  it('Cash + Checks is over by 443.22 and Credits by 152.97', () => {
+  it('Cash + Checks is over by 443.22 and Credits by 442.97', () => {
     assert.equal(row(r, 'cashChecks').system, 32530.98)
     assert.equal(row(r, 'cashChecks').count, 32974.2)
     assert.equal(row(r, 'cashChecks').overShort, 443.22)
-    assert.equal(row(r, 'credits').overShort, 152.97)
+    assert.equal(row(r, 'credits').overShort, 442.97)
   })
 
   it('In-House is a one-cent difference and Fleets agree', () => {
@@ -250,7 +250,7 @@ describe('reconcileDay: nothing waits on what the manager types into Cstore', ()
     const r = reconcileDay(nov3Shifts, untyped)
     assert.equal(r.awaitingDeposits, true)
     assert.equal(row(r, 'cashChecks').overShort, -1522.09)
-    assert.equal(row(r, 'credits').overShort, 247.78)
+    assert.equal(row(r, 'credits').overShort, 347.78)
     assert.equal(r.differenceCount, 3)
     // Untyped lines are not compared, so there is no keying note and no Cstore-only notes.
     assert.ok(!r.notes.some((n) => /keyed differently/.test(n)))
@@ -275,7 +275,8 @@ describe('reconcileDay: nothing waits on what the manager types into Cstore', ()
         systemCash: 100,
         countCash: 100,
         systemCredit: 50,
-        countCredit: 50,
+        systemDebit: 20,
+        otherCredit: 30,
         totalDeposits: 100
       })
     ]
@@ -347,5 +348,13 @@ describe('reconcileDay: everything agrees', () => {
     assert.equal(r.verdict, 'reconciled')
     assert.equal(r.verdictText, 'Reconciled')
     assert.deepEqual(r.notes, ['Shift Close agrees with Cstore on every line.'])
+  })
+})
+
+describe('reconcileDay: Credit/Debit count', () => {
+  it('uses Debit + Credit from Other Items, not the Count Credit box', () => {
+    const r = reconcileDay([shift({ systemCredit: 100, systemDebit: 40, otherCredit: 60.5, countCredit: 99 })], null)
+    assert.equal(row(r, 'credits').count, 100.5)
+    assert.equal(row(r, 'credits').overShort, 0.5)
   })
 })
