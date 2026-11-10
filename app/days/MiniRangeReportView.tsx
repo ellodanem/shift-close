@@ -60,11 +60,10 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
 
         <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Deposit</h3>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm">
+          <table className="w-full min-w-[320px] text-sm">
             <thead>
               <tr className={HEAD_ROW}>
                 <th className={`${TH} text-left`}>Type</th>
-                <th className={`${TH} text-right`}>Counted (Cash + Checks)</th>
                 <th className={`${TH} text-right`}>Deposited</th>
               </tr>
             </thead>
@@ -74,7 +73,6 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
                   <Dot ok={report.deposit.status === 'match'} />
                   Deposit
                 </td>
-                <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.counted)}</td>
                 <td className="px-2 py-1.5 text-right">{formatMoney(report.deposit.deposited)}</td>
               </tr>
             </tbody>

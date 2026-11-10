@@ -68,6 +68,6 @@ test('buildMiniReport: card / electronic, fleet, vouchers and the deposit, nothi
   assert.equal(mini.inhouse, 75.25)
   assert.equal(mini.fleet, 150.5)
   assert.equal(mini.vouchers, 40)
-  assert.deepEqual(mini.deposit, { counted: 800, deposited: 810, status: 'match' })
+  assert.deepEqual(mini.deposit, { deposited: 810, status: 'match' })
   assert.deepEqual(Object.keys(mini).sort(), ['card', 'dayCount', 'deposit', 'fleet', 'from', 'inhouse', 'to', 'vouchers'])
 })

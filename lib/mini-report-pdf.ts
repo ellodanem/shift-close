@@ -88,8 +88,8 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
   autoTable(doc, {
     startY: afterCollected + 36,
     margin: { left: margin, right: margin },
-    head: [['Type', 'Counted (Cash + Checks)', 'Deposited']],
-    body: [['Deposit', formatMoney(report.deposit.counted), formatMoney(report.deposit.deposited)]],
+    head: [['Type', 'Deposited']],
+    body: [['Deposit', formatMoney(report.deposit.deposited)]],
     theme: 'plain',
     styles: { ...styles, fontStyle: 'bold' },
     headStyles: {
@@ -101,8 +101,7 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     },
     columnStyles: {
       0: { cellPadding: { top: 6, bottom: 6, left: 18, right: 4 } },
-      1: { halign: 'right' },
-      2: { halign: 'right' }
+      1: { halign: 'right' }
     },
     didParseCell: (data) => {
       if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right'
