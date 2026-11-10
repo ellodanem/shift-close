@@ -31,7 +31,8 @@ function Heading({ children }: { children: ReactNode }) {
 const TH = 'px-2 py-1 font-normal'
 const HEAD_ROW = 'border-b border-gray-200 text-xs text-gray-500'
 
-function ReportView({ report }: { report: RangeReport }) {
+/** `mini` keeps only the title, Collected and Deposit. */
+function ReportView({ report, mini = false }: { report: RangeReport; mini?: boolean }) {
   const cash = report.cashChecks
   const range = `${report.from} to ${report.to}`
   return (
@@ -43,7 +44,7 @@ function ReportView({ report }: { report: RangeReport }) {
             {report.dayCount} {report.dayCount === 1 ? 'day' : 'days'}
           </span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+        <div className={`mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${mini ? 'hidden' : ''}`}>
           <span className={`font-semibold ${cash.status === 'differs' ? 'text-red-700' : 'text-green-800'}`}>
             <Dot ok={cash.status === 'match'} />
             Cash + Checks over/short {formatMoney(cash.overShort, true)}
@@ -63,7 +64,7 @@ function ReportView({ report }: { report: RangeReport }) {
       </div>
 
       <div className="px-4 pb-6 pt-1 sm:px-6">
-        {report.cstoreDayCount > 0 ? (
+        {!mini && report.cstoreDayCount > 0 ? (
           <>
             <Heading>Sales</Heading>
             <div className="overflow-x-auto">
@@ -167,6 +168,8 @@ function ReportView({ report }: { report: RangeReport }) {
           </table>
         </div>
 
+        {mini ? null : (
+          <>
         <Heading>By day</Heading>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
@@ -219,6 +222,8 @@ function ReportView({ report }: { report: RangeReport }) {
             <p>Nothing to flag.</p>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -237,6 +242,7 @@ function ReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<RangeReport | null>(null)
+  const [mini, setMini] = useState(false)
   const presets = useMemo(() => rangePresets(today), [today])
   // A quick range generates the report as soon as its days have loaded.
   const autoGenerate = useRef(false)
@@ -245,10 +251,12 @@ function ReportPage() {
     if (p.from === from && p.to === to && !loading) {
       // Already showing these dates: tick every day again and generate.
       setSelected(new Set(days.map((d) => d.date)))
+      setMini(false)
       setReport(days.length > 0 ? buildRangeReport(days) : null)
       return
     }
     autoGenerate.current = true
+    setMini(false)
     setReport(null)
     setFrom(p.from)
     setTo(p.to)
@@ -367,10 +375,24 @@ function ReportPage() {
               <button
                 type="button"
                 disabled={loading || chosen.length === 0}
-                onClick={() => setReport(buildRangeReport(chosen))}
+                onClick={() => {
+                  setMini(false)
+                  setReport(buildRangeReport(chosen))
+                }}
                 className="rounded bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
               >
                 Generate
+              </button>
+              <button
+                type="button"
+                disabled={loading || chosen.length === 0}
+                onClick={() => {
+                  setMini(true)
+                  setReport(buildRangeReport(chosen))
+                }}
+                className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Mini report
               </button>
               <button
                 type="button"
@@ -424,7 +446,7 @@ function ReportPage() {
           </div>
         </div>
 
-        {report ? <ReportView report={report} /> : null}
+        {report ? <ReportView report={report} mini={mini} /> : null}
       </div>
     </div>
   )
