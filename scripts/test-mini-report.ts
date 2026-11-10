@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { pathnameAllowedForRole } from '../lib/access-control'
-import { toMiniReport } from '../lib/mini-report'
+import { formatDmy, toMiniReport } from '../lib/mini-report'
 import type { RangeReport } from '../lib/day-range-report'
 
 test('stakeholder can open the mini report and nothing else of End of Day', () => {
@@ -47,4 +47,9 @@ test('toMiniReport keeps only Collected and Deposit totals', () => {
   })
   const text = JSON.stringify(mini)
   assert.ok(!text.includes('overShort') && !text.includes('diff"') && !text.includes('secret'))
+})
+
+test('formatDmy writes DD-MM-YYYY', () => {
+  assert.equal(formatDmy('2026-11-06'), '06-11-2026')
+  assert.equal(formatDmy('nope'), 'nope')
 })

@@ -6,7 +6,7 @@ import { businessTodayYmd } from '@/lib/datetime-policy'
 import { formatLitres, formatMoney } from '@/lib/day-reconcile'
 import { buildRangeReport, type RangeReport } from '@/lib/day-range-report'
 import { rangePresets } from '@/lib/day-range-presets'
-import { toMiniReport } from '@/lib/mini-report'
+import { formatDmy, toMiniReport } from '@/lib/mini-report'
 import MiniRangeReportView from '../../MiniRangeReportView'
 import type { DayReportV2 } from '@/lib/day-reports-v2'
 
@@ -35,12 +35,12 @@ const HEAD_ROW = 'border-b border-gray-200 text-xs text-gray-500'
 
 function ReportView({ report }: { report: RangeReport }) {
   const cash = report.cashChecks
-  const range = `${report.from} to ${report.to}`
+  const range = `${formatDmy(report.from)} to ${formatDmy(report.to)}`
   return (
     <div className="rounded border border-gray-200 bg-white shadow-sm print:border-0 print:shadow-none">
       <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-lg font-bold text-gray-900">{report.from === report.to ? report.from : range}</span>
+          <span className="text-lg font-bold text-gray-900">{report.from === report.to ? formatDmy(report.from) : range}</span>
           <span className="text-sm text-gray-500">
             {report.dayCount} {report.dayCount === 1 ? 'day' : 'days'}
           </span>

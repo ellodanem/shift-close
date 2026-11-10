@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatMoney } from '@/lib/day-reconcile'
-import type { MiniRangeReport } from '@/lib/mini-report'
+import { formatDmy, type MiniRangeReport } from '@/lib/mini-report'
 
 const GREEN: [number, number, number] = [22, 163, 74]
 const RED: [number, number, number] = [220, 38, 38]
@@ -21,7 +21,11 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(17, 24, 39)
-  doc.text(report.from === report.to ? report.from : `${report.from} to ${report.to}`, margin, 50)
+  doc.text(
+    report.from === report.to ? formatDmy(report.from) : `${formatDmy(report.from)} to ${formatDmy(report.to)}`,
+    margin,
+    50
+  )
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)

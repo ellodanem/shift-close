@@ -3,6 +3,7 @@
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { depositComparisonsPath, parseFocusDate } from '@/lib/daily-close-path'
+import { formatDmy } from '@/lib/mini-report'
 import { slipTasksForDay } from '@/lib/day-slip-tasks'
 import { CollapsedSlipIcons } from '../DaySlipTasks'
 import PaperSection from './PaperSection'
@@ -221,7 +222,7 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
           <div>
             <h2 className="text-base font-semibold text-gray-900">End of Day: mini report</h2>
             <p className="text-sm text-gray-600">
-              {weekdayLabel(day.date)} {day.date}
+              {weekdayLabel(day.date)} {formatDmy(day.date)}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
