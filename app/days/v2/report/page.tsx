@@ -43,6 +43,7 @@ function ReportView({ report, mini = false }: { report: RangeReport; mini?: bool
           <span className="text-sm text-gray-500">
             {report.dayCount} {report.dayCount === 1 ? 'day' : 'days'}
           </span>
+          {mini ? <span className="ml-auto text-[11px] text-gray-400">Generated with ShiftClose</span> : null}
         </div>
         <div className={`mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${mini ? 'hidden' : ''}`}>
           <span className={`font-semibold ${cash.status === 'differs' ? 'text-red-700' : 'text-green-800'}`}>

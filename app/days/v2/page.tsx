@@ -224,7 +224,9 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
               {weekdayLabel(day.date)} {day.date}
             </p>
           </div>
-          <div className="flex gap-2 print:hidden">
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[11px] text-gray-400">Generated with ShiftClose</span>
+            <div className="flex gap-2 print:hidden">
             <button
               type="button"
               onClick={() => window.print()}
@@ -239,6 +241,7 @@ function MiniReportModal({ day, onClose }: { day: DayReportV2; onClose: () => vo
             >
               Close
             </button>
+            </div>
           </div>
         </div>
         <CollectedTable lines={r.collected.lines} deposit={r.collected.deposit} mini />
