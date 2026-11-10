@@ -150,3 +150,28 @@ input[type="number"] {
 table.min-w-full.text-sm thead th {
   padding: 0.75rem 1rem;
 }
+
+/* Global print: hide app chrome (nav, utility bar, banners) and un-clip the shell
+   so print views start at the top of the page with no header or sidebar offset. */
+@media print {
+  .app-chrome,
+  .no-print,
+  .app-shell > header,
+  .app-column > header {
+    display: none !important;
+  }
+
+  html,
+  body,
+  .app-shell,
+  .app-column,
+  .app-main {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-top: 0 !important;
+    margin-left: 0 !important;
+  }
+}

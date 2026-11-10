@@ -376,7 +376,7 @@ export default function AppNav({
           if (mobileOpen) closeMobile()
           else setMobileOpen(true)
         }}
-        className="lg:hidden fixed top-2 left-3 z-50 rounded-md bg-slate-900/95 p-2 text-white shadow-lg"
+        className="app-chrome lg:hidden fixed top-2 left-3 z-50 rounded-md bg-slate-900/95 p-2 text-white shadow-lg"
         aria-label="Toggle menu"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,11 +389,11 @@ export default function AppNav({
       </button>
 
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/60" onClick={closeMobile} aria-hidden="true" />
+        <div className="app-chrome lg:hidden fixed inset-0 z-40 bg-black/60" onClick={closeMobile} aria-hidden="true" />
       )}
 
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-40 min-h-screen flex flex-col transform transition-transform duration-200 ease-in-out ${
+        className={`app-chrome fixed lg:static inset-y-0 left-0 z-40 min-h-screen flex flex-col transform transition-transform duration-200 ease-in-out ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
