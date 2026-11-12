@@ -5,369 +5,481 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shift Close Harvest Agent</title>
   <style>
+    :root {
+      --navy: #1e3a5f;
+      --navy-deep: #16304f;
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --border: #e2e8f0;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --green-ink: #166534;
+      --amber: #d97706;
+      --amber-soft: #fffbeb;
+      --amber-line: #fde68a;
+      --amber-ink: #92400e;
+      --red: #dc2626;
+      --red-soft: #fef2f2;
+      --red-line: #fecaca;
+      --red-ink: #991b1b;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111; }
-    header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-    header h1 { font-size: 1.1rem; font-weight: 700; }
-    header .subtitle { font-size: 0.8rem; opacity: 0.75; }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-    .dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-red { background: #ef4444; }
+    html, body { height: 100%; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: inherit; }
+    .ic { flex-shrink: 0; vertical-align: middle; }
+
+    /* ---------- Shell ---------- */
+    .shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+    .sidebar {
+      background: var(--navy);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 14px 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 22px; }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: rgba(255, 255, 255, 0.14);
+      display: grid; place-items: center; font-weight: 800; font-size: 16px;
+    }
+    .brand-name { font-weight: 700; font-size: 14px; line-height: 1.15; }
+    .brand-sub { font-size: 12px; opacity: 0.65; }
+    .nav { display: grid; gap: 4px; }
+    .nav button {
+      display: flex; align-items: center; gap: 11px;
+      background: none; border: none; color: rgba(255, 255, 255, 0.72);
+      padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 500;
+      cursor: pointer; text-align: left; width: 100%;
+    }
+    .nav button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .nav button.active { background: rgba(255, 255, 255, 0.16); color: #fff; font-weight: 600; }
+    .side-foot {
+      margin-top: auto; padding: 12px 10px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex; align-items: center; gap: 10px; font-size: 12px;
+    }
+    .side-foot .name { font-weight: 600; word-break: break-all; }
+    .side-foot .up { opacity: 0.65; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: #9ca3af; }
+    .dot-green { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+    .dot-yellow { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25); }
+    .dot-red { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25); }
     .dot-grey { background: #9ca3af; }
-    main { max-width: 920px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
-    .card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
-    .card h2 { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 14px; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; }
-    .stat .label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
-    .stat .value { font-size: 0.95rem; font-weight: 600; color: #111; }
-    .stat .sub { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
-    label { font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 4px; color: #374151; }
-    input, select { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; font-size: 0.875rem; outline: none; }
-    input:focus, select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
-    .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-green { background: #16a34a; color: white; }
-    .btn-amber { background: #d97706; color: white; }
-    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
-    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .activity { list-style: none; max-height: 220px; overflow-y: auto; }
-    .activity li { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid #f3f4f6; display: flex; gap: 10px; }
-    .activity .time { color: #9ca3af; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-    .banner { padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 4px; }
-    .banner-pause { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-    .banner-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-    .badge-ok { background: #dcfce7; color: #166534; }
-    .badge-miss { background: #f3f4f6; color: #6b7280; }
-    .task-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    .task-table th, .task-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
-    .task-table th { color: #6b7280; font-weight: 600; }
-    .field { margin-bottom: 12px; }
-    .secret-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .dow { display: flex; flex-wrap: wrap; gap: 6px; }
-    .dow label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 500; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer; margin: 0; }
-    .dow input { width: auto; margin: 0; }
-    #toast { position: fixed; bottom: 20px; right: 20px; max-width: 340px; z-index: 99; }
-    .toast { padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+
+    main { padding: 28px 32px 48px; max-width: 1080px; width: 100%; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+    .page-sub { color: var(--muted); margin-top: 2px; margin-bottom: 20px; }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .card-pad { padding: 20px 22px; }
+    .card-title { font-size: 16px; font-weight: 700; }
+    .card-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 2px 10px; }
+    .section-head h2 { font-size: 16px; font-weight: 700; }
+    .section-head .note { font-size: 12.5px; color: var(--muted); }
+
+    /* ---------- Hero ---------- */
+    .hero { display: flex; gap: 18px; align-items: center; padding: 22px 24px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow); }
+    .hero-icon { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; flex-shrink: 0; }
+    .hero-body { flex: 1; min-width: 0; }
+    .hero h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+    .hero .meta { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .hero .meta + .meta { margin-top: 1px; }
+    .hero-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+    .hero.tone-green .hero-icon { background: var(--green); }
+    .hero.tone-grey .hero-icon { background: var(--faint); }
+    .hero.tone-amber { background: var(--amber-soft); border-color: var(--amber-line); }
+    .hero.tone-amber .hero-icon { background: var(--amber); }
+    .hero.tone-amber h1 { color: var(--amber-ink); }
+    .hero.tone-red { background: var(--red-soft); border-color: var(--red-line); }
+    .hero.tone-red .hero-icon { background: var(--red); }
+    .hero.tone-red h1 { color: var(--red-ink); }
+    .steps { list-style: none; margin-top: 14px; display: grid; gap: 8px; counter-reset: s; }
+    .steps li { counter-increment: s; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #78350f; }
+    .steps li::before {
+      content: counter(s); width: 20px; height: 20px; border-radius: 50%;
+      background: var(--amber); color: #fff; font-size: 12px; font-weight: 700;
+      display: grid; place-items: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .run-pill {
+      display: inline-flex; align-items: center; gap: 7px; margin-top: 8px;
+      background: var(--blue-soft); color: var(--blue); border-radius: 999px;
+      padding: 3px 10px; font-size: 12px; font-weight: 600;
+    }
+    .spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 600;
+      border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-outline { background: #fff; color: #1e293b; border-color: #cbd5e1; }
+    .btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-link { background: none; border: none; color: var(--blue); font-weight: 600; font-size: 13px; cursor: pointer; padding: 2px 4px; }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-link.danger { color: var(--red); }
+    .btn-icon { width: 32px; height: 32px; padding: 0; border-radius: 8px; background: none; border: none; color: var(--faint); cursor: pointer; display: grid; place-items: center; }
+    .btn-icon:hover { background: #f1f5f9; color: var(--text); }
+
+    /* ---------- Job list ---------- */
+    .jobs { overflow: hidden; }
+    .jobs.dim .job-ic, .jobs.dim .job-main { opacity: 0.55; }
+    .job {
+      display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px;
+      align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border);
+    }
+    .job:last-child { border-bottom: none; }
+    .job.clickable { cursor: pointer; }
+    .job.clickable:hover { background: #fafbfd; }
+    .job-ic { width: 40px; height: 40px; border-radius: 10px; background: #f1f5f9; color: #475569; display: grid; place-items: center; }
+    .job.on .job-ic { background: var(--blue-soft); color: var(--blue); }
+    .job-name { font-weight: 600; font-size: 14.5px; }
+    .job-sub { color: var(--muted); font-size: 13px; margin-top: 1px; }
+    .job.off .job-sub { color: var(--faint); }
+    .job-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    .job-result { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; margin-top: 5px; color: var(--green-ink); }
+    .job-result .ic { margin-top: 2px; }
+    .job-result.err { color: var(--red-ink); }
+    .job-result.none { color: var(--faint); }
+    .job-result .when { color: var(--faint); }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; white-space: nowrap;
+    }
+    .chip-ok { background: var(--green-soft); color: var(--green-ink); }
+    .chip-err { background: var(--red-soft); color: var(--red-ink); }
+    .chip-warn { background: var(--amber-soft); color: var(--amber-ink); }
+    .chip-none { background: #f1f5f9; color: var(--muted); }
+
+    .switch {
+      width: 38px; height: 22px; border-radius: 999px; border: none; background: #cbd5e1;
+      position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+    }
+    .switch::after {
+      content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+      border-radius: 50%; background: #fff; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .switch[aria-checked="true"] { background: var(--green); }
+    .switch[aria-checked="true"]::after { transform: translateX(16px); }
+    .switch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---------- Overview layout ---------- */
+    .ov-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+    .timeline { list-style: none; padding: 6px 18px 14px; }
+    .timeline li { position: relative; padding: 9px 0 9px 20px; font-size: 13px; }
+    .timeline li::before { content: ''; position: absolute; left: 0; top: 15px; width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; }
+    .timeline li::after { content: ''; position: absolute; left: 3.5px; top: 25px; bottom: -9px; width: 1px; background: var(--border); }
+    .timeline li:last-child::after { display: none; }
+    .timeline li.warn::before { background: var(--amber); }
+    .timeline li.bad::before { background: var(--red); }
+    .timeline li.good::before { background: var(--green); }
+    .timeline .t { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; display: block; }
+    .timeline .m { color: #1e293b; word-break: break-word; }
+    .empty { padding: 22px; color: var(--muted); text-align: center; font-size: 13px; }
+
+    /* ---------- Segmented / form bits ---------- */
+    .seg { display: flex; border: 1px solid #cbd5e1; border-radius: 9px; overflow: hidden; background: #fff; }
+    .seg button {
+      flex: 1; padding: 8px 10px; background: #fff; border: none; border-right: 1px solid #cbd5e1;
+      font-size: 13px; font-weight: 600; color: #475569; cursor: pointer;
+    }
+    .seg button:last-child { border-right: none; }
+    .seg button:hover { background: #f8fafc; }
+    .seg button.active { background: var(--blue); color: #fff; }
+    label.lbl, .lbl { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    input[type=text], input[type=password], input[type=time], input[type=month], input[type=date], input[type=url], select {
+      width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 11px;
+      font-size: 14px; font-family: inherit; background: #fff; color: var(--text); outline: none;
+    }
+    input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+    input:disabled { background: #f8fafc; color: var(--muted); }
+    .field { margin-bottom: 18px; }
+    .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips button {
+      min-width: 46px; height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid #cbd5e1;
+      background: #fff; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer;
+    }
+    .chips button:hover { border-color: #94a3b8; }
+    .chips button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .chips.hours { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .chips.hours button { min-width: 0; height: 34px; padding: 0; border-radius: 8px; font-size: 12px; }
+    .preview { background: var(--blue-soft); border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 12px 14px; font-size: 13.5px; margin-bottom: 18px; }
+    .preview.muted { background: #f8fafc; border-color: var(--border); color: var(--muted); }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 18px; }
+    .switch-row .t { font-weight: 600; font-size: 13.5px; }
+    .switch-row .d { font-size: 12.5px; color: var(--muted); }
+    details.more { border-top: 1px solid var(--border); padding-top: 14px; }
+    details.more > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; list-style: none; display: flex; align-items: center; gap: 8px; color: #1e293b; }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary .ic { transition: transform 0.15s; }
+    details.more[open] > summary .ic { transform: rotate(90deg); }
+    details.more .body { padding-top: 14px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ---------- Drawer ---------- */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.38); opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 50; }
+    .overlay.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100%;
+      background: #fff; box-shadow: -8px 0 30px rgba(15, 23, 42, 0.15);
+      transform: translateX(100%); visibility: hidden; transition: transform 0.2s ease, visibility 0.2s; z-index: 51;
+      display: flex; flex-direction: column;
+    }
+    .drawer.open { transform: translateX(0); visibility: visible; }
+    .drawer-head { padding: 20px 22px 14px; display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--border); }
+    .drawer-head .grow { flex: 1; }
+    .drawer-head h3 { font-size: 18px; font-weight: 700; }
+    .drawer-head p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .drawer-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+    .drawer-foot { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+
+    /* ---------- Tables / history ---------- */
+    .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .tbl th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 12px 18px; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em; }
+    .tbl td { padding: 12px 18px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl .when { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .log { list-style: none; max-height: 560px; overflow-y: auto; }
+    .log li { display: flex; gap: 14px; padding: 10px 18px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .log li:last-child { border-bottom: none; }
+    .log .t { color: var(--faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .log li.warn .m { color: var(--amber-ink); }
+    .log li.bad .m { color: var(--red-ink); }
+    .history-tools { display: flex; margin-bottom: 14px; }
+    .history-tools .seg { width: 280px; }
+
+    /* ---------- Settings ---------- */
+    .settings-stack { display: grid; gap: 18px; max-width: 760px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .secret-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .secret-row .grow { flex: 1; min-width: 180px; }
+    .savebar {
+      position: sticky; bottom: 16px; max-width: 760px; margin-top: 18px;
+      display: none; align-items: center; gap: 12px; padding: 12px 16px;
+      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+    }
+    .savebar.show { display: flex; }
+    .savebar .msg { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+    .savebar .msg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+
+    /* ---------- Toast ---------- */
+    #toast { position: fixed; bottom: 20px; right: 20px; max-width: 360px; z-index: 99; }
+    .toast { padding: 11px 15px; border-radius: 10px; margin-top: 8px; font-size: 13.5px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14); }
     .toast-ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
-    .toast-err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-    @media (max-width: 720px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+    .toast-err { background: var(--red-soft); border: 1px solid var(--red-line); color: var(--red-ink); }
+
+    /* ---------- Narrow windows ---------- */
+    @media (max-width: 860px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
+      .brand { padding: 0; }
+      .brand-sub, .side-foot .up { display: none; }
+      .nav { display: flex; flex: 1; overflow-x: auto; }
+      .nav button { width: auto; padding: 8px 12px; }
+      .side-foot { margin: 0; padding: 0; border: none; }
+      main { padding: 20px 16px 40px; }
+      .ov-grid { grid-template-columns: 1fr; }
+      .job { grid-template-columns: 40px minmax(0, 1fr); }
+      .job-actions { grid-column: 2; justify-content: flex-start; }
+      .hero { flex-direction: column; align-items: flex-start; }
+      .hero-actions { flex-direction: row; align-items: center; }
+      .two { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="status-dot dot-grey" id="headerDot"></div>
-    <div>
-      <h1>Shift Close Harvest Agent</h1>
-      <div class="subtitle" id="headerSub">Loading…</div>
-    </div>
-  </header>
-
-  <main>
-    <div id="pauseBanner" class="banner banner-pause" style="display:none">
-      <strong>Paused</strong> — <span id="pauseText"></span>
-      <div class="btn-row">
-        <button type="button" class="btn btn-green" id="btnResume">Resume jobs</button>
-      </div>
-    </div>
-
-    <div id="cfBanner" class="banner banner-warn" style="display:none">
-      <strong>Cloudflare check</strong> — <span id="cfText">Click “Verify you are human” in the Cstore browser window.</span>
-    </div>
-
-    <div id="configBanner" class="banner banner-warn" style="display:none">
-      Set your Shift Close URL and harvest secret below before jobs can run.
-    </div>
-
-    <div class="grid3">
-      <div class="stat">
-        <div class="label">Cstore session</div>
-        <div class="value" id="statCstore">—</div>
-        <div class="sub" id="statCstoreSub"></div>
-      </div>
-      <div class="stat">
-        <div class="label">Last job</div>
-        <div class="value" id="statJob">—</div>
-        <div class="sub" id="statJobSub"></div>
-      </div>
-      <div class="stat">
-        <div class="label">Agent</div>
-        <div class="value" id="statAgent">—</div>
-        <div class="sub" id="statUptime"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Manual jobs</h2>
-      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">Use <strong>Schedule</strong> below for automatic runs. <strong>Run customer accounts</strong> harvests the full Shift Close list for the month (blank = current month).</p>
-      <div class="btn-row">
-        <button type="button" class="btn btn-green" id="btnSignIn">Sign in to Cstore</button>
-        <button type="button" class="btn btn-primary" id="btnKeepalive">Run keep-alive now</button>
-        <button type="button" class="btn btn-outline" id="btnCustomers">Run customer accounts</button>
-        <button type="button" class="btn btn-outline" id="btnVendorInvoices">Run vendor invoices</button>
-        <button type="button" class="btn btn-outline" id="btnFuelInvoices">Run fuel invoices</button>
-        <button type="button" class="btn btn-outline" id="btnLpgInvoices">Run LPG invoices</button>
-        <button type="button" class="btn btn-outline" id="btnDayReports">Run Cstore day reports</button>
-      </div>
-      <div class="grid2" style="margin-top:14px">
-        <div class="field">
-          <label for="monthKey">Job month (YYYY-MM, optional)</label>
-          <input id="monthKey" placeholder="2026-08" />
-        </div>
-        <div class="field">
-          <label for="vendorName">Vendor (blank = all)</label>
-          <input id="vendorName" placeholder="Acado" />
-        </div>
-        <div class="field">
-          <label for="dayKey">Cstore day report date (YYYY-MM-DD, blank = last 7 days)</label>
-          <input id="dayKey" placeholder="2026-11-04" />
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+          <div class="brand-name">Shift Close</div>
+          <div class="brand-sub">Harvest Agent</div>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>Schedule</h2>
-      <p style="font-size:0.85rem;color:#6b7280;margin-bottom:12px" id="scheduleHint">Times use America/St_Lucia.</p>
-
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Cstore keep-alive (daily)</h3>
-      <div class="field">
-        <label for="slotHoursText">Hours (comma-separated, 0–23)</label>
-        <input id="slotHoursText" placeholder="0, 7, 19" />
-      </div>
-      <div class="field">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:500">
-          <input type="checkbox" id="runOnStart" style="width:auto" />
-          Also run when the agent starts
-        </label>
-      </div>
-
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
-
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Cstore daily reports: start and save</h3>
-      <div class="field">
-        <label for="dayReportAutoSave">When a past day has a completed End of Day but is not saved in Cstore</label>
-        <select id="dayReportAutoSave">
-          <option value="off">Off (only read saved days)</option>
-          <option value="dry-run">Dry run (open the day, log what it would save, do not click Save)</option>
-          <option value="on">On (start and save it, oldest day first)</option>
-        </select>
-        <p style="font-size:0.8rem;color:#6b7280;margin:6px 0 0">Never touches the current day or a day already saved. Saves what Cstore pre-filled from the POS; Sales Tax, deposits and card batches are left for the manager.</p>
-      </div>
-
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
-
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Customer accounts</h3>
-      <div class="grid2">
-        <div class="field">
-          <label for="custFreq">Frequency</label>
-          <select id="custFreq">
-            <option value="off">Off</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
+      <nav class="nav" id="nav">
+        <button type="button" data-nav="overview" class="active"><span data-ic="home"></span>Overview</button>
+        <button type="button" data-nav="jobs"><span data-ic="briefcase"></span>Jobs</button>
+        <button type="button" data-nav="history"><span data-ic="clock"></span>History</button>
+        <button type="button" data-nav="settings"><span data-ic="sliders"></span>Settings</button>
+      </nav>
+      <div class="side-foot">
+        <span class="dot dot-grey" id="sideDot"></span>
+        <div>
+          <div class="name" id="sideName">Loading…</div>
+          <div class="up" id="sideUp"></div>
         </div>
-        <div class="field">
-          <label>Time</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input id="custHour" type="number" min="0" max="23" placeholder="Hour" />
-            <input id="custMinute" type="number" min="0" max="59" placeholder="Min" />
+      </div>
+    </aside>
+
+    <main>
+      <!-- ============ OVERVIEW ============ -->
+      <section class="view active" id="view-overview">
+        <h1 class="page-title">Overview</h1>
+        <p class="page-sub">Is everything running? Start here.</p>
+
+        <div id="hero"></div>
+
+        <div class="section-head">
+          <h2>Your jobs</h2>
+          <span class="note" id="jobsNote"></span>
+        </div>
+        <div class="ov-grid">
+          <div class="card jobs" id="jobsOverview"></div>
+          <div class="card">
+            <div class="card-pad" style="padding-bottom:4px"><div class="card-title">Recent activity</div></div>
+            <ul class="timeline" id="ovActivity"></ul>
+            <div style="padding:0 18px 14px"><button type="button" class="btn-link" data-nav="history" style="padding-left:0">View full history →</button></div>
           </div>
         </div>
-      </div>
-      <div class="field" id="custWeeklyRow" style="display:none">
-        <label>Days of week</label>
-        <div class="dow" id="custDow"></div>
-      </div>
-      <div class="grid2" id="custMonthlyRow" style="display:none">
-        <div class="field">
-          <label for="custDay">Day of month (1–28)</label>
-          <input id="custDay" type="number" min="1" max="28" />
-        </div>
-        <div class="field"></div>
-      </div>
-      <div class="field">
-        <label for="custScope">Harvest which month’s data</label>
-        <select id="custScope">
-          <option value="previous">Previous calendar month</option>
-          <option value="current">Current calendar month</option>
-        </select>
-      </div>
+      </section>
 
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+      <!-- ============ JOBS ============ -->
+      <section class="view" id="view-jobs">
+        <h1 class="page-title">Jobs</h1>
+        <p class="page-sub">Click a job to change when it runs, or to run it once with options.</p>
+        <div class="card jobs" id="jobsFull"></div>
+      </section>
 
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Vendor invoices</h3>
-      <div class="grid2">
-        <div class="field">
-          <label for="vendFreq">Frequency</label>
-          <select id="vendFreq">
-            <option value="off">Off</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Time</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input id="vendHour" type="number" min="0" max="23" placeholder="Hour" />
-            <input id="vendMinute" type="number" min="0" max="59" placeholder="Min" />
+      <!-- ============ HISTORY ============ -->
+      <section class="view" id="view-history">
+        <h1 class="page-title">History</h1>
+        <p class="page-sub">What the agent has done recently.</p>
+        <div class="history-tools">
+          <div class="seg" id="historySeg">
+            <button type="button" data-hist="results" class="active">Job results</button>
+            <button type="button" data-hist="log">Full log</button>
           </div>
         </div>
-      </div>
-      <div class="field" id="vendWeeklyRow" style="display:none">
-        <label>Days of week</label>
-        <div class="dow" id="vendDow"></div>
-      </div>
-      <div class="grid2" id="vendMonthlyRow" style="display:none">
-        <div class="field">
-          <label for="vendDay">Day of month (1–28)</label>
-          <input id="vendDay" type="number" min="1" max="28" />
-        </div>
-        <div class="field"></div>
-      </div>
-      <div class="field">
-        <label for="vendScope">Harvest which month’s data</label>
-        <select id="vendScope">
-          <option value="previous">Previous calendar month</option>
-          <option value="current">Current calendar month</option>
-        </select>
-      </div>
+        <div class="card" id="histResults" style="overflow:hidden"></div>
+        <div class="card" id="histLog" style="overflow:hidden;display:none"></div>
+      </section>
 
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+      <!-- ============ SETTINGS ============ -->
+      <section class="view" id="view-settings">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-sub">Set-once options. You shouldn't need to visit this page often.</p>
 
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">Fuel invoices (Gas Delivery unpaid)</h3>
-      <div class="grid2">
-        <div class="field">
-          <label for="fuelFreq">Frequency</label>
-          <select id="fuelFreq">
-            <option value="off">Off</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Time</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input id="fuelHour" type="number" min="0" max="23" placeholder="Hour" />
-            <input id="fuelMinute" type="number" min="0" max="59" placeholder="Min" />
+        <div class="settings-stack">
+          <div class="card card-pad">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Connection</div>
+                <div class="card-sub">How this PC talks to Shift Close.</div>
+              </div>
+              <span class="chip chip-none" id="connChip">Checking…</span>
+            </div>
+            <div class="two">
+              <div class="field">
+                <label class="lbl" for="agentKey">Agent name</label>
+                <input type="text" id="agentKey" />
+              </div>
+              <div class="field">
+                <label class="lbl" for="vercelUrl">Shift Close URL</label>
+                <input type="text" id="vercelUrl" placeholder="https://shiftcloser.vercel.app" />
+              </div>
+            </div>
+            <div class="field">
+              <span class="lbl">Harvest secret</span>
+              <div class="secret-row" id="secretRow"></div>
+              <p class="hint">Stored encrypted on this PC. Paste it once.</p>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="btnTestConnection">Test connection</button>
+          </div>
+
+          <div class="card card-pad">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Cstore</div>
+                <div class="card-sub">Where the agent signs in and reads from.</div>
+              </div>
+            </div>
+            <div class="field">
+              <label class="lbl" for="cstoreUrl">Dashboard URL</label>
+              <input type="text" id="cstoreUrl" />
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <span class="lbl">Auto-save past days</span>
+              <div class="seg" id="autoSaveSeg">
+                <button type="button" data-val="off">Off</button>
+                <button type="button" data-val="dry-run">Dry run</button>
+                <button type="button" data-val="on">On</button>
+              </div>
+              <p class="hint" id="autoSaveHint"></p>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <details class="more" style="border-top:none;padding-top:0">
+              <summary><span data-ic="chevron"></span>Advanced <span style="font-weight:400;color:var(--muted)">· time zone and secret removal</span></summary>
+              <div class="body">
+                <div class="field">
+                  <span class="lbl">Time zone</span>
+                  <div id="tzText" style="color:var(--muted)">—</div>
+                </div>
+                <div>
+                  <button type="button" class="btn-link danger" id="btnRemoveSecret" style="padding-left:0">Remove stored harvest secret</button>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
-      </div>
-      <div class="field" id="fuelWeeklyRow" style="display:none">
-        <label>Days of week</label>
-        <div class="dow" id="fuelDow"></div>
-      </div>
-      <div class="grid2" id="fuelMonthlyRow" style="display:none">
-        <div class="field">
-          <label for="fuelDay">Day of month (1–28)</label>
-          <input id="fuelDay" type="number" min="1" max="28" />
-        </div>
-        <div class="field"></div>
-      </div>
-      <div class="field">
-        <label for="fuelScope">Harvest which month’s data</label>
-        <select id="fuelScope">
-          <option value="current">Current calendar month</option>
-          <option value="previous">Previous calendar month</option>
-        </select>
-      </div>
 
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+        <div class="savebar" id="savebar">
+          <span class="msg">You have unsaved changes</span>
+          <button type="button" class="btn btn-outline" id="btnDiscard">Discard</button>
+          <button type="button" class="btn btn-primary" id="btnSaveSettings">Save changes</button>
+        </div>
+      </section>
+    </main>
+  </div>
 
-      <h3 style="font-size:0.8rem;font-weight:700;color:#374151;margin:0 0 10px">LPG invoices (Rubis West Indies grocery)</h3>
-      <div class="grid2">
-        <div class="field">
-          <label for="lpgFreq">Frequency</label>
-          <select id="lpgFreq">
-            <option value="off">Off</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Time</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input id="lpgHour" type="number" min="0" max="23" placeholder="Hour" />
-            <input id="lpgMinute" type="number" min="0" max="59" placeholder="Min" />
-          </div>
-        </div>
+  <div class="overlay" id="overlay"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="drawer-head">
+      <div class="grow">
+        <h3 id="drawerTitle"></h3>
+        <p id="drawerSub"></p>
       </div>
-      <div class="field" id="lpgWeeklyRow" style="display:none">
-        <label>Days of week</label>
-        <div class="dow" id="lpgDow"></div>
-      </div>
-      <div class="grid2" id="lpgMonthlyRow" style="display:none">
-        <div class="field">
-          <label for="lpgDay">Day of month (1–28)</label>
-          <input id="lpgDay" type="number" min="1" max="28" />
-        </div>
-        <div class="field"></div>
-      </div>
-      <div class="field">
-        <label for="lpgScope">Harvest which month’s data</label>
-        <select id="lpgScope">
-          <option value="previous">Previous calendar month</option>
-          <option value="current">Current calendar month</option>
-        </select>
-      </div>
-
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="btnSaveSchedule">Save schedule</button>
-      </div>
+      <button type="button" class="btn-icon" id="drawerClose" aria-label="Close"><span data-ic="x"></span></button>
     </div>
-
-    <div class="card">
-      <h2>Recent jobs (local)</h2>
-      <table class="task-table">
-        <thead><tr><th>When</th><th>Task</th><th>Result</th><th>Message</th></tr></thead>
-        <tbody id="taskRows"><tr><td colspan="4">No jobs yet</td></tr></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>Activity</h2>
-      <ul class="activity" id="activityList"><li><span class="msg">Waiting…</span></li></ul>
-    </div>
-
-    <div class="card">
-      <h2>Settings</h2>
-      <div class="grid2">
-        <div class="field">
-          <label for="agentKey">Agent name</label>
-          <input id="agentKey" />
-        </div>
-        <div class="field">
-          <label for="vercelUrl">Shift Close URL</label>
-          <input id="vercelUrl" placeholder="https://shiftcloser.vercel.app" />
-        </div>
-      </div>
-      <div class="field">
-        <label for="cstoreUrl">Cstore dashboard URL</label>
-        <input id="cstoreUrl" />
-      </div>
-      <div class="field">
-        <label>Harvest secret</label>
-        <div class="secret-row">
-          <span class="badge badge-miss" id="secretBadge">Not configured</span>
-          <input id="secretInput" type="password" placeholder="Paste once — stored encrypted on this PC" style="max-width:320px" />
-          <button type="button" class="btn btn-outline" id="btnCopySecret" disabled>Copy secret</button>
-          <button type="button" class="btn btn-outline" id="btnSaveSecret">Save secret</button>
-          <button type="button" class="btn btn-outline" id="btnRemoveSecret">Remove</button>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-outline" id="btnTestConnection">Test Shift Close connection</button>
-        <button type="button" class="btn btn-primary" id="btnSaveSettings">Save settings</button>
-      </div>
-    </div>
-  </main>
+    <div class="drawer-body" id="drawerBody"></div>
+    <div class="drawer-foot" id="drawerFoot"></div>
+  </aside>
 
   <div id="toast"></div>
 
@@ -375,6 +487,39 @@
     const $ = (id) => document.getElementById(id)
     const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+    /* ---------- helpers ---------- */
+    const ICONS = {
+      home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+      clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+      sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+      activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+      calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+      users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+      file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+      droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
+      zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+      check: '<polyline points="20 6 9 17 4 12"/>',
+      alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+      pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+      play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+      chevron: '<polyline points="9 18 15 12 9 6"/>',
+      x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+      help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
+    }
+    function icon(name, size = 18) {
+      return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`
+    }
+    function hydrateIcons(root = document) {
+      root.querySelectorAll('[data-ic]').forEach((el) => {
+        el.innerHTML = icon(el.dataset.ic, 18)
+        el.style.display = 'inline-flex'
+        el.removeAttribute('data-ic')
+      })
+    }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+    }
     function toast(msg, ok = true) {
       const el = document.createElement('div')
       el.className = 'toast ' + (ok ? 'toast-ok' : 'toast-err')
@@ -382,241 +527,545 @@
       $('toast').appendChild(el)
       setTimeout(() => el.remove(), 4000)
     }
-
     async function api(path, opts = {}) {
       const res = await fetch(path, opts)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       return data
     }
-
+    function post(path, body) {
+      return api(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      })
+    }
     function fmtWhen(iso) {
       if (!iso) return '—'
       const d = new Date(iso)
       if (Number.isNaN(d.getTime())) return '—'
       return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     }
-
-    function buildDow(containerId, name, selected) {
-      const root = $(containerId)
-      root.innerHTML = DOW.map((label, i) => {
-        const checked = selected.includes(i) ? 'checked' : ''
-        return `<label><input type="checkbox" name="${name}" value="${i}" ${checked} /> ${label}</label>`
-      }).join('')
+    function fmtClock(h, m = 0, withMinutes = true) {
+      const mm = String(m).padStart(2, '0')
+      return `${h % 12 || 12}${withMinutes || m ? ':' + mm : ''} ${h < 12 ? 'AM' : 'PM'}`
+    }
+    function ordinal(n) {
+      const v = n % 100
+      if (v >= 11 && v <= 13) return n + 'th'
+      return n + (['th', 'st', 'nd', 'rd'][n % 10] || 'th')
+    }
+    const TASK_NAMES = {
+      cstore_keepalive: 'Cstore keep-alive',
+      cstore_day_reports: 'Cstore day reports',
+      customer_accounts: 'Customer accounts',
+      vendor_invoices: 'Vendor invoices',
+      fuel_invoices: 'Fuel invoices',
+      lpg_invoices: 'LPG invoices'
+    }
+    function taskName(key) {
+      return TASK_NAMES[key] || String(key || '').replace(/_/g, ' ')
+    }
+    function prettyMessage(msg) {
+      return String(msg || '').replace(/\b(cstore_keepalive|cstore_day_reports|customer_accounts|vendor_invoices|fuel_invoices|lpg_invoices)\b/g, (k) => taskName(k))
+    }
+    function severity(msg) {
+      const m = String(msg || '').toLowerCase()
+      if (m.includes('paused') || m.includes('fail') || m.includes('error')) return 'bad'
+      if (m.includes('cloudflare') || m.includes('skipped') || m.includes('needs login')) return 'warn'
+      if (/\bpass\b/.test(m) || m.includes('session is active') || m.includes('saved')) return 'good'
+      return ''
     }
 
-    function readDow(name) {
-      return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((el) => Number(el.value))
-    }
+    /* ---------- state ---------- */
+    let cfg = null
+    let st = null
+    let drawer = null // { job, draft }
+    let secretReplacing = false
+    let baseline = null
+    let autoSaveVal = 'off'
+    let historyTab = 'results'
 
-    function syncJobRows(prefix) {
-      const freq = $(prefix + 'Freq').value
-      $(prefix + 'WeeklyRow').style.display = freq === 'weekly' ? 'block' : 'none'
-      $(prefix + 'MonthlyRow').style.display = freq === 'monthly' ? 'block' : 'none'
-    }
+    /* ---------- job model ---------- */
+    const JOBS = [
+      { id: 'keepalive', name: 'Cstore keep-alive', icon: 'activity', taskKey: 'cstore_keepalive', kind: 'keepalive', run: '/api/run-keepalive', desc: 'Keeps the Cstore login alive.' },
+      { id: 'dayreports', name: 'Cstore day reports', icon: 'calendar', taskKey: 'cstore_day_reports', kind: 'dayreports', run: '/api/run-cstore-day-reports', desc: 'Reads each finished day from Cstore.' },
+      { id: 'cust', name: 'Customer accounts', icon: 'users', taskKey: 'customer_accounts', kind: 'scheduled', cfgKey: 'customerAccountsSchedule', defScope: 'previous', run: '/api/run-customer-accounts', desc: 'Harvests the full customer list for a month.' },
+      { id: 'vend', name: 'Vendor invoices', icon: 'file', taskKey: 'vendor_invoices', kind: 'scheduled', cfgKey: 'vendorInvoicesSchedule', defScope: 'previous', vendor: true, run: '/api/run-vendor-invoices', desc: 'Harvests vendor invoices for a month.' },
+      { id: 'fuel', name: 'Fuel invoices', icon: 'droplet', taskKey: 'fuel_invoices', kind: 'scheduled', cfgKey: 'fuelInvoicesSchedule', defScope: 'current', run: '/api/run-fuel-invoices', desc: 'Gas Delivery invoices that are still unpaid.' },
+      { id: 'lpg', name: 'LPG invoices', icon: 'zap', taskKey: 'lpg_invoices', kind: 'scheduled', cfgKey: 'lpgInvoicesSchedule', defScope: 'previous', run: '/api/run-lpg-invoices', desc: 'Rubis West Indies grocery invoices.' }
+    ]
+    const jobById = (id) => JOBS.find((j) => j.id === id)
 
-    function readJobSchedule(prefix) {
-      const frequency = $(prefix + 'Freq').value
-      return {
-        frequency,
-        enabled: frequency !== 'off',
-        hour: Number($(prefix + 'Hour').value) || 0,
-        minute: Number($(prefix + 'Minute').value) || 0,
-        daysOfWeek: readDow(prefix + 'Dow'),
-        dayOfMonth: Number($(prefix + 'Day').value) || 2,
-        monthScope: $(prefix + 'Scope').value,
-        all: true
-      }
-    }
-
-    function fillJobSchedule(prefix, sched) {
+    function normalizeSchedule(job, sched) {
       const s = sched || {}
       let frequency = s.frequency || (s.enabled ? 'monthly' : 'off')
       if (!['off', 'daily', 'weekly', 'monthly'].includes(frequency)) frequency = 'off'
-      $(prefix + 'Freq').value = frequency
-      $(prefix + 'Hour').value = s.hour ?? 8
-      $(prefix + 'Minute').value = s.minute ?? 0
-      $(prefix + 'Day').value = s.dayOfMonth ?? 2
-      $(prefix + 'Scope').value = s.monthScope === 'current' ? 'current' : 'previous'
-      buildDow(prefix + 'Dow', prefix + 'Dow', Array.isArray(s.daysOfWeek) ? s.daysOfWeek : [2])
-      syncJobRows(prefix)
-    }
-
-    function renderTasks(tasks) {
-      const tbody = $('taskRows')
-      if (!tasks || tasks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4">No jobs yet</td></tr>'
-        return
+      return {
+        frequency,
+        hour: Number.isFinite(Number(s.hour)) && s.hour != null ? Number(s.hour) : 8,
+        minute: Number.isFinite(Number(s.minute)) && s.minute != null ? Number(s.minute) : 0,
+        daysOfWeek: Array.isArray(s.daysOfWeek) && s.daysOfWeek.length ? s.daysOfWeek.slice() : [2],
+        dayOfMonth: Number(s.dayOfMonth) || 2,
+        monthScope: s.monthScope === 'current' ? 'current' : s.monthScope === 'previous' ? 'previous' : job.defScope
       }
-      tbody.innerHTML = tasks.map((t) =>
-        `<tr><td>${fmtWhen(t.at)}</td><td>${t.key}</td><td>${t.status}</td><td>${t.message || '—'}</td></tr>`
-      ).join('')
     }
-
-    function renderActivity(items) {
-      const ul = $('activityList')
-      if (!items || items.length === 0) {
-        ul.innerHTML = '<li><span class="msg">No activity yet</span></li>'
-        return
+    function describeSchedule(s) {
+      if (s.frequency === 'off') return 'Off'
+      const at = fmtClock(s.hour, s.minute)
+      let when = ''
+      if (s.frequency === 'daily') when = `Daily at ${at}`
+      else if (s.frequency === 'weekly') when = `Every ${s.daysOfWeek.slice().sort().map((d) => DOW[d]).join(', ')} at ${at}`
+      else when = `Monthly on the ${ordinal(s.dayOfMonth)} at ${at}`
+      return when
+    }
+    function scopeText(s) {
+      return s.monthScope === 'current' ? "this month's data" : "last month's data"
+    }
+    function nextRunLabel(s) {
+      if (s.frequency === 'off') return null
+      const tz = (cfg && cfg.timeZone) || 'America/St_Lucia'
+      let now
+      try { now = new Date(new Date().toLocaleString('en-US', { timeZone: tz })) } catch { now = new Date() }
+      for (let i = 0; i <= 62; i++) {
+        const c = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, s.hour, s.minute, 0)
+        if (c <= now) continue
+        const ok = s.frequency === 'daily' ||
+          (s.frequency === 'weekly' && s.daysOfWeek.includes(c.getDay())) ||
+          (s.frequency === 'monthly' && c.getDate() === s.dayOfMonth)
+        if (ok) return c.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
       }
-      ul.innerHTML = items.map((e) =>
-        `<li><span class="time">${e.time}</span><span class="msg">${e.message}</span></li>`
-      ).join('')
+      return null
+    }
+    function slotText(hours) {
+      const list = (hours || []).slice().sort((a, b) => a - b)
+      return list.length ? list.map((h) => fmtClock(h, 0, false)).join(', ') : 'No times set'
+    }
+    function jobSchedule(job) {
+      return normalizeSchedule(job, cfg && cfg[job.cfgKey])
+    }
+    function jobSummary(job) {
+      if (!cfg) return ''
+      if (job.kind === 'keepalive') return 'Daily at ' + slotText(cfg.slotHours)
+      if (job.kind === 'dayreports') {
+        const m = cfg.cstoreDayReportAutoSave
+        const save = m === 'on' ? 'auto-save on' : m === 'dry-run' ? 'auto-save dry run' : 'auto-save off'
+        return `At each keep-alive time · ${save}`
+      }
+      const s = jobSchedule(job)
+      return s.frequency === 'off' ? 'Off · runs only when you click Run now' : `${describeSchedule(s)} · ${scopeText(s)}`
+    }
+    function jobEnabled(job) {
+      if (job.kind !== 'scheduled') return true
+      return cfg ? jobSchedule(job).frequency !== 'off' : false
+    }
+    function lastResult(job) {
+      const tasks = (st && st.recentTasks) || []
+      return tasks.find((t) => t.key === job.taskKey) || null
+    }
+    function resultLine(job) {
+      const t = lastResult(job)
+      if (!t) return '<div class="job-result none">No runs yet</div>'
+      const when = `<span class="when">· ${esc(fmtWhen(t.at))}</span>`
+      if (t.status === 'pass') return `<div class="job-result">${icon('check', 13)}<span>${esc(t.message || 'Passed')} ${when}</span></div>`
+      return `<div class="job-result err">${icon('alert', 13)}<span>${esc(t.message || t.status || 'Failed')} ${when}</span></div>`
     }
 
-    async function loadConfigForm() {
-      const cfg = await api('/api/config')
+    /* ---------- derived status ---------- */
+    function attentionState(s) {
+      if (!s) return 'loading'
+      if (s.paused) return 'paused'
+      if (s.cloudflarePending) return 'cloudflare'
+      if (!s.configured) return 'setup'
+      if (s.cstoreSessionOk === true) return 'ok'
+      if (s.cstoreSessionOk === false) return 'login'
+      return 'unknown'
+    }
+    function runsBlocked(s) {
+      return !s || s.paused || s.jobRunning || !s.configured
+    }
+
+    /* ---------- hero ---------- */
+    function renderHero() {
+      const s = st
+      const state = attentionState(s)
+      const busy = s && s.jobRunning
+      const last = s && s.lastJobKey
+        ? `Last job: ${taskName(s.lastJobKey)}${s.lastJobMessage ? ' — ' + prettyMessage(s.lastJobMessage) : ''}${s.lastJobAt ? ' · ' + fmtWhen(s.lastJobAt) : ''}`
+        : 'No jobs have run yet.'
+      const next = s && s.nextSlotLabel ? String(s.nextSlotLabel).split(/\s[·\-–—]\s/)[0] : ''
+      const runningPill = busy ? '<div class="run-pill"><span class="spinner"></span>A job is running…</div>' : ''
+      let tone = 'grey', ic = 'clock', title = 'Checking status…', body = '', actions = ''
+
+      if (state === 'paused') {
+        tone = 'red'; ic = 'pause'; title = 'Jobs are paused'
+        body = `<div class="meta">${esc(s.pauseMessage || s.pauseReason || 'The agent paused itself because something needs attention.')}</div>`
+        actions = '<button type="button" class="btn btn-green" data-action="resume">Resume jobs</button>'
+      } else if (state === 'cloudflare') {
+        tone = 'amber'; ic = 'alert'; title = 'Action needed: Verify you are human'
+        body = `<div class="meta" style="color:#78350f">Cloudflare is asking for a check in the Cstore browser window. Jobs resume automatically once you finish.</div>
+          <ol class="steps">
+            <li>Open the Cstore browser window the agent launched.</li>
+            <li>Tick “Verify you are human” (and sign in if asked).</li>
+            <li>Wait for this card to turn green. No need to refresh.</li>
+          </ol>`
+      } else if (state === 'setup') {
+        tone = 'amber'; ic = 'alert'; title = 'Finish setup to start running jobs'
+        body = '<div class="meta" style="color:#78350f">Add your Shift Close URL and harvest secret in Settings.</div>'
+        actions = '<button type="button" class="btn btn-primary" data-nav="settings">Open settings</button>'
+      } else if (state === 'ok') {
+        tone = 'green'; ic = 'check'; title = 'All good — Cstore is signed in'
+        body = `<div class="meta">${next ? esc(next) + ' · ' : ''}${esc(last)}</div>${runningPill}`
+        actions = `<button type="button" class="btn btn-primary" data-action="keepalive" ${busy ? 'disabled' : ''}>Run keep-alive now</button>
+          <button type="button" class="btn-link" data-action="signin" ${busy ? 'disabled' : ''}>Sign in again</button>`
+      } else if (state === 'login') {
+        tone = 'amber'; ic = 'alert'; title = 'Cstore needs you to sign in'
+        body = `<div class="meta" style="color:#78350f">A browser window opens. Enter your username and password, then complete the Cloudflare check if it appears.</div><div class="meta" style="color:#78350f">${esc(last)}</div>${runningPill}`
+        actions = `<button type="button" class="btn btn-green" data-action="signin" ${busy ? 'disabled' : ''}>Sign in to Cstore</button>`
+      } else if (state === 'unknown') {
+        tone = 'grey'; ic = 'help'; title = 'Cstore session not checked yet'
+        body = `<div class="meta">${next ? esc(next) + ' · ' : ''}${esc(last)}</div>${runningPill}`
+        actions = `<button type="button" class="btn btn-primary" data-action="keepalive" ${runsBlocked(s) ? 'disabled' : ''}>Run keep-alive now</button>
+          <button type="button" class="btn-link" data-action="signin" ${busy ? 'disabled' : ''}>Sign in to Cstore</button>`
+      }
+
+      $('hero').innerHTML = `<div class="hero tone-${tone}">
+        <div class="hero-icon">${icon(ic, 26)}</div>
+        <div class="hero-body"><h1>${esc(title)}</h1>${body}</div>
+        ${actions ? `<div class="hero-actions">${actions}</div>` : ''}
+      </div>`
+    }
+
+    /* ---------- job rows ---------- */
+    function renderJobList(target) {
+      if (!cfg) { target.innerHTML = '<div class="empty">Loading…</div>'; return }
+      const blocked = runsBlocked(st)
+      const state = attentionState(st)
+      const dim = state === 'paused' || state === 'cloudflare' || state === 'setup'
+      target.classList.toggle('dim', dim)
+      target.innerHTML = JOBS.map((job) => {
+        const enabled = jobEnabled(job)
+        const isScheduled = job.kind === 'scheduled'
+        const showResult = enabled || lastResult(job)
+        return `<div class="job clickable ${enabled ? 'on' : 'off'}" data-action="edit" data-job="${job.id}">
+          <div class="job-ic">${icon(job.icon, 20)}</div>
+          <div class="job-main">
+            <div class="job-name">${esc(job.name)}</div>
+            <div class="job-sub">${esc(jobSummary(job))}</div>
+            ${showResult ? resultLine(job) : ''}
+          </div>
+          <div class="job-actions">
+            ${isScheduled ? `<button type="button" class="switch" role="switch" aria-checked="${enabled}" aria-label="Run ${esc(job.name)} automatically" data-action="toggle" data-job="${job.id}"></button>` : ''}
+            <button type="button" class="btn btn-outline btn-sm" data-action="run" data-job="${job.id}" ${blocked ? 'disabled' : ''}>Run now</button>
+            <span class="btn-icon" aria-hidden="true">${icon('chevron', 18)}</span>
+          </div>
+        </div>`
+      }).join('')
+    }
+    function renderJobs() {
+      renderJobList($('jobsOverview'))
+      renderJobList($('jobsFull'))
+      const state = attentionState(st)
+      $('jobsNote').textContent =
+        state === 'cloudflare' ? 'Paused until verified' :
+        state === 'paused' ? 'Paused until resumed' :
+        state === 'setup' ? 'Finish setup first' :
+        st && st.jobRunning ? 'A job is running…' : ''
+    }
+
+    /* ---------- activity / history ---------- */
+    function renderActivity() {
+      const items = (st && st.activity) || []
+      const ul = $('ovActivity')
+      if (!items.length) {
+        ul.innerHTML = '<li><span class="m" style="color:var(--muted)">No activity yet</span></li>'
+      } else {
+        ul.innerHTML = items.slice(0, 6).map((e) =>
+          `<li class="${severity(e.message)}"><span class="t">${esc(e.time)}</span><span class="m">${esc(prettyMessage(e.message))}</span></li>`
+        ).join('')
+      }
+
+      const tasks = (st && st.recentTasks) || []
+      $('histResults').innerHTML = tasks.length
+        ? `<table class="tbl"><thead><tr><th>When</th><th>Job</th><th>Result</th><th>Details</th></tr></thead><tbody>${
+          tasks.map((t) => `<tr>
+            <td class="when">${esc(fmtWhen(t.at))}</td>
+            <td>${esc(taskName(t.key))}</td>
+            <td><span class="chip ${t.status === 'pass' ? 'chip-ok' : 'chip-err'}">${esc(t.status === 'pass' ? 'Passed' : t.status || 'Failed')}</span></td>
+            <td>${esc(t.message || '—')}</td>
+          </tr>`).join('')
+        }</tbody></table>`
+        : '<div class="empty">No jobs have run yet.</div>'
+
+      $('histLog').innerHTML = items.length
+        ? `<ul class="log">${items.map((e) =>
+          `<li class="${severity(e.message)}"><span class="t">${esc(e.time)}</span><span class="m">${esc(prettyMessage(e.message))}</span></li>`
+        ).join('')}</ul>`
+        : '<div class="empty">No activity yet.</div>'
+    }
+
+    /* ---------- refresh ---------- */
+    function renderSidebar() {
+      const s = st
+      if (!s) return
+      const state = attentionState(s)
+      $('sideDot').className = 'dot ' + (state === 'ok' ? 'dot-green' : state === 'paused' ? 'dot-red' : state === 'unknown' || state === 'loading' ? 'dot-grey' : 'dot-yellow')
+      $('sideName').textContent = s.agentKey || 'Agent'
+      $('sideUp').textContent = 'Up ' + (s.uptime || '0 min') + (s.jobRunning ? ' · job running' : '')
+    }
+    function renderConnChip() {
+      const chip = $('connChip')
+      if (!st) return
+      if (!st.configured) { chip.className = 'chip chip-warn'; chip.textContent = 'Setup needed'; return }
+      if (st.lastHeartbeatError) { chip.className = 'chip chip-err'; chip.textContent = "Can't reach Shift Close"; chip.title = st.lastHeartbeatError; return }
+      chip.title = ''
+      if (st.lastHeartbeatAt) { chip.className = 'chip chip-ok'; chip.innerHTML = icon('check', 12) + ' Connected to Shift Close'; return }
+      chip.className = 'chip chip-none'; chip.textContent = 'Not tested yet'
+    }
+    function renderAll() {
+      renderSidebar()
+      renderHero()
+      renderJobs()
+      renderActivity()
+      renderConnChip()
+    }
+    async function refresh() {
+      st = await api('/api/status')
+      renderAll()
+    }
+
+    /* ---------- navigation ---------- */
+    function showView(name) {
+      if (!['overview', 'jobs', 'history', 'settings'].includes(name)) name = 'overview'
+      document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name))
+      document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.nav === name))
+      if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name)
+      window.scrollTo(0, 0)
+    }
+    function setHistoryTab(tab) {
+      historyTab = tab
+      document.querySelectorAll('#historySeg button').forEach((b) => b.classList.toggle('active', b.dataset.hist === tab))
+      $('histResults').style.display = tab === 'results' ? '' : 'none'
+      $('histLog').style.display = tab === 'log' ? '' : 'none'
+    }
+
+    /* ---------- running jobs ---------- */
+    async function runJob(job, opts = {}) {
+      try {
+        let body = {}
+        let msg = `${job.name} started`
+        if (job.kind === 'dayreports') {
+          if (opts.date) { body = { date: opts.date }; msg += ` (${opts.date})` } else msg += ' (last 7 days)'
+        } else if (job.kind === 'scheduled') {
+          if (opts.month) body.month = opts.month
+          if (job.vendor && opts.vendor) { body.vendor = opts.vendor; msg += ` (${opts.vendor})` }
+        }
+        await post(job.run, body)
+        toast(msg)
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    /* ---------- drawer ---------- */
+    function openDrawer(jobId, preset = {}) {
+      const job = jobById(jobId)
+      if (!job || !cfg) return
+      const draft = { run: { month: '', vendor: '', date: '' }, runOpen: false }
+      if (job.kind === 'scheduled') {
+        draft.sched = normalizeSchedule(job, cfg[job.cfgKey])
+        if (preset.enable && draft.sched.frequency === 'off') draft.sched.frequency = 'monthly'
+      } else if (job.kind === 'keepalive') {
+        draft.hours = new Set(Array.isArray(cfg.slotHours) ? cfg.slotHours : [])
+        draft.runOnStart = cfg.runOnStart !== false
+      }
+      drawer = { job, draft }
+      buildDrawer()
+      $('overlay').classList.add('open')
+      $('drawer').classList.add('open')
+    }
+    function closeDrawer() {
+      drawer = null
+      $('overlay').classList.remove('open')
+      $('drawer').classList.remove('open')
+    }
+
+    function segHtml(name, options, value) {
+      return `<div class="seg" data-seg="${name}">${options.map(([v, label]) =>
+        `<button type="button" data-val="${v}" class="${String(v) === String(value) ? 'active' : ''}">${label}</button>`).join('')}</div>`
+    }
+    function toTimeValue(h, m) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+
+    function runOnceHtml(job, draft) {
+      const r = draft.run
+      let fields = ''
+      if (job.kind === 'dayreports') {
+        fields = `<div class="field"><label class="lbl" for="runDate">Date</label><input type="date" id="runDate" value="${esc(r.date)}" /><p class="hint">Leave blank to check the last 7 days.</p></div>`
+      } else {
+        fields = `<div class="${job.vendor ? 'two' : ''}">
+          <div class="field"><label class="lbl" for="runMonth">Month</label><input type="month" id="runMonth" value="${esc(r.month)}" /><p class="hint">Blank = ${job.id === 'fuel' ? 'current month' : 'current month'}.</p></div>
+          ${job.vendor ? `<div class="field"><label class="lbl" for="runVendor">Vendor</label><input type="text" id="runVendor" placeholder="All vendors" value="${esc(r.vendor)}" /><p class="hint">Blank = all vendors.</p></div>` : ''}
+        </div>`
+      }
+      return `<details class="more" id="runOnce" ${draft.runOpen ? 'open' : ''}>
+        <summary>${icon('chevron', 16)} Run once now</summary>
+        <div class="body">${fields}
+          <button type="button" class="btn btn-outline" data-action="drawer-run" ${runsBlocked(st) ? 'disabled' : ''}>${icon('play', 14)} Run now with these options</button>
+        </div>
+      </details>`
+    }
+
+    function previewHtml(job, draft) {
+      if (job.kind === 'scheduled') {
+        const s = draft.sched
+        if (s.frequency === 'off') return '<div class="preview muted" id="preview">Won’t run automatically. You can still use Run now any time.</div>'
+        const next = nextRunLabel(s)
+        return `<div class="preview" id="preview">Runs <strong>${esc(describeSchedule(s).replace(/^Every /, 'every ').replace(/^Daily/, 'daily').replace(/^Monthly/, 'monthly'))}</strong>, harvesting ${esc(scopeText(s))}.${next ? ` Next run: <strong>${esc(next)}</strong>.` : ''}</div>`
+      }
+      if (job.kind === 'keepalive') {
+        const hrs = [...draft.hours]
+        return `<div class="preview${hrs.length ? '' : ' muted'}" id="preview">${hrs.length ? `Runs daily at <strong>${esc(slotText(hrs))}</strong> (${esc(cfg.timeZone || 'America/St_Lucia')}). Day reports run at these times too.` : 'Pick at least one hour.'}</div>`
+      }
+      return ''
+    }
+
+    function buildDrawer() {
+      if (!drawer) return
+      const { job, draft } = drawer
+      $('drawerTitle').textContent = job.name
+      $('drawerSub').textContent = job.desc
+      let body = ''
+      let foot = '<button type="button" class="btn btn-primary" data-action="drawer-save">Save</button><button type="button" class="btn-link" data-action="drawer-close" style="color:var(--muted)">Cancel</button>'
+
+      if (job.kind === 'scheduled') {
+        const s = draft.sched
+        body += `<div class="field"><span class="lbl">Schedule</span>${segHtml('frequency', [['off', 'Off'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], s.frequency)}</div>`
+        if (s.frequency !== 'off') {
+          body += `<div class="field"><label class="lbl" for="schedTime">Run time</label><input type="time" id="schedTime" value="${toTimeValue(s.hour, s.minute)}" /></div>`
+          if (s.frequency === 'weekly') {
+            body += `<div class="field"><span class="lbl">On these days</span><div class="chips" data-chips="dow">${DOW.map((d, i) =>
+              `<button type="button" data-val="${i}" class="${s.daysOfWeek.includes(i) ? 'active' : ''}">${d}</button>`).join('')}</div></div>`
+          }
+          if (s.frequency === 'monthly') {
+            body += `<div class="field"><label class="lbl" for="schedDay">Day of month</label><select id="schedDay">${Array.from({ length: 28 }, (_, i) => i + 1).map((d) =>
+              `<option value="${d}" ${d === s.dayOfMonth ? 'selected' : ''}>${ordinal(d)}</option>`).join('')}</select><p class="hint">Limited to 1st–28th so it works every month.</p></div>`
+          }
+          body += `<div class="field"><span class="lbl">Data from</span>${segHtml('scope', [['previous', 'Previous month'], ['current', 'Current month']], s.monthScope)}</div>`
+        }
+        body += previewHtml(job, draft) + runOnceHtml(job, draft)
+      } else if (job.kind === 'keepalive') {
+        body += `<div class="field"><span class="lbl">Run at these hours</span><div class="chips hours" data-chips="hours">${Array.from({ length: 24 }, (_, h) =>
+          `<button type="button" data-val="${h}" class="${draft.hours.has(h) ? 'active' : ''}">${fmtClock(h, 0, false)}</button>`).join('')}</div></div>`
+        body += previewHtml(job, draft)
+        body += `<div class="switch-row"><div><div class="t">Also run when the agent starts</div><div class="d">Signs in straight away after a restart.</div></div>
+          <button type="button" class="switch" role="switch" aria-checked="${draft.runOnStart}" id="runOnStartSwitch" aria-label="Also run when the agent starts"></button></div>`
+      } else if (job.kind === 'dayreports') {
+        body += `<div class="preview muted">Day reports are read at every keep-alive time. To change when that happens, edit <strong>Cstore keep-alive</strong>. Auto-save is in <a href="#settings" class="btn-link" data-nav="settings" style="padding:0">Settings</a>.</div>`
+        body += runOnceHtml(job, { ...draft, runOpen: true })
+        foot = '<button type="button" class="btn btn-outline" data-action="drawer-close">Close</button>'
+      }
+      $('drawerBody').innerHTML = body
+      $('drawerFoot').innerHTML = foot
+    }
+
+    function refreshDrawerPreview() {
+      if (!drawer) return
+      const el = $('preview')
+      if (el) el.outerHTML = previewHtml(drawer.job, drawer.draft)
+    }
+
+    function captureRunOnce() {
+      if (!drawer) return
+      const r = drawer.draft.run
+      if ($('runMonth')) r.month = $('runMonth').value
+      if ($('runVendor')) r.vendor = $('runVendor').value.trim()
+      if ($('runDate')) r.date = $('runDate').value
+      if ($('runOnce')) drawer.draft.runOpen = $('runOnce').open
+    }
+
+    async function saveDrawer() {
+      if (!drawer) return
+      const { job, draft } = drawer
+      captureRunOnce()
+      try {
+        if (job.kind === 'scheduled') {
+          const s = draft.sched
+          if (s.frequency === 'weekly' && s.daysOfWeek.length === 0) return toast('Pick at least one weekday', false)
+          await post('/api/config', {
+            [job.cfgKey]: {
+              frequency: s.frequency,
+              enabled: s.frequency !== 'off',
+              hour: s.hour,
+              minute: s.minute,
+              daysOfWeek: s.daysOfWeek,
+              dayOfMonth: s.dayOfMonth,
+              monthScope: s.monthScope,
+              all: true
+            }
+          })
+          toast(`${job.name} saved — takes effect immediately`)
+        } else if (job.kind === 'keepalive') {
+          if (draft.hours.size === 0) return toast('Pick at least one hour', false)
+          await post('/api/config', { slotHours: [...draft.hours].sort((a, b) => a - b), runOnStart: draft.runOnStart })
+          toast('Keep-alive times saved')
+        }
+        closeDrawer()
+        await loadConfig()
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
+
+    /* ---------- settings ---------- */
+    const AUTOSAVE_HINTS = {
+      'off': 'Only read days that are already saved in Cstore.',
+      'dry-run': 'Open the day and log what it would save, without clicking Save.',
+      'on': 'Start and save completed past days, oldest first. Never touches today or days already saved. Sales tax, deposits and card batches are left for the manager.'
+    }
+    function readSettingsForm() {
+      return {
+        agentKey: $('agentKey').value.trim(),
+        vercelUrl: $('vercelUrl').value.trim(),
+        cstoreUrl: $('cstoreUrl').value.trim(),
+        cstoreDayReportAutoSave: autoSaveVal
+      }
+    }
+    function checkDirty() {
+      if (!baseline) return
+      const cur = readSettingsForm()
+      const dirty = Object.keys(cur).some((k) => cur[k] !== baseline[k])
+      $('savebar').classList.toggle('show', dirty)
+    }
+    function setAutoSave(v) {
+      autoSaveVal = ['on', 'dry-run'].includes(v) ? v : 'off'
+      document.querySelectorAll('#autoSaveSeg button').forEach((b) => b.classList.toggle('active', b.dataset.val === autoSaveVal))
+      $('autoSaveHint').textContent = AUTOSAVE_HINTS[autoSaveVal]
+    }
+    function fillSettingsForm() {
       $('agentKey').value = cfg.agentKey || ''
       $('vercelUrl').value = cfg.vercelUrl || ''
       $('cstoreUrl').value = cfg.cstoreUrl || ''
-      $('slotHoursText').value = Array.isArray(cfg.slotHours) ? cfg.slotHours.join(', ') : '0, 7, 19'
-      $('runOnStart').checked = cfg.runOnStart !== false
-      $('dayReportAutoSave').value = cfg.cstoreDayReportAutoSave || 'off'
-      $('scheduleHint').textContent =
-        `Times use ${cfg.timeZone || 'America/St_Lucia'}. Keep-alive is daily at each listed hour. Jobs support daily, weekly (e.g. Tue 16:00), or monthly.`
-
-      fillJobSchedule('cust', cfg.customerAccountsSchedule)
-      fillJobSchedule('vend', cfg.vendorInvoicesSchedule)
-      fillJobSchedule('fuel', cfg.fuelInvoicesSchedule)
-      fillJobSchedule('lpg', cfg.lpgInvoicesSchedule)
-
-      const badge = $('secretBadge')
-      if (cfg.agentSecretSet) {
-        badge.textContent = 'Configured'
-        badge.className = 'badge badge-ok'
-        $('secretInput').disabled = true
-        $('secretInput').placeholder = 'Secret is stored locally'
-        $('btnSaveSecret').disabled = true
+      $('tzText').textContent = cfg.timeZone || 'America/St_Lucia'
+      setAutoSave(cfg.cstoreDayReportAutoSave)
+      baseline = readSettingsForm()
+      $('savebar').classList.remove('show')
+      renderSecret()
+    }
+    function renderSecret() {
+      const row = $('secretRow')
+      const set = cfg && cfg.agentSecretSet
+      if (set && !secretReplacing) {
+        row.innerHTML = `<span class="chip chip-ok">${icon('check', 12)} Configured</span>
+          <input type="password" class="grow" value="••••••••••••" disabled aria-label="Harvest secret (hidden)" />
+          <button type="button" class="btn btn-outline btn-sm" data-action="secret-copy">Copy</button>
+          <button type="button" class="btn btn-outline btn-sm" data-action="secret-replace">Replace</button>`
       } else {
-        badge.textContent = 'Not configured'
-        badge.className = 'badge badge-miss'
-        $('secretInput').disabled = false
-        $('secretInput').placeholder = 'Paste once — stored encrypted on this PC'
-        $('btnSaveSecret').disabled = false
+        row.innerHTML = `${set ? '' : '<span class="chip chip-warn">Not set</span>'}
+          <input type="password" class="grow" id="secretInput" placeholder="Paste your harvest secret" autocomplete="off" />
+          <button type="button" class="btn btn-primary btn-sm" data-action="secret-save">Save secret</button>
+          ${set ? '<button type="button" class="btn btn-outline btn-sm" data-action="secret-cancel">Cancel</button>' : ''}`
       }
-      $('btnCopySecret').disabled = !cfg.agentSecretSet
-    }
-
-    async function refresh() {
-      const s = await api('/api/status')
-      $('headerSub').textContent = s.agentKey + (s.jobRunning ? ' · job running' : '')
-      $('statAgent').textContent = s.agentKey || '—'
-      $('statUptime').textContent = 'Up ' + (s.uptime || '0 min')
-
-      if (s.paused) {
-        $('headerDot').className = 'status-dot dot-red'
-        $('pauseBanner').style.display = 'block'
-        $('pauseText').textContent = s.pauseMessage || s.pauseReason || 'Jobs are paused'
-        $('cfBanner').style.display = 'none'
-      } else if (s.cloudflarePending) {
-        $('headerDot').className = 'status-dot dot-yellow'
-        $('pauseBanner').style.display = 'none'
-        $('cfBanner').style.display = 'block'
-        $('cfText').textContent =
-          s.cloudflareMessage || 'Click “Verify you are human” in the Cstore browser window.'
-      } else if (!s.configured) {
-        $('headerDot').className = 'status-dot dot-yellow'
-        $('pauseBanner').style.display = 'none'
-        $('cfBanner').style.display = 'none'
-      } else if (s.cstoreSessionOk === true) {
-        $('headerDot').className = 'status-dot dot-green'
-        $('pauseBanner').style.display = 'none'
-        $('cfBanner').style.display = 'none'
-      } else {
-        $('headerDot').className = 'status-dot dot-yellow'
-        $('pauseBanner').style.display = 'none'
-        $('cfBanner').style.display = 'none'
-      }
-
-      $('configBanner').style.display = s.configured ? 'none' : 'block'
-
-      $('statCstore').textContent = s.cstoreSessionOk == null ? 'Unknown' : s.cstoreSessionOk ? 'Signed in' : 'Needs login'
-      $('statCstoreSub').textContent = s.nextSlotLabel || (s.cstoreSessionAt ? fmtWhen(s.cstoreSessionAt) : '')
-
-      $('statJob').textContent = s.lastJobKey ? s.lastJobKey.replace(/_/g, ' ') : '—'
-      $('statJobSub').textContent = s.lastJobAt
-        ? `${s.lastJobStatus || ''} · ${fmtWhen(s.lastJobAt)}`
-        : (s.lastJobMessage || '')
-
-      renderTasks(s.recentTasks)
-      renderActivity(s.activity)
-
-      const disabled = s.paused || s.jobRunning || !s.configured
-      $('btnSignIn').disabled = s.jobRunning
-      $('btnKeepalive').disabled = disabled
-      $('btnCustomers').disabled = disabled
-      $('btnVendorInvoices').disabled = disabled
-      $('btnFuelInvoices').disabled = disabled
-      $('btnLpgInvoices').disabled = disabled
-      $('btnDayReports').disabled = disabled
-      $('btnResume').disabled = !s.paused
-    }
-
-    $('custFreq').onchange = () => syncJobRows('cust')
-    $('vendFreq').onchange = () => syncJobRows('vend')
-    $('fuelFreq').onchange = () => syncJobRows('fuel')
-    $('lpgFreq').onchange = () => syncJobRows('lpg')
-
-    $('btnTestConnection').onclick = async () => {
-      try {
-        const result = await api('/api/test-shift-close', { method: 'POST' })
-        toast(result.message || 'Connected')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnSaveSettings').onclick = async () => {
-      try {
-        await api('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            agentKey: $('agentKey').value.trim(),
-            vercelUrl: $('vercelUrl').value.trim(),
-            cstoreUrl: $('cstoreUrl').value.trim()
-          })
-        })
-        toast('Settings saved')
-        await loadConfigForm()
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnSaveSchedule').onclick = async () => {
-      try {
-        const cust = readJobSchedule('cust')
-        const vend = readJobSchedule('vend')
-        const fuel = readJobSchedule('fuel')
-        const lpg = readJobSchedule('lpg')
-        if (cust.frequency === 'weekly' && cust.daysOfWeek.length === 0) {
-          return toast('Pick at least one weekday for customer accounts', false)
-        }
-        if (vend.frequency === 'weekly' && vend.daysOfWeek.length === 0) {
-          return toast('Pick at least one weekday for vendor invoices', false)
-        }
-        if (fuel.frequency === 'weekly' && fuel.daysOfWeek.length === 0) {
-          return toast('Pick at least one weekday for fuel invoices', false)
-        }
-        if (lpg.frequency === 'weekly' && lpg.daysOfWeek.length === 0) {
-          return toast('Pick at least one weekday for LPG invoices', false)
-        }
-        await api('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slotHoursText: $('slotHoursText').value.trim(),
-            runOnStart: $('runOnStart').checked,
-            cstoreDayReportAutoSave: $('dayReportAutoSave').value,
-            customerAccountsSchedule: cust,
-            vendorInvoicesSchedule: vend,
-            fuelInvoicesSchedule: fuel,
-            lpgInvoicesSchedule: lpg
-          })
-        })
-        toast('Schedule saved — takes effect immediately')
-        await loadConfigForm()
-        await refresh()
-      } catch (e) { toast(e.message, false) }
+      $('btnRemoveSecret').style.display = set ? '' : 'none'
     }
 
     async function copyText(text) {
@@ -640,141 +1089,187 @@
       if (!ok) throw new Error('Could not copy to the clipboard')
     }
 
-    $('btnCopySecret').onclick = async () => {
-      const btn = $('btnCopySecret')
-      btn.disabled = true
-      try {
-        const data = await api('/api/secret')
-        if (!data.secret) throw new Error('No harvest secret is stored')
-        await copyText(data.secret)
-        toast('Secret copied')
-      } catch (e) {
-        toast(e.message, false)
-      } finally {
-        btn.disabled = !$('secretBadge').classList.contains('badge-ok')
-      }
+    async function loadConfig() {
+      cfg = await api('/api/config')
     }
 
-    $('btnSaveSecret').onclick = async () => {
-      const secret = $('secretInput').value.trim()
-      if (!secret) return toast('Enter a secret first', false)
+    /* ---------- events ---------- */
+    document.addEventListener('click', async (ev) => {
+      const navBtn = ev.target.closest('[data-nav]')
+      if (navBtn) {
+        ev.preventDefault()
+        if (drawer) closeDrawer()
+        showView(navBtn.dataset.nav)
+        return
+      }
+      const histBtn = ev.target.closest('[data-hist]')
+      if (histBtn) return setHistoryTab(histBtn.dataset.hist)
+
+      // drawer segmented / chips
+      const segBtn = ev.target.closest('[data-seg] button')
+      if (segBtn && drawer) {
+        captureRunOnce()
+        const name = segBtn.closest('[data-seg]').dataset.seg
+        const val = segBtn.dataset.val
+        if (name === 'frequency') drawer.draft.sched.frequency = val
+        if (name === 'scope') drawer.draft.sched.monthScope = val
+        buildDrawer()
+        return
+      }
+      const chip = ev.target.closest('[data-chips] button')
+      if (chip && drawer) {
+        captureRunOnce()
+        const kind = chip.closest('[data-chips]').dataset.chips
+        const val = Number(chip.dataset.val)
+        if (kind === 'dow') {
+          const set = new Set(drawer.draft.sched.daysOfWeek)
+          set.has(val) ? set.delete(val) : set.add(val)
+          drawer.draft.sched.daysOfWeek = [...set].sort()
+        } else if (kind === 'hours') {
+          drawer.draft.hours.has(val) ? drawer.draft.hours.delete(val) : drawer.draft.hours.add(val)
+        }
+        buildDrawer()
+        return
+      }
+      if (ev.target.closest('#runOnStartSwitch') && drawer) {
+        captureRunOnce()
+        drawer.draft.runOnStart = !drawer.draft.runOnStart
+        buildDrawer()
+        return
+      }
+
+      const autoBtn = ev.target.closest('#autoSaveSeg button')
+      if (autoBtn) { setAutoSave(autoBtn.dataset.val); checkDirty(); return }
+
+      const el = ev.target.closest('[data-action]')
+      if (!el) return
+      const action = el.dataset.action
+      const job = el.dataset.job ? jobById(el.dataset.job) : null
+
+      if (action === 'toggle' && job) {
+        ev.stopPropagation()
+        if (!cfg) return
+        if (jobEnabled(job)) {
+          try {
+            const s = jobSchedule(job)
+            await post('/api/config', { [job.cfgKey]: { ...s, frequency: 'off', enabled: false, all: true } })
+            toast(`${job.name} turned off`)
+            await loadConfig()
+            renderJobs()
+          } catch (e) { toast(e.message, false) }
+        } else {
+          openDrawer(job.id, { enable: true })
+        }
+        return
+      }
+      if (action === 'run' && job) { ev.stopPropagation(); return runJob(job) }
+      if (action === 'edit' && job) return openDrawer(job.id)
+      if (action === 'drawer-close') return closeDrawer()
+      if (action === 'drawer-save') return saveDrawer()
+      if (action === 'drawer-run' && drawer) {
+        captureRunOnce()
+        const r = drawer.draft.run
+        const j = drawer.job
+        const opts = j.kind === 'dayreports' ? { date: r.date } : { month: r.month, vendor: r.vendor }
+        closeDrawer()
+        return runJob(j, opts)
+      }
+      if (action === 'resume') {
+        try { await post('/api/resume'); toast('Agent resumed'); await refresh() } catch (e) { toast(e.message, false) }
+        return
+      }
+      if (action === 'signin') {
+        try {
+          await post('/api/run-cstore-sign-in')
+          toast('Browser opening — enter username and password, then complete the Cloudflare check')
+          await refresh()
+        } catch (e) { toast(e.message, false) }
+        return
+      }
+      if (action === 'keepalive') return runJob(jobById('keepalive'))
+
+      if (action === 'secret-copy') {
+        el.disabled = true
+        try {
+          const data = await api('/api/secret')
+          if (!data.secret) throw new Error('No harvest secret is stored')
+          await copyText(data.secret)
+          toast('Secret copied')
+        } catch (e) { toast(e.message, false) } finally { el.disabled = false }
+        return
+      }
+      if (action === 'secret-replace') { secretReplacing = true; renderSecret(); $('secretInput')?.focus(); return }
+      if (action === 'secret-cancel') { secretReplacing = false; renderSecret(); return }
+      if (action === 'secret-save') {
+        const secret = ($('secretInput').value || '').trim()
+        if (!secret) return toast('Enter a secret first', false)
+        try {
+          await post('/api/secret', { secret })
+          secretReplacing = false
+          toast('Secret saved locally')
+          await loadConfig()
+          renderSecret()
+          await refresh()
+        } catch (e) { toast(e.message, false) }
+      }
+    })
+
+    // Keep drawer inputs in sync without re-rendering (so typing isn't interrupted).
+    document.addEventListener('input', (ev) => {
+      if (drawer && ev.target.id === 'schedTime') {
+        const [h, m] = String(ev.target.value || '08:00').split(':').map(Number)
+        drawer.draft.sched.hour = Number.isFinite(h) ? h : 8
+        drawer.draft.sched.minute = Number.isFinite(m) ? m : 0
+        refreshDrawerPreview()
+      } else if (drawer && ev.target.id === 'schedDay') {
+        drawer.draft.sched.dayOfMonth = Number(ev.target.value) || 2
+        refreshDrawerPreview()
+      } else if (['agentKey', 'vercelUrl', 'cstoreUrl'].includes(ev.target.id)) {
+        checkDirty()
+      }
+    })
+
+    $('overlay').addEventListener('click', closeDrawer)
+    $('drawerClose').addEventListener('click', closeDrawer)
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && drawer) closeDrawer() })
+
+    $('btnDiscard').onclick = () => { fillSettingsForm() }
+    $('btnSaveSettings').onclick = async () => {
       try {
-        await api('/api/secret', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secret })
-        })
-        $('secretInput').value = ''
-        toast('Secret saved locally')
-        await loadConfigForm()
+        await post('/api/config', readSettingsForm())
+        toast('Settings saved')
+        await loadConfig()
+        fillSettingsForm()
         await refresh()
       } catch (e) { toast(e.message, false) }
     }
-
+    $('btnTestConnection').onclick = async () => {
+      try {
+        const result = await api('/api/test-shift-close', { method: 'POST' })
+        toast(result.message || 'Connected')
+        await refresh()
+      } catch (e) { toast(e.message, false) }
+    }
     $('btnRemoveSecret').onclick = async () => {
       if (!confirm('Remove the stored harvest secret? You will need to paste it again.')) return
       try {
         await api('/api/secret', { method: 'DELETE' })
         toast('Secret removed')
-        await loadConfigForm()
+        secretReplacing = false
+        await loadConfig()
+        renderSecret()
         await refresh()
       } catch (e) { toast(e.message, false) }
     }
 
-    $('btnResume').onclick = async () => {
-      try {
-        await api('/api/resume', { method: 'POST' })
-        toast('Agent resumed')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnSignIn').onclick = async () => {
-      try {
-        await api('/api/run-cstore-sign-in', { method: 'POST' })
-        toast('Browser opening — enter username, password, and complete Cloudflare')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnKeepalive').onclick = async () => {
-      try {
-        await api('/api/run-keepalive', { method: 'POST' })
-        toast('Keep-alive started')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnCustomers').onclick = async () => {
-      try {
-        const month = $('monthKey').value.trim()
-        await api('/api/run-customer-accounts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(month ? { month } : {})
-        })
-        toast('Customer accounts job started')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnVendorInvoices').onclick = async () => {
-      try {
-        const month = $('monthKey').value.trim()
-        const vendor = $('vendorName').value.trim()
-        await api('/api/run-vendor-invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(month ? { month } : {}),
-            ...(vendor ? { vendor } : {})
-          })
-        })
-        toast(vendor ? `Vendor invoices job started (${vendor})` : 'Vendor invoices job started (all)')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnFuelInvoices').onclick = async () => {
-      try {
-        const month = $('monthKey').value.trim()
-        await api('/api/run-fuel-invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(month ? { month } : {})
-        })
-        toast('Fuel invoices job started (unpaid gas deliveries)')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnLpgInvoices').onclick = async () => {
-      try {
-        const month = $('monthKey').value.trim()
-        await api('/api/run-lpg-invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(month ? { month } : {})
-        })
-        toast('LPG invoices job started (Rubis West Indies)')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    $('btnDayReports').onclick = async () => {
-      try {
-        const date = $('dayKey').value.trim()
-        await api('/api/run-cstore-day-reports', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(date ? { date } : {})
-        })
-        toast(date ? `Cstore day report job started (${date})` : 'Cstore day reports job started (last 7 days)')
-        await refresh()
-      } catch (e) { toast(e.message, false) }
-    }
-
-    loadConfigForm().then(refresh).catch((e) => toast(e.message, false))
+    /* ---------- boot ---------- */
+    hydrateIcons()
+    showView((location.hash || '#overview').slice(1))
+    window.addEventListener('hashchange', () => showView((location.hash || '#overview').slice(1)))
+    renderJobList($('jobsOverview'))
+    loadConfig()
+      .then(() => { fillSettingsForm(); return refresh() })
+      .catch((e) => toast(e.message, false))
     setInterval(() => refresh().catch(() => {}), 5000)
   </script>
 </body>
