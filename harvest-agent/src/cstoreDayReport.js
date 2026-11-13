@@ -44,6 +44,18 @@ function recentDates(endYmd, count) {
   return out
 }
 
+/** Every day of a calendar month up to and including `todayYmd`, newest first. */
+function monthDates(year, month, todayYmd) {
+  const last = new Date(Date.UTC(year, month, 0, 12)).getUTCDate()
+  const prefix = `${year}-${String(month).padStart(2, '0')}-`
+  const out = []
+  for (let day = last; day >= 1; day--) {
+    const ymd = `${prefix}${String(day).padStart(2, '0')}`
+    if (!todayYmd || ymd <= todayYmd) out.push(ymd)
+  }
+  return out
+}
+
 function saveDebug(dir, name, html) {
   try {
     fs.mkdirSync(dir, { recursive: true })
@@ -188,4 +200,4 @@ async function runCstoreDayReports(config, options = {}) {
   }
 }
 
-module.exports = { runCstoreDayReports, printableUrl, recentDates, cstoreDate }
+module.exports = { runCstoreDayReports, printableUrl, recentDates, monthDates, cstoreDate }

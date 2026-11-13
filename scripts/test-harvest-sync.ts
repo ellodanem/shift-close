@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  HARVEST_SYNC_STEPS,
   currentHarvestSyncMonth,
   harvestSyncMonthLabel,
   isHarvestSyncTaskKey,
@@ -27,8 +28,10 @@ describe('harvest sync month', () => {
     assert.deepEqual(previousHarvestSyncMonth(2026, 1), { year: 2025, month: 12 })
   })
 
-  it('accepts only the four sync jobs', () => {
+  it('accepts only the sync jobs, with Cstore day reports last', () => {
     assert.equal(isHarvestSyncTaskKey('customer_accounts'), true)
+    assert.equal(isHarvestSyncTaskKey('cstore_day_reports'), true)
+    assert.equal(HARVEST_SYNC_STEPS.at(-1)?.taskKey, 'cstore_day_reports')
     assert.equal(isHarvestSyncTaskKey('cstore_keepalive'), false)
   })
 })

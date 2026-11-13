@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { printableUrl, recentDates, cstoreDate } = require('./cstoreDayReport')
+const { printableUrl, recentDates, monthDates, cstoreDate } = require('./cstoreDayReport')
 
 test('cstoreDate turns YYYY-MM-DD into MM/DD/YYYY', () => {
   assert.equal(cstoreDate('2026-11-06'), '11/06/2026')
@@ -18,4 +18,12 @@ test('recentDates lists the last days newest first, across a month and year boun
   assert.deepEqual(recentDates('2026-11-07', 3), ['2026-11-07', '2026-11-06', '2026-11-05'])
   assert.deepEqual(recentDates('2027-01-02', 4), ['2027-01-02', '2027-01-01', '2026-12-31', '2026-12-30'])
   assert.deepEqual(recentDates('nope', 3), [])
+})
+
+test('monthDates lists a month newest first and stops at today', () => {
+  assert.equal(monthDates(2026, 10, '2026-11-13').length, 31)
+  assert.equal(monthDates(2026, 10, '2026-11-13')[0], '2026-10-31')
+  assert.deepEqual(monthDates(2026, 11, '2026-11-03'), ['2026-11-03', '2026-11-02', '2026-11-01'])
+  assert.deepEqual(monthDates(2026, 12, '2026-11-13'), [])
+  assert.equal(monthDates(2028, 2, '2028-03-01').length, 29)
 })

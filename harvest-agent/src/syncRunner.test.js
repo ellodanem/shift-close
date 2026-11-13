@@ -11,7 +11,8 @@ function runFixture() {
       { taskKey: 'fuel_invoices', status: 'pass' },
       { taskKey: 'lpg_invoices', status: 'waiting' },
       { taskKey: 'vendor_invoices', status: 'waiting' },
-      { taskKey: 'customer_accounts', status: 'waiting' }
+      { taskKey: 'customer_accounts', status: 'waiting' },
+      { taskKey: 'cstore_day_reports', status: 'waiting' }
     ]
   }
 }
@@ -33,13 +34,14 @@ test('a failed step still runs the later jobs', async () => {
     }
   })
   assert.equal(outcome, 'done')
-  assert.deepEqual(jobs, ['lpg_invoices', 'vendor_invoices', 'customer_accounts'])
+  assert.deepEqual(jobs, ['lpg_invoices', 'vendor_invoices', 'customer_accounts', 'cstore_day_reports'])
   assert.deepEqual(
     reports.filter((step) => step.status !== 'running').map((step) => [step.taskKey, step.status]),
     [
       ['lpg_invoices', 'fail'],
       ['vendor_invoices', 'pass'],
-      ['customer_accounts', 'pass']
+      ['customer_accounts', 'pass'],
+      ['cstore_day_reports', 'pass']
     ]
   )
 })

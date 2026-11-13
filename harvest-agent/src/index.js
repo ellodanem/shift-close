@@ -15,7 +15,7 @@ const { runCstoreKeepalive, runCstoreSignIn } = require('./cstoreKeepalive')
 const { runFirstCustomerCreditReport } = require('./customerAccounts')
 const { runVendorInvoices } = require('./vendorInvoices')
 const { runFuelDeliveries } = require('./fuelDeliveries')
-const { runCstoreDayReports } = require('./cstoreDayReport')
+const { runCstoreDayReports, monthDates } = require('./cstoreDayReport')
 const { sendHeartbeat, sendTask, sendCustomerCreditImport, sendVendorInvoiceImport, sendVendorCheckImport, sendFuelInvoiceImport, sendCstoreDayReportImport, fetchCstoreSaveEligibleDates, claimHarvestSync, reportHarvestSyncStep } = require('./shiftCloseClient')
 const { executeSyncRun } = require('./syncRunner')
 const { startSlotWatcher, startJobScheduleWatcher, zonedParts, monthForScope, nextKeepaliveLabel, describeCustomerSchedule, describeVendorSchedule, describeFuelSchedule, describeLpgSchedule, formatSlotHours } = require('./schedule')
@@ -977,12 +977,31 @@ async function runLpgSyncJob(options) {
   return { ...current, ok: Boolean(earlier.ok && current.ok), message }
 }
 
+/**
+ * Last sync step: read the Cstore daily reports. The sync month is the current month in the
+ * usual case, so use the normal recent-days window (it also reaches back across a month change
+ * and picks up days saved late). For any other month, read every day of that month.
+ */
+async function runCstoreDayReportsSyncJob(month) {
+  const config = loadConfig()
+  const { ymd: today } = zonedParts(config.timeZone || 'America/St_Lucia')
+  const isCurrentMonth = today.slice(0, 7) === `${month.year}-${String(month.month).padStart(2, '0')}`
+  const options = { owned: true }
+  if (!isCurrentMonth) {
+    const dates = monthDates(month.year, month.month, today)
+    if (dates.length === 0) return { ok: true, message: 'No days to read yet in that month' }
+    options.dates = dates
+  }
+  return runCstoreDayReportsCycle('sync', options)
+}
+
 async function runSyncJob(taskKey, month) {
   const options = { year: month.year, month: month.month, all: true, owned: true }
   if (taskKey === 'customer_accounts') return runCustomerAccountsCycle('sync', options)
   if (taskKey === 'vendor_invoices') return runVendorInvoicesCycle('sync', options)
   if (taskKey === 'fuel_invoices') return runFuelInvoicesCycle('sync', options)
   if (taskKey === 'lpg_invoices') return runLpgSyncJob(options)
+  if (taskKey === 'cstore_day_reports') return runCstoreDayReportsSyncJob(month)
   return { ok: false, message: `Unknown sync step ${taskKey}` }
 }
 
