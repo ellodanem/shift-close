@@ -108,23 +108,11 @@ export function isPublicPath(pathname: string): boolean {
     return true
   }
   // Harvest agent: no browser session; routes validate HARVEST_AGENT_SECRET / AGENT_SECRET.
-  // Keep /api/harvest-agent/status session-only (dashboard task log). Import paths must
-  // all be public or LPG/fuel POSTs 401 here and look like a secret mismatch.
-  if (
-    pathname === '/api/harvest-agent/heartbeat' ||
-    pathname === '/api/harvest-agent/heartbeat/' ||
-    pathname === '/api/harvest-agent/tasks' ||
-    pathname === '/api/harvest-agent/tasks/' ||
-    pathname.startsWith('/api/harvest-agent/import/') ||
-    pathname === '/api/harvest-agent/customers' ||
-    pathname === '/api/harvest-agent/customers/' ||
-    pathname === '/api/harvest-agent/email/test' ||
-    pathname === '/api/harvest-agent/email/test/' ||
-    pathname === '/api/harvest-agent/sync/claim' ||
-    pathname === '/api/harvest-agent/sync/claim/' ||
-    pathname === '/api/harvest-agent/sync/step' ||
-    pathname === '/api/harvest-agent/sync/step/'
-  ) {
+  // Keep status and the Sync button session-only. Every other /api/harvest-agent/* path is
+  // the Windows agent — a missing allowlist entry 401s here and looks like a secret mismatch.
+  if (pathname.startsWith('/api/harvest-agent/')) {
+    const rest = pathname.replace(/\/$/, '')
+    if (rest === '/api/harvest-agent/status' || rest === '/api/harvest-agent/sync') return false
     return true
   }
   // Cron jobs validate CRON_SECRET inside the route (see route handler).

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { isPublicPath } from '../lib/access-control'
 import { eligibleSaveDates } from '../lib/cstore-save-eligibility'
 
 test('eligibleSaveDates keeps only Complete days before today, oldest first', () => {
@@ -12,4 +13,12 @@ test('eligibleSaveDates keeps only Complete days before today, oldest first', ()
   ]
   assert.deepEqual(eligibleSaveDates(days, '2026-11-10'), ['2026-11-06', '2026-11-09'])
   assert.deepEqual(eligibleSaveDates(days, '2026-11-09'), ['2026-11-06'])
+})
+
+test('the agent eligibility API is public; status and Sync stay session-only', () => {
+  assert.equal(isPublicPath('/api/harvest-agent/cstore-day-report/eligible'), true)
+  assert.equal(isPublicPath('/api/harvest-agent/heartbeat'), true)
+  assert.equal(isPublicPath('/api/harvest-agent/sync/claim'), true)
+  assert.equal(isPublicPath('/api/harvest-agent/status'), false)
+  assert.equal(isPublicPath('/api/harvest-agent/sync'), false)
 })
