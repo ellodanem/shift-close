@@ -51,6 +51,15 @@ function formatWhen(value: string | null) {
   })
 }
 
+function stepProgress(run: SyncRun) {
+  const total = run.steps.length
+  if (total === 0 || run.status === 'pending') return { done: 0, total, percent: 0 }
+  const finished = run.steps.filter((step) => step.status === 'pass' || step.status === 'fail').length
+  const running = run.steps.some((step) => step.status === 'running')
+  const done = finished + (running ? 0.5 : 0)
+  return { done, total, percent: Math.round((done / total) * 100) }
+}
+
 function stepCaption(run: SyncRun) {
   if (run.status === 'pending') return 'Waiting for the agent'
   const runningAt = run.steps.findIndex((step) => step.status === 'running')
@@ -216,6 +225,18 @@ export default function HarvestSyncControl() {
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(Boolean(active), lastFinished, view)}`} />
         <span>{buttonLabel}</span>
+        {active ? (
+          <span
+            className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-600"
+            title={stepCaption(active)}
+            aria-hidden="true"
+          >
+            <span
+              className="block h-full rounded-full bg-amber-400 transition-[width] duration-300"
+              style={{ width: `${stepProgress(active).percent}%` }}
+            />
+          </span>
+        ) : null}
       </button>
       {!open ? (
         <div className="pointer-events-none absolute right-0 top-full z-50 mt-1 hidden w-max max-w-xs rounded-md border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-left text-xs leading-snug text-slate-100 shadow-lg group-hover:block">
