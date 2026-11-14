@@ -4,7 +4,7 @@
  * This is the only place the agent ever writes to Cstore, and it is off unless config.cstoreDayReportAutoSave
  * is 'dry-run' (everything except the Save click) or 'on'. Guardrails:
  *   - never the current business day or later (the 9th can be saved from midnight on the 10th);
- *   - only days Shift Close lists as a completed End of Day;
+ *   - only days before today that Shift Close lists as eligible (the POS day is over);
  *   - only days Cstore's printable report says are not saved, so a saved day is never touched;
  *   - oldest day first, with no gap: each day's closing cash and checks carry into the next day;
  *   - it uses Cstore's own "Start Day Report" page, which opens the next unstarted day, and stops when
@@ -47,7 +47,7 @@ function parseSavedBannerDate(text) {
  *   windowDates   the days the agent just read
  *   unsavedDates  the ones among them whose printable report was empty (not saved in Cstore)
  *   savedDates    the ones that were saved
- *   eligibleDates days Shift Close lists as a completed End of Day
+ *   eligibleDates days before today in the save window
  *   today         the current business day (YYYY-MM-DD); today and later are never saved
  */
 function planSaves({ windowDates = [], unsavedDates = [], savedDates = [], eligibleDates = [], today, max = 3 }) {
@@ -64,7 +64,7 @@ function planSaves({ windowDates = [], unsavedDates = [], savedDates = [], eligi
       continue
     }
     if (!eligible.has(date)) {
-      skipped.push({ date, reason: 'no completed End of Day in Shift Close' })
+      skipped.push({ date, reason: 'not before today in the save window' })
       continue
     }
     const prev = addDays(date, -1)

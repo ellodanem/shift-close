@@ -112,7 +112,7 @@ async function sendFuelInvoiceImport(config, body) {
   })
 }
 
-/** Days Shift Close lists as a completed End of Day (before today), newest to oldest not guaranteed. */
+/** Days before today in the range that the agent may start and save. */
 async function fetchCstoreSaveEligibleDates(config, from, to) {
   const qs = new URLSearchParams({ from, to })
   return getJson(config, `/api/harvest-agent/cstore-day-report/eligible?${qs.toString()}`)

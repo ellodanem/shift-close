@@ -80,7 +80,7 @@ async function autoSaveMissingDays({ page, origin, config, dates, days, today, o
     const res = await options.getEligibleDates(dates)
     eligible = Array.isArray(res && res.dates) ? res.dates : []
   } catch (err) {
-    log(`Auto-save skipped: could not ask Shift Close which days are complete (${err.message || err})`)
+    log(`Auto-save skipped: could not ask Shift Close which days to save (${err.message || err})`)
     return
   }
 
@@ -129,7 +129,7 @@ async function autoSaveMissingDays({ page, origin, config, dates, days, today, o
  * options.dates     YYYY-MM-DD list (default: last `config.cstoreDayReportDays` || 7 days ending today)
  * options.onDay     async ({ date, html }) => { ok, saved, message }  (imports into Shift Close)
  * options.hooks     login hooks
- * options.getEligibleDates  async (dates) => ({ dates })  days Shift Close lists as a completed End of Day
+ * options.getEligibleDates  async (dates) => ({ dates })  days before today in the read window
  *                   (only used when config.cstoreDayReportAutoSave is 'dry-run' or 'on')
  * options.log       (message) => void
  */

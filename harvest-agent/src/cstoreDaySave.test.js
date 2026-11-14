@@ -45,7 +45,7 @@ test('planSaves: the 9th becomes eligible on the 10th', () => {
   assert.deepEqual(sameDay.toSave, [])
 })
 
-test('planSaves skips days without a completed End of Day', () => {
+test('planSaves skips days that are not in the eligible window', () => {
   const r = planSaves({
     ...base,
     windowDates: ['2026-11-09', '2026-11-08'],
@@ -54,7 +54,7 @@ test('planSaves skips days without a completed End of Day', () => {
     eligibleDates: []
   })
   assert.deepEqual(r.toSave, [])
-  assert.match(r.skipped[0].reason, /End of Day/)
+  assert.match(r.skipped[0].reason, /save window/)
 })
 
 test('planSaves goes oldest first and chains consecutive days', () => {
