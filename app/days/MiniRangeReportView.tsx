@@ -82,7 +82,6 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
         {report.byDay ? (
           <>
             <h3 className="mb-1 mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500">By day</h3>
-            <p className="mb-1 text-xs text-gray-500">Each day is deposits + card. Fleet and vouchers stay in the totals above.</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[320px] text-sm">
                 <tbody className="tabular-nums">

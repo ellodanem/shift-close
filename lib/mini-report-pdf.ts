@@ -120,10 +120,6 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     doc.setFontSize(11)
     doc.setTextColor(...INK)
     doc.text('By day', margin, afterDeposit + 30)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...GREY)
-    doc.text('Each day is deposits + card. Fleet and vouchers stay in the totals above.', margin, afterDeposit + 42)
 
     const dayRows = report.byDay.flatMap((day) => [
       { label: formatDmy(day.date), amount: formatMoney(day.total), kind: 'day' as const },
@@ -135,7 +131,7 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     ])
 
     autoTable(doc, {
-      startY: afterDeposit + 48,
+      startY: afterDeposit + 36,
       margin: { left: margin, right: margin },
       body: dayRows.map((r) => [r.label, r.amount]),
       theme: 'plain',
