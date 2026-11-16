@@ -69,5 +69,14 @@ test('buildMiniReport: card / electronic, fleet, vouchers and the deposit, nothi
   assert.equal(mini.fleet, 150.5)
   assert.equal(mini.vouchers, 40)
   assert.deepEqual(mini.deposit, { deposited: 810, status: 'match' })
-  assert.deepEqual(Object.keys(mini).sort(), ['card', 'dayCount', 'deposit', 'fleet', 'from', 'inhouse', 'to', 'vouchers'])
+  assert.deepEqual(mini.byDay, [
+    { date: '2026-11-06', total: 9432.42, deposited: 810, card: 8622.42 },
+    { date: '2026-11-07', total: 2708.91, deposited: 0, card: 2708.91 }
+  ])
+  assert.deepEqual(Object.keys(mini).sort(), ['byDay', 'card', 'dayCount', 'deposit', 'fleet', 'from', 'inhouse', 'to', 'vouchers'])
+})
+
+test('buildMiniReport omits the day breakdown for a single day', () => {
+  const mini = buildMiniReport([day('2026-11-06', [shift({ systemDebit: 10, totalDeposits: 20, countCash: 20 })])])
+  assert.equal(mini.byDay, null)
 })

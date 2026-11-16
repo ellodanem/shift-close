@@ -78,6 +78,30 @@ export default function MiniRangeReportView({ report }: { report: MiniRangeRepor
             </tbody>
           </table>
         </div>
+
+        {report.byDay ? (
+          <>
+            <h3 className="mb-1 mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500">By day</h3>
+            <p className="mb-1 text-xs text-gray-500">Each day is deposits + card. Fleet and vouchers stay in the totals above.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[320px] text-sm">
+                <tbody className="tabular-nums">
+                  {report.byDay.map((day) => (
+                    <tr key={day.date} className="border-b border-gray-100 align-top">
+                      <td className="px-2 py-2 text-left">
+                        <div className="font-medium text-gray-900">{formatDmy(day.date)}</div>
+                        <div className="text-xs text-gray-500">
+                          Deposit {formatMoney(day.deposited)} · Card {formatMoney(day.card)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-right font-semibold">{formatMoney(day.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   )

@@ -114,5 +114,45 @@ export function downloadMiniReportPdf(report: MiniRangeReport) {
     }
   })
 
+  if (report.byDay) {
+    const afterDeposit = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 360
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(...INK)
+    doc.text('By day', margin, afterDeposit + 30)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...GREY)
+    doc.text('Each day is deposits + card. Fleet and vouchers stay in the totals above.', margin, afterDeposit + 42)
+
+    const dayRows = report.byDay.flatMap((day) => [
+      { label: formatDmy(day.date), amount: formatMoney(day.total), kind: 'day' as const },
+      {
+        label: `Deposit ${formatMoney(day.deposited)} · Card ${formatMoney(day.card)}`,
+        amount: '',
+        kind: 'detail' as const
+      }
+    ])
+
+    autoTable(doc, {
+      startY: afterDeposit + 48,
+      margin: { left: margin, right: margin },
+      body: dayRows.map((r) => [r.label, r.amount]),
+      theme: 'plain',
+      styles,
+      columnStyles: { 1: { halign: 'right' } },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return
+        const row = dayRows[data.row.index]
+        if (row.kind === 'day') data.cell.styles.fontStyle = 'bold'
+        if (row.kind === 'detail') {
+          data.cell.styles.fontSize = 9
+          data.cell.styles.textColor = GREY
+          data.cell.styles.cellPadding = { top: 0, bottom: 8, left: 4, right: 4 }
+        }
+      }
+    })
+  }
+
   doc.save(miniReportFilename(report))
 }

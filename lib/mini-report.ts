@@ -4,7 +4,9 @@ import type { DayReportV2 } from '@/lib/day-reports-v2'
 
 /**
  * The mini report (EOD Report): what was taken in card / electronic, fleet and vouchers over a range of days,
- * laid out like the Components card on the Expected revenue page, plus the Deposit line (deposited). No over/short, sales, fuel, per-day detail or notes. This is all the stakeholder role is given,
+ * laid out like the Components card on the Expected revenue page, plus the Deposit line (deposited).
+ * A range of more than one day also includes a by-day line (deposited + card). No over/short, sales, fuel or notes.
+ * This is all the stakeholder role is given,
  * so the stakeholder API returns this shape and nothing more.
  */
 export type MiniRangeReport = {
@@ -20,6 +22,18 @@ export type MiniRangeReport = {
   vouchers: number
   /** What was deposited. `status` is whether it agrees with the cash and checks counted (the count is not sent). */
   deposit: { deposited: number; status: 'match' | 'differs' }
+  /**
+   * One line per day. `total` is deposited + card (fleet and vouchers stay in the range totals above).
+   * Present when the range covers more than one day.
+   */
+  byDay: MiniReportDay[] | null
+}
+
+export type MiniReportDay = {
+  date: string
+  total: number
+  deposited: number
+  card: number
 }
 
 /** 2026-11-06 to 06-11-2026 (DD-MM-YYYY). Anything that is not YYYY-MM-DD is returned unchanged. */
@@ -36,15 +50,24 @@ export function buildMiniReport(days: DayReportV2[]): MiniRangeReport {
   let inhouse = 0
   let fleet = 0
   let vouchers = 0
+  const byDay: MiniReportDay[] = []
   for (const day of days) {
+    let dayDebit = 0
+    let dayCredit = 0
     for (const s of day.shifts) {
       debit += s.systemDebit || 0
       credit += s.otherCredit || 0
+      dayDebit += s.systemDebit || 0
+      dayCredit += s.otherCredit || 0
       inhouse += s.systemInhouse || 0
       fleet += s.systemFleet || 0
       vouchers += s.systemMassyCoupons || 0
     }
+    const dayCard = round2(dayDebit + dayCredit)
+    const deposited = round2(day.reconcile.collected.deposit.deposited)
+    byDay.push({ date: day.date, total: round2(deposited + dayCard), deposited, card: dayCard })
   }
+  byDay.sort((a, b) => a.date.localeCompare(b.date))
   return {
     from: range.from,
     to: range.to,
@@ -56,6 +79,7 @@ export function buildMiniReport(days: DayReportV2[]): MiniRangeReport {
     deposit: {
       deposited: range.deposit.deposited,
       status: range.deposit.status
-    }
+    },
+    byDay: byDay.length > 1 ? byDay : null
   }
 }
