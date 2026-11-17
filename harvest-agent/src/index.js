@@ -270,7 +270,7 @@ async function runCstoreDayReportsCycle(reason, options = {}) {
           message: res.complete ? 'saved' : 'saved, waiting for deposits'
         }
       }
-      return { ok: true, saved: false, message: res.message || 'not saved in Cstore yet' }
+      return { ok: true, saved: false, reason: res.reason, message: res.message || 'not saved in Cstore yet' }
     } catch (err) {
       return { ok: false, saved: false, message: err.message || String(err) }
     }

@@ -32,7 +32,11 @@ export async function POST(request: NextRequest) {
       const result = parseCstoreHtmlImport(date, body.html)
       if (!result.ok) {
         if (result.code === 'not_ready') {
-          return NextResponse.json({ saved: false, reason: 'not_ready', message: result.message })
+          return NextResponse.json({
+            saved: false,
+            reason: result.reason || 'not_ready',
+            message: result.message
+          })
         }
         const status = result.code === 'bad_request' ? 400 : 422
         return NextResponse.json({ error: result.code, message: result.message }, { status })

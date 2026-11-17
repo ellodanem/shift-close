@@ -6,14 +6,15 @@
  * Cstore; for other days Shift Close answers "not ready" and the agent moves on.
  *
  * Optionally (config.cstoreDayReportAutoSave = "dry-run" or "on", off by default) it then starts and saves
- * past days nobody has saved yet and reads them back. See cstoreDaySave.js for the guardrails.
+ * past days nobody has saved yet (or days saved with empty POS boxes) and reads them back.
+ * See cstoreDaySave.js for the guardrails.
  */
 
 const fs = require('fs')
 const path = require('path')
 const { launchContext, ensureLoggedIn, waitForSession, isCstoreLoginUrl } = require('./cstoreKeepalive')
 const { zonedParts } = require('./schedule')
-const { planSaves, startAndSaveDay } = require('./cstoreDaySave')
+const { planSaves, startAndSaveDay, editAndSaveDay } = require('./cstoreDaySave')
 
 const PRINT_PATH = '/EmagineNETCOSM/Content/Daily/DailyReportGetPrintable.aspx'
 
@@ -73,6 +74,7 @@ async function autoSaveMissingDays({ page, origin, config, dates, days, today, o
   const log = typeof options.log === 'function' ? options.log : () => {}
   const readOk = days.filter((d) => d.ok !== false)
   const unsaved = readOk.filter((d) => !d.saved && d.date < today).map((d) => d.date)
+  const emptyPos = new Set(readOk.filter((d) => d.reason === 'empty_pos').map((d) => d.date))
   if (unsaved.length === 0) return
 
   let eligible = []
@@ -99,7 +101,9 @@ async function autoSaveMissingDays({ page, origin, config, dates, days, today, o
     const entry = days.find((d) => d.date === date)
     let result
     try {
-      result = await startAndSaveDay(page, origin, date, { dryRun, log })
+      result = emptyPos.has(date)
+        ? await editAndSaveDay(page, origin, date, { dryRun, log })
+        : await startAndSaveDay(page, origin, date, { dryRun, log })
     } catch (err) {
       result = { ok: false, saved: false, stop: true, message: err.message || String(err) }
     }

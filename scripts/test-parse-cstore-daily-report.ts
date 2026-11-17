@@ -190,4 +190,26 @@ describe('parseCstoreHtmlImport', () => {
     if (r.ok) return
     assert.equal(r.code, 'not_ready')
   })
+
+  it('is not ready when the saved report has pay-in but no merchandise or fuel', () => {
+    const emptyPos = `<html><body><div>Daily Report</div><div>Monday 11/16/2026</div><table>
+      ${tr('Total Grocery:', '', '$ 0.00', 'Total deposits:', '', '$ 0.00')}
+      ${tr('Regular Amt Sold:', '', '$ 0.00', 'Credit card batches:', '', '$ 0.00')}
+      ${tr('Diesel Amt Sold:', '', '$ 0.00', 'Cust account sales:', '', '$ 2,195.31')}
+      ${tr('Cust account pay-in:', '', '$ 2,000.00', 'Credit card 2 batch:', '', '$ 0.00')}
+      ${tr('Total Sales', '$2,000.00', 'Total Collections', '$2,195.31')}
+      ${tr('', '', 'Short Over', '$195.31')}
+    </table></body></html>`
+    const parsed = parseCstoreDailyReportHtml(emptyPos)
+    assert.equal(parsed.ok, true)
+    if (!parsed.ok) return
+    assert.equal(parsed.report.totalSales, 2000)
+    assert.equal(parsed.report.grocery, 0)
+    assert.equal(parsed.report.custAccountPayIn, 2000)
+    const r = parseCstoreHtmlImport('2026-11-16', emptyPos)
+    assert.equal(r.ok, false)
+    if (r.ok) return
+    assert.equal(r.code, 'not_ready')
+    assert.equal(r.reason, 'empty_pos')
+  })
 })

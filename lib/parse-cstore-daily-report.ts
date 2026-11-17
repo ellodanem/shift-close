@@ -290,7 +290,10 @@ export function parseCstoreDailyReportHtml(html: string): CstoreParseResult {
 
   // The totals were read, so their parts should be too. If every part is zero while the total is not,
   // the page layout was not understood: refuse it rather than save zeros as if they were real.
-  const salesParts = get('grocery') + get('regularAmt') + get('plusAmt') + get('superAmt') + get('dieselAmt')
+  // Pay-in is a sales line. A saved day can have only customer-account pay-in (grocery and fuel left at 0)
+  // when the POS badges were never copied into the boxes — still a real report, not a layout miss.
+  const salesParts =
+    get('grocery') + get('regularAmt') + get('plusAmt') + get('superAmt') + get('dieselAmt') + get('custAccountPayIn')
   const collectionParts = get('depositsTyped') + get('fleetBatch') + get('creditDebitBatch') + get('custAccountSales')
   const unread: string[] = []
   if (get('totalSales') > 0.005 && salesParts < 0.005) unread.push('sales lines (Grocery, fuel amounts)')

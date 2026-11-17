@@ -150,7 +150,7 @@ export function parseCstoreImport(body: unknown): { value: CstoreImportInput } |
 
 export type HtmlImportResult =
   | { ok: true; value: CstoreImportInput; complete: boolean }
-  | { ok: false; code: string; message: string }
+  | { ok: false; code: string; message: string; reason?: string }
 
 /**
  * Turn the printable Daily Report HTML the agent captured into an import. A page that is not a report,
@@ -172,6 +172,16 @@ export function parseCstoreHtmlImport(date: string, html: string): HtmlImportRes
   }
   if (r.totalSales <= 0) {
     return { ok: false, code: 'not_ready', message: 'Cstore has no saved report for this date yet' }
+  }
+  const emptyPos =
+    r.grocery === 0 && r.regularAmt === 0 && r.dieselAmt === 0 && r.regularLitres === 0 && r.dieselLitres === 0
+  if (emptyPos) {
+    return {
+      ok: false,
+      code: 'not_ready',
+      reason: 'empty_pos',
+      message: 'Cstore report has no merchandise or fuel (POS not copied into the day)'
+    }
   }
   const checked = parseCstoreImport({ ...r, date, source: 'agent' })
   if ('error' in checked) return { ok: false, code: 'bad_request', message: checked.error }

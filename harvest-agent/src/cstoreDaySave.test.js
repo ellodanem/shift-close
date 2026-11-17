@@ -1,6 +1,29 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { addDays, parseEntryTitleDate, parseSavedBannerDate, planSaves } = require('./cstoreDaySave')
+const {
+  addDays,
+  parseEntryTitleDate,
+  parseSavedBannerDate,
+  planSaves,
+  shouldCopyPos,
+  editPath
+} = require('./cstoreDaySave')
+
+test('shouldCopyPos fills an empty box from a POS badge and never overwrites a typed value', () => {
+  assert.equal(shouldCopyPos(0, 4254.85), true)
+  assert.equal(shouldCopyPos(null, 4254.85), true)
+  assert.equal(shouldCopyPos(4254.85, 4254.85), false)
+  assert.equal(shouldCopyPos(2195.31, 2484.29), false)
+  assert.equal(shouldCopyPos(0, 0), false)
+  assert.equal(shouldCopyPos(0, null), false)
+})
+
+test('editPath opens the entry form for a saved day by date', () => {
+  assert.equal(
+    editPath('2026-11-16'),
+    '/EmagineNETCOSM/Content/Daily/DailyReportGetData.aspx?inReportDate=11/16/2026'
+  )
+})
 
 test('addDays crosses month and year boundaries', () => {
   assert.equal(addDays('2026-11-01', -1), '2026-10-31')
