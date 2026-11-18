@@ -316,6 +316,21 @@ export function findStatementChecks(transactions: StatementTransaction[]): State
   return out
 }
 
+/** Best check number printed on the statement line. */
+export function suggestedCheckNumber(check: Pick<StatementCheck, 'numbers'>): string {
+  return check.numbers[0] ?? ''
+}
+
+/** Payee leftover after stripping cheque/check wording and amounts from the statement line. */
+export function suggestedPayeeFromDescription(description: string): string {
+  return description
+    .replace(/\b(cheque|check|cheques|checks|chq|chk|cheq|paid)\b/gi, ' ')
+    .replace(/\b\d[\d,]*\.?\d*\b/g, ' ')
+    .replace(/[@#:;,.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // ---------- POS commission detection ----------
 
 export type StatementCommission = {
@@ -415,7 +430,7 @@ export function matchStatementChecks(
       check,
       status: 'not_found' as const,
       candidates: [],
-      note: 'No matching uncashed check in Shift Close.'
+      note: 'No matching uncashed check in Shift Close. Add it here and mark it cashed.'
     }
   })
 }

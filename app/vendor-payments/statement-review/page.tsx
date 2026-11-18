@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatInvoiceDate } from '@/lib/invoiceHelpers'
@@ -10,6 +10,7 @@ import {
   checkBalanceAccountLabel,
   type CheckBalanceAccount
 } from '@/lib/checkBalanceAccount'
+import { suggestedCheckNumber, suggestedPayeeFromDescription } from '@/lib/bank-statement'
 
 type Transaction = {
   date: string
@@ -57,6 +58,10 @@ type CommissionRow = {
 
 type Tab = 'checks' | 'commissions'
 
+type ExpenseCategory = { id: string; name: string; type: string; active: boolean }
+
+type MissingDraft = { payee: string; checkNumber: string; categoryId: string }
+
 const STATUS_LABEL: Record<CheckRow['status'], string> = {
   matched: 'Ready to mark cashed',
   ambiguous: 'Choose which check',
@@ -70,7 +75,15 @@ const STATUS_CLASS: Record<CheckRow['status'], string> = {
   ambiguous: 'bg-amber-100 text-amber-800',
   amount_mismatch: 'bg-red-100 text-red-800',
   already_cleared: 'bg-gray-100 text-gray-700',
-  not_found: 'bg-gray-100 text-gray-700'
+  not_found: 'bg-sky-100 text-sky-800'
+}
+
+function isSelectableCheck(status: CheckRow['status']) {
+  return status === 'matched' || status === 'ambiguous' || status === 'not_found'
+}
+
+function missingDraftReady(draft: MissingDraft | undefined) {
+  return Boolean(draft?.payee.trim() && draft.checkNumber.trim() && draft.categoryId)
 }
 
 function monthLabel(ym: string) {
@@ -134,6 +147,9 @@ export default function StatementReviewPage() {
   const [checkRows, setCheckRows] = useState<CheckRow[]>([])
   const [checkSelected, setCheckSelected] = useState<Record<string, boolean>>({})
   const [checkChoice, setCheckChoice] = useState<Record<string, string>>({})
+  const [checkDrafts, setCheckDrafts] = useState<Record<string, MissingDraft>>({})
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
+  const [lastCategoryId, setLastCategoryId] = useState('')
   const [checkBusy, setCheckBusy] = useState(false)
   const [checkMessage, setCheckMessage] = useState<string | null>(null)
 
@@ -143,6 +159,18 @@ export default function StatementReviewPage() {
   const [commissionSelected, setCommissionSelected] = useState<Record<string, boolean>>({})
   const [commissionBusy, setCommissionBusy] = useState(false)
   const [commissionMessage, setCommissionMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/financial/cashbook/categories', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: unknown) => {
+        const categories = Array.isArray(data)
+          ? (data as ExpenseCategory[]).filter((category) => category.active && category.type === 'expense')
+          : []
+        setExpenseCategories(categories)
+      })
+      .catch(() => setExpenseCategories([]))
+  }, [])
 
   const loadChecks = async (transactions: Transaction[]) => {
     const res = await fetch('/api/vendor-payments/statement-review/checks', {
@@ -156,6 +184,18 @@ export default function StatementReviewPage() {
     setCheckRows(rows)
     setCheckSelected(Object.fromEntries(rows.map((r) => [r.key, r.status === 'matched'])))
     setCheckChoice(Object.fromEntries(rows.filter((r) => r.candidates[0]).map((r) => [r.key, r.candidates[0].id])))
+    setCheckDrafts((prev) => {
+      const next: Record<string, MissingDraft> = {}
+      for (const row of rows) {
+        if (row.status !== 'not_found') continue
+        next[row.key] = prev[row.key] ?? {
+          payee: suggestedPayeeFromDescription(row.check.description),
+          checkNumber: suggestedCheckNumber(row.check),
+          categoryId: lastCategoryId
+        }
+      }
+      return next
+    })
   }
 
   const loadCommissions = async (transactions: Transaction[]) => {
@@ -197,14 +237,46 @@ export default function StatementReviewPage() {
     }
   }
 
-  const selectedChecks = useMemo(
+  const selectedMatches = useMemo(
     () =>
       checkRows.filter(
         (r) => checkSelected[r.key] && (r.status === 'matched' || r.status === 'ambiguous') && checkChoice[r.key]
       ),
     [checkRows, checkSelected, checkChoice]
   )
+  const selectedMissing = useMemo(
+    () =>
+      checkRows.filter(
+        (r) => r.status === 'not_found' && checkSelected[r.key] && missingDraftReady(checkDrafts[r.key])
+      ),
+    [checkRows, checkSelected, checkDrafts]
+  )
+  const incompleteMissing = useMemo(
+    () =>
+      checkRows.filter(
+        (r) => r.status === 'not_found' && checkSelected[r.key] && !missingDraftReady(checkDrafts[r.key])
+      ),
+    [checkRows, checkSelected, checkDrafts]
+  )
+  const selectedChecks = useMemo(
+    () => [...selectedMatches, ...selectedMissing],
+    [selectedMatches, selectedMissing]
+  )
   const selectedChecksTotal = selectedChecks.reduce((sum, r) => sum + r.check.amount, 0)
+
+  const updateDraft = (key: string, patch: Partial<MissingDraft>) => {
+    if (patch.categoryId) setLastCategoryId(patch.categoryId)
+    setCheckDrafts((s) => {
+      const current = s[key] ?? { payee: '', checkNumber: '', categoryId: lastCategoryId }
+      const next: Record<string, MissingDraft> = { ...s, [key]: { ...current, ...patch } }
+      if (patch.categoryId) {
+        for (const [rowKey, draft] of Object.entries(next)) {
+          if (!draft.categoryId) next[rowKey] = { ...draft, categoryId: patch.categoryId }
+        }
+      }
+      return next
+    })
+  }
 
   const selectedCommissions = useMemo(
     () => commissionRows.filter((r) => commissionSelected[r.key] && !r.alreadyBooked),
@@ -223,10 +295,15 @@ export default function StatementReviewPage() {
 
   const applyChecks = async () => {
     if (!statement || selectedChecks.length === 0) return
-    const ok = window.confirm(
-      `Mark ${selectedChecks.length} check${selectedChecks.length === 1 ? '' : 's'} as cashed ` +
-        `(${formatAmount(selectedChecksTotal)}) and deduct from ${checkBalanceAccountLabel(checkAccount)}?`
-    )
+    const accountLabel = checkBalanceAccountLabel(checkAccount)
+    const total = formatAmount(selectedChecksTotal)
+    const confirmText =
+      selectedMatches.length && selectedMissing.length
+        ? `Mark ${selectedMatches.length} check${selectedMatches.length === 1 ? '' : 's'} as cashed and add ${selectedMissing.length} missing check${selectedMissing.length === 1 ? '' : 's'} (${total}), deducted from ${accountLabel}?`
+        : selectedMissing.length
+          ? `Add ${selectedMissing.length} missing check${selectedMissing.length === 1 ? '' : 's'} to Shift Close (${total}) and mark ${selectedMissing.length === 1 ? 'it' : 'them'} cashed, deducted from ${accountLabel}?`
+          : `Mark ${selectedMatches.length} check${selectedMatches.length === 1 ? '' : 's'} as cashed (${total}) and deduct from ${accountLabel}?`
+    const ok = window.confirm(confirmText)
     if (!ok) return
     setCheckBusy(true)
     setCheckMessage(null)
@@ -237,21 +314,34 @@ export default function StatementReviewPage() {
         body: JSON.stringify({
           apply: true,
           account: checkAccount,
-          items: selectedChecks.map((r) => ({ id: checkChoice[r.key], clearedAt: r.check.date }))
+          items: selectedMatches.map((r) => ({ id: checkChoice[r.key], clearedAt: r.check.date })),
+          missing: selectedMissing.map((r) => ({
+            key: r.key,
+            date: r.check.date,
+            amount: r.check.amount,
+            checkNumber: checkDrafts[r.key].checkNumber.trim(),
+            payee: checkDrafts[r.key].payee.trim(),
+            categoryId: checkDrafts[r.key].categoryId
+          }))
         })
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to mark checks as cashed')
-      const results = (data.results ?? []) as Array<{ ok: boolean; error?: string }>
-      const done = results.filter((r) => r.ok).length
+      if (!res.ok) throw new Error(data.error || 'Failed to update checks')
+      const results = (data.results ?? []) as Array<{ id?: string; ok: boolean; error?: string }>
+      const missingKeys = new Set(selectedMissing.map((r) => r.key))
+      const added = results.filter((r) => r.ok && r.id && missingKeys.has(r.id)).length
+      const marked = results.filter((r) => r.ok && !(r.id && missingKeys.has(r.id))).length
       const failed = results.filter((r) => !r.ok)
+      const bits: string[] = []
+      if (marked) bits.push(`${marked} check${marked === 1 ? '' : 's'} marked as cashed`)
+      if (selectedMissing.length) bits.push(`${added} missing check${added === 1 ? '' : 's'} added`)
       setCheckMessage(
-        `${done} check${done === 1 ? '' : 's'} marked as cashed.` +
+        `${bits.join('. ') || 'Checks updated'}.` +
           (failed.length ? ` ${failed.length} failed: ${failed.map((f) => f.error).join('; ')}` : '')
       )
       await loadChecks(statement.transactions)
     } catch (err) {
-      setCheckMessage(err instanceof Error ? err.message : 'Failed to mark checks as cashed')
+      setCheckMessage(err instanceof Error ? err.message : 'Failed to update checks')
     } finally {
       setCheckBusy(false)
     }
@@ -405,7 +495,8 @@ export default function StatementReviewPage() {
               <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                 <p className="text-sm text-gray-600">
                   Checks paid on the statement are matched to uncashed checks by check number and amount. Each is
-                  marked cashed on the date the bank paid it.
+                  marked cashed on the date the bank paid it. If a check is not in Shift Close, add a payee and
+                  category here and it will be recorded and marked cashed.
                 </p>
                 <div className="mt-3">
                   <div className="mb-1 text-xs font-medium text-gray-500">Deduct from</div>
@@ -416,7 +507,7 @@ export default function StatementReviewPage() {
                   <p className="mt-6 text-center text-gray-500">No checks found on this statement.</p>
                 ) : (
                   <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm">
+                    <table className="w-full min-w-[860px] text-sm">
                       <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                         <tr>
                           <th className="px-3 py-2" />
@@ -429,8 +520,9 @@ export default function StatementReviewPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {checkRows.map((row) => {
-                          const selectable = row.status === 'matched' || row.status === 'ambiguous'
+                          const selectable = isSelectableCheck(row.status)
                           const chosen = row.candidates.find((c) => c.id === checkChoice[row.key]) ?? row.candidates[0]
+                          const draft = checkDrafts[row.key]
                           return (
                             <tr key={row.key} className={selectable ? '' : 'text-gray-500'}>
                               <td className="px-3 py-2">
@@ -452,7 +544,39 @@ export default function StatementReviewPage() {
                                 {formatAmount(row.check.amount)}
                               </td>
                               <td className="px-3 py-2">
-                                {row.status === 'ambiguous' ? (
+                                {row.status === 'not_found' ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      value={draft?.payee ?? ''}
+                                      onChange={(e) => updateDraft(row.key, { payee: e.target.value })}
+                                      placeholder="Payee"
+                                      disabled={checkBusy}
+                                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                                    />
+                                    <div className="flex gap-1">
+                                      <input
+                                        value={draft?.checkNumber ?? ''}
+                                        onChange={(e) => updateDraft(row.key, { checkNumber: e.target.value })}
+                                        placeholder="Check #"
+                                        disabled={checkBusy}
+                                        className="w-24 rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                                      />
+                                      <select
+                                        value={draft?.categoryId ?? ''}
+                                        onChange={(e) => updateDraft(row.key, { categoryId: e.target.value })}
+                                        disabled={checkBusy || expenseCategories.length === 0}
+                                        className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900"
+                                      >
+                                        <option value="">Category</option>
+                                        {expenseCategories.map((category) => (
+                                          <option key={category.id} value={category.id}>
+                                            {category.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                ) : row.status === 'ambiguous' ? (
                                   <select
                                     value={checkChoice[row.key] ?? ''}
                                     onChange={(e) => setCheckChoice((s) => ({ ...s, [row.key]: e.target.value }))}
@@ -492,17 +616,36 @@ export default function StatementReviewPage() {
                   </div>
                 )}
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-gray-700">
-                    {selectedChecks.length} selected · {formatAmount(selectedChecksTotal)}
+                {expenseCategories.length === 0 && checkRows.some((r) => r.status === 'not_found') && (
+                  <p className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    No active expense categories are available. Add one in Cashbook before adding missing checks.
                   </p>
+                )}
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-gray-700">
+                    <p>
+                      {selectedChecks.length} selected · {formatAmount(selectedChecksTotal)}
+                    </p>
+                    {incompleteMissing.length > 0 && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        {incompleteMissing.length} selected check
+                        {incompleteMissing.length === 1 ? '' : 's'} need a payee, check number, and category before
+                        they can be added.
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => void applyChecks()}
                     disabled={checkBusy || selectedChecks.length === 0}
                     className="min-h-[44px] rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 sm:min-h-0"
                   >
-                    {checkBusy ? 'Saving…' : `Mark ${selectedChecks.length} as cashed`}
+                    {checkBusy
+                      ? 'Saving…'
+                      : selectedMissing.length && !selectedMatches.length
+                        ? `Add ${selectedMissing.length} and mark as cashed`
+                        : `Mark ${selectedChecks.length} as cashed`}
                   </button>
                 </div>
                 {checkMessage && <p className="mt-3 rounded bg-blue-50 px-3 py-2 text-sm text-blue-800">{checkMessage}</p>}

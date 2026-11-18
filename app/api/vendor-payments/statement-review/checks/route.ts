@@ -1,12 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseCheckBalanceAccount } from '@/lib/checkBalanceAccount'
-import { applyStatementChecks, previewStatementChecks } from '@/lib/statement-review'
+import {
+  addMissingStatementChecks,
+  applyStatementChecks,
+  previewStatementChecks,
+  type AddMissingCheckItem
+} from '@/lib/statement-review'
 import { coerceTransactions } from '@/lib/bank-statement'
 
 export const dynamic = 'force-dynamic'
 
+function parseMissingItems(value: unknown): AddMissingCheckItem[] {
+  if (!Array.isArray(value)) return []
+  const out: AddMissingCheckItem[] = []
+  for (const raw of value) {
+    const i = raw as Partial<AddMissingCheckItem>
+    const key = typeof i.key === 'string' ? i.key : ''
+    const date = typeof i.date === 'string' ? i.date.trim() : ''
+    const checkNumber = typeof i.checkNumber === 'string' ? i.checkNumber.trim() : ''
+    const payee = typeof i.payee === 'string' ? i.payee.trim() : ''
+    const categoryId = typeof i.categoryId === 'string' ? i.categoryId.trim() : ''
+    const amount = typeof i.amount === 'number' ? i.amount : Number(i.amount)
+    if (!key || !date || !checkNumber || !payee || !categoryId || !Number.isFinite(amount)) continue
+    out.push({ key, date, amount, checkNumber, payee, categoryId })
+  }
+  return out
+}
+
 // POST { transactions }                         -> preview of matches
-// POST { apply: true, account, items: [{id, clearedAt}] } -> mark the chosen checks cashed
+// POST { apply: true, account, items, missing } -> mark matched checks cashed and add missing ones
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
@@ -22,10 +44,14 @@ export async function POST(request: NextRequest) {
             .filter((i) => typeof i.id === 'string' && typeof i.clearedAt === 'string')
             .map((i) => ({ id: i.id as string, clearedAt: (i.clearedAt as string).trim() }))
         : []
-      if (items.length === 0) {
+      const missing = parseMissingItems(body.missing)
+      if (items.length === 0 && missing.length === 0) {
         return NextResponse.json({ error: 'No checks selected.' }, { status: 400 })
       }
-      const results = await applyStatementChecks(items, account)
+      const results = [
+        ...(items.length ? await applyStatementChecks(items, account) : []),
+        ...(missing.length ? await addMissingStatementChecks(missing, account) : [])
+      ]
       return NextResponse.json({ results })
     }
 

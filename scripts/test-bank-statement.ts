@@ -7,6 +7,8 @@ import {
   isCommissionAlreadyBooked,
   matchStatementChecks,
   parseStatementText,
+  suggestedCheckNumber,
+  suggestedPayeeFromDescription,
   type UncashedCandidate
 } from '../lib/bank-statement'
 import { extractStatementText } from '../lib/bank-statement-pdf'
@@ -165,6 +167,20 @@ describe('matchStatementChecks', () => {
     )
     assert.equal(rows[0].status, 'ambiguous')
     assert.equal(rows[0].candidates.length, 2)
+  })
+})
+
+describe('missing-check suggestions', () => {
+  it('takes the first number on the statement line as the check number', () => {
+    assert.equal(suggestedCheckNumber({ numbers: ['11'] }), '11')
+    assert.equal(suggestedCheckNumber({ numbers: ['1234', '55'] }), '1234')
+    assert.equal(suggestedCheckNumber({ numbers: [] }), '')
+  })
+
+  it('keeps a payee and strips cheque wording from a number-only line', () => {
+    assert.equal(suggestedPayeeFromDescription('CHQ PAID 5588 JOHN SMITH'), 'JOHN SMITH')
+    assert.equal(suggestedPayeeFromDescription('11 Cheque'), '')
+    assert.equal(suggestedPayeeFromDescription('CHEQUE 001234'), '')
   })
 })
 

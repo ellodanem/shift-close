@@ -1,13 +1,20 @@
 import { prisma } from '@/lib/prisma'
 import { roundMoney } from '@/lib/fuelPayments'
 import { isYmd, toYmdInBusinessTz, ymdToUtcNoonDate } from '@/lib/datetime-policy'
-import { checkBalanceAccountLabel, type CheckBalanceAccount } from '@/lib/checkBalanceAccount'
+import {
+  adjustOperatingBalance,
+  checkBalanceAccountLabel,
+  type CheckBalanceAccount
+} from '@/lib/checkBalanceAccount'
+import { resolveCashbookAccount } from '@/lib/cashbook-accounts'
 import { clearUncashedCheck, listClearedChecks, listUncashedChecks } from '@/lib/uncashedChecks'
 import {
+  digitRuns,
   findPosCommissions,
   findStatementChecks,
   isCommissionAlreadyBooked,
   matchStatementChecks,
+  normalizeCheckNumber,
   type CheckMatch,
   type StatementCommission,
   type StatementTransaction
@@ -75,6 +82,129 @@ export async function applyStatementChecks(
       })
     }
   }
+  return results
+}
+
+export type AddMissingCheckItem = {
+  key: string
+  date: string
+  amount: number
+  checkNumber: string
+  payee: string
+  categoryId: string
+}
+
+function sameCheckNumber(left: string, right: string): boolean {
+  const a = new Set(digitRuns(left))
+  return digitRuns(right).some((n) => a.has(n)) || normalizeCheckNumber(left) === normalizeCheckNumber(right)
+}
+
+export async function addMissingStatementChecks(
+  items: AddMissingCheckItem[],
+  account: CheckBalanceAccount
+): Promise<ApplyCheckResult[]> {
+  const [uncashed, cleared] = await Promise.all([listUncashedChecks(), listClearedChecks()])
+  const alreadyThere: Array<{ bankRef: string; totalAmount: number }> = [
+    ...uncashed.map((c) => ({ bankRef: c.bankRef, totalAmount: c.totalAmount })),
+    ...cleared.map((c) => ({ bankRef: c.bankRef, totalAmount: c.totalAmount }))
+  ]
+  const results: ApplyCheckResult[] = []
+  const seen = new Set<string>()
+
+  for (const item of items) {
+    const payee = item.payee.trim()
+    const checkNumber = item.checkNumber.trim()
+    const categoryId = item.categoryId.trim()
+    const amount = roundMoney(item.amount)
+
+    if (seen.has(item.key)) {
+      results.push({ id: item.key, ok: false, error: 'Selected more than once' })
+      continue
+    }
+    seen.add(item.key)
+
+    if (!isYmd(item.date)) {
+      results.push({ id: item.key, ok: false, error: 'Invalid statement date' })
+      continue
+    }
+    if (!payee) {
+      results.push({ id: item.key, ok: false, error: 'Payee is required' })
+      continue
+    }
+    if (!checkNumber) {
+      results.push({ id: item.key, ok: false, error: 'Check number is required' })
+      continue
+    }
+    if (!(amount > 0)) {
+      results.push({ id: item.key, ok: false, error: 'Amount must be greater than zero' })
+      continue
+    }
+    if (!categoryId) {
+      results.push({ id: item.key, ok: false, error: 'Choose an expense category' })
+      continue
+    }
+
+    const duplicate = alreadyThere.find(
+      (existing) =>
+        sameCheckNumber(existing.bankRef, checkNumber) &&
+        Math.abs(roundMoney(existing.totalAmount) - amount) <= 0.01
+    )
+    if (duplicate) {
+      results.push({ id: item.key, ok: false, error: 'Already in Shift Close' })
+      continue
+    }
+
+    const category = await prisma.cashbookCategory.findFirst({
+      where: { id: categoryId, active: true, type: 'expense' }
+    })
+    if (!category) {
+      results.push({ id: item.key, ok: false, error: 'Choose a valid active expense category' })
+      continue
+    }
+
+    const resolved = resolveCashbookAccount({
+      origin: 'bank_statement',
+      explicit: account,
+      explicitSource: 'rule',
+      type: 'expense',
+      categoryName: category.name,
+      description: payee
+    })
+    const clearedAt = ymdToUtcNoonDate(item.date)
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.cashbookEntry.create({
+          data: {
+            date: item.date,
+            ref: checkNumber,
+            description: payee,
+            account: resolved.account,
+            accountSource: resolved.source,
+            bank: checkBalanceAccountLabel(account),
+            debitCash: 0,
+            debitCheck: amount,
+            debitEcard: 0,
+            debitDcard: 0,
+            creditAmt: 0,
+            paymentMethod: 'check',
+            clearedAt,
+            allocations: { create: { categoryId: category.id, amount } }
+          }
+        })
+        await adjustOperatingBalance(tx, amount, account, 'deduct')
+      })
+      alreadyThere.push({ bankRef: checkNumber, totalAmount: amount })
+      results.push({ id: item.key, ok: true })
+    } catch (error) {
+      results.push({
+        id: item.key,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to add check'
+      })
+    }
+  }
+
   return results
 }
 
