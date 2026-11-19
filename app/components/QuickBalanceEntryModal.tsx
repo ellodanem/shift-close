@@ -64,6 +64,8 @@ export function QuickBalanceEntryModal({
   open,
   title = 'Quick Balance Entry',
   saving,
+  loading = false,
+  error = null,
   form,
   onFormChange,
   planned,
@@ -75,6 +77,8 @@ export function QuickBalanceEntryModal({
   open: boolean
   title?: string
   saving: boolean
+  loading?: boolean
+  error?: string | null
   form: BalanceEntryForm
   onFormChange: (form: BalanceEntryForm) => void
   planned?: number
@@ -86,7 +90,7 @@ export function QuickBalanceEntryModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
       <div className="my-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">{title}</h2>
@@ -99,6 +103,11 @@ export function QuickBalanceEntryModal({
             ×
           </button>
         </div>
+
+        {error ? (
+          <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        ) : null}
+        {loading ? <p className="mb-4 text-sm text-slate-500">Loading current balances…</p> : null}
 
         <div className="space-y-5">
           <AccountFields
@@ -148,7 +157,7 @@ export function QuickBalanceEntryModal({
           <button
             type="button"
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || loading}
             className="min-h-[44px] rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:min-h-0"
           >
             {saving ? 'Saving...' : 'Save Balance'}

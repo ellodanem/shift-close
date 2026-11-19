@@ -150,6 +150,7 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
     if (isAccountantCheckManagementPath(pathname)) return true
     if (isAccountantBalancePath(pathname)) return true
     if (pathname.startsWith('/financial/deposit-comparisons')) return true
+    if (pathname === '/financial/balance-update') return true
     if (pathname.startsWith('/api/financial/deposit-comparisons')) return true
     if (pathname.startsWith('/insights/') || pathname.startsWith('/api/insights/')) return true
     if (pathname === '/api/financial/cashbook/categories') return true

@@ -1,16 +1,19 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useRef } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { BalanceUpdateModalHost } from './BalanceUpdateModalHost'
 
 type NavContextValue = {
   closeMobileNav: () => void
   registerMobileNavCloser: (fn: () => void) => void
+  openBalanceUpdate: () => void
 }
 
 const NavContext = createContext<NavContextValue | null>(null)
 
 export function NavProvider({ children }: { children: React.ReactNode }) {
   const mobileCloserRef = useRef<() => void>(() => {})
+  const [balanceUpdateOpen, setBalanceUpdateOpen] = useState(false)
 
   const closeMobileNav = useCallback(() => {
     mobileCloserRef.current()
@@ -20,15 +23,26 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
     mobileCloserRef.current = fn
   }, [])
 
+  const openBalanceUpdate = useCallback(() => {
+    closeMobileNav()
+    setBalanceUpdateOpen(true)
+  }, [closeMobileNav])
+
   const value = useMemo(
     () => ({
       closeMobileNav,
-      registerMobileNavCloser
+      registerMobileNavCloser,
+      openBalanceUpdate
     }),
-    [closeMobileNav, registerMobileNavCloser]
+    [closeMobileNav, registerMobileNavCloser, openBalanceUpdate]
   )
 
-  return <NavContext.Provider value={value}>{children}</NavContext.Provider>
+  return (
+    <NavContext.Provider value={value}>
+      {children}
+      <BalanceUpdateModalHost open={balanceUpdateOpen} onClose={() => setBalanceUpdateOpen(false)} />
+    </NavContext.Provider>
+  )
 }
 
 export function useNav() {

@@ -27,6 +27,7 @@ export const SHORTCUT_TILE_BG: Record<HomeShortcutId, string> = {
   roster: '#16a34a',
   attendance: '#4f46e5',
   cashbook: '#475569',
+  'balance-update': '#0e7490',
   'customer-accounts': '#be123c',
   shifts: '#0891b2',
   staff: '#64748b',

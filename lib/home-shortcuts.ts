@@ -29,6 +29,7 @@ export type HomeShortcutId =
   | 'pay-period'
   | 'pay-run'
   | 'cashbook'
+  | 'balance-update'
   | 'staff'
   | 'time-off'
   | 'debit-scans'
@@ -261,6 +262,13 @@ export const HOME_SHORTCUTS: HomeShortcut[] = [
     matchPrefixes: ['/financial/cashbook']
   },
   {
+    id: 'balance-update',
+    label: 'Balance Update',
+    href: '/financial/balance-update',
+    tileClass: 'bg-cyan-700',
+    matchPrefixes: ['/financial/balance-update']
+  },
+  {
     id: 'customer-accounts',
     label: 'Customer accounts',
     href: '/customer-accounts',
@@ -383,6 +391,7 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
       href === '/financial/deposit-comparisons' ||
+      href === '/financial/balance-update' ||
       href.startsWith('/insights/')
     )
   }

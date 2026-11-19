@@ -28,6 +28,8 @@ export type NavItemConfig = {
   comingSoon?: boolean
   /** Groups tiles under a heading inside a menu. Omit for a flat list. */
   section?: string
+  /** Tile opens an in-place action instead of navigating. */
+  action?: 'balance-update'
   children?: NavItemConfig[]
 }
 
@@ -43,6 +45,7 @@ export type NavTile = {
   tileClass: string
   comingSoon?: boolean
   section?: string
+  action?: NavItemConfig['action']
 }
 
 export type NavTileSection = {
@@ -143,6 +146,13 @@ const BASE_NAV_CONFIG: NavGroupConfig[] = [
         href: '/accounting',
         permission: 'financial.cashbook',
         section: 'Cash'
+      },
+      {
+        label: 'Balance Update',
+        href: '/financial/balance-update',
+        permission: 'financial.cashbook',
+        section: 'Cash',
+        action: 'balance-update'
       }
     ]
   },
@@ -228,6 +238,7 @@ const HREF_SHORTCUT_OVERRIDES: Record<string, HomeShortcutId> = {
   '/financial/deposit-comparisons': 'deposit-comparisons',
   '/financial/cashbook': 'cashbook',
   '/financial/cashbook/tasks': 'cashbook',
+  '/financial/balance-update': 'balance-update',
   '/accounting': 'cashbook',
   '/accounting/ledger': 'cashbook',
   '/accounting/customers': 'customer-accounts',
@@ -294,7 +305,8 @@ export function navItemToTile(item: NavItemConfig): NavTile {
     shortcutId,
     tileClass: shortcut?.tileClass ?? FALLBACK_TILE_CLASS,
     comingSoon: item.comingSoon,
-    section: item.section
+    section: item.section,
+    action: item.action
   }
 }
 
@@ -335,6 +347,7 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
       href === '/vendor-payments/uncashed-checks' ||
       href === '/vendor-payments/statement-review' ||
       href === '/financial/deposit-comparisons' ||
+      href === '/financial/balance-update' ||
       href.startsWith('/insights/')
     )
   }
@@ -412,6 +425,7 @@ export function isPathActive(pathname: string, href: string): boolean {
   if (href === '/financial/cashbook') {
     return pathname.startsWith('/financial/cashbook') && !pathname.startsWith('/financial/cashbook/tasks')
   }
+  if (href === '/financial/balance-update') return pathname.startsWith('/financial/balance-update')
   if (href === '/accounting') return pathname === '/accounting'
   if (href.startsWith('/accounting/')) return pathname === href || pathname.startsWith(`${href}/`)
   if (href === '/financial/deposit-comparisons') return pathname.startsWith('/financial/deposit-comparisons')
@@ -508,11 +522,25 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
       },
       {
         label: 'Accounting',
-        items: ACCOUNTING_NAV_ITEMS.map((item) =>
-          item.href === '/accounting/customers'
-            ? { ...item, label: 'Customer Accounts', href: '/customer-accounts' }
-            : item
-        )
+        items: ACCOUNTING_NAV_ITEMS.flatMap((item) => {
+          const mapped =
+            item.href === '/accounting/customers'
+              ? { ...item, label: 'Customer Accounts', href: '/customer-accounts' }
+              : item
+          if (item.href === '/accounting/journal') {
+            return [
+              {
+                label: 'Balance Update',
+                href: '/financial/balance-update',
+                permission: 'accounting',
+                section: 'Tasks',
+                action: 'balance-update' as const
+              },
+              mapped
+            ]
+          }
+          return [mapped]
+        })
       },
       {
         label: 'Shift Data',

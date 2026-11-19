@@ -5,6 +5,7 @@ import HomeShortcutIcon from './HomeShortcutIcon'
 import { tileBackgroundColor } from '@/lib/tile-colors'
 import { navTileSections, type NavTile } from '@/lib/app-nav'
 import type { HomeShortcutId } from '@/lib/home-shortcuts'
+import { useNav } from './NavContext'
 
 function TileIcon({ tile }: { tile: NavTile }) {
   if (tile.href === '/dashboard') {
@@ -26,6 +27,7 @@ export default function NavGroupTiles({
   onNavigate?: () => void
   compact?: boolean
 }) {
+  const { openBalanceUpdate } = useNav()
   const sizeClass = compact ? 'h-[6.5rem] min-w-[6.5rem]' : 'h-[7.5rem] min-w-[7.5rem]'
 
   return (
@@ -63,6 +65,20 @@ export default function NavGroupTiles({
             >
               {tileBody}
             </div>
+          )
+        }
+
+        if (tile.action === 'balance-update') {
+          return (
+            <button
+              key={tile.href}
+              type="button"
+              onClick={() => openBalanceUpdate()}
+              style={{ backgroundColor: tileBackgroundColor(tile.href, tile.shortcutId) }}
+              className={`relative flex w-full cursor-pointer flex-col items-center rounded-2xl border-0 p-0 shadow-md text-white hover:brightness-110 ${sizeClass}`}
+            >
+              {tileBody}
+            </button>
           )
         }
 

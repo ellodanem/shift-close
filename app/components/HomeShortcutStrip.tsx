@@ -16,6 +16,7 @@ import {
   type HomeShortcutId
 } from '@/lib/home-shortcuts'
 import { tileBackgroundColor } from '@/lib/tile-colors'
+import { useNav } from './NavContext'
 
 function Tile({
   shortcut,
@@ -28,26 +29,37 @@ function Tile({
   favorited: boolean
   onToggleFavorite: (id: HomeShortcutId) => void
 }) {
+  const { openBalanceUpdate } = useNav()
+  const tileClass =
+    'relative flex h-[6.25rem] w-[6.25rem] cursor-pointer flex-col items-center rounded-2xl border-0 p-0 text-white hover:brightness-110 sm:h-[7.5rem] sm:w-[7.5rem]'
+  const tileStyle = { backgroundColor: tileBackgroundColor(shortcut.href, shortcut.id) }
+  const tileBody = (
+    <>
+      {index != null ? (
+        <span className="absolute left-2 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold text-white/95">
+          {index}
+        </span>
+      ) : null}
+      <span className="mt-7 flex h-9 items-center justify-center">
+        <HomeShortcutIcon id={shortcut.id} className="h-8 w-8 text-white" />
+      </span>
+      <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
+        {shortcut.label}
+      </span>
+    </>
+  )
+
   return (
     <div className="relative shrink-0">
-      <Link
-        href={shortcut.href}
-        prefetch={false}
-        style={{ backgroundColor: tileBackgroundColor(shortcut.href, shortcut.id) }}
-        className="relative flex h-[6.25rem] w-[6.25rem] flex-col items-center rounded-2xl text-white hover:brightness-110 sm:h-[7.5rem] sm:w-[7.5rem]"
-      >
-        {index != null ? (
-          <span className="absolute left-2 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold text-white/95">
-            {index}
-          </span>
-        ) : null}
-        <span className="mt-7 flex h-9 items-center justify-center">
-          <HomeShortcutIcon id={shortcut.id} className="h-8 w-8 text-white" />
-        </span>
-        <span className="mt-auto mb-2.5 px-2 text-center text-[13px] font-semibold leading-tight">
-          {shortcut.label}
-        </span>
-      </Link>
+      {shortcut.id === 'balance-update' ? (
+        <button type="button" onClick={() => openBalanceUpdate()} style={tileStyle} className={tileClass}>
+          {tileBody}
+        </button>
+      ) : (
+        <Link href={shortcut.href} prefetch={false} style={tileStyle} className={tileClass}>
+          {tileBody}
+        </Link>
+      )}
       <button
         type="button"
         onClick={() => onToggleFavorite(shortcut.id)}
