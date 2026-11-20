@@ -139,7 +139,7 @@ function EditStaffPageInner() {
   const params = useParams()
   const searchParams = useSearchParams()
   const id = params.id as string
-  const { canViewStaffSensitive } = useAuth()
+  const { canViewStaffSensitive, canAccessPayroll } = useAuth()
 
   const activeTab = parseStaffTab(searchParams.get('tab'))
   const setActiveTab = (tab: StaffTab) => {
@@ -226,18 +226,18 @@ function EditStaffPageInner() {
   const managerStaff = selectedRole?.name.trim().toLowerCase() === 'manager'
 
   const visibleTabs = useMemo(
-    () => STAFF_TABS.filter((tab) => tab.id !== 'payroll' || canViewStaffSensitive),
-    [canViewStaffSensitive]
+    () => STAFF_TABS.filter((tab) => tab.id !== 'payroll' || (canViewStaffSensitive && canAccessPayroll)),
+    [canViewStaffSensitive, canAccessPayroll]
   )
 
   useEffect(() => {
-    if (activeTab === 'payroll' && !canViewStaffSensitive) {
+    if (activeTab === 'payroll' && (!canViewStaffSensitive || !canAccessPayroll)) {
       const next = new URLSearchParams(searchParams.toString())
       next.delete('tab')
       const qs = next.toString()
       router.replace(`/staff/${id}${qs ? `?${qs}` : ''}`, { scroll: false })
     }
-  }, [activeTab, canViewStaffSensitive, id, router, searchParams])
+  }, [activeTab, canViewStaffSensitive, canAccessPayroll, id, router, searchParams])
 
   useEffect(() => {
     if (!documentMenuId) return
@@ -783,7 +783,9 @@ function EditStaffPageInner() {
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-6">
         {editing && (activeTab === 'time-off' || activeTab === 'documents') && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-            You are editing this staff member. Profile, Attendance, and Payroll stay editable while you move between tabs. Save when you are done.
+            You are editing this staff member.{' '}
+            {canAccessPayroll ? 'Profile, Attendance, and Payroll' : 'Profile and Attendance'} stay
+            editable while you move between tabs. Save when you are done.
           </div>
         )}
         {shiftCount > 0 && (
@@ -1594,7 +1596,7 @@ function EditStaffPageInner() {
         )}
 
         {/* Payroll */}
-        {activeTab === 'payroll' && canViewStaffSensitive && (
+        {activeTab === 'payroll' && canViewStaffSensitive && canAccessPayroll && (
           <>
           <form
             id="staff-edit-form"

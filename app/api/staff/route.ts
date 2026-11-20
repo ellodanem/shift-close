@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { redactStaffRecord } from '@/lib/staff-redact'
+import { canAccessPayroll, canViewStaffSensitiveFields } from '@/lib/roles'
 import {
   allocateNextDeviceUserId,
   findStaffOccupyingSlot,
@@ -53,6 +54,10 @@ function isSerializationFailure(error: unknown): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request)
+    const allowPayroll = Boolean(
+      session && canAccessPayroll(session.role) && canViewStaffSensitiveFields(session.role)
+    )
     const body = await request.json()
     const {
       name,
@@ -176,22 +181,23 @@ export async function POST(request: NextRequest) {
                 roleId: roleId && roleId.trim() !== '' ? roleId.trim() : null,
                 nicNumber: nicNumber && nicNumber.trim() !== '' ? nicNumber.trim() : null,
                 address: addressTrimmed,
-                bankName: bankName && bankName.trim() !== '' ? bankName.trim() : null,
-                accountNumber: accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
+                bankName: allowPayroll && bankName && bankName.trim() !== '' ? bankName.trim() : null,
+                accountNumber:
+                  allowPayroll && accountNumber && accountNumber.trim() !== '' ? accountNumber.trim() : null,
                 mobileNumber: mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null,
                 notes: notes || '',
                 punchExempt: punchExempt === true,
                 reliabilityGrade,
-                payCycle: parsePayCycle(payCycleBody),
-                payType: parsePayType(payTypeBody),
-                hourlyRate: parseOptionalMoney(hourlyRateBody),
-                salariedAmount: parseOptionalMoney(salariedAmountBody),
-                staffLoan: parseOptionalMoney(staffLoanBody),
-                medicalAmount: parseOptionalMoney(medicalAmountBody),
-                taxCode: String(taxCodeBody ?? '').trim(),
-                nisExempt: nisExemptBody === true,
-                payeExempt: payeExemptBody === true,
-                taxNumber: String(taxNumberBody ?? '').trim()
+                payCycle: parsePayCycle(allowPayroll ? payCycleBody : undefined),
+                payType: parsePayType(allowPayroll ? payTypeBody : undefined),
+                hourlyRate: allowPayroll ? parseOptionalMoney(hourlyRateBody) : null,
+                salariedAmount: allowPayroll ? parseOptionalMoney(salariedAmountBody) : null,
+                staffLoan: allowPayroll ? parseOptionalMoney(staffLoanBody) : null,
+                medicalAmount: allowPayroll ? parseOptionalMoney(medicalAmountBody) : null,
+                taxCode: allowPayroll ? String(taxCodeBody ?? '').trim() : '',
+                nisExempt: allowPayroll && nisExemptBody === true,
+                payeExempt: allowPayroll && payeExemptBody === true,
+                taxNumber: allowPayroll ? String(taxNumberBody ?? '').trim() : ''
               }
             })
           },

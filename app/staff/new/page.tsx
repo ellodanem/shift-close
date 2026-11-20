@@ -27,7 +27,7 @@ function initialsFor(firstName: string, lastName: string, fallback: string) {
 
 export default function NewStaffPage() {
   const router = useRouter()
-  const { canViewStaffSensitive } = useAuth()
+  const { canViewStaffSensitive, canAccessPayroll } = useAuth()
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -104,9 +104,23 @@ export default function NewStaffPage() {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           displayName: formData.displayName.trim(),
-          ...(canViewStaffSensitive
+          ...(canViewStaffSensitive ? {} : { nicNumber: undefined }),
+          ...(canViewStaffSensitive && canAccessPayroll
             ? {}
-            : { nicNumber: undefined, bankName: undefined, accountNumber: undefined })
+            : {
+                bankName: undefined,
+                accountNumber: undefined,
+                payCycle: undefined,
+                payType: undefined,
+                hourlyRate: undefined,
+                salariedAmount: undefined,
+                staffLoan: undefined,
+                medicalAmount: undefined,
+                taxCode: undefined,
+                nisExempt: undefined,
+                payeExempt: undefined,
+                taxNumber: undefined
+              })
         })
       })
 
@@ -392,7 +406,7 @@ export default function NewStaffPage() {
             </div>
           </section>
 
-          {canViewStaffSensitive && (
+          {canViewStaffSensitive && canAccessPayroll && (
             <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-5">Payroll</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

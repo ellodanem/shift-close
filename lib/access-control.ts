@@ -5,14 +5,14 @@ import { canAccessRosterMobile, isRosterMobilePath } from '@/lib/roster-mobile'
 import { canAccessScansMobile, isScansMobilePath } from '@/lib/scans-mobile'
 import {
   isAccountantBooksPath,
-  isAccountantPayrollPath,
-  isAccountantPayrollWrite,
   isAccountantRole,
   canAccessInsightsPages,
+  canAccessPayroll,
   canUseHarvestSync,
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isPayrollFeaturePath,
   isStakeholderBooksPath,
   isCustomerAccountsPath,
   isStakeholderMiniReportPath,
@@ -122,6 +122,10 @@ export function isPublicPath(pathname: string): boolean {
 
 /** After auth: can this role access this pathname (page or API)? */
 export function pathnameAllowedForRole(pathname: string, role: string): boolean {
+  if (isPayrollFeaturePath(pathname) && !canAccessPayroll(role)) {
+    return false
+  }
+
   if (isAttendanceViewerPath(pathname)) {
     return canAccessAttendanceViewer(role)
   }
@@ -144,7 +148,6 @@ export function pathnameAllowedForRole(pathname: string, role: string): boolean 
 
   if (isAccountantRole(role)) {
     if (isAccountantBooksPath(pathname)) return true
-    if (isAccountantPayrollPath(pathname)) return true
     if (isStakeholderFuelComparisonPath(pathname)) return true
     if (isCustomerAccountsPath(pathname)) return true
     if (isAccountantCheckManagementPath(pathname)) return true
@@ -239,12 +242,12 @@ export function apiWriteAllowedForRole(
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
     return pathnameAllowedForRole(pathname, role)
   }
+  if (isPayrollFeaturePath(pathname) && !canAccessPayroll(role)) return false
   if (isFullAccessRole(role)) return true
   if (pathname === '/api/harvest-agent/sync') return canUseHarvestSync(role)
   if (pathname.startsWith('/api/fuel-inventory')) return false
   if (isAccountantRole(role)) {
     if (pathname.startsWith('/api/accounting')) return true
-    if (isAccountantPayrollWrite(pathname, method)) return true
     if (pathname.startsWith('/api/auth/')) return true
     if (isAccountantBillWrite(pathname, method)) return true
     if (isAccountantCheckManagementWrite(pathname, method)) return true

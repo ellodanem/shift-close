@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/session'
 import { redactStaffRecord } from '@/lib/staff-redact'
-import { canViewStaffSensitiveFields } from '@/lib/roles'
+import { canAccessPayroll, canViewStaffSensitiveFields } from '@/lib/roles'
 import { findStaffOccupyingSlot, parseExplicitDeviceUserIdInput } from '@/lib/device-user-id'
 import { purgeInactiveStaffFutureRosterEntries } from '@/lib/roster-inactive-staff'
 import { legacyRoleFromStaffRoleName } from '@/lib/staff-role'
@@ -88,6 +88,7 @@ export async function PATCH(
     })
     if (!existingStaff) return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     const managerStaff = existingStaff.role === 'manager'
+    const canEditPayroll = canViewStaffSensitiveFields(appRole) && canAccessPayroll(appRole)
 
     const data: Record<string, unknown> = {
       ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth || null }),
@@ -96,32 +97,26 @@ export async function PATCH(
       ...(role !== undefined && { role }),
       ...(roleId !== undefined && { roleId: roleId || null }),
       ...(canViewStaffSensitiveFields(appRole) && nicNumber !== undefined && { nicNumber: nicNumber || null }),
-      ...(canViewStaffSensitiveFields(appRole) && bankName !== undefined && { bankName: bankName || null }),
-      ...(canViewStaffSensitiveFields(appRole) && accountNumber !== undefined && { accountNumber: accountNumber || null }),
+      ...(canEditPayroll && bankName !== undefined && { bankName: bankName || null }),
+      ...(canEditPayroll && accountNumber !== undefined && { accountNumber: accountNumber || null }),
       ...(address !== undefined && { address: String(address).trim() }),
       ...(mobileNumber !== undefined && { mobileNumber: mobileNumber || null }),
       ...(notes !== undefined && { notes: notes || '' }),
       ...(vacationStart !== undefined && { vacationStart: vacationStart && String(vacationStart).trim() ? String(vacationStart).trim() : null }),
       ...(vacationEnd !== undefined && { vacationEnd: vacationEnd && String(vacationEnd).trim() ? String(vacationEnd).trim() : null }),
       ...(punchExempt !== undefined && { punchExempt: punchExempt === true }),
-      ...(payCycle !== undefined && { payCycle: parsePayCycle(payCycle) }),
-      ...(canViewStaffSensitiveFields(appRole) && payType !== undefined && { payType: parsePayType(payType) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
+      ...(canEditPayroll && payCycle !== undefined && { payCycle: parsePayCycle(payCycle) }),
+      ...(canEditPayroll && payType !== undefined && { payType: parsePayType(payType) }),
+      ...(canEditPayroll && hourlyRate !== undefined && { hourlyRate: parseOptionalMoney(hourlyRate) }),
+      ...(canEditPayroll &&
         salariedAmount !== undefined && { salariedAmount: parseOptionalMoney(salariedAmount) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        staffLoan !== undefined && { staffLoan: parseOptionalMoney(staffLoan) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
+      ...(canEditPayroll && staffLoan !== undefined && { staffLoan: parseOptionalMoney(staffLoan) }),
+      ...(canEditPayroll &&
         medicalAmount !== undefined && { medicalAmount: parseOptionalMoney(medicalAmount) }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        taxCode !== undefined && { taxCode: String(taxCode ?? '').trim() }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        nisExempt !== undefined && { nisExempt: nisExempt === true }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        payeExempt !== undefined && { payeExempt: payeExempt === true }),
-      ...(canViewStaffSensitiveFields(appRole) &&
-        taxNumber !== undefined && { taxNumber: String(taxNumber ?? '').trim() })
+      ...(canEditPayroll && taxCode !== undefined && { taxCode: String(taxCode ?? '').trim() }),
+      ...(canEditPayroll && nisExempt !== undefined && { nisExempt: nisExempt === true }),
+      ...(canEditPayroll && payeExempt !== undefined && { payeExempt: payeExempt === true }),
+      ...(canEditPayroll && taxNumber !== undefined && { taxNumber: String(taxNumber ?? '').trim() })
     }
 
     if (reliabilityGrade !== undefined) {
@@ -215,9 +210,7 @@ export async function PATCH(
       await purgeInactiveStaffFutureRosterEntries(prisma, params.id)
     }
 
-    return NextResponse.json(
-      canViewStaffSensitiveFields(appRole) ? staff : redactStaffRecord(staff, appRole)
-    )
+    return NextResponse.json(redactStaffRecord(staff, appRole))
   } catch (error) {
     console.error('Error updating staff:', error)
     return NextResponse.json({ error: 'Failed to update staff' }, { status: 500 })

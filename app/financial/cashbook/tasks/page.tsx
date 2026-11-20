@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '@/app/components/AuthContext'
 import { CASHBOOK_ACCOUNTS, CASHBOOK_ACCOUNT_INFO, cashbookAccountLabel, type CashbookAccount } from '@/lib/cashbook-accounts'
 import type { TaskKind, TaskPrefill, TaskRoute } from '@/lib/cashbook-compare'
 
@@ -153,6 +154,7 @@ function BalanceBox({ summary }: { summary: SheetSummary }) {
 }
 
 export default function CashbookTasksPage() {
+  const { canAccessPayroll } = useAuth()
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [counts, setCounts] = useState<Counts | null>(null)
   const [uploads, setUploads] = useState<UploadRow[]>([])
@@ -469,7 +471,8 @@ export default function CashbookTasksPage() {
                 <ul className="divide-y divide-gray-100 border-t border-gray-100">
                   {group.items.map((task) => {
                     const link = task.route === 'cashbook' ? cashbookLink(task) : null
-                    const other = OTHER_SCREENS[task.route]
+                    const other =
+                      task.route === 'payroll' && !canAccessPayroll ? undefined : OTHER_SCREENS[task.route]
                     const busy = busyId === task.id
                     return (
                       <li key={task.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">

@@ -3,11 +3,12 @@ import { MANAGER_HUB_PATH, canAccessManagerHub } from '@/lib/manager-hub'
 import { ROSTER_MOBILE_PATH, canAccessRosterMobile } from '@/lib/roster-mobile'
 import { SCANS_MOBILE_PATH, canAccessScansMobile } from '@/lib/scans-mobile'
 import {
+  canAccessPayroll,
   isAccountantBooksPath,
-  isAccountantPayrollPath,
   isFullAccessRole,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isPayrollFeaturePath,
   isStakeholderBooksPath,
   isStakeholderMiniReportPath,
   isStakeholderFuelComparisonPath,
@@ -378,6 +379,7 @@ export function shortcutForPath(pathname: string): HomeShortcut | null {
 
 export function shortcutVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
+  if (isPayrollFeaturePath(href) && !canAccessPayroll(role)) return false
   if (href === MANAGER_HUB_PATH) return canAccessManagerHub(role)
   if (href === ATTENDANCE_VIEWER_PATH) return canAccessAttendanceViewer(role)
   if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
@@ -387,7 +389,6 @@ export function shortcutVisibleForRole(href: string, role: string): boolean {
     return (
       href === '/accounting' ||
       href.startsWith('/accounting/') ||
-      isAccountantPayrollPath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
       href === '/financial/deposit-comparisons' ||

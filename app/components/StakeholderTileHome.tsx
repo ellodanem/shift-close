@@ -52,7 +52,6 @@ const CATEGORIES: StakeholderCategory[] = [
     title: 'People',
     tiles: [
       { label: 'Staff', href: '/staff', iconId: 'staff' },
-      { label: 'Payroll', href: '/payroll', iconId: 'pay-run' },
       { label: 'Applications', href: '/applications', iconId: 'applications', disabled: true }
     ]
   },

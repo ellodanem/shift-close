@@ -3,7 +3,7 @@ import { payPeriodCycleNumber } from '@/lib/pay-cycle'
 import { presentPayRunLine } from '@/lib/pay-run'
 import { attachBankingToLines, ytdAsOfLine, type PayRunYtd } from '@/lib/pay-run-build'
 import { prisma } from '@/lib/prisma'
-import { canViewStaffSensitiveFields } from '@/lib/roles'
+import { canAccessPayroll, canViewStaffSensitiveFields } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const session = await getSessionFromRequest(request)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!canViewStaffSensitiveFields(session.role)) {
+    if (!canViewStaffSensitiveFields(session.role) || !canAccessPayroll(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -5,7 +5,7 @@ import { createElement, useEffect, useState } from 'react'
 import { formatAmount } from '@/lib/fuelPayments'
 import { formatAccountingDate } from '@/lib/accounting-date-format'
 import { isOverheadCashbookCategory } from '@/lib/overhead-categories'
-import { isAccountantRole, isFullAccessRole } from '@/lib/roles'
+import { canAccessPayroll, isAccountantRole, isFullAccessRole } from '@/lib/roles'
 import type { AccountingBooks, OpenBill, PaidBill } from '@/lib/accounting-types'
 import { useAuth } from '@/app/components/AuthContext'
 import { OperatingBalanceCard, type OperatingBalance } from '@/app/components/OperatingBalanceCard'
@@ -172,7 +172,7 @@ export function OverviewScreen() {
   )
   const fuelHref = isFullAccessRole(role) ? '/fuel-payments/invoices' : '/accounting/bills'
   const vendorHref = isFullAccessRole(role) ? '/vendor-payments/invoices' : '/accounting/vendors'
-  const payrollHref = '/payroll'
+  const showPayroll = canAccessPayroll(role)
   const balanceRows: Array<{ account: string; debit: number | null; credit: number | null; total?: boolean }> = [
     { account: '101 · Westline chequing', debit: books.westlineOnFile, credit: null },
     { account: '102 · Service Station chequing', debit: books.serviceStationOnFile, credit: null },
@@ -216,9 +216,11 @@ export function OverviewScreen() {
         <Link href="/accounting/reconcile" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Reconcile
         </Link>
-        <Link href="/payroll" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
-          Pay runs
-        </Link>
+        {showPayroll ? (
+          <Link href="/payroll" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
+            Pay runs
+          </Link>
+        ) : null}
         <Link href="/customer-accounts" className="flex min-h-[44px] items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-center text-sm font-semibold text-gray-800">
           Customer Accounts
         </Link>
@@ -231,7 +233,7 @@ export function OverviewScreen() {
       </p>
       {accountantBalanceSection}
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Outstanding payables</h2>
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className={`mb-6 grid gap-3 ${showPayroll ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <PayableLink
           href={fuelHref}
           title="Fuel"
@@ -246,13 +248,15 @@ export function OverviewScreen() {
           note="Pending vendor and expense bills"
           link={vendorHref.startsWith('/accounting') ? 'Open vendors' : 'Open vendor bills'}
         />
-        <PayableLink
-          href={payrollHref}
-          title="Payroll"
-          amount={books.payrollPayable}
-          note="Approved runs whose pay date is still ahead"
-          link="Open pay runs"
-        />
+        {showPayroll ? (
+          <PayableLink
+            href="/payroll"
+            title="Payroll"
+            amount={books.payrollPayable}
+            note="Approved runs whose pay date is still ahead"
+            link="Open pay runs"
+          />
+        ) : null}
       </div>
       <h2 className="mb-2 text-lg font-semibold text-gray-900">Account balances as of {asOfLabel}</h2>
       <OverviewMobileDataList
@@ -327,18 +331,22 @@ export function OverviewScreen() {
           </div>
         </div>
       </div>
-      <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Pay runs in this month</h2>
-      <OverviewMobileDataList
-        headers={['Period', 'Pay date', 'Status', 'Net']}
-        rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
-      />
-      <div className="hidden sm:block">
-        <DataTable
-          headers={['Period', 'Pay date', 'Status', 'Net']}
-          align={['left', 'left', 'left', 'right']}
-          rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
-        />
-      </div>
+      {showPayroll ? (
+        <>
+          <h2 className="mb-2 mt-6 text-lg font-semibold text-gray-900">Pay runs in this month</h2>
+          <OverviewMobileDataList
+            headers={['Period', 'Pay date', 'Status', 'Net']}
+            rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
+          />
+          <div className="hidden sm:block">
+            <DataTable
+              headers={['Period', 'Pay date', 'Status', 'Net']}
+              align={['left', 'left', 'left', 'right']}
+              rows={books.payRuns.map((run) => [run.period, run.payDate, run.status, money(run.net)])}
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }

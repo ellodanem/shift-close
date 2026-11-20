@@ -9,9 +9,10 @@ import {
   type HomeShortcutId
 } from '@/lib/home-shortcuts'
 import {
-  isAccountantPayrollPath,
+  canAccessPayroll,
   isOperationsManagerRole,
   isPathBlockedForOperationsManager,
+  isPayrollFeaturePath,
   isStakeholderBooksPath,
   isStakeholderMiniReportPath,
   isStakeholderFuelComparisonPath,
@@ -333,6 +334,7 @@ export function flattenNavItems(items: NavItemConfig[]): NavItemConfig[] {
 
 export function navItemVisibleForRole(href: string, role: string): boolean {
   const r = normalizeAppRole(role)
+  if (isPayrollFeaturePath(href) && !canAccessPayroll(role)) return false
   if (href === MANAGER_HUB_PATH) return canAccessManagerHub(role)
   if (href === ATTENDANCE_VIEWER_PATH) return canAccessAttendanceViewer(role)
   if (href === ROSTER_MOBILE_PATH) return canAccessRosterMobile(role)
@@ -342,7 +344,6 @@ export function navItemVisibleForRole(href: string, role: string): boolean {
     return (
       href === '/accounting' ||
       href.startsWith('/accounting/') ||
-      isAccountantPayrollPath(href) ||
       isStakeholderFuelComparisonPath(href) ||
       href === '/vendor-payments/uncashed-checks' ||
       href === '/vendor-payments/statement-review' ||
@@ -551,10 +552,6 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
             permission: 'accounting'
           }
         ]
-      },
-      {
-        label: 'Payroll',
-        items: [{ label: 'Payroll', href: '/payroll', permission: 'people.staff' }]
       },
       {
         label: 'Fuel comparison',

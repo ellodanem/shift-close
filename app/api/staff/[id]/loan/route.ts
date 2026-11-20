@@ -3,7 +3,7 @@ import { isYmd } from '@/lib/datetime-policy'
 import { parsePayCycle } from '@/lib/pay-cycle'
 import { parseMoney, parseOptionalMoney } from '@/lib/pay-run'
 import { prisma } from '@/lib/prisma'
-import { canViewStaffSensitiveFields } from '@/lib/roles'
+import { canAccessPayroll, canViewStaffSensitiveFields } from '@/lib/roles'
 import { getSessionFromRequest } from '@/lib/session'
 import { loanThisPay, parseLoanTermUnit, previewStaffLoan } from '@/lib/staff-loan'
 import {
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 async function requireSensitive(request: NextRequest) {
   const session = await getSessionFromRequest(request)
   if (!session) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (!canViewStaffSensitiveFields(session.role)) {
+  if (!canViewStaffSensitiveFields(session.role) || !canAccessPayroll(session.role)) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
   return { session }

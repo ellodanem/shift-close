@@ -43,9 +43,15 @@ export function isOperationsManagerRole(role: string): boolean {
   return normalizeAppRole(role) === 'operations_manager'
 }
 
-/** Accountant login: Accountant Books and payroll. Not the station menu. */
+/** Accountant login: Accountant Books. Not the station menu. */
 export function isAccountantRole(role: string): boolean {
   return normalizeAppRole(role) === 'accountant'
+}
+
+/** Pay runs, payroll settings, payslips, and staff loans. Hidden from shareholder and accountant. */
+export function canAccessPayroll(role: string): boolean {
+  const r = normalizeAppRole(role)
+  return r !== 'stakeholder' && r !== 'accountant'
 }
 
 /** Accountant Books: admin, manager, accountant, and stakeholder. */
@@ -103,7 +109,7 @@ export function isSupervisorLike(role: string): boolean {
   return r === 'supervisor' || r === 'senior_supervisor'
 }
 
-/** NIC, bank account, and pay rates — admin, manager, operations manager, stakeholder, and accountant. */
+/** NIC — admin, manager, operations manager, stakeholder, and accountant. Pay rates also need payroll access. */
 export function canViewStaffSensitiveFields(role: string): boolean {
   return (
     isFullAccessRole(role) ||
@@ -119,15 +125,12 @@ export function canViewStaffSensitiveFields(role: string): boolean {
  */
 const STAKEHOLDER_PEOPLE_PREFIXES = [
   '/staff',
-  '/payroll',
-  '/pay-run',
   '/roster',
   '/attendance',
   '/time-off',
   '/applications',
   '/api/staff',
   '/api/staff-roles',
-  '/api/pay-runs',
   '/api/roster',
   '/api/attendance',
   '/api/time-off',
@@ -145,24 +148,13 @@ export function isAccountantBooksPath(pathname: string): boolean {
   return pathMatchesPrefix(pathname, '/accounting') || pathMatchesPrefix(pathname, '/api/accounting')
 }
 
-/**
- * Payroll screens and the calls those screens make.
- * Pay-period writes, the staff directory, and the rest of People stay closed.
- */
-export function isAccountantPayrollPath(pathname: string): boolean {
+/** Pay-run screens and the APIs those screens call. */
+export function isPayrollFeaturePath(pathname: string): boolean {
   if (pathMatchesPrefix(pathname, '/payroll')) return true
   if (pathMatchesPrefix(pathname, '/pay-run')) return true
   if (pathMatchesPrefix(pathname, '/api/pay-runs')) return true
-  if (pathname === '/api/attendance/pay-period') return true
-  if (pathname === '/api/pay-days') return true
-  return /^\/api\/staff\/[^/]+$/.test(pathname)
-}
-
-/** Pay-run changes, and the rate update a pay run saves onto a staff record. */
-export function isAccountantPayrollWrite(pathname: string, method: string): boolean {
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false
-  if (pathMatchesPrefix(pathname, '/api/pay-runs')) return true
-  return method === 'PATCH' && /^\/api\/staff\/[^/]+$/.test(pathname)
+  if (pathMatchesPrefix(pathname, '/api/attendance/pay-period/staff-payroll')) return true
+  return /^\/api\/staff\/[^/]+\/(payslips|loan)$/.test(pathname)
 }
 
 export function isStakeholderPeoplePath(pathname: string): boolean {

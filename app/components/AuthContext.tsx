@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { canLogCallOut } from '@/lib/call-outs'
 import {
+  canAccessPayroll,
   canEditRoster,
   canManageAppUsers,
   canViewStaffSensitiveFields,
@@ -43,6 +44,7 @@ interface AuthContextValue {
   canEditRoster: boolean
   canManageUsers: boolean
   canViewStaffSensitive: boolean
+  canAccessPayroll: boolean
   isFullAccess: boolean
   isStakeholder: boolean
   isSupervisorLike: boolean
@@ -164,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canEditRoster: canEditRoster(role),
     canManageUsers: canManageAppUsers(role),
     canViewStaffSensitive: canViewStaffSensitiveFields(role),
+    canAccessPayroll: canAccessPayroll(role),
     isFullAccess: isFullAccessRole(role),
     isStakeholder: normalizeAppRole(role) === 'stakeholder',
     isSupervisorLike: isSupervisorLike(role),

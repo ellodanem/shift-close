@@ -1,4 +1,4 @@
-import { canViewStaffSensitiveFields } from '@/lib/roles'
+import { canAccessPayroll, canViewStaffSensitiveFields } from '@/lib/roles'
 
 export function redactStaffRecord<
   T extends {
@@ -15,10 +15,10 @@ export function redactStaffRecord<
     taxNumber?: unknown
   }
 >(staff: T, role: string): T {
-  if (canViewStaffSensitiveFields(role)) return staff
+  if (canViewStaffSensitiveFields(role) && canAccessPayroll(role)) return staff
   return {
     ...staff,
-    nicNumber: null,
+    ...(canViewStaffSensitiveFields(role) ? {} : { nicNumber: null }),
     bankName: null,
     accountNumber: null,
     hourlyRate: null,
