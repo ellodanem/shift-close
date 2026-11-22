@@ -9,8 +9,7 @@ import {
   isShiftFullyReviewed,
   getListDisplayOverShort,
   getShiftListOkKind,
-  OS_REVIEW_THRESHOLD,
-  calculateShiftClose
+  OS_REVIEW_THRESHOLD
 } from '@/lib/calculations'
 import type { ShiftType } from '@/lib/types'
 import { compareShiftSupervisorCandidates, isShiftSupervisorCandidate } from '@/lib/staff-role'
@@ -120,6 +119,7 @@ export default function ShiftDetailPage() {
   const [osReviewedInput, setOsReviewedInput] = useState('')
   const [savingOsReviewed, setSavingOsReviewed] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
   const [showChangeLog, setShowChangeLog] = useState(false)
   const [showNoteHistory, setShowNoteHistory] = useState(false)
@@ -505,225 +505,262 @@ export default function ShiftDetailPage() {
     }
   }
   
-  // Handle closing shift with confirmation
   const handleCloseShift = () => {
     setShowCloseConfirm(true)
   }
-  
-  const confirmCloseShift = async () => {
-    setShowCloseConfirm(false)
+
+  const confirmCloseShift = async (goToEndOfDay: boolean) => {
+    if (!shift || closing) return
+    setClosing(true)
     try {
       const missingFields = getMissingFields({
         ...editData,
         deposits: editData.deposits
       })
-      const calculated = calculateShiftClose({
-        ...editData,
-        deposits: editData.deposits
-      } as any)
       const fullyReviewed = isShiftFullyReviewed({
         notes: editData.notes,
         hasMissingHardCopyData,
         missingDataNotes,
         missingFields,
-        osReviewed: shift?.osReviewed,
-        osLegitAsIs: shift?.osLegitAsIs
+        osReviewed: shift.osReviewed,
+        osLegitAsIs: shift.osLegitAsIs
       })
-      const statusToSet = fullyReviewed ? 'reviewed' : 'closed'
+      const statusToSet = isReopened ? 'closed' : fullyReviewed ? 'reviewed' : 'closed'
+      const payload = isReopened
+        ? (() => {
+            const { date: _date, shift: _shiftType, ...recloseData } = editData
+            return {
+              ...recloseData,
+              supervisorId: supervisorId || null,
+              deposits: JSON.stringify(recloseData.deposits),
+              depositBagNumbers: normalizeBagNumbers(recloseData.depositBagNumbers),
+              status: 'closed' as const
+            }
+          })()
+        : {
+            ...editData,
+            supervisorId: supervisorId || null,
+            deposits: JSON.stringify(editData.deposits),
+            depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers),
+            status: statusToSet
+          }
 
       const res = await fetch(`/api/shifts/${shift.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...editData,
-          supervisorId: supervisorId || null,
-          deposits: JSON.stringify(editData.deposits),
-          depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers),
-          status: statusToSet
-        })
+        body: JSON.stringify(payload)
       })
       if (res.ok) {
         const updated = await res.json()
         setShift(updated)
-        // Clear localStorage after successful close
+        if (updated.corrections) {
+          setChangedFields(new Set<string>(updated.corrections.map((c: { field: string }) => c.field)))
+        }
         localStorage.removeItem(`${DRAFT_STORAGE_KEY}-${shift.id}`)
-        alert('Shift closed successfully!')
-        router.push('/shifts')
+        setShowCloseConfirm(false)
+        if (goToEndOfDay) {
+          router.push(endOfDayPath(updated.date || editData.date))
+        }
       } else {
-        alert('Failed to close shift')
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
+        alert(`Failed to close shift: ${errorData.error || 'Unknown error'}`)
       }
     } catch (err) {
       console.error('Error closing shift:', err)
-      alert('Failed to close shift')
+      alert(`Failed to close shift: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setClosing(false)
     }
   }
   
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-4 pb-10 sm:p-8">
-      {/* Close Confirmation Modal */}
       {showCloseConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Close Shift?</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to close this shift? Your data is saved locally, so you can come back later if needed. Once closed, the shift will be marked as complete.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div
+            className="mx-4 w-full max-w-md rounded-lg bg-white p-6"
+            role="dialog"
+            aria-labelledby="close-shift-title"
+            aria-modal="true"
+          >
+            <h3 id="close-shift-title" className="mb-2 text-lg font-semibold text-gray-900">
+              {isReopened ? 'Re-close this shift?' : 'Close this shift?'}
+            </h3>
+            <p className="mb-6 text-sm text-gray-600">
+              {isReopened
+                ? 'Changes will remain audited. End of Day is the next place for scans and the day total.'
+                : 'The shift is marked complete. End of Day is the next place for scans and the day total.'}
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
-                onClick={() => setShowCloseConfirm(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                type="button"
+                onClick={() => !closing && setShowCloseConfirm(false)}
+                className="px-3 py-2 text-sm font-semibold text-gray-600 hover:underline"
+                disabled={closing}
               >
                 Cancel
               </button>
               <button
-                onClick={confirmCloseShift}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                type="button"
+                onClick={() => void confirmCloseShift(false)}
+                disabled={closing}
+                className="rounded border border-blue-400 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
               >
-                Close Shift
+                {closing ? 'Closing…' : isReopened ? 'Re-close Shift' : 'Close Shift'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCloseShift(true)}
+                disabled={closing}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {closing ? 'Closing…' : 'Close and End of Day'}
               </button>
             </div>
           </div>
         </div>
       )}
-      
+
       <div className="mx-auto max-w-4xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-            END OF SHIFT{" "}
-            {isDraft && <span className="text-yellow-600 text-lg">(DRAFT - Editable)</span>}
-            {isReopened && !isDraft && (
-              <span className="text-orange-600 text-lg ml-2">(REOPENED - Audited Changes)</span>
-            )}
-          </h1>
-          <div className="flex flex-wrap gap-2">
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">End of Shift</h1>
             {isDraft ? (
-              <>
-                <button
-                  onClick={handleSaveDraft}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold"
-                >
-                  Save Draft
-                </button>
-                <button
-                  onClick={handleCloseShift}
-                  className="px-4 py-2 bg-green-600 text-white rounded font-semibold"
-                >
-                  Close Shift
-                </button>
-              </>
+              <span className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
+                Draft
+              </span>
             ) : isReopened ? (
-              <>
-                <button
-                  onClick={async () => {
-                    if (!shift) return
-                    try {
-                      const res = await fetch(`/api/shifts/${shift.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          ...editData,
-                          supervisorId: supervisorId || null,
-                          deposits: JSON.stringify(editData.deposits),
-                          depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers)
+              <span className="inline-flex items-center rounded-full border border-orange-300 bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">
+                Reopened
+              </span>
+            ) : shift.status === 'reviewed' ? (
+              <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                Reviewed
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                Closed
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="This shift">
+              {isDraft ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    className="rounded border border-blue-400 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    Save Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseShift}
+                    className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                  >
+                    Close Shift
+                  </button>
+                </>
+              ) : isReopened ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!shift) return
+                      try {
+                        const res = await fetch(`/api/shifts/${shift.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            ...editData,
+                            supervisorId: supervisorId || null,
+                            deposits: JSON.stringify(editData.deposits),
+                            depositBagNumbers: normalizeBagNumbers(editData.depositBagNumbers)
+                          })
                         })
-                      })
-                      if (res.ok) {
-                        const updated = await res.json()
-                        setShift(updated)
-                        // Refresh changedFields from corrections so highlights show
-                        if (updated.corrections) {
-                          const changed = new Set<string>(updated.corrections.map((c: any) => c.field as string))
-                          setChangedFields(changed)
+                        if (res.ok) {
+                          const updated = await res.json()
+                          setShift(updated)
+                          if (updated.corrections) {
+                            const changed = new Set<string>(updated.corrections.map((c: { field: string }) => c.field))
+                            setChangedFields(changed)
+                          }
+                          alert('Changes saved.')
+                        } else {
+                          alert('Failed to save changes')
                         }
-                        alert('Changes saved successfully.')
-                      } else {
+                      } catch (err) {
+                        console.error('Error saving reopened shift:', err)
                         alert('Failed to save changes')
                       }
-                    } catch (err) {
-                      console.error('Error saving reopened shift:', err)
-                      alert('Failed to save changes')
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-semibold"
-                >
-                  Save Changes
-                </button>
+                    }}
+                    className="rounded border border-blue-400 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseShift}
+                    className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                  >
+                    Re-close Shift
+                  </button>
+                </>
+              ) : (
                 <button
+                  type="button"
                   onClick={async () => {
                     if (!shift) return
-                    const confirmed = window.confirm('Re-close this shift? Changes will remain audited.')
+                    const confirmed = window.confirm('Reopen this closed shift for audited changes?')
                     if (!confirmed) return
                     try {
-                      // Exclude date and shift from re-close request (they can't be changed)
-                      const { date, shift: shiftType, ...recloseData } = editData
                       const res = await fetch(`/api/shifts/${shift.id}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          ...recloseData,
-                          supervisorId: supervisorId || null,
-                          deposits: JSON.stringify(recloseData.deposits),
-                          depositBagNumbers: normalizeBagNumbers(recloseData.depositBagNumbers),
-                          status: 'closed'
-                        })
+                        body: JSON.stringify({ status: 'reopened' })
                       })
                       if (res.ok) {
                         const updated = await res.json()
                         setShift(updated)
-                        // Refresh changedFields from corrections so highlights show
-                        if (updated.corrections) {
-                          const changed = new Set<string>(updated.corrections.map((c: any) => c.field as string))
-                          setChangedFields(changed)
-                        }
-                        alert('Shift re-closed successfully.')
+                        alert('Shift reopened for audited changes.')
                       } else {
-                        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
-                        console.error('Failed to re-close shift:', errorData)
-                        alert(`Failed to re-close shift: ${errorData.error || 'Unknown error'}`)
+                        alert('Failed to reopen shift')
                       }
                     } catch (err) {
-                      console.error('Error re-closing shift:', err)
-                      alert(`Failed to re-close shift: ${err instanceof Error ? err.message : 'Unknown error'}`)
-                    }
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded font-semibold"
-                >
-                  Re-close Shift
-                </button>
-              </>
-            ) : (
-              // Closed / reviewed shift - allow reopening
-              <button
-                onClick={async () => {
-                  if (!shift) return
-                  const confirmed = window.confirm('Reopen this closed shift for audited changes?')
-                  if (!confirmed) return
-                  try {
-                    const res = await fetch(`/api/shifts/${shift.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ status: 'reopened' })
-                    })
-                    if (res.ok) {
-                      const updated = await res.json()
-                      setShift(updated)
-                      alert('Shift reopened for audited changes.')
-                    } else {
+                      console.error('Error reopening shift:', err)
                       alert('Failed to reopen shift')
                     }
-                  } catch (err) {
-                    console.error('Error reopening shift:', err)
-                    alert('Failed to reopen shift')
-                  }
-                }}
-                className="px-4 py-2 bg-orange-500 text-white rounded font-semibold hover:bg-orange-600"
+                  }}
+                  className="rounded border border-orange-300 bg-white px-4 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-50"
+                >
+                  Reopen Shift
+                </button>
+              )}
+            </div>
+            <div className="hidden min-h-[36px] w-px self-stretch bg-gray-300 sm:block" aria-hidden="true" />
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="This day">
+              <Link
+                href={endOfDayPath(isEditable ? editData.date : shift.date)}
+                className={
+                  isDraft || isReopened
+                    ? 'rounded border border-blue-600 bg-white px-4 py-2 text-center text-sm font-semibold text-blue-700 hover:bg-blue-50'
+                    : 'rounded bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700'
+                }
               >
-                Reopen Shift
-              </button>
-            )}
+                End of Day
+              </Link>
+              <Link
+                href={depositComparisonsPath(isEditable ? editData.date : shift.date)}
+                className="px-1 py-2 text-sm font-semibold text-blue-700 hover:underline"
+              >
+                Review deposits
+              </Link>
+            </div>
             <button
+              type="button"
               onClick={() => router.push('/shifts')}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded"
+              className="px-1 py-2 text-sm font-semibold text-gray-600 hover:underline"
             >
               Back to List
             </button>
@@ -1175,32 +1212,6 @@ export default function ShiftDetailPage() {
               )}
             </>
           )}
-        </div>
-        
-        {/* Document Scans - Link to End of Day */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">📄 Document Scans</h3>
-              <p className="text-sm text-gray-600">
-                View and manage deposit and debit scans for this day on the End of Day page.
-              </p>
-            </div>
-            <div className="flex flex-col items-stretch gap-2 sm:items-end sm:ml-4">
-              <Link
-                href={endOfDayPath(shift.date)}
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 whitespace-nowrap text-center"
-              >
-                Continue to End of Day
-              </Link>
-              <Link
-                href={depositComparisonsPath(shift.date)}
-                className="text-sm font-medium text-blue-700 hover:underline text-center sm:text-right"
-              >
-                Review deposits for this date
-              </Link>
-            </div>
-          </div>
         </div>
         
         {/* Missing Data & Over/Short Explanation - Editable */}
