@@ -143,6 +143,23 @@ function shiftListWeight(shift: string) {
   return 0
 }
 
+function shiftLabelClass(shift: string) {
+  if (shift === '6-1') return 'border-green-300 bg-green-100 text-green-800'
+  if (shift === '1-9') return 'border-blue-300 bg-blue-100 text-blue-800'
+  if (shift === '7:30 - 2') return 'border-purple-300 bg-purple-100 text-purple-800'
+  return 'border-gray-300 bg-gray-100 text-gray-800'
+}
+
+function ShiftLabel({ shift }: { shift: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${shiftLabelClass(shift)}`}
+    >
+      {shift}
+    </span>
+  )
+}
+
 function sortShiftList(data: Shift[]): Shift[] {
   return [...data].sort((a, b) => {
     if (a.date !== b.date) {
@@ -603,8 +620,9 @@ export default function ShiftsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-sm text-gray-600">
-                        {shift.shift} · {shift.supervisor}
+                      <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-600">
+                        <ShiftLabel shift={shift.shift} />
+                        <span>{shift.supervisor}</span>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -707,7 +725,9 @@ export default function ShiftsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{shift.shift}</td>
+                      <td className="px-4 py-3">
+                        <ShiftLabel shift={shift.shift} />
+                      </td>
                       <td className="px-4 py-3 text-gray-900">{shift.supervisor}</td>
                       {showOverShort && (
                         <td
