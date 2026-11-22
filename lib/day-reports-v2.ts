@@ -18,6 +18,7 @@ export async function buildDayReportsV2(options?: BuildDayReportsOptions): Promi
     tank: tanks.get(day.date) as DayTankCheck,
     reconcile: reconcileDay(
       day.shifts.map((s) => ({
+        id: s.id,
         shift: s.shift,
         supervisor: s.supervisor,
         systemCash: s.systemCash,

@@ -51,6 +51,7 @@ export type CstoreSnapshot = {
 }
 
 export type ReconcileShiftInput = {
+  id?: string
   shift: string
   supervisor: string
   systemCash: number
@@ -110,6 +111,7 @@ export type DepositCheck = {
 }
 
 export type ReconcileShiftRow = {
+  id?: string
   shift: string
   supervisor: string
   fleet: number
@@ -221,6 +223,7 @@ export function reconcileDay(
   }
 
   const shiftRows: ReconcileShiftRow[] = shifts.map((s) => ({
+    id: s.id,
     shift: s.shift,
     supervisor: s.supervisor,
     fleet: s.systemFleet,

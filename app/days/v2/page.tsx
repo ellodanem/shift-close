@@ -397,14 +397,23 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
             </thead>
             <tbody className="tabular-nums">
               {r.shifts.map((s) => (
-                <tr key={s.shift} className="border-b border-gray-100">
+                <tr key={s.id ?? s.shift} className="border-b border-gray-100">
                   <td className="px-2 py-1.5 text-left">
                     <span
                       className={`mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle ${
                         s.missingPos ? 'bg-red-600' : 'bg-green-600'
                       }`}
                     />
-                    {s.shift}
+                    {s.id ? (
+                      <Link
+                        href={`/shifts/${s.id}`}
+                        className="font-medium text-blue-800 hover:underline"
+                      >
+                        {s.shift}
+                      </Link>
+                    ) : (
+                      s.shift
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-left">{s.supervisor}</td>
                   <td className="px-2 py-1.5 text-right">{formatMoney(s.fleet)}</td>
