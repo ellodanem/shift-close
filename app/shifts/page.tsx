@@ -73,12 +73,16 @@ function computeShiftListDisplay(shift: Shift) {
   return { hideListOverShort, netOS, okKind }
 }
 
-function DraftCloseButton({ onClose }: { onClose: () => void }) {
+function canQuickClose(status?: string) {
+  return status === 'draft' || status === 'reopened'
+}
+
+function DraftCloseButton({ onClose, reopened }: { onClose: () => void; reopened?: boolean }) {
   return (
     <button
       type="button"
       className="inline-flex items-center rounded-full border border-green-700 bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700"
-      title="Close this saved draft"
+      title={reopened ? 'Close this reopened shift' : 'Close this saved draft'}
       onClick={(e) => {
         e.stopPropagation()
         onClose()
@@ -612,8 +616,11 @@ export default function ShiftsPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <ShiftStatusBadge shift={shift} okKind={okKind} />
-                      {shift.status === 'draft' && (
-                        <DraftCloseButton onClose={() => setCloseTarget(shift)} />
+                      {canQuickClose(shift.status) && (
+                        <DraftCloseButton
+                          reopened={shift.status === 'reopened'}
+                          onClose={() => setCloseTarget(shift)}
+                        />
                       )}
                     </div>
                   </div>
@@ -729,8 +736,11 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-center text-sm">
                         <div className="inline-flex items-center justify-center gap-2">
                           <ShiftStatusBadge shift={shift} okKind={okKind} />
-                          {shift.status === 'draft' && (
-                            <DraftCloseButton onClose={() => setCloseTarget(shift)} />
+                          {canQuickClose(shift.status) && (
+                            <DraftCloseButton
+                              reopened={shift.status === 'reopened'}
+                              onClose={() => setCloseTarget(shift)}
+                            />
                           )}
                         </div>
                       </td>
@@ -750,7 +760,10 @@ export default function ShiftsPage() {
             <p className="mb-6 text-gray-600">
               {closeTarget.date} {closeTarget.shift}
               {closeTarget.supervisor ? ` (${closeTarget.supervisor})` : ''} will be marked closed.
-              Closing a saved draft records the shift as complete. You can reopen it later if something still needs to change.
+              {closeTarget.status === 'reopened'
+                ? ' This reopened shift will be closed again, and changes already recorded stay audited.'
+                : ' Closing a saved draft records the shift as complete.'}{' '}
+              You can reopen it later if something still needs to change.
             </p>
             <div className="flex justify-end gap-3">
               <button
