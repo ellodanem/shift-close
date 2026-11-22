@@ -341,7 +341,9 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
   const [showShifts, setShowShifts] = useState(false)
   const [showMini, setShowMini] = useState(false)
   const r = day.reconcile
-  const notes = [...r.shiftWarnings, ...r.notes, ...day.tank.notes]
+  const shiftNotes = day.shifts
+    .map((s) => ({ shift: s.shift, supervisor: s.supervisor, text: (s.notes || '').trim() }))
+    .filter((s) => s.text.length > 0)
   const showTank =
     day.tank.hasReading || day.tank.grades.some((g) => g.cstoreOpening !== null || g.cstoreStick !== null)
 
@@ -370,16 +372,15 @@ function DayStatement({ day, onRefresh }: { day: DayReportV2; onRefresh: () => v
       {showTank ? <TankTable tank={day.tank} /> : null}
 
       <h3 className="mb-1 mt-5 text-sm font-semibold text-gray-900">Notes</h3>
-      <div className="space-y-1 text-sm">
-        {notes.map((n, i) => (
-          <p key={i} className={i < r.shiftWarnings.length ? 'text-gray-900' : 'text-gray-600'}>
-            {n}
+      <div className="space-y-2 text-sm text-gray-800">
+        {shiftNotes.map((s) => (
+          <p key={s.shift} className="whitespace-pre-wrap">
+            <span className="font-medium text-gray-900">{s.shift}</span>
+            {s.supervisor ? <span className="text-gray-500"> {s.supervisor}</span> : null}
+            {': '}
+            {s.text}
           </p>
         ))}
-        {!r.hasCstore ? (
-          <p className="text-gray-600">Sales fill in once the Cstore daily report is in.</p>
-        ) : null}
-        {notes.length === 0 && r.hasCstore ? <p className="text-gray-600">Nothing to flag.</p> : null}
       </div>
 
       {showShifts ? (
