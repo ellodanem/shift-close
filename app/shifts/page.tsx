@@ -74,6 +74,22 @@ function computeShiftListDisplay(shift: Shift) {
   return { hideListOverShort, netOS, hasNotes, okKind }
 }
 
+function DraftCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center rounded-full border border-green-700 bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700"
+      title="Close this saved draft"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose()
+      }}
+    >
+      Close
+    </button>
+  )
+}
+
 function ShiftStatusBadge({ shift, okKind }: { shift: Shift; okKind: ShiftListOkKind }) {
   if (shift.status === 'draft') {
     return (
@@ -227,6 +243,8 @@ export default function ShiftsPage() {
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const [rangeLoading, setRangeLoading] = useState(false)
+  const [closeTarget, setCloseTarget] = useState<Shift | null>(null)
+  const [closing, setClosing] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const loadedRangeKeys = useRef(new Set<string>())
   // Close custom picker when clicking outside
@@ -559,7 +577,12 @@ export default function ShiftsPage() {
                         {shift.shift} · {shift.supervisor}
                       </div>
                     </div>
-                    <ShiftStatusBadge shift={shift} okKind={okKind} />
+                    <div className="flex shrink-0 items-center gap-2">
+                      <ShiftStatusBadge shift={shift} okKind={okKind} />
+                      {shift.status === 'draft' && (
+                        <DraftCloseButton onClose={() => setCloseTarget(shift)} />
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
@@ -711,7 +734,12 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-right text-gray-900">{shift.diesel.toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-gray-900">{(shift.totalDeposits || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-center text-sm">
-                        <ShiftStatusBadge shift={shift} okKind={okKind} />
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <ShiftStatusBadge shift={shift} okKind={okKind} />
+                          {shift.status === 'draft' && (
+                            <DraftCloseButton onClose={() => setCloseTarget(shift)} />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -721,6 +749,62 @@ export default function ShiftsPage() {
           </table>
         </div>
       </div>
+
+      {closeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Close this shift?</h3>
+            <p className="mb-6 text-gray-600">
+              {closeTarget.date} {closeTarget.shift}
+              {closeTarget.supervisor ? ` (${closeTarget.supervisor})` : ''} will be marked closed.
+              Closing a saved draft records the shift as complete. You can reopen it later if something still needs to change.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!closing) setCloseTarget(null)
+                }}
+                className="rounded bg-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={closing}
+                onClick={async () => {
+                  const target = closeTarget
+                  setClosing(true)
+                  try {
+                    const res = await fetch(`/api/shifts/${target.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'closed' })
+                    })
+                    if (!res.ok) {
+                      const error = await res.json().catch(() => ({}))
+                      alert(error.error || 'Failed to close shift')
+                      return
+                    }
+                    setShifts((prev) =>
+                      prev.map((s) => (s.id === target.id ? { ...s, status: 'closed' } : s))
+                    )
+                    setCloseTarget(null)
+                  } catch (err) {
+                    console.error('Error closing shift:', err)
+                    alert('Failed to close shift')
+                  } finally {
+                    setClosing(false)
+                  }
+                }}
+                className="rounded bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {closing ? 'Closing…' : 'Close Shift'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TEMPORARY: Clear All Modal - Remove before production */}
       {showClearModal && (
