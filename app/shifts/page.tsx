@@ -61,7 +61,6 @@ function computeShiftListDisplay(shift: Shift) {
           overShortTotal: shift.overShortTotal,
           osReviewed: shift.osReviewed
         })
-  const hasNotes = shift.notes.trim() !== ''
   const okKind: ShiftListOkKind =
     shift.status === 'closed'
       ? getShiftListOkKind({
@@ -71,7 +70,7 @@ function computeShiftListDisplay(shift: Shift) {
           osLegitAsIs: shift.osLegitAsIs
         })
       : 'needs_review'
-  return { hideListOverShort, netOS, hasNotes, okKind }
+  return { hideListOverShort, netOS, okKind }
 }
 
 function DraftCloseButton({ onClose }: { onClose: () => void }) {
@@ -238,7 +237,7 @@ export default function ShiftsPage() {
   const [clearStep, setClearStep] = useState(1)
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [clearing, setClearing] = useState(false)
-  const [showNotesModal, setShowNotesModal] = useState<string | null>(null) // shift ID to show notes for
+  const [showOverShort, setShowOverShort] = useState(false)
   const [activeFilter, setActiveFilter] = useState<ShiftFilterType>('thisMonth')
   const [customDate, setCustomDate] = useState<string>('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
@@ -247,6 +246,26 @@ export default function ShiftsPage() {
   const [closing, setClosing] = useState(false)
   const customPickerRef = useRef<HTMLDivElement>(null)
   const loadedRangeKeys = useRef(new Set<string>())
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('shift-list-show-over-short') === '1') setShowOverShort(true)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const toggleOverShort = () => {
+    setShowOverShort((on) => {
+      const next = !on
+      try {
+        localStorage.setItem('shift-list-show-over-short', next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
   // Close custom picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -530,11 +549,25 @@ export default function ShiftsPage() {
             )}
           </div>
           </div>
-          {activeFilter !== 'all' && (
-            <span className="text-xs text-gray-600 sm:text-sm">
-              ({filteredShifts.length} shift{filteredShifts.length !== 1 ? 's' : ''})
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {activeFilter !== 'all' && (
+              <span className="text-xs text-gray-600 sm:text-sm">
+                ({filteredShifts.length} shift{filteredShifts.length !== 1 ? 's' : ''})
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={toggleOverShort}
+              aria-pressed={showOverShort}
+              className={`min-h-[44px] rounded px-3 py-2 text-xs font-semibold transition-colors sm:text-sm ${
+                showOverShort
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {showOverShort ? 'Hide over/short' : 'Show over/short'}
+            </button>
+          </div>
         </div>
 
         {/* Mobile card list */}
@@ -554,7 +587,7 @@ export default function ShiftsPage() {
           ) : (
             filteredShifts.map((shift) => {
               const missing = getShiftMissingInfo(shift)
-              const { hideListOverShort, netOS, hasNotes, okKind } = computeShiftListDisplay(shift)
+              const { hideListOverShort, netOS, okKind } = computeShiftListDisplay(shift)
 
               return (
                 <button
@@ -585,44 +618,21 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">O/S </span>
-                      <span
-                        className={`font-semibold ${netOS === null ? 'text-gray-400' : getOsColor(netOS)}`}
-                        title={
-                          hideListOverShort
-                            ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
-                            : undefined
-                        }
-                      >
-                        {netOS === null ? '--' : netOS.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-gray-500">Notes </span>
-                      {hasNotes ? (
+                    {showOverShort && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">O/S </span>
                         <span
-                          role="button"
-                          tabIndex={0}
-                          className="font-semibold text-blue-600"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setShowNotesModal(shift.id)
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setShowNotesModal(shift.id)
-                            }
-                          }}
+                          className={`font-semibold ${netOS === null ? 'text-gray-400' : getOsColor(netOS)}`}
+                          title={
+                            hideListOverShort
+                              ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
+                              : undefined
+                          }
                         >
-                          ✓
+                          {netOS === null ? '--' : netOS.toFixed(2)}
                         </span>
-                      ) : (
-                        <span className="text-gray-400">✗</span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div>
                       <span className="text-gray-500">Unleaded </span>
                       <span className="font-medium text-gray-900">{shift.unleaded.toFixed(2)}</span>
@@ -650,8 +660,9 @@ export default function ShiftsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Shift</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Supervisor</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Over/Short</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Notes</th>
+                {showOverShort && (
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Over/Short</th>
+                )}
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Unleaded</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Diesel</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Deposit Total</th>
@@ -661,26 +672,26 @@ export default function ShiftsPage() {
             <tbody>
               {rangeLoading && filteredShifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={showOverShort ? 8 : 7} className="px-4 py-8 text-center text-gray-500">
                     Loading…
                   </td>
                 </tr>
               ) : shifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={showOverShort ? 8 : 7} className="px-4 py-8 text-center text-gray-500">
                     No shifts found. Create your first shift to get started.
                   </td>
                 </tr>
               ) : filteredShifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={showOverShort ? 8 : 7} className="px-4 py-8 text-center text-gray-500">
                     No shifts found for the selected filter.
                   </td>
                 </tr>
               ) : (
                 filteredShifts.map((shift) => {
                   const missing = getShiftMissingInfo(shift)
-                  const { hideListOverShort, netOS, hasNotes, okKind } = computeShiftListDisplay(shift)
+                  const { hideListOverShort, netOS, okKind } = computeShiftListDisplay(shift)
                   
                   return (
                     <tr
@@ -698,38 +709,20 @@ export default function ShiftsPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-900">{shift.shift}</td>
                       <td className="px-4 py-3 text-gray-900">{shift.supervisor}</td>
-                      <td
-                        className={`px-4 py-3 text-right font-semibold ${
-                          netOS === null ? 'text-gray-400' : getOsColor(netOS)
-                        }`}
-                        title={
-                          hideListOverShort
-                            ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
-                            : undefined
-                        }
-                      >
-                        {netOS === null ? '--' : netOS.toFixed(2)}
-                      </td>
-                      <td 
-                        className="px-4 py-3 text-center"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (hasNotes) {
-                            setShowNotesModal(shift.id)
+                      {showOverShort && (
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${
+                            netOS === null ? 'text-gray-400' : getOsColor(netOS)
+                          }`}
+                          title={
+                            hideListOverShort
+                              ? 'Open the shift and enter O/S reviewed or mark count vs system as legit to show the figure here.'
+                              : undefined
                           }
-                        }}
-                      >
-                        {hasNotes ? (
-                          <button
-                            className="text-blue-600 hover:text-blue-800 font-semibold"
-                            title="Click to view notes"
-                          >
-                            ✓
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">✗</span>
-                        )}
-                      </td>
+                        >
+                          {netOS === null ? '--' : netOS.toFixed(2)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right text-gray-900">{shift.unleaded.toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-gray-900">{shift.diesel.toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-gray-900">{(shift.totalDeposits || 0).toFixed(2)}</td>
@@ -920,39 +913,6 @@ export default function ShiftsPage() {
         </div>
       )}
 
-      {/* Notes Modal */}
-      {showNotesModal && (() => {
-        const shift = shifts.find(s => s.id === showNotesModal)
-        if (!shift || !shift.notes.trim()) return null
-        
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border-2 border-gray-300 bg-gray-50 shadow-xl">
-              <div className="sticky top-0 bg-gray-50 border-b-2 border-gray-300 px-6 py-4 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Notes - {shift.date} ({shift.shift})
-                </h3>
-                <button
-                  onClick={() => setShowNotesModal(null)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="p-6">
-                <div className="mb-4 text-sm text-gray-600">
-                  <span className="font-medium">Supervisor:</span> {shift.supervisor}
-                </div>
-                <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
-                  <p className="text-gray-900 whitespace-pre-wrap">{shift.notes}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }
