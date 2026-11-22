@@ -115,29 +115,22 @@ function ShiftStatusBadge({ shift, okKind }: { shift: Shift; okKind: ShiftListOk
       </span>
     )
   }
-  if (okKind === 'ok_green') {
-    return (
-      <span
-        className="inline-flex items-center rounded-full border border-green-300 bg-green-100 px-2 py-1 text-xs font-semibold text-green-800"
-        title="OK"
-      >
-        OK
-      </span>
-    )
-  }
-  if (okKind === 'ok_blue') {
+  if (okKind === 'ok_green' || okKind === 'ok_blue') {
     return (
       <span
         className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800"
-        title="Breakdown notes missing"
+        title={okKind === 'ok_blue' ? 'Breakdown notes missing' : 'Closed'}
       >
-        OK
+        Closed
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-800">
-      Needs review
+    <span
+      className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-800"
+      title="Needs review"
+    >
+      Closed
     </span>
   )
 }

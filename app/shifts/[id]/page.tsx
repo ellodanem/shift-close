@@ -356,15 +356,15 @@ export default function ShiftDetailPage() {
   const deposits = shift ? parseDeposits(typeof shift.deposits === 'string' ? shift.deposits : JSON.stringify((shift as any).deposits ?? [])) : []
   const rawOverShort = shift ? shift.overShortTotal || 0 : 0
   const displayOverShort = shift ? getListDisplayOverShort(shift) : 0
-  const hasRedFlag = shift
-    ? shift.status === 'closed' &&
-      getShiftListOkKind({
+  const listOkKind = shift
+    ? getShiftListOkKind({
         status: shift.status,
         notes: shift.notes,
         osReviewed: shift.osReviewed,
         osLegitAsIs: shift.osLegitAsIs
-      }) === 'needs_review'
-    : false
+      })
+    : 'needs_review'
+  const hasRedFlag = shift?.status === 'closed' && listOkKind === 'needs_review'
   const isDraft = shift?.status === 'draft'
   const isReopened = shift?.status === 'reopened'
   // Editable numeric fields when draft OR reopened (reopened edits are fully audited in backend)
@@ -638,7 +638,20 @@ export default function ShiftDetailPage() {
                 Reviewed
               </span>
             ) : (
-              <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+              <span
+                className={
+                  listOkKind === 'needs_review'
+                    ? 'inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800'
+                    : 'inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800'
+                }
+                title={
+                  listOkKind === 'ok_blue'
+                    ? 'Breakdown notes missing'
+                    : listOkKind === 'needs_review'
+                      ? 'Needs review'
+                      : 'Closed'
+                }
+              >
                 Closed
               </span>
             )}
@@ -1361,9 +1374,9 @@ export default function ShiftDetailPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Green “OK” on the list: either this checkbox, or saved O/S reviewed plus notes. Blue “OK”: reviewed saved but
-              notes missing (hover: breakdown notes missing). Values within ±{OS_REVIEW_THRESHOLD} still show in green in the
-              Over/Short column even while status is “Needs review” until one of those paths is satisfied.
+              Blue “Closed” on the list: either this checkbox, or saved O/S reviewed plus notes. Yellow “Closed”: still needs
+              review. Hover blue Closed when notes are missing: breakdown notes missing. Values within ±{OS_REVIEW_THRESHOLD} still
+              show in green in the Over/Short column even while the badge is yellow Closed until one of those paths is satisfied.
             </p>
           </div>
 
