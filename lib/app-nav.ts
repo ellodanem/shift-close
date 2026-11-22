@@ -27,6 +27,8 @@ export type NavItemConfig = {
   href: string
   permission: string
   comingSoon?: boolean
+  /** Shown, but not a link. Used to lock a menu for a role. */
+  disabled?: boolean
   /** Groups tiles under a heading inside a menu. Omit for a flat list. */
   section?: string
   /** Tile opens an in-place action instead of navigating. */
@@ -45,6 +47,7 @@ export type NavTile = {
   shortcutId: HomeShortcutId
   tileClass: string
   comingSoon?: boolean
+  disabled?: boolean
   section?: string
   action?: NavItemConfig['action']
 }
@@ -306,6 +309,7 @@ export function navItemToTile(item: NavItemConfig): NavTile {
     shortcutId,
     tileClass: shortcut?.tileClass ?? FALLBACK_TILE_CLASS,
     comingSoon: item.comingSoon,
+    disabled: item.disabled,
     section: item.section,
     action: item.action
   }
@@ -633,7 +637,10 @@ export function buildFilteredNavGroups(role: string): NavGroupConfig[] {
   if (nr === 'stakeholder') {
     const financialIdx = groups.findIndex((g) => g.label === 'Financial')
     const insertAt = financialIdx >= 0 ? financialIdx + 1 : groups.length
-    groups.splice(insertAt, 0, { label: 'Accounting', items: ACCOUNTING_NAV_ITEMS })
+    groups.splice(insertAt, 0, {
+      label: 'Accounting',
+      items: ACCOUNTING_NAV_ITEMS.map((item) => ({ ...item, disabled: true }))
+    })
     // Simplified stakeholder sidebar: everything else is reached from the Home tiles.
     return groups.filter((g) => STAKEHOLDER_SIDEBAR_GROUPS.includes(g.label))
   }
