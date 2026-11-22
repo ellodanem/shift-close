@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { reconcileDay, type CstoreSnapshot, type ReconcileShiftInput } from '../lib/day-reconcile'
 import { buildRangeReport } from '../lib/day-range-report'
-import { rangePresets } from '../lib/day-range-presets'
+import { rangePresets, revenueQuickRanges } from '../lib/day-range-presets'
 import { END_OF_DAY_DEFAULT_VERSION, endOfDayEntryPath } from '../lib/end-of-day-version'
 
 const shift = (over: Partial<ReconcileShiftInput>): ReconcileShiftInput => ({
@@ -184,6 +184,19 @@ describe('rangePresets', () => {
     assert.deepEqual([byId('2026-11-09').lastMonth.from, byId('2026-11-09').lastMonth.to], ['2026-10-01', '2026-10-31'])
     assert.deepEqual([byId('2026-03-05').lastMonth.from, byId('2026-03-05').lastMonth.to], ['2026-02-01', '2026-02-28'])
     assert.deepEqual([byId('2026-01-10').lastMonth.from, byId('2026-01-10').lastMonth.to], ['2025-12-01', '2025-12-31'])
+  })
+
+  it('expected revenue quick ranges are Fri–Sun and the previous Mon–Sun (Sun 2026-11-22)', () => {
+    const ranges = Object.fromEntries(revenueQuickRanges('2026-11-22').map((p) => [p.id, p]))
+    assert.deepEqual([ranges.thisWeekend.from, ranges.thisWeekend.to], ['2026-11-20', '2026-11-22'])
+    assert.deepEqual([ranges.lastWeekend.from, ranges.lastWeekend.to], ['2026-11-13', '2026-11-15'])
+    assert.deepEqual([ranges.lastWeek.from, ranges.lastWeek.to], ['2026-11-09', '2026-11-15'])
+  })
+
+  it('this weekend is the Friday–Sunday of the current week before Friday arrives', () => {
+    const ranges = Object.fromEntries(revenueQuickRanges('2026-11-18').map((p) => [p.id, p]))
+    assert.deepEqual([ranges.thisWeekend.from, ranges.thisWeekend.to], ['2026-11-20', '2026-11-22'])
+    assert.deepEqual([ranges.lastWeekend.from, ranges.lastWeekend.to], ['2026-11-13', '2026-11-15'])
   })
 
   it('last week crosses a month boundary (Wed 2026-12-02)', () => {

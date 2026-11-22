@@ -1,6 +1,8 @@
 export type RangePresetId = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth'
 
-export type RangePreset = { id: RangePresetId; label: string; from: string; to: string }
+export type RevenueQuickRangeId = 'thisWeekend' | 'lastWeekend' | 'lastWeek'
+
+export type RangePreset = { id: RangePresetId | RevenueQuickRangeId; label: string; from: string; to: string }
 
 function parse(ymd: string): Date {
   return new Date(`${ymd}T12:00:00Z`)
@@ -24,6 +26,21 @@ function mondayOf(ymd: string): string {
 
 function lastDayOfMonth(year: number, month1to12: number): string {
   return fmt(new Date(Date.UTC(year, month1to12, 0, 12)))
+}
+
+/**
+ * Friday–Sunday inside the Monday–Sunday week that holds `todayYmd`,
+ * the Friday–Sunday before that, and the previous Monday–Sunday week.
+ */
+export function revenueQuickRanges(todayYmd: string): RangePreset[] {
+  const monday = mondayOf(todayYmd)
+  const friday = addDays(monday, 4)
+  const lastMonday = addDays(monday, -7)
+  return [
+    { id: 'thisWeekend', label: 'This weekend', from: friday, to: addDays(friday, 2) },
+    { id: 'lastWeekend', label: 'Last weekend', from: addDays(friday, -7), to: addDays(friday, -5) },
+    { id: 'lastWeek', label: 'Last week', from: lastMonday, to: addDays(lastMonday, 6) }
+  ]
 }
 
 /** The four quick ranges for the End of Day report, worked out from today's date (YYYY-MM-DD). */

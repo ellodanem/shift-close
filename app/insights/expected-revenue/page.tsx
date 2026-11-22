@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
+import { revenueQuickRanges } from '@/lib/day-range-presets'
 import { businessTodayYmd } from '@/lib/datetime-policy'
 import { ExpectedRevenueShareCard } from './ExpectedRevenueShareCard'
 
@@ -36,9 +37,9 @@ interface RevenuePayload {
 export default function ExpectedRevenuePage() {
   const todayIso = businessTodayYmd()
 
-  /** No preset range — user picks From/To, then Calculate. */
   const [startDate, setStartDate] = useState(todayIso)
   const [endDate, setEndDate] = useState(todayIso)
+  const quickRanges = revenueQuickRanges(todayIso)
   const [data, setData] = useState<RevenuePayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,8 +50,8 @@ export default function ExpectedRevenuePage() {
   const [copyError, setCopyError] = useState<string | null>(null)
   const shareCardRef = useRef<HTMLDivElement>(null)
 
-  const load = useCallback(async () => {
-    if (startDate > endDate) {
+  const load = useCallback(async (from = startDate, to = endDate) => {
+    if (from > to) {
       setError('"From" must be on or before "To".')
       setData(null)
       return
@@ -58,7 +59,7 @@ export default function ExpectedRevenuePage() {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ startDate, endDate })
+      const params = new URLSearchParams({ startDate: from, endDate: to })
       const res = await fetch(`/api/insights/expected-revenue?${params}`, { cache: 'no-store' })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -74,13 +75,13 @@ export default function ExpectedRevenuePage() {
     }
   }, [startDate, endDate])
 
-  /** Clear previous results when the range changes so totals aren’t shown for stale dates. */
-  useEffect(() => {
-    setData(null)
-    setError(null)
+  const applyRange = (from: string, to: string) => {
+    setStartDate(from)
+    setEndDate(to)
     setCopied(false)
     setCopyError(null)
-  }, [startDate, endDate])
+    void load(from, to)
+  }
 
   useEffect(() => {
     if (!copied) return
@@ -142,13 +143,36 @@ export default function ExpectedRevenuePage() {
         </p>
 
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {quickRanges.map((range) => {
+              const active = startDate === range.from && endDate === range.to
+              return (
+                <button
+                  key={range.id}
+                  type="button"
+                  onClick={() => applyRange(range.from, range.to)}
+                  aria-pressed={active}
+                  title={`${range.from} to ${range.to}`}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                    active ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {range.label}
+                </button>
+              )
+            })}
+          </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="min-w-0 flex-1 sm:max-w-[200px]">
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">From</label>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setData(null)
+                  setError(null)
+                }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -157,7 +181,11 @@ export default function ExpectedRevenuePage() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setData(null)
+                  setError(null)
+                }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
