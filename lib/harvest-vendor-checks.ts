@@ -397,7 +397,7 @@ async function createHarvestPayment(opts: {
 }) {
   return prisma.$transaction(
     async (tx) => {
-      const method = opts.paymentMethod === 'eft' ? 'eft' : 'check'
+      const method: HarvestPaymentMethod = opts.paymentMethod === 'eft' ? 'eft' : 'check'
       const existing = await tx.vendorPaymentBatch.findMany({
         where: {
           vendorId: opts.vendorId,
@@ -640,7 +640,7 @@ export async function importHarvestVendorChecks(params: {
           checkNumber: plan.checkNumber,
           paymentDate: plan.paymentDate,
           totalAmount: createdPayment.totalAmount,
-          paymentMethod: createdPayment.paymentMethod
+          paymentMethod: createdPayment.paymentMethod === 'eft' ? 'eft' : 'check'
         })
         existingBatches.push({
           id: createdPayment.batchId,
