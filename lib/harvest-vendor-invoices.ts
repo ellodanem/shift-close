@@ -16,6 +16,7 @@ export type HarvestCstoreInvoice = {
   invoiceDate: string
   amount: number
   paymentType?: string | null
+  vendor?: string | null
 }
 
 export type HarvestSuffixedInvoice = {
@@ -39,11 +40,17 @@ export type HarvestVendorInvoiceImportResult = {
   created: number
   skipped: number
   leftOut: number
+  wrongVendor: number
+  moved: number
   suffixed: HarvestSuffixedInvoice[]
   errors: HarvestVendorInvoiceError[]
+  /** Pending invoices that exist for this vendor after import, with Cstore payment text. */
+  payableInvoices: HarvestCstoreInvoice[]
 }
 
 type ExistingInvoice = {
+  id: string
+  vendorId: string
   invoiceNumber: string
   invoiceDate: Date
   amount: number
@@ -129,6 +136,16 @@ function sameHarvestedInvoice(existing: ExistingInvoice, dateYmd: string, amount
   return vendorInvoiceTotal(existing.amount, existing.vat) === roundMoney(amount)
 }
 
+/** Blank vendor column means the selected vendor; a different name is another payee. */
+export function cstoreRowVendorMatches(
+  rowVendor: string | null | undefined,
+  selectedVendor: string
+): boolean {
+  const named = normalizeVendorKey(rowVendor || '')
+  if (!named) return true
+  return named === normalizeVendorKey(selectedVendor)
+}
+
 export function matchVendorRow<T extends { name: string; cstoreName?: string | null }>(
   vendors: T[],
   cstoreLabel: string
@@ -167,6 +184,46 @@ async function countVendorInvoicesForMonth(
   })
 }
 
+function emptyImportResult(
+  cstoreName: string,
+  cstoreCount: number,
+  over: Partial<HarvestVendorInvoiceImportResult> = {}
+): HarvestVendorInvoiceImportResult {
+  return {
+    vendorId: '',
+    vendorName: cstoreName,
+    cstoreName,
+    vendorCreated: false,
+    isVatRegistered: false,
+    cstoreCount,
+    shiftCloseCount: 0,
+    created: 0,
+    skipped: 0,
+    leftOut: 0,
+    wrongVendor: 0,
+    moved: 0,
+    suffixed: [],
+    errors: [],
+    payableInvoices: [],
+    ...over
+  }
+}
+
+function payableFromRaw(
+  raw: HarvestCstoreInvoice,
+  invoiceNumber: string,
+  dateYmd: string,
+  amount: number
+): HarvestCstoreInvoice {
+  return {
+    invoiceNumber,
+    invoiceDate: dateYmd,
+    amount,
+    paymentType: raw.paymentType ?? null,
+    vendor: raw.vendor ?? null
+  }
+}
+
 export async function importHarvestVendorInvoices(params: {
   cstoreVendorName: string
   invoices: HarvestCstoreInvoice[]
@@ -180,20 +237,7 @@ export async function importHarvestVendorInvoices(params: {
   }
 
   if (isRubisWestIndiesVendor(cstoreName)) {
-    return {
-      vendorId: '',
-      vendorName: cstoreName,
-      cstoreName,
-      vendorCreated: false,
-      isVatRegistered: false,
-      cstoreCount,
-      shiftCloseCount: 0,
-      created: 0,
-      skipped: cstoreCount,
-      leftOut: 0,
-      suffixed: [],
-      errors: []
-    }
+    return emptyImportResult(cstoreName, cstoreCount, { skipped: cstoreCount })
   }
 
   await ensureHarvestSchema()
@@ -204,25 +248,14 @@ export async function importHarvestVendorInvoices(params: {
   let vendor = matchVendorRow(vendors, cstoreName)
 
   if (!vendor) {
-    return {
-      vendorId: '',
-      vendorName: cstoreName,
-      cstoreName,
-      vendorCreated: false,
-      isVatRegistered: false,
-      cstoreCount,
-      shiftCloseCount: 0,
-      created: 0,
-      skipped: 0,
-      leftOut: 0,
-      suffixed: [],
+    return emptyImportResult(cstoreName, cstoreCount, {
       errors: [
         {
           invoiceNumber: '',
           message: `No Shift Close vendor mapped for Cstore "${cstoreName}". Set Cstore name on the correct vendor (Vendors → Cstore names), then re-run.`
         }
       ]
-    }
+    })
   } else if (!vendor.cstoreName) {
     vendor = await prisma.vendor.update({
       where: { id: vendor.id },
@@ -232,17 +265,49 @@ export async function importHarvestVendorInvoices(params: {
   }
 
   const vatRate = vendor.isVatRegistered ? await getVendorVatRate() : 0
-  const existing = await prisma.vendorInvoice.findMany({
-    where: { vendorId: vendor.id },
-    select: { invoiceNumber: true, invoiceDate: true, amount: true, vat: true, status: true }
-  })
+  const monthBounds =
+    params.year && params.month ? monthUtcBounds(params.year, params.month) : null
+  const [existing, otherMonthInvoices] = await Promise.all([
+    prisma.vendorInvoice.findMany({
+      where: { vendorId: vendor.id },
+      select: {
+        id: true,
+        vendorId: true,
+        invoiceNumber: true,
+        invoiceDate: true,
+        amount: true,
+        vat: true,
+        status: true
+      }
+    }),
+    prisma.vendorInvoice.findMany({
+      where: {
+        vendorId: { not: vendor.id },
+        ...(monthBounds
+          ? { invoiceDate: { gte: monthBounds.start, lte: monthBounds.end } }
+          : { status: 'pending' })
+      },
+      select: {
+        id: true,
+        vendorId: true,
+        invoiceNumber: true,
+        invoiceDate: true,
+        amount: true,
+        vat: true,
+        status: true
+      }
+    })
+  ])
   const existingNumbers = new Set(existing.map((row) => row.invoiceNumber))
 
   const suffixed: HarvestSuffixedInvoice[] = []
   const errors: HarvestVendorInvoiceError[] = []
+  const payableInvoices: HarvestCstoreInvoice[] = []
   let created = 0
   let skipped = 0
   let leftOut = 0
+  let wrongVendor = 0
+  let moved = 0
 
   for (const raw of params.invoices) {
     const invoiceNumber = String(raw.invoiceNumber || '').trim()
@@ -268,6 +333,12 @@ export async function importHarvestVendorInvoices(params: {
       continue
     }
 
+    const rowVendor = String(raw.vendor || '').trim()
+    if (isRubisWestIndiesVendor(rowVendor) || !cstoreRowVendorMatches(rowVendor, cstoreName)) {
+      wrongVendor += 1
+      continue
+    }
+
     const paid = existing.find((row) =>
       paidVendorInvoiceCovers(
         {
@@ -286,11 +357,59 @@ export async function importHarvestVendorInvoices(params: {
 
     const already = existing.find(
       (row) =>
+        row.status !== 'paid' &&
         isOriginalOrSuffixed(row.invoiceNumber, invoiceNumber) &&
         sameHarvestedInvoice(row, dateYmd, total)
     )
     if (already) {
       skipped += 1
+      payableInvoices.push(payableFromRaw(raw, invoiceNumber, dateYmd, total))
+      continue
+    }
+
+    const paidElsewhere = otherMonthInvoices.find(
+      (row) =>
+        paidVendorInvoiceCovers(
+          {
+            invoiceNumber: row.invoiceNumber,
+            invoiceDateYmd: invoiceDateToInputValue(row.invoiceDate),
+            status: row.status
+          },
+          invoiceNumber,
+          dateYmd
+        ) && sameHarvestedInvoice(row, dateYmd, total)
+    )
+    if (paidElsewhere) {
+      skipped += 1
+      continue
+    }
+
+    const misplaced = otherMonthInvoices.find(
+      (row) =>
+        row.status !== 'paid' &&
+        isOriginalOrSuffixed(row.invoiceNumber, invoiceNumber) &&
+        sameHarvestedInvoice(row, dateYmd, total)
+    )
+    if (misplaced) {
+      try {
+        await prisma.vendorInvoice.update({
+          where: { id: misplaced.id },
+          data: { vendorId: vendor.id }
+        })
+      } catch (err) {
+        errors.push({
+          invoiceNumber,
+          message: err instanceof Error ? err.message : 'Could not move invoice to this vendor'
+        })
+        continue
+      }
+      misplaced.vendorId = vendor.id
+      existing.push(misplaced)
+      existingNumbers.add(misplaced.invoiceNumber)
+      otherMonthInvoices.splice(otherMonthInvoices.indexOf(misplaced), 1)
+      moved += 1
+      skipped += 1
+      payableInvoices.push(payableFromRaw(raw, invoiceNumber, dateYmd, total))
       continue
     }
 
@@ -366,6 +485,8 @@ export async function importHarvestVendorInvoices(params: {
 
     existingNumbers.add(storedNumber)
     existing.push({
+      id: storedNumber,
+      vendorId: vendor.id,
       invoiceNumber: storedNumber,
       invoiceDate: parseInvoiceDateToUTC(dateYmd),
       amount: split.amount,
@@ -373,6 +494,7 @@ export async function importHarvestVendorInvoices(params: {
       status: 'pending'
     })
     created += 1
+    payableInvoices.push(payableFromRaw(raw, invoiceNumber, dateYmd, total))
     if (storedNumber !== invoiceNumber) {
       suffixed.push({ original: invoiceNumber, stored: storedNumber })
     }
@@ -394,7 +516,10 @@ export async function importHarvestVendorInvoices(params: {
     created,
     skipped,
     leftOut,
+    wrongVendor,
+    moved,
     suffixed,
-    errors
+    errors,
+    payableInvoices
   }
 }

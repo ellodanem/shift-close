@@ -39,9 +39,11 @@ export async function POST(request: NextRequest) {
       if (invoiceCount > 500) {
         return NextResponse.json({ error: 'Too many invoices' }, { status: 400 })
       }
+      const method = String(check.paymentMethod || '').toLowerCase()
       checks.push({
         checkNumber: typeof check.checkNumber === 'string' ? check.checkNumber : String(check.checkNumber ?? ''),
         paymentDate: typeof check.paymentDate === 'string' ? check.paymentDate : null,
+        paymentMethod: method === 'eft' ? 'eft' : 'check',
         invoices: invoicesIn.map((invoice) => {
           const item = invoice && typeof invoice === 'object' ? (invoice as Record<string, unknown>) : {}
           return {

@@ -580,9 +580,26 @@ async function harvestVendorChecks(page, scope, vendorName, year, month, debugDi
     `[Cstore] Vendor checks "${selected.matched}" (${year}-${String(month).padStart(2, '0')})`
   )
   await clickSearch(scope)
-  const rows = await scrapeAllInvoicePages(scope)
-  const grouped = groupVendorChecks(rows)
-  const eftNote = grouped.skippedEft ? `, ${grouped.skippedEft} EFT skipped` : ''
+  const selectedNow = await readSelectedVendor(scope)
+  if (selectedNow && normalizeVendorKey(selectedNow) !== normalizeVendorKey(vendorName)) {
+    return {
+      ok: false,
+      vendor: vendorName,
+      year,
+      month,
+      checks: [],
+      skippedEft: 0,
+      skippedOther: 0,
+      message: `${vendorName}: vendor filter is "${selectedNow}", so payments were not read`
+    }
+  }
+  const scraped = await scrapeAllInvoicePages(scope)
+  const filtered = rowsForVendorImport(scraped, {
+    year,
+    month,
+    confirmedVendor: selectedNow || selected.matched
+  })
+  const grouped = groupVendorChecks(filtered.kept)
   return {
     ok: true,
     vendor: selected.matched,
@@ -593,8 +610,8 @@ async function harvestVendorChecks(page, scope, vendorName, year, month, debugDi
     skippedOther: grouped.skippedOther,
     message:
       grouped.checks.length === 0
-        ? `${selected.matched}: no check payments${eftNote}`
-        : `${selected.matched}: ${grouped.checks.length} check(s)${eftNote}`
+        ? `${selected.matched}: no check or EFT payments`
+        : `${selected.matched}: ${grouped.checks.length} payment(s)`
   }
 }
 
@@ -632,10 +649,25 @@ async function harvestOneVendor(page, scope, vendorName, year, month, debugDir, 
     `[Cstore] Vendor invoices "${selected.matched}" (${year}-${String(month).padStart(2, '0')})`
   )
   await clickSearch(scope)
+  const selectedNow = await readSelectedVendor(scope)
+  if (
+    !options.rubisLpg &&
+    selectedNow &&
+    normalizeVendorKey(selectedNow) !== normalizeVendorKey(vendorName)
+  ) {
+    return {
+      ok: false,
+      loginRequired: false,
+      vendor: vendorName,
+      year,
+      month,
+      invoices: [],
+      message: `${vendorName}: vendor filter is "${selectedNow}", so the invoice list was not read`
+    }
+  }
   let invoices = await scrapeAllInvoicePages(scope)
   let leftOut = 0
   if (options.rubisLpg) {
-    const selectedNow = await readSelectedVendor(scope)
     const filtered = rowsForLpgImport(invoices, {
       year,
       month,
@@ -644,7 +676,11 @@ async function harvestOneVendor(page, scope, vendorName, year, month, debugDir, 
     invoices = filtered.kept
     leftOut = filtered.rejected
   } else {
-    const filtered = rowsForVendorImport(invoices, { year, month })
+    const filtered = rowsForVendorImport(invoices, {
+      year,
+      month,
+      confirmedVendor: selectedNow || selected.matched
+    })
     invoices = filtered.kept
     leftOut = filtered.rejected
   }
@@ -652,7 +688,7 @@ async function harvestOneVendor(page, scope, vendorName, year, month, debugDir, 
   const leftOutNote = leftOut
     ? options.rubisLpg
       ? `; left out ${leftOut} that were not Rubis in this month`
-      : `; left out ${leftOut} outside ${monthLabel}`
+      : `; left out ${leftOut} outside ${monthLabel} or for another vendor`
     : ''
   return {
     ok: true,

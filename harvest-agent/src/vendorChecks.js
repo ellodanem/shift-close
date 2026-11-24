@@ -1,6 +1,5 @@
 /**
- * Group Cstore "By Check/EFT" rows into one check per check number.
- * EFT and anything that is not a numbered check are left out.
+ * Group Cstore "By Check/EFT" rows into one payment per check number or EFT reference.
  */
 
 function collapseText(value) {
@@ -23,7 +22,8 @@ function parsePaymentType(value) {
     return { kind: 'check', number: canonicalCheckNumber(check[1]) }
   }
   if (/\beft\b|electronic|direct debit|direct transfer/i.test(text)) {
-    return { kind: 'eft' }
+    const numbered = text.match(/(\d+)/)
+    return { kind: 'eft', number: numbered ? canonicalCheckNumber(numbered[1]) : 'EFT' }
   }
   return { kind: 'other' }
 }
@@ -45,17 +45,13 @@ function rowKey(row) {
 }
 
 function groupVendorChecks(rows) {
-  const byNumber = new Map()
+  const byKey = new Map()
   let skippedEft = 0
   let skippedOther = 0
 
   for (const row of rows || []) {
     const parsed = parsePaymentType(row.paymentType)
-    if (parsed.kind === 'eft') {
-      skippedEft += 1
-      continue
-    }
-    if (parsed.kind !== 'check') {
+    if (parsed.kind !== 'check' && parsed.kind !== 'eft') {
       skippedOther += 1
       continue
     }
@@ -68,24 +64,39 @@ function groupVendorChecks(rows) {
       continue
     }
 
-    if (!byNumber.has(parsed.number)) byNumber.set(parsed.number, [])
-    const list = byNumber.get(parsed.number)
+    const number = parsed.number || (parsed.kind === 'eft' ? 'EFT' : '')
+    if (!number) {
+      skippedOther += 1
+      continue
+    }
+    const key = `${parsed.kind}:${number}`
+    if (!byKey.has(key)) byKey.set(key, { kind: parsed.kind, number, invoices: [] })
+    const list = byKey.get(key).invoices
     const next = { invoiceNumber, invoiceDate, amount }
     if (list.some((existing) => rowKey(existing) === rowKey(next))) continue
     list.push(next)
   }
 
   const checks = []
-  for (const [checkNumber, invoices] of byNumber) {
+  for (const { kind, number, invoices } of byKey.values()) {
     const paymentDate =
       invoices
         .map((invoice) => parseUsDateToYmd(invoice.invoiceDate))
         .filter(Boolean)
         .sort()
         .at(-1) || ''
-    checks.push({ checkNumber, paymentDate, invoices })
+    checks.push({
+      checkNumber: number,
+      paymentDate,
+      paymentMethod: kind,
+      invoices
+    })
   }
-  checks.sort((a, b) => a.checkNumber.localeCompare(b.checkNumber, undefined, { numeric: true }))
+  checks.sort((a, b) => {
+    const method = String(a.paymentMethod).localeCompare(String(b.paymentMethod))
+    if (method) return method
+    return a.checkNumber.localeCompare(b.checkNumber, undefined, { numeric: true })
+  })
   return { checks, skippedEft, skippedOther }
 }
 

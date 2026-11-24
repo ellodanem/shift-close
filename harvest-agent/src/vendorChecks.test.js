@@ -11,9 +11,9 @@ describe('Cstore check payments', () => {
     assert.deepEqual(parsePaymentType('Cheque #0857'), { kind: 'check', number: '857' })
   })
 
-  it('treats EFT as something to skip', () => {
-    assert.deepEqual(parsePaymentType('EFT'), { kind: 'eft' })
-    assert.deepEqual(parsePaymentType('EFT (# 44)'), { kind: 'eft' })
+  it('reads EFT with or without a reference number', () => {
+    assert.deepEqual(parsePaymentType('EFT'), { kind: 'eft', number: 'EFT' })
+    assert.deepEqual(parsePaymentType('EFT (# 44)'), { kind: 'eft', number: '44' })
     assert.deepEqual(parsePaymentType('Previously Unpaid'), { kind: 'other' })
   })
 
@@ -53,13 +53,26 @@ describe('Cstore check payments', () => {
       { invoiceNumber: '9002', invoiceDate: '8/2/2026', amount: 12, paymentType: 'EFT (# 44)' }
     ])
 
-    assert.equal(grouped.skippedEft, 2)
-    assert.equal(grouped.checks.length, 1)
+    assert.equal(grouped.skippedEft, 0)
+    assert.equal(grouped.checks.length, 3)
     assert.equal(grouped.checks[0].checkNumber, '857')
+    assert.equal(grouped.checks[0].paymentMethod, 'check')
     assert.equal(grouped.checks[0].paymentDate, '2026-08-26')
     assert.deepEqual(
       grouped.checks[0].invoices.map((invoice) => invoice.invoiceNumber),
       ['002093072', '2062886', '2050106', '2058939']
+    )
+    const numberedEft = grouped.checks.find((payment) => payment.checkNumber === '44')
+    assert.equal(numberedEft.paymentMethod, 'eft')
+    assert.deepEqual(
+      numberedEft.invoices.map((invoice) => invoice.invoiceNumber),
+      ['9002']
+    )
+    const plainEft = grouped.checks.find((payment) => payment.checkNumber === 'EFT')
+    assert.equal(plainEft.paymentMethod, 'eft')
+    assert.deepEqual(
+      plainEft.invoices.map((invoice) => invoice.invoiceNumber),
+      ['9001']
     )
   })
 })

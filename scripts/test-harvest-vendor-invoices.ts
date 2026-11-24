@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  cstoreRowVendorMatches,
   paidVendorInvoiceCovers,
   vendorInvoiceOutsideMonth
 } from '../lib/harvest-vendor-invoices'
@@ -36,6 +37,13 @@ describe('vendor invoice harvest gate', () => {
       ),
       true
     )
+  })
+
+  it('does not import another vendor’s row under the selected payee', () => {
+    assert.equal(cstoreRowVendorMatches('', 'Acado'), true)
+    assert.equal(cstoreRowVendorMatches('Acado', 'Acado'), true)
+    assert.equal(cstoreRowVendorMatches('Banana Click', 'Acado'), false)
+    assert.equal(cstoreRowVendorMatches('J Q MOTORS LTD', 'Acado'), false)
   })
 
   it('still adds a pending invoice and a paid invoice from another date', () => {

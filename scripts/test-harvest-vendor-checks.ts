@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   checkNumbersMatch,
+  groupCstoreInvoicePayments,
+  parseCstorePaymentType,
   planHarvestCheck,
   type ShiftCloseInvoiceForCheck
 } from '../lib/harvest-vendor-checks'
@@ -81,6 +83,17 @@ describe('harvest vendor checks', () => {
     assert.equal(plan.action, 'skip_existing')
   })
 
+  it('adds unpaid invoices onto a recorded check instead of leaving them pending', () => {
+    const plan = planHarvestCheck({
+      check: acadoCheck,
+      invoices: acadoInvoices,
+      existingBatches: [{ id: 'batch-857', bankRef: '0857', paymentMethod: 'check' }]
+    })
+    assert.equal(plan.action, 'append')
+    assert.equal(plan.batchId, 'batch-857')
+    assert.deepEqual(plan.invoiceIds, ['a', 'b', 'c', 'd'])
+  })
+
   it('skips a check when every invoice is already paid', () => {
     const plan = planHarvestCheck({
       check: acadoCheck,
@@ -88,6 +101,20 @@ describe('harvest vendor checks', () => {
       existingCheckRefs: []
     })
     assert.equal(plan.action, 'skip_paid')
+  })
+
+  it('appends only the unpaid invoices when some are already on that check', () => {
+    const plan = planHarvestCheck({
+      check: acadoCheck,
+      invoices: acadoInvoices.map((invoice) =>
+        invoice.id === 'a'
+          ? { ...invoice, status: 'paid', batchId: 'batch-857' }
+          : invoice
+      ),
+      existingBatches: [{ id: 'batch-857', bankRef: '857', paymentMethod: 'check' }]
+    })
+    assert.equal(plan.action, 'append')
+    assert.deepEqual(plan.invoiceIds, ['b', 'c', 'd'])
   })
 
   it('does not create a short check when one invoice is missing or already paid', () => {
@@ -132,5 +159,50 @@ describe('harvest vendor checks', () => {
     assert.deepEqual(plan.invoiceIds, ['lettered'])
     assert.equal(plan.total, 112.5)
     assert.equal(plan.paymentDate, '2026-08-24')
+  })
+
+  it('reads Check (# 27) Previously Unpaid and numbered EFT', () => {
+    assert.deepEqual(parseCstorePaymentType('Check (# 27)\nPreviously Unpaid'), {
+      kind: 'check',
+      number: '27'
+    })
+    assert.deepEqual(parseCstorePaymentType('EFT (# 44)'), { kind: 'eft', number: '44' })
+    assert.deepEqual(parseCstorePaymentType('EFT'), { kind: 'eft', number: 'EFT' })
+  })
+
+  it('groups October Cstore payment types into checks and EFT', () => {
+    const payments = groupCstoreInvoicePayments([
+      {
+        invoiceNumber: '1161196',
+        invoiceDate: '10/30/2026',
+        amount: 2308.6,
+        paymentType: 'EFT'
+      },
+      {
+        invoiceNumber: '88330',
+        invoiceDate: '10/30/2026',
+        amount: 45,
+        paymentType: 'Check (# 27) Previously Unpaid'
+      },
+      {
+        invoiceNumber: '1459657',
+        invoiceDate: '10/30/2026',
+        amount: 4317.32,
+        paymentType: 'Check (# 37)\nPreviously Unpaid'
+      }
+    ])
+    assert.equal(payments.length, 3)
+    const check27 = payments.find((payment) => payment.checkNumber === '27')
+    assert.equal(check27?.paymentMethod, 'check')
+    assert.deepEqual(
+      check27?.invoices.map((invoice) => invoice.invoiceNumber),
+      ['88330']
+    )
+    const eft = payments.find((payment) => payment.paymentMethod === 'eft')
+    assert.equal(eft?.checkNumber, 'EFT')
+    assert.deepEqual(
+      eft?.invoices.map((invoice) => invoice.invoiceNumber),
+      ['1161196']
+    )
   })
 })
