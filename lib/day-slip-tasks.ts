@@ -19,15 +19,21 @@ function needsSecuritySlip(day: Pick<DayReport, 'totals'>): boolean {
   return day.totals.totalDeposits > 0 || needsCardSlip(day)
 }
 
+/** Night-drop paper is asked for whenever cash or cards left the station — same days as security. */
+export function needsDepositSlip(day: Pick<DayReport, 'totals'>): boolean {
+  return needsSecuritySlip(day)
+}
+
 /**
  * The papers still required on an End of Day card.
  * Matches the shift-close checklist: one pile per kind, not one photo per deposit line.
- * An open missing-deposit alert keeps the deposit row unfinished even when other photos exist.
+ * Deposit is listed even when the entered amount is still $0, so the slip can be filed
+ * before deposit totals are typed in. An open missing-deposit alert keeps the row unfinished.
  */
 export function slipTasksForDay(day: DayReport): SlipTask[] {
   const tasks: SlipTask[] = []
 
-  if (day.totals.totalDeposits > 0) {
+  if (needsDepositSlip(day)) {
     const alertOpen = day.missingDepositSlipAlertOpen === true
     const waived = day.depositSlipUnavailableReason != null && !alertOpen
     const photoCount = day.depositScans.length

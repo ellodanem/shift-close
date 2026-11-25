@@ -1,6 +1,7 @@
 import type { DayReport } from '@/lib/types'
 
 import { isDebitScanComplete } from '@/lib/day-scan-status'
+import { needsDepositSlip } from '@/lib/day-slip-tasks'
 import { formatWorkDateLabelLong } from '@/lib/datetime-policy'
 
 import type { ChecklistItemStatus, ChecklistSubtask, ChecklistSubtaskBucket } from '@/lib/operations-checklist-types'
@@ -201,7 +202,7 @@ export function evaluateShiftClose(
 
   const scanIssues: { code: ShiftCloseReasonCode; label: string }[] = []
 
-  const needsDeposits = report.totals.totalDeposits > 0
+  const needsDeposits = needsDepositSlip(report)
 
   const needsDebits = report.totals.totalDebit > 0 || report.totals.totalCredit > 0
 

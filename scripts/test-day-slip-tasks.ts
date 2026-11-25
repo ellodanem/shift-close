@@ -92,6 +92,18 @@ describe('slip tasks for an end of day', () => {
       ['deposit', 'security']
     )
 
+    const cardsOnly = day({
+      totals: {
+        ...day().totals,
+        totalDeposits: 0
+      }
+    })
+    assert.deepEqual(
+      slipTasksForDay(cardsOnly).map((task) => task.id),
+      ['deposit', 'debit', 'security']
+    )
+    assert.equal(slipsStillNeeded(cardsOnly), 3)
+
     const quiet = day({
       totals: {
         ...day().totals,
