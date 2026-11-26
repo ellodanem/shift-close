@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import type { DayReport } from '@/lib/types'
-import { getShiftListOkKind } from '@/lib/calculations'
+import { getShiftListOkKind, sumShiftDeposits } from '@/lib/calculations'
+
+function shiftDepositTotal(shift: { deposits: string; totalDeposits?: number | null }): number {
+  const fromLines = sumShiftDeposits(shift.deposits)
+  return fromLines > 0 ? fromLines : shift.totalDeposits || 0
+}
 
 export type BuildDayReportsOptions = {
   /** Inclusive minimum shift date (YYYY-MM-DD). Omit for full history. */
@@ -130,7 +135,7 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
     const totals = {
       overShortTotal: dayShifts.reduce((sum, s) => sum + (s.overShortTotal || 0), 0),
       overShortDisclosedTotal,
-      totalDeposits: dayShifts.reduce((sum, s) => sum + (s.totalDeposits || 0), 0),
+      totalDeposits: dayShifts.reduce((sum, s) => sum + shiftDepositTotal(s), 0),
       totalCredit: dayShifts.reduce((sum, s) => sum + s.otherCredit, 0),
       totalDebit: dayShifts.reduce((sum, s) => sum + s.systemDebit, 0),
       systemCashTotal: dayShifts.reduce((sum, s) => sum + s.systemCash + s.systemChecks, 0),
@@ -216,7 +221,7 @@ export async function buildDayReports(options?: BuildDayReportsOptions): Promise
         overShortTotal: s.overShortTotal || 0,
         osReviewed: s.osReviewed,
         osLegitAsIs: s.osLegitAsIs,
-        totalDeposits: s.totalDeposits || 0,
+        totalDeposits: shiftDepositTotal(s),
         createdAt: s.createdAt,
         status: s.status as 'draft' | 'closed' | 'reopened' | 'reviewed',
         hasRedFlag:

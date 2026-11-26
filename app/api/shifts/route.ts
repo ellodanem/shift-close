@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateShiftClose } from '@/lib/calculations'
+import { calculateShiftClose, parseShiftDeposits, sumShiftDeposits } from '@/lib/calculations'
 import { addCalendarDaysYmd, businessTodayYmd, isYmd } from '@/lib/datetime-policy'
 import { buildShiftsList } from '@/lib/shifts-list'
 import { syncShiftDepositsToCashbook } from '@/lib/cashbook-deposit-sync'
@@ -82,7 +82,11 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const calculated = calculateShiftClose(body)
+    const depositsArray = parseShiftDeposits(body.deposits)
+    const calculated = calculateShiftClose({
+      ...body,
+      deposits: depositsArray
+    })
     
     // Ensure arrays are properly formatted
     const depositUrls = Array.isArray(body.depositScanUrls) ? body.depositScanUrls : []
@@ -112,7 +116,7 @@ export async function POST(request: NextRequest) {
         countMassyCoupons: Number(body.countMassyCoupons) || 0,
         unleaded: Number(body.unleaded) || 0,
         diesel: Number(body.diesel) || 0,
-        deposits: JSON.stringify(Array.isArray(body.deposits) ? body.deposits : []),
+        deposits: JSON.stringify(depositsArray),
         depositBagNumbers: JSON.stringify(
           Array.isArray(body.depositBagNumbers)
             ? body.depositBagNumbers
@@ -130,7 +134,7 @@ export async function POST(request: NextRequest) {
         overShortExplanation: String(body.overShortExplanation || ''),
         overShortCash: calculated.overShortCash,
         overShortTotal: calculated.overShortTotal,
-        totalDeposits: calculated.totalDeposits,
+        totalDeposits: sumShiftDeposits(depositsArray),
         ...meterPatchFromBody(body, {}).data
       }
     })

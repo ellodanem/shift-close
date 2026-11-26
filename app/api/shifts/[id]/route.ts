@@ -12,6 +12,7 @@ import {
 import { replaceDepartmentSales, shiftSalesInclude } from '@/lib/shift-sales-persist'
 import { findMeterCarry } from '@/lib/shift-meter-carry'
 import { meterPatchFromBody } from '@/lib/shift-meter'
+import { sumShiftDeposits } from '@/lib/calculations'
 
 export async function GET(
   request: NextRequest,
@@ -37,22 +38,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
     
-    // Recalculate totalDeposits from deposits field if it's 0 or null
-    let recalculatedTotalDeposits = shift.totalDeposits
-    if (!shift.totalDeposits || shift.totalDeposits === 0) {
-      try {
-        const depositsArray = typeof shift.deposits === 'string' 
-          ? JSON.parse(shift.deposits || '[]') 
-          : (Array.isArray(shift.deposits) ? shift.deposits : [])
-        
-        recalculatedTotalDeposits = depositsArray
-          .filter((d: any) => d !== null && d !== undefined && !Number.isNaN(d) && d > 0)
-          .reduce((sum: number, d: number) => sum + (Number(d) || 0), 0)
-      } catch (err) {
-        console.error('Error recalculating deposits for shift', shift.id, err)
-        // Keep original value if parsing fails
-      }
-    }
+    const recalculatedTotalDeposits = sumShiftDeposits(shift.deposits) || shift.totalDeposits || 0
 
     const meterCarry = await findMeterCarry({
       date: shift.date,
@@ -394,6 +380,10 @@ export async function PATCH(
       updateData.status === 'reopened' &&
       ['closed', 'reviewed'].includes(existingShift.status)
 
+    updateData.totalDeposits = sumShiftDeposits(
+      'deposits' in updateData ? updateData.deposits : existingShift.deposits
+    )
+
     const depositsChanged = changes.some((c) => c.field === 'deposits')
     const nextStatus = String(updateData.status ?? existingShift.status)
     const willSyncDeposits = shouldSyncDepositsAfterShiftUpdate(
@@ -449,22 +439,7 @@ export async function PATCH(
       }
     }
     
-    // Recalculate totalDeposits from deposits field if it's 0 or null (for display)
-    let recalculatedTotalDeposits = shift.totalDeposits
-    if (!shift.totalDeposits || shift.totalDeposits === 0) {
-      try {
-        const depositsArray = typeof shift.deposits === 'string' 
-          ? JSON.parse(shift.deposits || '[]') 
-          : (Array.isArray(shift.deposits) ? shift.deposits : [])
-        
-        recalculatedTotalDeposits = depositsArray
-          .filter((d: any) => d !== null && d !== undefined && !Number.isNaN(d) && d > 0)
-          .reduce((sum: number, d: number) => sum + (Number(d) || 0), 0)
-      } catch (err) {
-        console.error('Error recalculating deposits for shift', shift.id, err)
-        // Keep original value if parsing fails
-      }
-    }
+    const recalculatedTotalDeposits = sumShiftDeposits(shift.deposits) || shift.totalDeposits || 0
 
     const meterCarry = await findMeterCarry({
       date: shift.date,

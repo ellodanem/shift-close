@@ -1,5 +1,24 @@
 import { ShiftCloseInput, ShiftCloseWithCalculations } from './types'
 
+/** Deposit lines as stored on a shift: a number array, or the JSON string from the database. */
+export function parseShiftDeposits(deposits: unknown): number[] {
+  let raw: unknown = deposits
+  if (typeof deposits === 'string') {
+    try {
+      raw = JSON.parse(deposits || '[]')
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(raw)) return []
+  return raw.map((d) => Number(d)).filter((d) => !Number.isNaN(d))
+}
+
+/** Sum of deposit lines. Use this instead of the cached totalDeposits column when they disagree. */
+export function sumShiftDeposits(deposits: unknown): number {
+  return parseShiftDeposits(deposits).reduce((sum, d) => sum + d, 0)
+}
+
 export function calculateShiftClose(input: ShiftCloseInput): Omit<ShiftCloseWithCalculations, 'id' | 'createdAt'> {
   // Helper to convert NaN to 0 for calculations
   const safeNum = (val: number): number => (Number.isNaN(val) ? 0 : val)
@@ -12,21 +31,7 @@ export function calculateShiftClose(input: ShiftCloseInput): Omit<ShiftCloseWith
   const overShortCash = countCash - systemCash
   const overShortChecks = countChecks - systemChecks
   const overShortTotal = overShortCash + overShortChecks
-  // Handle deposits - can be array or string (from database)
-  let depositsArray: number[] = []
-  if (Array.isArray(input.deposits)) {
-    depositsArray = input.deposits
-  } else if (typeof input.deposits === 'string') {
-    try {
-      depositsArray = JSON.parse(input.deposits || '[]')
-    } catch {
-      depositsArray = []
-    }
-  }
-  // Filter out only NaN, null, undefined - keep 0 as valid
-  const totalDeposits = depositsArray
-    .filter(d => d !== null && d !== undefined && !Number.isNaN(d))
-    .reduce((sum, d) => sum + safeNum(d), 0)
+  const totalDeposits = sumShiftDeposits(input.deposits)
   
   // Red flag: Over/Short not zero and not yet explained/reviewed
   const hasRedFlag = overShortTotal !== 0 && !input.overShortExplained
