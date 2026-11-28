@@ -100,7 +100,7 @@ export type HorizonPair = {
 }
 
 export type FuelHorizon = {
-  id: 'restOfToday' | 'tomorrow' | 'throughWeekend'
+  id: 'restOfToday' | 'tomorrow' | 'dayAfter'
   label: string
   throughDate: string
   typicalDemand: FuelPair
@@ -499,7 +499,7 @@ export function computeFuelExpectancy(
   }
 
   const tomorrowYmd = addCalendarDaysYmd(asOfYmd, 1)
-  const weekendYmd = weekendEndYmd(asOfYmd)
+  const dayAfterYmd = addCalendarDaysYmd(asOfYmd, 2)
   const tomorrowAvg = weekdayAverages[weekdayIndexFromYmd(tomorrowYmd)]
 
   const tomorrowTypicalDemand = addPair(
@@ -508,14 +508,14 @@ export function computeFuelExpectancy(
   )
   const tomorrowBusyDemand = addPair(remainingTodayBusy, tomorrowAvg?.busy ?? { unleaded: 0, diesel: 0 })
 
-  const weekendTypicalDemand = demandBetween(
+  const dayAfterTypicalDemand = demandBetween(
     asOfYmd,
-    weekendYmd,
+    dayAfterYmd,
     remainingTodayTypical,
     weekdayAverages,
     'typical'
   )
-  const weekendBusyDemand = demandBetween(asOfYmd, weekendYmd, remainingTodayBusy, weekdayAverages, 'busy')
+  const dayAfterBusyDemand = demandBetween(asOfYmd, dayAfterYmd, remainingTodayBusy, weekdayAverages, 'busy')
 
   const horizons: FuelHorizon[] = [
     makeHorizon(
@@ -527,11 +527,11 @@ export function computeFuelExpectancy(
     ),
     makeHorizon('tomorrow', `Through tomorrow (${WEEKDAY_NAMES[weekdayIndexFromYmd(tomorrowYmd)]})`, tomorrowYmd, tomorrowTypicalDemand, tomorrowBusyDemand),
     makeHorizon(
-      'throughWeekend',
-      weekendYmd === asOfYmd ? 'Through today (Sunday)' : `Through Sunday ${weekendYmd}`,
-      weekendYmd,
-      weekendTypicalDemand,
-      weekendBusyDemand
+      'dayAfter',
+      `Through ${WEEKDAY_NAMES[weekdayIndexFromYmd(dayAfterYmd)]}`,
+      dayAfterYmd,
+      dayAfterTypicalDemand,
+      dayAfterBusyDemand
     )
   ]
 
